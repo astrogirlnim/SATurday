@@ -56,10 +56,10 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] `to_cnf.py` for encoding.  
 [x] Acceptance: Generates tiny CNF, solves with Kissat.
 
-[ ] **D3. Artifact Store**  
-[ ] SHA256-based store in `proofs/` with index.json metadata.  
-[ ] `search/tools/inspect_artifacts.py`.  
-[ ] Acceptance: Registers/logs hashes deterministically.
+[x] **D3. Artifact Store**  
+[x] SHA256-based store in `proofs/` with index.json metadata.  
+[x] `search/tools/inspect_artifacts.py`.  
+[x] Acceptance: Registers/logs hashes deterministically.
 
 [ ] **D4. Config System**  
 [ ] `infra/config/defaults.yaml`; load/validate in supervisor.  
