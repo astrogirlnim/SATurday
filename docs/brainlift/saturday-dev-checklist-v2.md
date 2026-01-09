@@ -5,7 +5,7 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 **MVP Development Checklist — SATurday (Zero-Cost, Local-Only Edition)**
 
 **Phases Overview**  
-[ ] Phase 1: Foundation (Core setup; independent)  
+[x] Phase 1: Foundation (Core setup; independent)  
 [ ] Phase 2: Data & Storage (Handles inputs/outputs; depends on Phase 1)  
 [ ] Phase 3: Agents & Core Loop (Implements research cycle; depends on Phases 1-2)  
 [ ] Phase 4: Research Bets & Verification (Adds P vs NP paths; depends on Phase 3)
@@ -35,10 +35,10 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] Wrapper in `search/bin/run_kissat` for DRAT/LRAT logs, fixed seeds.  
 [x] Acceptance: Solves mini.cnf locally, outputs to `proofs/`.
 
-[ ] **F4. Agent Supervisor Skeleton**  
-[ ] `search/agents/supervisor.py`: Loads YAML plan, sequences agents, logs to JSONL.  
-[ ] Stub agents: planner, conjecturer (template-based), miner, formalizer, critic.  
-[ ] Acceptance: `make test` runs dry cycle with stub reports.
+[x] **F4. Agent Supervisor Skeleton**  
+[x] `search/agents/supervisor.py`: Loads YAML plan, sequences agents, logs to JSONL.  
+[x] Stub agents: planner, conjecturer (template-based), miner, formalizer, critic.  
+[x] Acceptance: `make test` runs dry cycle with stub reports.
 
 ---
 

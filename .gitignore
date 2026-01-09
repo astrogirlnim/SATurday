@@ -55,6 +55,7 @@ proofs/*.log
 
 # Logs
 *.log
+search/logs/
 search/logs/*.jsonl
 
 # Temporary files
