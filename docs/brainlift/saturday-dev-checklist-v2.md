@@ -61,9 +61,9 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] `search/tools/inspect_artifacts.py`.  
 [x] Acceptance: Registers/logs hashes deterministically.
 
-[ ] **D4. Config System**  
-[ ] `infra/config/defaults.yaml`; load/validate in supervisor.  
-[ ] Acceptance: Overrides work; invalid fails.
+[x] **D4. Config System**  
+[x] `infra/config/defaults.yaml`; load/validate in supervisor.  
+[x] Acceptance: Overrides work; invalid fails.
 
 ---
 
