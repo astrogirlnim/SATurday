@@ -30,10 +30,10 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] Minimal lemma/test.  
 [x] Acceptance: `make verify` builds/runs test on M4.
 
-[ ] **F3. SAT Toolchain**  
-[ ] Submodule/compile Kissat (ARM64) in `infra/build/`.  
-[ ] Wrapper in `search/bin/run_kissat` for DRAT/LRAT logs, fixed seeds.  
-[ ] Acceptance: Solves mini.cnf locally, outputs to `proofs/`.
+[x] **F3. SAT Toolchain**  
+[x] Submodule/compile Kissat (ARM64) in `infra/build/`.  
+[x] Wrapper in `search/bin/run_kissat` for DRAT/LRAT logs, fixed seeds.  
+[x] Acceptance: Solves mini.cnf locally, outputs to `proofs/`.
 
 [ ] **F4. Agent Supervisor Skeleton**  
 [ ] `search/agents/supervisor.py`: Loads YAML plan, sequences agents, logs to JSONL.  
