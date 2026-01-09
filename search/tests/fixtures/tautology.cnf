@@ -1,0 +1,6 @@
+c Contains tautology clause
+c (x1 OR NOT x1) AND (x2)
+p cnf 2 2
+1 -1 0
+2 0
+

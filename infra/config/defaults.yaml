@@ -1,0 +1,169 @@
+# Default configuration for SATurday
+# This file defines sensible defaults for all components
+
+# Offline policy enforcement
+offline:
+  enabled: true
+  # Block network access during execution
+  check_api_keys: true
+  # Fail if API keys detected in environment
+
+# Artifact store configuration
+artifacts:
+  store_dir: "proofs"
+  # Directory for content-addressed artifact storage
+  auto_register: true
+  # Automatically register artifacts in store
+  verify_on_load: false
+  # Verify artifact hashes when loading store
+
+# SAT solver configuration
+solver:
+  binary: "infra/build/kissat"
+  # Path to Kissat binary (relative to repo root)
+  default_seed: 42
+  # Default random seed for deterministic execution
+  timeout_seconds: 300
+  # Solver timeout (5 minutes default)
+  enable_lrat: true
+  # Generate LRAT proofs for UNSAT results
+  cpu_only: true
+  # Force CPU-only execution (no GPU)
+
+# Circuit DSL configuration
+circuits:
+  max_gates: 1000
+  # Maximum gates per circuit (safety limit)
+  max_depth: 100
+  # Maximum circuit depth (safety limit)
+  max_inputs: 100
+  # Maximum input variables
+  validate_topology: true
+  # Check for cycles and invalid references
+
+# Agent configuration
+agents:
+  # Planner agent
+  planner:
+    enabled: true
+    task_batch_size: 10
+    # Number of tasks per plan
+  
+  # Conjecturer agent
+  conjecturer:
+    enabled: true
+    mode: "template"
+    # Options: "template", "llm" (llm requires local model)
+    template_depth: 3
+    # Maximum depth for template generation
+  
+  # Miner agent
+  miner:
+    enabled: true
+    small_n_only: true
+    # Only mine small instances (n <= 20)
+    max_variables: 20
+    # Maximum variables for mining
+    max_clauses: 1000
+    # Maximum clauses for mining
+  
+  # Formalizer agent
+  formalizer:
+    enabled: true
+    allow_sorry: true
+    # Allow incomplete proofs with sorry placeholders
+    tactic_timeout: 30
+    # Timeout per tactic in seconds
+  
+  # Critic agent
+  critic:
+    enabled: true
+    check_relativization: true
+    # Check for relativization barrier
+    check_natural_proofs: true
+    # Check for natural proofs barrier
+    check_algebraization: false
+    # Algebraization check (experimental)
+
+# Logging configuration
+logging:
+  level: "INFO"
+  # Options: DEBUG, INFO, WARNING, ERROR
+  format: "jsonl"
+  # Options: jsonl, text
+  log_dir: "search/logs"
+  # Directory for log files
+  console_output: true
+  # Also log to console
+  verbose: true
+  # Include detailed messages
+
+# Execution configuration
+execution:
+  parallel: false
+  # Parallel execution (future feature)
+  max_workers: 1
+  # Number of worker processes (when parallel enabled)
+  checkpoint_interval: 10
+  # Save checkpoint every N tasks
+  continue_on_error: false
+  # Whether to continue if task fails
+
+# Research bets configuration
+bets:
+  # Bet A: Restricted-Circuit Lower Bounds
+  bet_a:
+    enabled: true
+    circuit_types:
+      - "monotone"
+      - "ac0"
+      - "formula"
+    size_range:
+      min: 5
+      max: 20
+      step: 5
+  
+  # Bet B: Algorithm Synthesis (future)
+  bet_b:
+    enabled: false
+  
+  # Bet C: Hardness-vs-Randomness (future)
+  bet_c:
+    enabled: false
+  
+  # Bet D: Barrier-Aware Reductions (future)
+  bet_d:
+    enabled: false
+
+# Verification configuration
+verification:
+  enable_lrat_check: true
+  # Verify LRAT proofs with external checker
+  lrat_checker: "lrat-check"
+  # Path to LRAT checker binary
+  enable_lean_build: true
+  # Build Lean proofs as verification
+  lean_timeout: 300
+  # Lean build timeout in seconds
+
+# Reproducibility configuration
+reproducibility:
+  pin_dependencies: true
+  # Enforce pinned dependency versions
+  check_determinism: true
+  # Verify deterministic execution
+  record_hashes: true
+  # Record SHA256 of all artifacts
+  fixed_seeds: true
+  # Use fixed seeds from config
+
+# Cost guard configuration
+cost:
+  enabled: true
+  max_monthly_spend: 0
+  # Hard limit: $0 (zero cost)
+  block_api_calls: true
+  # Block all API calls
+  allowed_domains: []
+  # No external domains allowed
+

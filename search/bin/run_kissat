@@ -22,6 +22,13 @@ import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
+# Add parent to path for imports
+parent_dir = Path(__file__).parent.parent.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
+from search.tools.artifact_store import ArtifactStore, ArtifactType
+
 
 def log(message: str) -> None:
     """Log a message to stderr with timestamp."""
@@ -86,6 +93,7 @@ def run_kissat(
     seed: int,
     output_dir: Path,
     timeout: Optional[int] = None,
+    register_artifacts: bool = True,
 ) -> Dict:
     """
     Run Kissat solver with LRAT proof logging.
@@ -95,6 +103,7 @@ def run_kissat(
         seed: Random seed for determinism
         output_dir: Directory to store output artifacts
         timeout: Optional timeout in seconds
+        register_artifacts: Whether to register artifacts in store (default True)
     
     Returns:
         Dictionary with result metadata
@@ -204,6 +213,60 @@ def run_kissat(
         
         log(f"Metadata saved: {metadata_path}")
         
+        # Register artifacts in store if requested
+        if register_artifacts:
+            log("Registering artifacts in store")
+            
+            try:
+                store = ArtifactStore(output_dir)
+                
+                # Register input CNF (may already be registered)
+                cnf_metadata = store.register(
+                    file_path=cnf_path,
+                    artifact_type=ArtifactType.CNF,
+                    tool_name="user",
+                    tool_version="1.0.0",
+                    copy_to_store=False,
+                )
+                
+                cnf_hash = cnf_metadata.artifact_hash
+                
+                # Register LRAT proof if UNSAT
+                if status == "UNSAT" and lrat_path.exists():
+                    store.register(
+                        file_path=lrat_path,
+                        artifact_type=ArtifactType.LRAT,
+                        tool_name="kissat",
+                        tool_version=metadata["kissat_version"],
+                        parent_hashes=[cnf_hash],
+                        properties={
+                            "seed": seed,
+                            "status": status,
+                            "time_seconds": elapsed_time,
+                        },
+                        copy_to_store=False,
+                    )
+                    log("Registered LRAT proof artifact")
+                
+                # Register solver log
+                store.register(
+                    file_path=log_path,
+                    artifact_type=ArtifactType.SOLVER_LOG,
+                    tool_name="kissat",
+                    tool_version=metadata["kissat_version"],
+                    parent_hashes=[cnf_hash],
+                    properties={
+                        "seed": seed,
+                        "status": status,
+                        "exit_code": result.returncode,
+                    },
+                    copy_to_store=False,
+                )
+                log("Registered solver log artifact")
+                
+            except Exception as e:
+                log(f"WARNING: Failed to register artifacts: {e}")
+        
         return metadata
     
     except subprocess.TimeoutExpired:
@@ -253,6 +316,11 @@ def main() -> None:
         default=None,
         help="Timeout in seconds (default: no timeout)"
     )
+    parser.add_argument(
+        "--no-register",
+        action="store_true",
+        help="Disable artifact store registration"
+    )
     
     args = parser.parse_args()
     
@@ -271,6 +339,7 @@ def main() -> None:
         args.seed,
         args.output_dir,
         args.timeout,
+        register_artifacts=not args.no_register,
     )
     
     # Print summary to stdout

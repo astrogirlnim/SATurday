@@ -1,0 +1,5 @@
+c Simple SAT instance
+c (x1) which is trivially satisfiable
+p cnf 1 1
+1 0
+

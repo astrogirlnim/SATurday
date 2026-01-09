@@ -1,0 +1,12 @@
+c Multi-variable SAT instance
+c Standard 3-SAT clauses
+p cnf 5 8
+1 2 3 0
+-1 2 3 0
+1 -2 3 0
+1 2 -3 0
+-1 -2 4 0
+-1 -4 5 0
+4 5 1 0
+-4 -5 -1 0
+
