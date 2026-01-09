@@ -25,10 +25,10 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] .gitignore for Lean/Python artifacts; pre-commit hooks (ruff, lake fmt).  
 [x] Acceptance: `make setup` creates structure, installs deps via Homebrew (Lean 4, Python 3.12, cmake/ninja for solvers).
 
-[ ] **F2. Lean 4 Skeleton**  
-[ ] Init Lean project in `theory/` with lakefile.lean, mathlib dep.  
-[ ] Minimal lemma/test.  
-[ ] Acceptance: `make verify` builds/runs test on M4.
+[x] **F2. Lean 4 Skeleton**  
+[x] Init Lean project in `theory/` with lakefile.lean, mathlib dep.  
+[x] Minimal lemma/test.  
+[x] Acceptance: `make verify` builds/runs test on M4.
 
 [ ] **F3. SAT Toolchain**  
 [ ] Submodule/compile Kissat (ARM64) in `infra/build/`.  
