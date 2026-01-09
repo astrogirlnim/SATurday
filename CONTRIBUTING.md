@@ -288,14 +288,14 @@ python search/tools/inspect_artifacts.py proofs/abc123.lrat
 ## Code Review Guidelines
 
 Reviewers should check:
-- ✅ Deterministic execution (fixed seeds, no randomness)
-- ✅ Extensive logging at all steps
-- ✅ Tests cover edge cases
-- ✅ No network calls (offline-first)
-- ✅ No API keys or secrets
-- ✅ Documentation updated
-- ✅ Lean proofs compile
-- ✅ LRAT proofs verify
+- Deterministic execution (fixed seeds, no randomness)
+- Extensive logging at all steps
+- Tests cover edge cases
+- No network calls (offline-first)
+- No API keys or secrets
+- Documentation updated
+- Lean proofs compile
+- LRAT proofs verify
 
 ## Security
 
