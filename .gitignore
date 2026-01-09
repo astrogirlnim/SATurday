@@ -1,3 +1,55 @@
+# Cursor IDE
 .cursor/
+
+# Memory Bank (temporary session files)
 memory_bank/
 memory_bank/**
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Lean 4
+theory/build/
+theory/.lake/
+theory/lake-packages/
+theory/.cache/
+*.olean
+
+# SAT Solvers
+infra/build/kissat
+infra/build/cadical
+*.o
+*.a
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+search/logs/*.jsonl
+
+# Temporary files
+*.tmp
+*.temp
