@@ -58,7 +58,7 @@ class PlannerAgentConfig(BaseModel):
 class ConjecturerAgentConfig(BaseModel):
     """Conjecturer agent configuration."""
     enabled: bool = True
-    mode: str = Field("template", regex="^(template|llm)$")
+    mode: str = Field("template", pattern="^(template|llm)$")
     template_depth: int = Field(3, gt=0)
 
 
@@ -96,8 +96,8 @@ class AgentsConfig(BaseModel):
 
 class LoggingConfig(BaseModel):
     """Logging configuration."""
-    level: str = Field("INFO", regex="^(DEBUG|INFO|WARNING|ERROR)$")
-    format: str = Field("jsonl", regex="^(jsonl|text)$")
+    level: str = Field("INFO", pattern="^(DEBUG|INFO|WARNING|ERROR)$")
+    format: str = Field("jsonl", pattern="^(jsonl|text)$")
     log_dir: str = "search/logs"
     console_output: bool = True
     verbose: bool = True
