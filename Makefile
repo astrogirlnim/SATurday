@@ -67,6 +67,12 @@ build:
 
 # Run all tests
 test:
+	@echo "==> Running agent supervisor test (dry cycle)..."
+	@if [ -f search/test_supervisor.py ]; then \
+		./venv/bin/python search/test_supervisor.py; \
+	else \
+		echo "WARNING: search/test_supervisor.py not found, skipping supervisor test"; \
+	fi
 	@echo "==> Running Python tests..."
 	@if [ -d search/tests ]; then \
 		./venv/bin/pytest search/tests -v; \

@@ -1,0 +1,45 @@
+# Test Plan for MVP Agent Pipeline
+# Simple plan for Bet A (Circuit Lower Bounds)
+
+name: "test_bet_a_small"
+description: "Small-scale test for circuit lower bound exploration"
+
+# Research bet selection
+bet: "A"  # A=Circuit Lower Bounds, B=Algorithms, C=Hardness-Randomness, D=Barriers
+
+# Problem size configuration
+max_size: 5  # Maximum n for circuit/CNF size
+num_seeds: 2  # Number of random seeds per size
+
+# Random seed for determinism
+seed: 42
+
+# Agent-specific configuration
+agents:
+  planner:
+    strategy: "exhaustive_small_n"
+  
+  conjecturer:
+    mode: "template"  # vs "llm"
+    template_type: "circuit_lower_bound"
+  
+  miner:
+    solver: "kissat"
+    timeout_per_instance: 60  # seconds
+  
+  formalizer:
+    target_language: "lean4"
+    tactic_mode: "library"
+  
+  critic:
+    checks:
+      - "relativization"
+      - "natural_proofs"
+      - "oracle_diagnostics"
+
+# Output configuration
+output:
+  reports_dir: "docs/reports"
+  artifacts_dir: "proofs"
+  logs_dir: "search/logs"
+
