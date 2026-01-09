@@ -51,10 +51,10 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] Unit tests with fixtures.  
 [x] Acceptance: Round-trip preserves semantics.
 
-[ ] **D2. Circuit DSL**  
-[ ] `search/circuits/dsl.py`: Constructors for monotone/AC⁰ circuits.  
-[ ] `to_cnf.py` for encoding.  
-[ ] Acceptance: Generates tiny CNF, solves with Kissat.
+[x] **D2. Circuit DSL**  
+[x] `search/circuits/dsl.py`: Constructors for monotone/AC⁰ circuits.  
+[x] `to_cnf.py` for encoding.  
+[x] Acceptance: Generates tiny CNF, solves with Kissat.
 
 [ ] **D3. Artifact Store**  
 [ ] SHA256-based store in `proofs/` with index.json metadata.  
