@@ -17,7 +17,7 @@ For a gate g = NOT(a):
 """
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 import sys
 
 # Add parent to path for imports
@@ -28,6 +28,7 @@ if str(parent_dir) not in sys.path:
 from search.circuits.dsl import Circuit, Gate, GateType
 from search.io.cnf_reader import CNFProblem
 from search.io.cnf_writer import CNFWriter
+from search.tools.artifact_store import ArtifactStore, ArtifactType
 
 
 class CircuitEncoder:
@@ -38,11 +39,20 @@ class CircuitEncoder:
     Input gates map to their corresponding input variables.
     """
     
-    def __init__(self):
-        """Initialize encoder."""
+    def __init__(self, artifact_store: Optional[ArtifactStore] = None):
+        """
+        Initialize encoder.
+        
+        Args:
+            artifact_store: Optional artifact store for auto-registration
+        """
         print(f"[CircuitEncoder] Initialized")
         self.gate_to_var: Dict[int, int] = {}  # Maps gate_id to CNF variable
         self.next_var: int = 1
+        self.artifact_store = artifact_store
+        
+        if self.artifact_store:
+            print(f"[CircuitEncoder] Artifact store enabled for auto-registration")
     
     def encode(self, circuit: Circuit) -> CNFProblem:
         """
@@ -271,13 +281,14 @@ class CircuitEncoder:
         """
         return self.gate_to_var.copy()
     
-    def write_to_file(self, circuit: Circuit, file_path: Path) -> CNFProblem:
+    def write_to_file(self, circuit: Circuit, file_path: Path, circuit_hash: Optional[str] = None) -> CNFProblem:
         """
         Convenience method: encode circuit and write to file.
         
         Args:
             circuit: Circuit to encode
             file_path: Output CNF file path
+            circuit_hash: Optional hash of parent circuit artifact
             
         Returns:
             CNFProblem that was written
@@ -290,6 +301,37 @@ class CircuitEncoder:
         writer.write(cnf, file_path)
         
         print(f"[CircuitEncoder] Successfully wrote CNF to {file_path}")
+        
+        # Auto-register artifact if store is available
+        if self.artifact_store:
+            print(f"[CircuitEncoder] Auto-registering CNF artifact")
+            
+            # Prepare metadata properties
+            properties = {
+                "num_gates": len(circuit.gates),
+                "circuit_size": circuit.compute_size(),
+                "circuit_depth": circuit.compute_depth(),
+                "encoding": "tseitin",
+            }
+            
+            # Determine parent hashes
+            parent_hashes = []
+            if circuit_hash:
+                parent_hashes.append(circuit_hash)
+            
+            # Register artifact
+            self.artifact_store.register(
+                file_path=file_path,
+                artifact_type=ArtifactType.CNF,
+                tool_name="CircuitEncoder",
+                tool_version="1.0.0",
+                parent_hashes=parent_hashes,
+                properties=properties,
+                copy_to_store=False,  # File already in desired location
+            )
+            
+            print(f"[CircuitEncoder] CNF artifact registered in store")
+        
         return cnf
 
 
