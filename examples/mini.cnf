@@ -1,0 +1,9 @@
+c Simple UNSAT CNF instance for testing
+c This encodes: (x1 OR x2) AND (NOT x1 OR x2) AND (x1 OR NOT x2) AND (NOT x1 OR NOT x2)
+c Which is unsatisfiable (forces x2=true and x2=false simultaneously)
+p cnf 2 4
+1 2 0
+-1 2 0
+1 -2 0
+-1 -2 0
+

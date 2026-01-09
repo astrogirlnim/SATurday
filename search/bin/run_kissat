@@ -1,0 +1,294 @@
+#!/usr/bin/env python3
+"""
+Wrapper for Kissat SAT solver with policy enforcement.
+
+This wrapper ensures:
+1. Fixed random seeds for deterministic execution
+2. LRAT proof logging for verification
+3. Output artifacts stored in proofs/ directory
+4. Extensive logging for debugging
+5. CPU-only execution (no GPU nondeterminism)
+
+Usage:
+    run_kissat <input.cnf> [--seed SEED] [--output-dir DIR] [--timeout SECONDS]
+"""
+
+import argparse
+import hashlib
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Dict, Optional, Tuple
+
+
+def log(message: str) -> None:
+    """Log a message to stderr with timestamp."""
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[run_kissat {timestamp}] {message}", file=sys.stderr)
+
+
+def compute_sha256(file_path: Path) -> str:
+    """Compute SHA256 hash of a file."""
+    log(f"Computing SHA256 hash for {file_path}")
+    sha256 = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            sha256.update(chunk)
+    hash_value = sha256.hexdigest()
+    log(f"SHA256: {hash_value}")
+    return hash_value
+
+
+def validate_cnf(cnf_path: Path) -> Tuple[int, int]:
+    """
+    Basic validation of DIMACS CNF file.
+    
+    Returns:
+        Tuple of (num_variables, num_clauses)
+    """
+    log(f"Validating CNF file: {cnf_path}")
+    
+    if not cnf_path.exists():
+        log(f"ERROR: CNF file not found: {cnf_path}")
+        sys.exit(1)
+    
+    num_vars = 0
+    num_clauses = 0
+    
+    with open(cnf_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            
+            # Skip comments and empty lines
+            if not line or line.startswith("c"):
+                continue
+            
+            # Parse problem line
+            if line.startswith("p cnf"):
+                parts = line.split()
+                if len(parts) >= 4:
+                    num_vars = int(parts[2])
+                    num_clauses = int(parts[3])
+                    log(f"Problem size: {num_vars} variables, {num_clauses} clauses")
+                    break
+    
+    if num_vars == 0 or num_clauses == 0:
+        log("ERROR: Invalid CNF file (missing or invalid 'p cnf' line)")
+        sys.exit(1)
+    
+    return num_vars, num_clauses
+
+
+def run_kissat(
+    cnf_path: Path,
+    seed: int,
+    output_dir: Path,
+    timeout: Optional[int] = None,
+) -> Dict:
+    """
+    Run Kissat solver with LRAT proof logging.
+    
+    Args:
+        cnf_path: Path to input CNF file
+        seed: Random seed for determinism
+        output_dir: Directory to store output artifacts
+        timeout: Optional timeout in seconds
+    
+    Returns:
+        Dictionary with result metadata
+    """
+    # Locate Kissat binary
+    script_dir = Path(__file__).parent.resolve()
+    kissat_bin = script_dir.parent.parent / "infra" / "build" / "kissat"
+    
+    if not kissat_bin.exists():
+        log(f"ERROR: Kissat binary not found at {kissat_bin}")
+        log("Run: ./infra/build/kissat_build.sh")
+        sys.exit(1)
+    
+    log(f"Using Kissat binary: {kissat_bin}")
+    
+    # Validate input
+    num_vars, num_clauses = validate_cnf(cnf_path)
+    input_hash = compute_sha256(cnf_path)
+    
+    # Prepare output files
+    output_dir.mkdir(parents=True, exist_ok=True)
+    lrat_path = output_dir / f"{input_hash}.lrat"
+    log_path = output_dir / f"{input_hash}.log"
+    
+    log(f"Output LRAT proof: {lrat_path}")
+    log(f"Output solver log: {log_path}")
+    
+    # Build Kissat command
+    # Proof file is a positional argument: kissat <input.cnf> <proof>
+    # --seed=N: Fixed random seed (format: --option=value)
+    cmd = [
+        str(kissat_bin),
+        str(cnf_path),
+        str(lrat_path),  # Proof output file (positional arg)
+        f"--seed={seed}",  # Note: must use --option=value format
+    ]
+    
+    log(f"Running command: {' '.join(cmd)}")
+    log(f"Random seed: {seed}")
+    
+    # Execute solver
+    start_time = time.time()
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            text=True,
+        )
+        elapsed_time = time.time() - start_time
+        
+        # Save solver output
+        with open(log_path, "w") as f:
+            f.write("=== STDOUT ===\n")
+            f.write(result.stdout)
+            f.write("\n=== STDERR ===\n")
+            f.write(result.stderr)
+        
+        log(f"Solver completed in {elapsed_time:.3f} seconds")
+        log(f"Exit code: {result.returncode}")
+        
+        # Parse result
+        # Kissat exit codes:
+        # 10 = SAT
+        # 20 = UNSAT
+        # other = ERROR
+        if result.returncode == 10:
+            status = "SAT"
+            log("Result: SAT (satisfiable)")
+        elif result.returncode == 20:
+            status = "UNSAT"
+            log("Result: UNSAT (unsatisfiable)")
+            
+            # Verify LRAT proof was generated
+            if not lrat_path.exists():
+                log("WARNING: UNSAT result but no LRAT proof generated")
+            else:
+                lrat_size = lrat_path.stat().st_size
+                log(f"LRAT proof generated: {lrat_size} bytes")
+        else:
+            status = "ERROR"
+            log(f"ERROR: Solver failed with exit code {result.returncode}")
+            log(f"STDERR: {result.stderr}")
+        
+        # Build metadata
+        metadata = {
+            "input_cnf": str(cnf_path),
+            "input_hash": input_hash,
+            "num_variables": num_vars,
+            "num_clauses": num_clauses,
+            "seed": seed,
+            "status": status,
+            "exit_code": result.returncode,
+            "time_seconds": elapsed_time,
+            "kissat_version": "3.1.1",
+            "lrat_proof": str(lrat_path) if lrat_path.exists() else None,
+            "solver_log": str(log_path),
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        
+        # Save metadata
+        metadata_path = output_dir / f"{input_hash}.json"
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+        
+        log(f"Metadata saved: {metadata_path}")
+        
+        return metadata
+    
+    except subprocess.TimeoutExpired:
+        elapsed_time = time.time() - start_time
+        log(f"ERROR: Solver timed out after {timeout} seconds")
+        
+        metadata = {
+            "input_cnf": str(cnf_path),
+            "input_hash": input_hash,
+            "num_variables": num_vars,
+            "num_clauses": num_clauses,
+            "seed": seed,
+            "status": "TIMEOUT",
+            "exit_code": -1,
+            "time_seconds": elapsed_time,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        
+        return metadata
+
+
+def main() -> None:
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        description="Run Kissat SAT solver with policy enforcement"
+    )
+    parser.add_argument(
+        "cnf_file",
+        type=Path,
+        help="Input CNF file in DIMACS format"
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for deterministic execution (default: 42)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Output directory for artifacts (default: proofs/)"
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        help="Timeout in seconds (default: no timeout)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Default output directory
+    if args.output_dir is None:
+        script_dir = Path(__file__).parent.resolve()
+        args.output_dir = script_dir.parent.parent / "proofs"
+    
+    log("=" * 60)
+    log("Kissat SAT Solver Wrapper")
+    log("=" * 60)
+    
+    # Run solver
+    metadata = run_kissat(
+        args.cnf_file,
+        args.seed,
+        args.output_dir,
+        args.timeout,
+    )
+    
+    # Print summary to stdout
+    print(json.dumps(metadata, indent=2))
+    
+    log("=" * 60)
+    log("Solver execution complete")
+    log("=" * 60)
+    
+    # Exit with appropriate code
+    if metadata["status"] == "SAT":
+        sys.exit(10)
+    elif metadata["status"] == "UNSAT":
+        sys.exit(20)
+    else:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
