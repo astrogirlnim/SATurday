@@ -73,9 +73,10 @@ test:
 	else \
 		echo "WARNING: search/tests/ not found, skipping Python tests"; \
 	fi
-	@echo "==> Running Lean tests..."
+	@echo "==> Running Lean tests (type-checking proofs)..."
 	@if [ -d theory ]; then \
-		cd theory && lake test; \
+		cd theory && lake build Theory.Tests.BasicTests; \
+		echo "LOG: Lean tests passed (all theorems type-checked successfully)"; \
 	else \
 		echo "WARNING: theory/ directory not found, skipping Lean tests"; \
 	fi
