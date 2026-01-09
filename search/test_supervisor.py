@@ -28,7 +28,7 @@ def main():
     }
     
     # Create supervisor
-    supervisor = Supervisor(config=config, offline=True)
+    supervisor = Supervisor(config=config)
     
     # Execute pipeline with fixed seed
     summary = supervisor.execute_pipeline(seed=42)

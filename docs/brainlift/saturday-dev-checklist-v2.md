@@ -77,9 +77,9 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] --offline flag to block networks.  
 [x] Acceptance: Commands run cycles, produce reports/logs.
 
-[ ] **R1. Planner Agent**  
-[ ] Rule-based decomposition for bets; YAML plans with tasks/seeds.  
-[ ] Acceptance: Schedules/logs a plan.
+[x] **R1. Planner Agent**  
+[x] Rule-based decomposition for bets; YAML plans with tasks/seeds.  
+[x] Acceptance: Schedules/logs a plan.
 
 [ ] **R2. Conjecturer Agent (Template-Based)**  
 [ ] Grammar-driven generation of Lean stubs/CNF specs.  
