@@ -6,7 +6,7 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 
 **Phases Overview**  
 [x] Phase 1: Foundation (Core setup; independent)  
-[ ] Phase 2: Data & Storage (Handles inputs/outputs; depends on Phase 1)  
+[x] Phase 2: Data & Storage (Handles inputs/outputs; depends on Phase 1) - IN PROGRESS  
 [ ] Phase 3: Agents & Core Loop (Implements research cycle; depends on Phases 1-2)  
 [ ] Phase 4: Research Bets & Verification (Adds P vs NP paths; depends on Phase 3)
 
@@ -46,10 +46,10 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 
 **Criteria:** Basic I/O and artifact handling.
 
-[ ] **D1. CNF I/O & Validation**  
-[ ] `search/io/cnf_reader.py` and `cnf_writer.py` for DIMACS parse/emit.  
-[ ] Unit tests with fixtures.  
-[ ] Acceptance: Round-trip preserves semantics.
+[x] **D1. CNF I/O & Validation**  
+[x] `search/io/cnf_reader.py` and `cnf_writer.py` for DIMACS parse/emit.  
+[x] Unit tests with fixtures.  
+[x] Acceptance: Round-trip preserves semantics.
 
 [ ] **D2. Circuit DSL**  
 [ ] `search/circuits/dsl.py`: Constructors for monotone/AC⁰ circuits.  
