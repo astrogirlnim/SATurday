@@ -18,12 +18,12 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 
 **Criteria:** Minimal bootstrap for local dev on M4.
 
-[ ] **F1. Repository & Tooling Bootstrap**  
-[ ] Create monorepo with folders: `theory/`, `search/`, `proofs/`, `infra/`, `docs/`.  
-[ ] Add MIT LICENSE, README.md, CONTRIBUTING.md.  
-[ ] Makefile with targets: `setup`, `build`, `test`, `verify`, `bench`, `check-proofs`.  
-[ ] .gitignore for Lean/Python artifacts; pre-commit hooks (ruff, lake fmt).  
-[ ] Acceptance: `make setup` creates structure, installs deps via Homebrew (Lean 4, Python 3.12, cmake/ninja for solvers).
+[x] **F1. Repository & Tooling Bootstrap**  
+[x] Create monorepo with folders: `theory/`, `search/`, `proofs/`, `infra/`, `docs/`.  
+[x] Add MIT LICENSE, README.md, CONTRIBUTING.md.  
+[x] Makefile with targets: `setup`, `build`, `test`, `verify`, `bench`, `check-proofs`.  
+[x] .gitignore for Lean/Python artifacts; pre-commit hooks (ruff, lake fmt).  
+[x] Acceptance: `make setup` creates structure, installs deps via Homebrew (Lean 4, Python 3.12, cmake/ninja for solvers).
 
 [ ] **F2. Lean 4 Skeleton**  
 [ ] Init Lean project in `theory/` with lakefile.lean, mathlib dep.  
