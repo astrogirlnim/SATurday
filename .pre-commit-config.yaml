@@ -1,0 +1,20 @@
+# Pre-commit hooks for SATurday
+# See https://pre-commit.com for more information
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: lean-format
+        name: Lean Format
+        entry: bash -c 'cd theory && lake fmt'
+        language: system
+        files: \.lean$
+        pass_filenames: false
+
