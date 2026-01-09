@@ -10,19 +10,27 @@ The supervisor:
 """
 
 import json
+import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
-from .core import AgentBase, AgentContext, AgentResult
-from .planner import PlannerAgent
-from .conjecturer import ConjecturerAgent
-from .miner import MinerAgent
-from .formalizer import FormalizerAgent
-from .critic import CriticAgent
+# Add parent to path for imports
+parent_dir = Path(__file__).parent.parent.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
+from search.agents.core import AgentBase, AgentContext, AgentResult
+from search.agents.planner import PlannerAgent
+from search.agents.conjecturer import ConjecturerAgent
+from search.agents.miner import MinerAgent
+from search.agents.formalizer import FormalizerAgent
+from search.agents.critic import CriticAgent
+from infra.config.schemas import SaturdayConfig
+from infra.config.loader import load_config
 
 
 class Supervisor:
@@ -32,42 +40,68 @@ class Supervisor:
     
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: Optional[Union[SaturdayConfig, Dict[str, Any]]] = None,
         log_dir: Optional[Path] = None,
-        offline: bool = True,
+        config_file: Optional[Path] = None,
     ):
         """
         Initialize supervisor with configuration.
         
         Args:
-            config: Configuration dictionary
-            log_dir: Directory for JSONL logs (default: search/logs/)
-            offline: Enforce offline mode (default: True)
+            config: Configuration (SaturdayConfig, dict, or None to load defaults)
+            log_dir: Directory for JSONL logs (overrides config if provided)
+            config_file: Optional config file to load (if config is None)
         """
-        self.config = config
-        self.offline = offline
+        # Load configuration
+        if config is None:
+            print("[SUPERVISOR] Loading default configuration")
+            self.config = load_config(config_file=config_file)
+        elif isinstance(config, dict):
+            print("[SUPERVISOR] Converting dict config to SaturdayConfig")
+            self.config = SaturdayConfig(**config)
+        else:
+            self.config = config
+        
+        # Validate policies
+        self.config.validate_all_policies()
+        
+        # Get offline mode from config
+        self.offline = self.config.offline.enabled
         
         # Set up logging directory
         if log_dir is None:
-            # Default to search/logs/
-            self.log_dir = Path(__file__).parent.parent / "logs"
+            # Use config value
+            log_dir_str = self.config.logging.log_dir
+            # Convert to absolute path if relative
+            if not Path(log_dir_str).is_absolute():
+                repo_root = Path(__file__).parent.parent.parent
+                self.log_dir = repo_root / log_dir_str
+            else:
+                self.log_dir = Path(log_dir_str)
         else:
             self.log_dir = Path(log_dir)
         
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
-        # Initialize agents
-        self.agents: List[AgentBase] = [
-            PlannerAgent(),
-            ConjecturerAgent(),
-            MinerAgent(),
-            FormalizerAgent(),
-            CriticAgent(),
-        ]
+        # Initialize agents based on configuration
+        self.agents: List[AgentBase] = []
         
-        print(f"[SUPERVISOR] Initialized with {len(self.agents)} agents")
+        if self.config.agents.planner.enabled:
+            self.agents.append(PlannerAgent())
+        if self.config.agents.conjecturer.enabled:
+            self.agents.append(ConjecturerAgent())
+        if self.config.agents.miner.enabled:
+            self.agents.append(MinerAgent())
+        if self.config.agents.formalizer.enabled:
+            self.agents.append(FormalizerAgent())
+        if self.config.agents.critic.enabled:
+            self.agents.append(CriticAgent())
+        
+        print(f"[SUPERVISOR] Initialized with {len(self.agents)} enabled agents")
         print(f"[SUPERVISOR] Log directory: {self.log_dir}")
         print(f"[SUPERVISOR] Offline mode: {self.offline}")
+        print(f"[SUPERVISOR] Cost guard: {self.config.cost.enabled}")
+        print(f"[SUPERVISOR] Max spend: ${self.config.cost.max_monthly_spend}")
     
     def log_to_jsonl(self, log_entry: Dict[str, Any]) -> None:
         """
@@ -157,12 +191,14 @@ class Supervisor:
         print("=" * 60)
         
         # Create execution context
-        if plan is not None:
-            config = {**self.config, **plan}
-        else:
-            config = self.config
+        # Convert config to dict for context
+        config_dict = self.config.dict() if hasattr(self.config, 'dict') else self.config
         
-        context = self.create_context(run_id, seed, config)
+        if plan is not None:
+            # Merge plan into config
+            config_dict = {**config_dict, **plan}
+        
+        context = self.create_context(run_id, seed, config_dict)
         
         # Log run start
         self.log_to_jsonl({
@@ -170,7 +206,7 @@ class Supervisor:
             "run_id": run_id,
             "event": "pipeline_start",
             "seed": seed,
-            "config": config,
+            "config": config_dict,
         })
         
         # Execute agents in sequence
@@ -278,15 +314,8 @@ def main():
     
     args = parser.parse_args()
     
-    # Default configuration
-    config = {
-        "bet": "A",
-        "max_size": 10,
-        "num_seeds": 3,
-    }
-    
-    # Create supervisor
-    supervisor = Supervisor(config=config, offline=args.offline)
+    # Create supervisor (will load default config)
+    supervisor = Supervisor()
     
     # Execute pipeline
     if args.plan:
