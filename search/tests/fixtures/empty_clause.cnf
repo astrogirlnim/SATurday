@@ -1,0 +1,6 @@
+c Contains empty clause (trivially UNSAT)
+c () AND (x1)
+p cnf 1 2
+0
+1 0
+
