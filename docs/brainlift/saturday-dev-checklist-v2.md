@@ -85,9 +85,9 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] Grammar-driven generation of Lean stubs/CNF specs.  
 [x] Acceptance: Emits stubs/specs to folders.
 
-[ ] **R3. Counterexample Miner**  
-[ ] Synthesize CNF, run Kissat; extract patterns from logs.  
-[ ] Acceptance: Outputs counterexample or confidence boost.
+[x] **R3. Counterexample Miner**  
+[x] Synthesize CNF, run Kissat; extract patterns from logs.  
+[x] Acceptance: Outputs counterexample or confidence boost.
 
 [ ] **R4. Formalizer Agent**  
 [ ] Tactic library for induction/encodings.  
