@@ -13,6 +13,7 @@ Metadata is maintained in proofs/index.json with fast lookup.
 
 import hashlib
 import json
+import sys
 import time
 from dataclasses import dataclass, field, asdict
 from enum import Enum
@@ -98,17 +99,17 @@ class ArtifactStore:
         # Load existing index
         self._load_index()
         
-        print(f"[ArtifactStore] Initialized at {self.store_dir}")
-        print(f"[ArtifactStore] Loaded {len(self.index)} artifacts from index")
+        print(f"[ArtifactStore] Initialized at {self.store_dir}", file=sys.stderr)
+        print(f"[ArtifactStore] Loaded {len(self.index)} artifacts from index", file=sys.stderr)
     
     def _load_index(self) -> None:
         """Load index from disk."""
         if not self.index_path.exists():
-            print(f"[ArtifactStore] No existing index at {self.index_path}, starting fresh")
+            print(f"[ArtifactStore] No existing index at {self.index_path}, starting fresh", file=sys.stderr)
             self.index = {}
             return
         
-        print(f"[ArtifactStore] Loading index from {self.index_path}")
+        print(f"[ArtifactStore] Loading index from {self.index_path}", file=sys.stderr)
         
         try:
             with open(self.index_path, "r") as f:
@@ -120,16 +121,16 @@ class ArtifactStore:
                 for hash_key, meta_dict in data.items()
             }
             
-            print(f"[ArtifactStore] Loaded {len(self.index)} artifacts")
+            print(f"[ArtifactStore] Loaded {len(self.index)} artifacts", file=sys.stderr)
             
         except Exception as e:
-            print(f"[ArtifactStore] WARNING: Failed to load index: {e}")
-            print(f"[ArtifactStore] Starting with empty index")
+            print(f"[ArtifactStore] WARNING: Failed to load index: {e}", file=sys.stderr)
+            print(f"[ArtifactStore] Starting with empty index", file=sys.stderr)
             self.index = {}
     
     def _save_index(self) -> None:
         """Save index to disk."""
-        print(f"[ArtifactStore] Saving index with {len(self.index)} artifacts")
+        print(f"[ArtifactStore] Saving index with {len(self.index)} artifacts", file=sys.stderr)
         
         # Convert to dictionaries for JSON serialization
         data = {
@@ -138,7 +139,7 @@ class ArtifactStore:
         }
         
         # Write atomically via temp file
-        temp_path = self.index_path.with_suffix(".json.tmp")
+        temp_path = self.index_path.with_suffix(".json.tmp", file=sys.stderr)
         
         try:
             with open(temp_path, "w") as f:
@@ -147,10 +148,10 @@ class ArtifactStore:
             # Atomic rename
             temp_path.replace(self.index_path)
             
-            print(f"[ArtifactStore] Index saved to {self.index_path}")
+            print(f"[ArtifactStore] Index saved to {self.index_path}", file=sys.stderr)
             
         except Exception as e:
-            print(f"[ArtifactStore] ERROR: Failed to save index: {e}")
+            print(f"[ArtifactStore] ERROR: Failed to save index: {e}", file=sys.stderr)
             if temp_path.exists():
                 temp_path.unlink()
             raise
@@ -165,7 +166,7 @@ class ArtifactStore:
         Returns:
             Hexadecimal SHA256 hash string
         """
-        print(f"[ArtifactStore] Computing SHA256 for {file_path}")
+        print(f"[ArtifactStore] Computing SHA256 for {file_path}", file=sys.stderr)
         
         sha256 = hashlib.sha256()
         
@@ -175,7 +176,7 @@ class ArtifactStore:
                 sha256.update(chunk)
         
         hash_value = sha256.hexdigest()
-        print(f"[ArtifactStore] SHA256: {hash_value}")
+        print(f"[ArtifactStore] SHA256: {hash_value}", file=sys.stderr)
         
         return hash_value
     
@@ -208,20 +209,20 @@ class ArtifactStore:
             FileNotFoundError: If file_path doesn't exist
         """
         if not file_path.exists():
-            raise FileNotFoundError(f"Artifact file not found: {file_path}")
+            raise FileNotFoundError(f"Artifact file not found: {file_path}", file=sys.stderr)
         
-        print(f"[ArtifactStore] Registering artifact: {file_path}")
-        print(f"[ArtifactStore]   Type: {artifact_type.value}")
-        print(f"[ArtifactStore]   Tool: {tool_name} v{tool_version}")
+        print(f"[ArtifactStore] Registering artifact: {file_path}", file=sys.stderr)
+        print(f"[ArtifactStore]   Type: {artifact_type.value}", file=sys.stderr)
+        print(f"[ArtifactStore]   Tool: {tool_name} v{tool_version}", file=sys.stderr)
         
         # Compute hash
         artifact_hash = self.compute_hash(file_path)
         
         # Check if already registered
         if artifact_hash in self.index:
-            print(f"[ArtifactStore] Artifact already registered: {artifact_hash}")
+            print(f"[ArtifactStore] Artifact already registered: {artifact_hash}", file=sys.stderr)
             existing = self.index[artifact_hash]
-            print(f"[ArtifactStore]   Existing file: {existing.file_path}")
+            print(f"[ArtifactStore]   Existing file: {existing.file_path}", file=sys.stderr)
             return existing
         
         # Copy to store if requested
@@ -232,10 +233,10 @@ class ArtifactStore:
             target_path = self.store_dir / target_name
             
             if not target_path.exists():
-                print(f"[ArtifactStore] Copying to store: {target_path}")
+                print(f"[ArtifactStore] Copying to store: {target_path}", file=sys.stderr)
                 target_path.write_bytes(file_path.read_bytes())
             else:
-                print(f"[ArtifactStore] File already in store: {target_path}")
+                print(f"[ArtifactStore] File already in store: {target_path}", file=sys.stderr)
             
             final_path = str(target_path)
         else:
@@ -259,14 +260,14 @@ class ArtifactStore:
         
         # Log lineage
         if metadata.parent_hashes:
-            print(f"[ArtifactStore] Lineage: {len(metadata.parent_hashes)} parent(s)")
+            print(f"[ArtifactStore] Lineage: {len(metadata.parent_hashes)} parent(s)", file=sys.stderr)
             for parent_hash in metadata.parent_hashes[:3]:  # Show first 3
-                print(f"[ArtifactStore]   Parent: {parent_hash[:16]}...")
+                print(f"[ArtifactStore]   Parent: {parent_hash[:16]}...", file=sys.stderr)
         
         # Save index
         self._save_index()
         
-        print(f"[ArtifactStore] Registered: {artifact_hash}")
+        print(f"[ArtifactStore] Registered: {artifact_hash}", file=sys.stderr)
         
         return metadata
     
@@ -282,7 +283,7 @@ class ArtifactStore:
             ArtifactType.REPORT: ".md",
             ArtifactType.METADATA: ".json",
         }
-        return suffix_map.get(artifact_type, ".dat")
+        return suffix_map.get(artifact_type, ".dat", file=sys.stderr)
     
     def get(self, artifact_hash: str) -> Optional[ArtifactMetadata]:
         """
@@ -315,15 +316,15 @@ class ArtifactStore:
         Returns:
             List of matching ArtifactMetadata objects
         """
-        print(f"[ArtifactStore] Querying artifacts:")
+        print(f"[ArtifactStore] Querying artifacts:", file=sys.stderr)
         if artifact_type:
-            print(f"[ArtifactStore]   Type: {artifact_type.value}")
+            print(f"[ArtifactStore]   Type: {artifact_type.value}", file=sys.stderr)
         if tool_name:
-            print(f"[ArtifactStore]   Tool: {tool_name}")
+            print(f"[ArtifactStore]   Tool: {tool_name}", file=sys.stderr)
         if parent_hash:
-            print(f"[ArtifactStore]   Parent: {parent_hash[:16]}...")
+            print(f"[ArtifactStore]   Parent: {parent_hash[:16]}...", file=sys.stderr)
         if properties:
-            print(f"[ArtifactStore]   Properties: {properties}")
+            print(f"[ArtifactStore]   Properties: {properties}", file=sys.stderr)
         
         results = []
         
@@ -349,7 +350,7 @@ class ArtifactStore:
             
             results.append(metadata)
         
-        print(f"[ArtifactStore] Found {len(results)} matching artifacts")
+        print(f"[ArtifactStore] Found {len(results)} matching artifacts", file=sys.stderr)
         
         return results
     
@@ -363,30 +364,30 @@ class ArtifactStore:
         Returns:
             True if hash matches, False otherwise
         """
-        print(f"[ArtifactStore] Verifying artifact: {artifact_hash[:16]}...")
+        print(f"[ArtifactStore] Verifying artifact: {artifact_hash[:16]}...", file=sys.stderr)
         
         metadata = self.get(artifact_hash)
         if not metadata:
-            print(f"[ArtifactStore] ERROR: Artifact not in index")
+            print(f"[ArtifactStore] ERROR: Artifact not in index", file=sys.stderr)
             return False
         
         file_path = Path(metadata.file_path)
         if not file_path.exists():
-            print(f"[ArtifactStore] ERROR: File not found: {file_path}")
+            print(f"[ArtifactStore] ERROR: File not found: {file_path}", file=sys.stderr)
             return False
         
         # Recompute hash
         computed_hash = self.compute_hash(file_path)
         
         if computed_hash == artifact_hash:
-            print(f"[ArtifactStore] Verification SUCCESS")
+            print(f"[ArtifactStore] Verification SUCCESS", file=sys.stderr)
             metadata.verified = True
             self._save_index()
             return True
         else:
-            print(f"[ArtifactStore] Verification FAILED")
-            print(f"[ArtifactStore]   Expected: {artifact_hash}")
-            print(f"[ArtifactStore]   Computed: {computed_hash}")
+            print(f"[ArtifactStore] Verification FAILED", file=sys.stderr)
+            print(f"[ArtifactStore]   Expected: {artifact_hash}", file=sys.stderr)
+            print(f"[ArtifactStore]   Computed: {computed_hash}", file=sys.stderr)
             metadata.verified = False
             self._save_index()
             return False
@@ -398,7 +399,7 @@ class ArtifactStore:
         Returns:
             Dictionary mapping artifact_hash to verification result
         """
-        print(f"[ArtifactStore] Verifying all {len(self.index)} artifacts")
+        print(f"[ArtifactStore] Verifying all {len(self.index)} artifacts", file=sys.stderr)
         
         results = {}
         
@@ -406,7 +407,7 @@ class ArtifactStore:
             results[artifact_hash] = self.verify(artifact_hash)
         
         success_count = sum(1 for v in results.values() if v)
-        print(f"[ArtifactStore] Verification complete: {success_count}/{len(results)} passed")
+        print(f"[ArtifactStore] Verification complete: {success_count}/{len(results)} passed", file=sys.stderr)
         
         return results
     
@@ -420,7 +421,7 @@ class ArtifactStore:
         Returns:
             List of ancestor ArtifactMetadata in topological order
         """
-        print(f"[ArtifactStore] Tracing lineage for: {artifact_hash[:16]}...")
+        print(f"[ArtifactStore] Tracing lineage for: {artifact_hash[:16]}...", file=sys.stderr)
         
         lineage = []
         visited: Set[str] = set()
@@ -444,7 +445,7 @@ class ArtifactStore:
         
         _trace(artifact_hash)
         
-        print(f"[ArtifactStore] Lineage depth: {len(lineage)}")
+        print(f"[ArtifactStore] Lineage depth: {len(lineage)}", file=sys.stderr)
         
         return lineage
     
@@ -458,7 +459,7 @@ class ArtifactStore:
         Returns:
             List of child ArtifactMetadata
         """
-        print(f"[ArtifactStore] Finding children of: {artifact_hash[:16]}...")
+        print(f"[ArtifactStore] Finding children of: {artifact_hash[:16]}...", file=sys.stderr)
         
         children = [
             metadata
@@ -466,7 +467,7 @@ class ArtifactStore:
             if artifact_hash in metadata.parent_hashes
         ]
         
-        print(f"[ArtifactStore] Found {len(children)} children")
+        print(f"[ArtifactStore] Found {len(children)} children", file=sys.stderr)
         
         return children
     
@@ -477,7 +478,7 @@ class ArtifactStore:
         Returns:
             Dictionary with store statistics
         """
-        print(f"[ArtifactStore] Computing statistics")
+        print(f"[ArtifactStore] Computing statistics", file=sys.stderr)
         
         stats_data = {
             "total_artifacts": len(self.index),
@@ -508,7 +509,7 @@ class ArtifactStore:
             if file_path.exists():
                 stats_data["total_size_bytes"] += file_path.stat().st_size
         
-        print(f"[ArtifactStore] Statistics: {stats_data['total_artifacts']} artifacts")
+        print(f"[ArtifactStore] Statistics: {stats_data['total_artifacts']} artifacts", file=sys.stderr)
         
         return stats_data
 
