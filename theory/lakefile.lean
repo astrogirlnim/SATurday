@@ -13,6 +13,10 @@ lean_lib «Theory» where
   -- Main theory library
   -- LOG: Core complexity theory modules
 
+lean_lib «Tactics» where
+  -- Tactic libraries for circuit complexity proofs
+  globs := #[.submodules `Tactics]
+
 -- Test script to verify basic lemmas
 script test do
   IO.println "LOG: Running SATurday theory tests..."

@@ -89,10 +89,10 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] Synthesize CNF, run Kissat; extract patterns from logs.  
 [x] Acceptance: Outputs counterexample or confidence boost.
 
-[ ] **R4. Formalizer Agent**  
-[ ] Tactic library for induction/encodings.  
-[ ] Convert templates to Lean theorems (with sorry if needed).  
-[ ] Acceptance: `make verify` compiles.
+[x] **R4. Formalizer Agent**  
+[x] Tactic library for induction/encodings.  
+[x] Convert templates to Lean theorems (with sorry if needed).  
+[x] Acceptance: `make verify` compiles.
 
 [ ] **R5. Proof Critic (Barrier-Aware)**  
 [ ] Heuristic tags for relativizing/natural proofs; oracle diagnostics.  
