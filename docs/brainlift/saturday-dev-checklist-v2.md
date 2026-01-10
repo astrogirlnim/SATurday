@@ -7,7 +7,7 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 **Phases Overview**  
 [x] Phase 1: Foundation (Core setup; independent)  
 [x] Phase 2: Data & Storage (Handles inputs/outputs; depends on Phase 1)  
-[ ] Phase 3: Agents & Core Loop (Implements research cycle; depends on Phases 1-2) - COMPLETE  
+[x] Phase 3: Agents & Core Loop (Implements research cycle; depends on Phases 1-2) - COMPLETE  
 [ ] Phase 4: Research Bets & Verification (Adds P vs NP paths; depends on Phase 3)
 
 **Implementation Guidelines** (Unchanged, but emphasize: Start with tiny n; use MLX for any local models if needed.)
