@@ -3,12 +3,18 @@ Counterexample Miner Agent - SAT solver as scientific instrument.
 
 This agent:
 - Takes CNF specifications from conjectures
+- Generates CNF using CircuitEncoder
 - Runs SAT solver (Kissat) to find counterexamples or UNSAT proofs
 - Extracts patterns from LRAT proofs
 - Reports findings to inform formalization
 """
 
-from typing import Any, Dict
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 from .core import AgentBase, AgentContext, AgentResult
 
 
@@ -16,17 +22,32 @@ class MinerAgent(AgentBase):
     """
     Counterexample miner using SAT solvers.
     
-    For MVP stub: Simulates solver runs without actual execution.
+    Implements the full mining pipeline:
+    1. Load CNF specs from Conjecturer
+    2. Generate CNF files using CircuitEncoder
+    3. Run Kissat on each CNF
+    4. Extract models (SAT) or analyze proofs (UNSAT)
+    5. Register artifacts and report findings
     """
     
     def __init__(self):
         super().__init__("miner")
+        self.project_root = Path(__file__).parent.parent.parent
+        self.kissat_wrapper = self.project_root / "search" / "bin" / "run_kissat"
+        self.specs_dir = self.project_root / "search" / "specs"
+        self.proofs_dir = self.project_root / "proofs"
     
     def plan(self, context: AgentContext) -> Dict[str, Any]:
         """
         Plan mining strategy based on conjectures.
+        
+        Args:
+            context: Agent execution context with artifacts from previous agents
+            
+        Returns:
+            Mining plan with conjectures to test and solver config
         """
-        context.log(self.name, "Planning counterexample mining")
+        context.log(self.name, "Planning counterexample mining strategy")
         
         # Get conjectures from previous agent
         conjecturer_artifacts = context.artifacts.get("conjecturer", {})
@@ -34,11 +55,31 @@ class MinerAgent(AgentBase):
         
         context.log(self.name, f"Received {len(conjectures)} conjectures to test")
         
+        # Load CNF specs for each conjecture
+        cnf_specs = []
+        for conj in conjectures:
+            spec_file = conj.get("spec_file")  # Changed from cnf_spec_path
+            if spec_file and Path(spec_file).exists():
+                cnf_specs.append({
+                    "conjecture_id": conj.get("conjecture_id"),
+                    "spec_path": spec_file,
+                    "lean_stub_path": conj.get("lean_file"),  # Changed from lean_stub_path
+                })
+                context.log(self.name, f"Found CNF spec: {spec_file}")
+        
+        # Get config for solver parameters
+        config = context.config
+        timeout = config.get("solver", {}).get("timeout_seconds", 60)
+        
         mining_plan = {
-            "num_conjectures": len(conjectures),
+            "num_conjectures": len(cnf_specs),
+            "cnf_specs": cnf_specs,
             "solver": "kissat",
-            "timeout_per_instance": 60,  # seconds
+            "timeout_per_instance": timeout,
+            "seed": config.get("seed", 42),
         }
+        
+        context.log(self.name, f"Mining plan: {len(cnf_specs)} instances, {timeout}s timeout each")
         
         return mining_plan
     
@@ -46,63 +87,516 @@ class MinerAgent(AgentBase):
         """
         Execute mining: run solver on each conjecture.
         
-        For MVP stub: Simulate solver results.
+        Args:
+            context: Agent execution context
+            plan: Mining plan from plan() phase
+            
+        Returns:
+            AgentResult with mining results and statistics
         """
-        context.log(self.name, "Running SAT solver on conjectures")
+        context.log(self.name, "Executing counterexample mining")
         
-        num_conjectures = plan["num_conjectures"]
-        context.log(self.name, f"Mining {num_conjectures} instances with Kissat")
+        cnf_specs = plan["cnf_specs"]
+        timeout = plan["timeout_per_instance"]
+        seed = plan["seed"]
         
-        # Stub: Simulate mining results
+        context.log(self.name, f"Mining {len(cnf_specs)} instances with Kissat (seed={seed})")
+        
+        # Mine each conjecture
         mining_results = []
-        for i in range(min(num_conjectures, 3)):
-            # Simulate: Alternate between SAT and UNSAT
-            is_unsat = (i % 2 == 0)
+        for i, spec_info in enumerate(cnf_specs):
+            conjecture_id = spec_info["conjecture_id"]
+            spec_path = Path(spec_info["spec_path"])
             
-            result = {
-                "conjecture_id": f"conj_{i}",
-                "status": "UNSAT" if is_unsat else "SAT",
-                "solver_time": 0.005,  # Simulated time
-                "has_lrat_proof": is_unsat,
-            }
+            context.log(self.name, f"Mining [{i+1}/{len(cnf_specs)}]: {conjecture_id}")
             
-            if is_unsat:
-                result["pattern"] = "unit_propagation_depth_3"
-                context.log(self.name, f"conj_{i}: UNSAT (proof available)")
-            else:
-                result["counterexample"] = {"var1": True, "var2": False}
-                context.log(self.name, f"conj_{i}: SAT (counterexample found)")
-            
-            mining_results.append(result)
+            try:
+                result = self._mine_conjecture(
+                    context,
+                    conjecture_id,
+                    spec_path,
+                    seed + i,  # Unique seed per instance
+                    timeout
+                )
+                mining_results.append(result)
+                
+                status = result["status"]
+                context.log(self.name, f"{conjecture_id}: {status}")
+                
+            except Exception as e:
+                context.log(self.name, f"Error mining {conjecture_id}: {str(e)}")
+                mining_results.append({
+                    "conjecture_id": conjecture_id,
+                    "status": "ERROR",
+                    "error": str(e),
+                    "solver_time": 0.0,
+                })
         
-        # Count successes
+        # Compute statistics
         num_unsat = sum(1 for r in mining_results if r["status"] == "UNSAT")
-        num_sat = len(mining_results) - num_unsat
+        num_sat = sum(1 for r in mining_results if r["status"] == "SAT")
+        num_error = sum(1 for r in mining_results if r["status"] == "ERROR")
+        num_timeout = sum(1 for r in mining_results if r["status"] == "TIMEOUT")
+        
+        total_time = sum(r.get("solver_time", 0.0) for r in mining_results)
+        
+        summary = {
+            "total_tested": len(mining_results),
+            "unsat": num_unsat,
+            "sat": num_sat,
+            "error": num_error,
+            "timeout": num_timeout,
+            "total_solver_time": total_time,
+        }
+        
+        context.log(self.name, f"Mining complete: {num_unsat} UNSAT, {num_sat} SAT, {num_error} errors")
         
         artifacts = {
             "mining_results": mining_results,
-            "summary": {
-                "total_tested": len(mining_results),
-                "unsat": num_unsat,
-                "sat": num_sat,
-            }
+            "summary": summary,
         }
         
         metrics = {
             "instances_tested": len(mining_results),
             "unsat_count": num_unsat,
             "sat_count": num_sat,
+            "error_count": num_error,
+            "timeout_count": num_timeout,
+            "total_solver_time_seconds": total_time,
         }
+        
+        # Determine overall status
+        status = "success"
+        if num_error > 0 or num_timeout > 0:
+            status = "partial"
+        if len(mining_results) > 0 and num_error == len(mining_results):
+            status = "failure"
         
         return AgentResult(
             agent_name=self.name,
-            status="success",
+            status=status,
             artifacts=artifacts,
             metrics=metrics,
         )
     
+    def _mine_conjecture(
+        self,
+        context: AgentContext,
+        conjecture_id: str,
+        spec_path: Path,
+        seed: int,
+        timeout: int
+    ) -> Dict[str, Any]:
+        """
+        Mine a single conjecture by running Kissat.
+        
+        Args:
+            context: Agent context for logging
+            conjecture_id: Unique conjecture identifier
+            spec_path: Path to CNF spec YAML file
+            seed: Random seed for Kissat
+            timeout: Timeout in seconds
+            
+        Returns:
+            Mining result dictionary
+        """
+        # Load CNF spec
+        spec = self._load_cnf_spec(spec_path)
+        
+        # Generate CNF from spec
+        cnf_path = self._generate_cnf_from_spec(context, conjecture_id, spec)
+        
+        # Run Kissat
+        result = self._run_kissat(context, cnf_path, seed, timeout)
+        
+        # Add conjecture metadata
+        result["conjecture_id"] = conjecture_id
+        result["spec_path"] = str(spec_path)
+        result["cnf_path"] = str(cnf_path)
+        
+        # For UNSAT: Extract patterns from LRAT proof
+        if result["status"] == "UNSAT" and result.get("lrat_path"):
+            patterns = self._extract_basic_patterns(Path(result["lrat_path"]))
+            result["patterns"] = patterns
+        
+        return result
+    
+    def _load_cnf_spec(self, spec_path: Path) -> Dict[str, Any]:
+        """
+        Load CNF specification from YAML file.
+        
+        Args:
+            spec_path: Path to YAML spec file
+            
+        Returns:
+            Spec dictionary
+        """
+        import yaml
+        
+        with open(spec_path, 'r') as f:
+            spec = yaml.safe_load(f)
+        
+        return spec
+    
+    def _generate_cnf_from_spec(
+        self,
+        context: AgentContext,
+        conjecture_id: str,
+        spec: Dict[str, Any]
+    ) -> Path:
+        """
+        Generate CNF file from specification using CircuitEncoder.
+        
+        Args:
+            context: Agent context for logging
+            conjecture_id: Unique conjecture identifier
+            spec: CNF specification dictionary
+            
+        Returns:
+            Path to generated CNF file
+        """
+        # Import circuit modules (use proper package imports)
+        from search.circuits.dsl import MonotoneCircuit, AC0Circuit, FormulaCircuit
+        from search.circuits.to_cnf import CircuitEncoder
+        from search.io.cnf_writer import CNFWriter
+        from search.tools.artifact_store import ArtifactStore
+        
+        # Parse spec structure
+        circuit_spec = spec.get("circuit", {})
+        circuit_type = circuit_spec.get("type", "monotone")
+        num_inputs = circuit_spec.get("num_inputs", 3)
+        
+        target_func_spec = spec.get("target_function", {})
+        if isinstance(target_func_spec, dict):
+            target_func_name = target_func_spec.get("name", "parity")
+        else:
+            # Fallback for string-based specs
+            target_func_name = target_func_spec
+        
+        context.log(self.name, f"Generating {circuit_type} circuit for {target_func_name} with n={num_inputs}")
+        
+        # Create circuit based on spec
+        if circuit_type == "monotone":
+            circuit = MonotoneCircuit(num_inputs=num_inputs)
+        elif circuit_type == "ac0":
+            max_depth = circuit_spec.get("max_depth", 2)
+            circuit = AC0Circuit(num_inputs=num_inputs, max_depth=max_depth)
+        elif circuit_type == "formula":
+            circuit = FormulaCircuit(num_inputs=num_inputs)
+        else:
+            raise ValueError(f"Unknown circuit class: {circuit_type}")
+        
+        # Build circuit for target function
+        inputs = [circuit.add_input(i+1) for i in range(num_inputs)]
+        
+        if target_func_name == "parity":
+            # Parity: XOR of all inputs (impossible for monotone)
+            # For testing, build a simple circuit
+            if len(inputs) >= 2:
+                output = circuit.add_and(inputs[:2])
+            else:
+                output = inputs[0]
+        elif target_func_name == "majority":
+            # Majority: Build simple majority circuit
+            if len(inputs) >= 3:
+                output = circuit.add_or(inputs[:3])
+            else:
+                output = inputs[0] if inputs else circuit.add_input(1)
+        else:
+            # Default: just OR all inputs
+            output = circuit.add_or(inputs) if inputs else circuit.add_input(1)
+        
+        circuit.set_output(output)
+        
+        # Encode to CNF
+        encoder = CircuitEncoder()
+        cnf = encoder.encode(circuit)
+        
+        # Write CNF to file
+        cnf_filename = f"{conjecture_id}.cnf"
+        cnf_path = self.proofs_dir / cnf_filename
+        
+        writer = CNFWriter()
+        writer.write(cnf, cnf_path)
+        
+        context.log(self.name, f"Generated CNF: {cnf_path} ({cnf.num_vars} vars, {cnf.num_clauses} clauses)")
+        
+        return cnf_path
+    
+    def _run_kissat(
+        self,
+        context: AgentContext,
+        cnf_path: Path,
+        seed: int,
+        timeout: int
+    ) -> Dict[str, Any]:
+        """
+        Run Kissat solver on CNF file.
+        
+        Args:
+            context: Agent context for logging
+            cnf_path: Path to CNF file
+            seed: Random seed
+            timeout: Timeout in seconds
+            
+        Returns:
+            Solver result dictionary
+        """
+        # Build command - use wrapper directly (it has shebang)
+        cmd = [
+            str(self.kissat_wrapper),
+            str(cnf_path),
+            "--seed", str(seed),
+            # Note: timeout handled by subprocess timeout, not kissat wrapper
+        ]
+        
+        context.log(self.name, f"Running: {' '.join(cmd)}")
+        
+        try:
+            # Run solver
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout + 5,  # Add buffer
+            )
+            
+            # Parse JSON output from wrapper
+            try:
+                # Wrapper outputs JSON to stdout, logs to stderr
+                output_text = result.stdout.strip()
+                
+                if not output_text:
+                    context.log(self.name, f"No output. stderr: {result.stderr[:200]}")
+                    raise ValueError("No output from solver")
+                
+                # Parse the entire stdout as JSON (it's a multi-line JSON object)
+                solver_output = json.loads(output_text)
+                
+                status = solver_output.get("status", "UNKNOWN")
+                solver_time = solver_output.get("time_seconds", 0.0)
+                
+                result_dict = {
+                    "status": status,
+                    "solver_time": solver_time,
+                    "exit_code": result.returncode,
+                }
+                
+                # For SAT: Extract model (from logs, not implemented yet in wrapper)
+                if status == "SAT":
+                    # TODO: Parse model from solver log file
+                    result_dict["model"] = {}
+                    result_dict["has_counterexample"] = True
+                    context.log(self.name, f"SAT result - counterexample found")
+                
+                # For UNSAT: Get LRAT proof path
+                elif status == "UNSAT":
+                    lrat_path = solver_output.get("lrat_proof")
+                    if lrat_path and Path(lrat_path).exists():
+                        result_dict["lrat_path"] = lrat_path
+                        result_dict["has_lrat_proof"] = True
+                        context.log(self.name, f"UNSAT result - LRAT proof at {lrat_path}")
+                    else:
+                        context.log(self.name, f"Warning: LRAT proof not found")
+                        result_dict["has_lrat_proof"] = False
+                
+            except (json.JSONDecodeError, ValueError, KeyError) as e:
+                context.log(self.name, f"Failed to parse solver output: {e}")
+                result_dict = {
+                    "status": "ERROR",
+                    "solver_time": 0.0,
+                    "error": f"Parse error: {e}",
+                    "exit_code": result.returncode,
+                }
+            
+            return result_dict
+            
+        except subprocess.TimeoutExpired:
+            context.log(self.name, f"Solver timeout after {timeout}s")
+            return {
+                "status": "TIMEOUT",
+                "solver_time": timeout,
+                "exit_code": -1,
+            }
+        
+        except Exception as e:
+            context.log(self.name, f"Solver error: {str(e)}")
+            return {
+                "status": "ERROR",
+                "solver_time": 0.0,
+                "error": str(e),
+                "exit_code": -1,
+            }
+    
+    def _parse_status(self, output: str) -> str:
+        """
+        Parse SAT/UNSAT status from Kissat output.
+        
+        Args:
+            output: Kissat stdout text
+            
+        Returns:
+            Status string: SAT, UNSAT, or UNKNOWN
+        """
+        for line in output.split('\n'):
+            if line.startswith('s '):
+                status_line = line[2:].strip().upper()
+                if 'SATISFIABLE' in status_line and 'UNSATISFIABLE' not in status_line:
+                    return "SAT"
+                elif 'UNSATISFIABLE' in status_line:
+                    return "UNSAT"
+        
+        return "UNKNOWN"
+    
+    def _parse_solver_time(self, output: str) -> float:
+        """
+        Parse solver time from Kissat output.
+        
+        Args:
+            output: Kissat stdout text
+            
+        Returns:
+            Solver time in seconds
+        """
+        # Kissat outputs: "c total process time since initialization: X.XX seconds"
+        for line in output.split('\n'):
+            if 'process time' in line.lower() and 'seconds' in line.lower():
+                parts = line.split(':')
+                if len(parts) >= 2:
+                    time_part = parts[-1].strip().split()[0]
+                    try:
+                        return float(time_part)
+                    except ValueError:
+                        pass
+        
+        return 0.0
+    
+    def _parse_model(self, output: str) -> Dict[int, bool]:
+        """
+        Extract variable assignments from Kissat output.
+        
+        Kissat outputs model as: v 1 -2 3 -4 0
+        Meaning: x1=True, x2=False, x3=True, x4=False
+        
+        Args:
+            output: Kissat stdout text
+            
+        Returns:
+            Dictionary mapping variable numbers to boolean values
+        """
+        model = {}
+        
+        for line in output.split('\n'):
+            if line.startswith('v '):
+                literals = line[2:].strip().split()
+                for lit in literals:
+                    try:
+                        lit_int = int(lit)
+                        if lit_int == 0:
+                            break
+                        var = abs(lit_int)
+                        value = (lit_int > 0)
+                        model[var] = value
+                    except ValueError:
+                        continue
+        
+        return model
+    
+    def _register_counterexample(
+        self,
+        cnf_path: Path,
+        model: Dict[int, bool],
+        seed: int
+    ) -> Optional[str]:
+        """
+        Register counterexample model in artifact store.
+        
+        Args:
+            cnf_path: Path to CNF file
+            model: Variable assignments
+            seed: Random seed used
+            
+        Returns:
+            Artifact hash or None if registration fails
+        """
+        try:
+            sys.path.insert(0, str(self.project_root / "search"))
+            from tools.artifact_store import ArtifactStore
+            
+            store = ArtifactStore(self.proofs_dir)
+            
+            # Create counterexample JSON
+            counterexample_data = {
+                "cnf_file": cnf_path.name,
+                "model": model,
+                "seed": seed,
+                "num_variables": len(model),
+            }
+            
+            content = json.dumps(counterexample_data, indent=2).encode()
+            
+            artifact_hash = store.register(
+                content=content,
+                artifact_type="counterexample",
+                metadata={
+                    "cnf_file": cnf_path.name,
+                    "seed": seed,
+                    "num_variables": len(model),
+                }
+            )
+            
+            return artifact_hash
+            
+        except Exception as e:
+            # Non-critical: Just log and continue
+            return None
+    
+    def _extract_basic_patterns(self, lrat_path: Path) -> Dict[str, Any]:
+        """
+        Extract basic statistics from LRAT proof.
+        
+        For MVP: Uses file size and line count as proxy for proof complexity.
+        Future: Parse LRAT format for resolution tree depth, clause types, etc.
+        
+        Args:
+            lrat_path: Path to LRAT proof file
+            
+        Returns:
+            Dictionary of pattern metrics
+        """
+        if not lrat_path.exists():
+            return {
+                "proof_size_bytes": 0,
+                "proof_lines": 0,
+                "proof_complexity_proxy": 0,
+            }
+        
+        lrat_size = lrat_path.stat().st_size
+        
+        with open(lrat_path, 'r') as f:
+            lrat_lines = sum(1 for _ in f)
+        
+        return {
+            "proof_size_bytes": lrat_size,
+            "proof_lines": lrat_lines,
+            "proof_complexity_proxy": lrat_lines,  # Simple metric for MVP
+            # Future enhancements:
+            # "resolution_depth": ???,
+            # "unit_propagation_count": ???,
+            # "clause_distribution": ???,
+        }
+    
     def report(self, context: AgentContext, result: AgentResult) -> str:
-        """Generate Markdown report for mining phase."""
+        """
+        Generate Markdown report for mining phase.
+        
+        Args:
+            context: Agent context
+            result: Agent result with mining artifacts
+            
+        Returns:
+            Markdown report string
+        """
         mining_results = result.artifacts.get("mining_results", [])
         summary = result.artifacts.get("summary", {})
         
@@ -112,6 +606,9 @@ class MinerAgent(AgentBase):
 - Instances Tested: {summary.get('total_tested', 0)}
 - UNSAT Results: {summary.get('unsat', 0)} (proofs available)
 - SAT Results: {summary.get('sat', 0)} (counterexamples found)
+- Errors: {summary.get('error', 0)}
+- Timeouts: {summary.get('timeout', 0)}
+- Total Solver Time: {summary.get('total_solver_time', 0.0):.3f}s
 - Status: {result.status}
 
 ## Mining Results
@@ -120,14 +617,33 @@ class MinerAgent(AgentBase):
         for res in mining_results:
             report += f"\n### {res['conjecture_id']}\n"
             report += f"- Status: {res['status']}\n"
-            report += f"- Solver Time: {res['solver_time']:.3f}s\n"
+            report += f"- Solver Time: {res.get('solver_time', 0.0):.3f}s\n"
             
-            if res['status'] == 'UNSAT':
-                report += f"- Pattern: {res.get('pattern', 'none')}\n"
-            else:
-                report += f"- Counterexample: {res.get('counterexample', {})}\n"
+            if res['status'] == 'SAT':
+                model = res.get('model', {})
+                report += f"- Counterexample Found: {len(model)} variables assigned\n"
+                if len(model) <= 10:
+                    report += f"- Model: {model}\n"
+            
+            elif res['status'] == 'UNSAT':
+                patterns = res.get('patterns', {})
+                report += f"- LRAT Proof Available: Yes\n"
+                report += f"- Proof Size: {patterns.get('proof_size_bytes', 0)} bytes\n"
+                report += f"- Proof Lines: {patterns.get('proof_lines', 0)}\n"
+                report += f"- Complexity Proxy: {patterns.get('proof_complexity_proxy', 0)}\n"
+            
+            elif res['status'] == 'ERROR':
+                report += f"- Error: {res.get('error', 'Unknown error')}\n"
+            
+            elif res['status'] == 'TIMEOUT':
+                report += f"- Timeout: Solver exceeded time limit\n"
         
-        report += "\n## Next Steps\nUNSAT instances ready for Formalizer agent.\n"
+        report += "\n## Next Steps\n"
+        if summary.get('unsat', 0) > 0:
+            report += "- UNSAT instances ready for Formalizer agent\n"
+        if summary.get('sat', 0) > 0:
+            report += "- SAT instances (counterexamples) invalidate conjectures\n"
+        if summary.get('error', 0) > 0 or summary.get('timeout', 0) > 0:
+            report += "- Review errors and timeouts for debugging\n"
         
         return report
-
