@@ -97,11 +97,15 @@ verify: build test
 # Run deterministic benchmark harness
 bench:
 	@echo "==> Running benchmark harness..."
-	@if [ -f search/bin/satday ]; then \
-		./venv/bin/python search/bin/satday bench; \
+	@if command -v satday >/dev/null 2>&1; then \
+		satday bench; \
+	elif [ -f venv/bin/python ]; then \
+		./venv/bin/python -m search.cli bench; \
 	else \
-		echo "ERROR: satday CLI not found"; exit 1; \
+		echo "ERROR: satday CLI not available. Run 'make setup' first."; \
+		exit 1; \
 	fi
+	@echo "==> Benchmark complete!"
 
 # Verify all LRAT proof artifacts
 check-proofs:
