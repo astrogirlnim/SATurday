@@ -94,9 +94,9 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] Convert templates to Lean theorems (with sorry if needed).  
 [x] Acceptance: `make verify` compiles.
 
-[ ] **R5. Proof Critic (Barrier-Aware)**  
-[ ] Heuristic tags for relativizing/natural proofs; oracle diagnostics.  
-[ ] Acceptance: Reports tags/rationale.
+[x] **R5. Proof Critic (Barrier-Aware)**  
+[x] Heuristic tags for relativizing/natural proofs; oracle diagnostics.  
+[x] Acceptance: Reports tags/rationale.
 
 [ ] **R10. Proof Artifact Round-Trip**  
 [ ] Reference LRAT logs in Lean (hash-anchored).  
