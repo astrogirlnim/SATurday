@@ -218,13 +218,13 @@ class TestMinerAgentLifecycle:
                     "conjectures": [
                         {
                             "conjecture_id": "conj_1",
-                            "cnf_spec_path": "/tmp/spec1.yaml",
-                            "lean_stub_path": "/tmp/stub1.lean",
+                            "spec_file": "/tmp/spec1.yaml",  # Changed from cnf_spec_path
+                            "lean_file": "/tmp/stub1.lean",  # Changed from lean_stub_path
                         },
                         {
                             "conjecture_id": "conj_2",
-                            "cnf_spec_path": "/tmp/spec2.yaml",
-                            "lean_stub_path": "/tmp/stub2.lean",
+                            "spec_file": "/tmp/spec2.yaml",  # Changed from cnf_spec_path
+                            "lean_file": "/tmp/stub2.lean",  # Changed from lean_stub_path
                         },
                     ]
                 }
@@ -449,14 +449,21 @@ class TestIntegration:
                 "seed": 42,
             }
             
-            # Mock subprocess call to Kissat
+            # Mock subprocess call to Kissat wrapper
+            # The wrapper outputs JSON format
             mock_result = MagicMock()
-            mock_result.returncode = 10  # SAT
-            mock_result.stdout = """c Kissat SAT Solver
-s SATISFIABLE
-v 1 -2 0
-c total process time since initialization: 0.05 seconds
-"""
+            mock_result.returncode = 0
+            mock_result.stdout = json.dumps({
+                "status": "SAT",
+                "exit_code": 10,
+                "solver_time": 0.05,
+                "model": [1, -2],
+                "stats": {
+                    "variables": 2,
+                    "clauses": 1,
+                }
+            })
+            mock_result.stderr = ""
             
             with patch('subprocess.run', return_value=mock_result):
                 with patch.object(agent, '_generate_cnf_from_spec') as mock_gen:
