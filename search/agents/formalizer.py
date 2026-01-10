@@ -264,13 +264,19 @@ class FormalizerAgent(AgentBase):
         seed = instance.get("seed", 0)
         task_id = spec.get("task_id", "unknown")
         
-        # Get LRAT hash from artifacts
+        # Get LRAT hash and CNF hash from artifacts
         lrat_hash = instance.get("lrat_hash")
+        cnf_hash = instance.get("cnf_hash")  # NEW: Get CNF hash for round-trip verification
         
         context.log(
             self.name,
             f"Formalizing {circuit_type}/{target_name} n={n} seed={seed}"
         )
+        
+        if lrat_hash:
+            context.log(self.name, f"  LRAT hash: {lrat_hash[:16]}...")
+        if cnf_hash:
+            context.log(self.name, f"  CNF hash: {cnf_hash[:16]}...")
         
         # Select theorem template
         template = self.registry.get_template("A", circuit_type, target_name)
@@ -287,6 +293,7 @@ class FormalizerAgent(AgentBase):
             seed=seed,
             task_id=task_id,
             lrat_hash=lrat_hash,
+            cnf_hash=cnf_hash,  # NEW: Pass CNF hash to template
             circuit_type=circuit_type,
             target_function=target_name,
             depth=circuit.get("depth", 2),  # For AC0 circuits

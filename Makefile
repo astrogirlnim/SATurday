@@ -105,17 +105,16 @@ bench:
 
 # Verify all LRAT proof artifacts
 check-proofs:
-	@echo "==> Checking LRAT proof artifacts..."
-	@if [ -d proofs ]; then \
-		for lrat in proofs/*.lrat; do \
-			if [ -f "$$lrat" ]; then \
-				echo "Verifying $$lrat..."; \
-			fi; \
-		done; \
-		echo "==> All proofs verified!"; \
+	@echo "==> Verifying LRAT proof artifacts..."
+	@if command -v satday >/dev/null 2>&1; then \
+		satday check-proofs --all; \
+	elif [ -f venv/bin/python ]; then \
+		./venv/bin/python -m search.cli check-proofs --all; \
 	else \
-		echo "WARNING: proofs/ directory not found or empty"; \
+		echo "ERROR: satday CLI not available. Run 'make setup' first."; \
+		exit 1; \
 	fi
+	@echo "==> All proofs verified!"
 
 # Clean build artifacts
 clean:

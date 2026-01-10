@@ -91,6 +91,7 @@ class LeanTheoremTemplate(ABC):
         seed: int,
         task_id: str,
         lrat_hash: Optional[str] = None,
+        cnf_hash: Optional[str] = None,
         **kwargs
     ) -> str:
         """
@@ -101,6 +102,7 @@ class LeanTheoremTemplate(ABC):
             seed: Random seed
             task_id: Task identifier
             lrat_hash: Optional SHA256 hash of LRAT proof
+            cnf_hash: Optional SHA256 hash of parent CNF file
             **kwargs: Additional parameters
             
         Returns:
@@ -114,6 +116,7 @@ class LeanTheoremTemplate(ABC):
         seed: int,
         task_id: str,
         lrat_hash: Optional[str] = None,
+        cnf_hash: Optional[str] = None,
         **kwargs
     ) -> LeanTheorem:
         """
@@ -124,6 +127,7 @@ class LeanTheoremTemplate(ABC):
             seed: Random seed
             task_id: Task identifier
             lrat_hash: SHA256 hash of LRAT proof
+            cnf_hash: SHA256 hash of parent CNF file
             **kwargs: Additional parameters
             
         Returns:
@@ -134,6 +138,7 @@ class LeanTheoremTemplate(ABC):
             seed=seed,
             task_id=task_id,
             lrat_hash=lrat_hash,
+            cnf_hash=cnf_hash,
             **kwargs
         )
         

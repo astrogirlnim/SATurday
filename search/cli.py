@@ -165,21 +165,22 @@ def bench(
 
 @app.command(name="check-proofs")
 def check_proofs(
-    verify_all: bool = typer.Option(False, "--all", help="Verify all stored proofs"),
-    proof_hash: Optional[str] = typer.Option(None, "--hash", help="Verify specific proof by hash"),
+    verify_all: bool = typer.Option(False, "--all", help="Verify all stored LRAT proofs"),
+    proof_hash: Optional[str] = typer.Option(None, "--hash", help="Verify specific LRAT proof by hash"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ):
     """
     Replay LRAT verification for stored proofs.
     
-    Recomputes hashes and verifies integrity of all artifacts in the proof store.
+    Verifies LRAT proofs against their parent CNF files using external checker.
     Ensures that solver-generated proofs are valid and have not been tampered with.
     
     Examples:
         satday check-proofs --all
         satday check-proofs --hash=abc123def456
+        satday check-proofs --all --verbose
     """
-    console.print("[bold blue]SATurday Proof Verification[/bold blue]")
+    console.print("[bold blue]SATurday LRAT Proof Verification[/bold blue]")
     console.print()
     
     try:
@@ -188,68 +189,80 @@ def check_proofs(
         store = ArtifactStore(proofs_dir)
         
         if verify_all:
-            console.print("[yellow]Verifying all stored proofs...[/yellow]\n")
+            console.print("[yellow]Verifying all LRAT proofs...[/yellow]\n")
             
-            # Get all artifacts (we'll filter LRAT)
-            # Use verify_all method which returns a dict of hash -> bool
-            verification_results = store.verify_all()
+            # Use new LRAT-specific verification
+            summary = store.verify_all_lrat_proofs()
             
-            if not verification_results:
-                console.print("[yellow]No artifacts found in store[/yellow]")
-                return
+            total = summary["total_lrat_proofs"]
+            verified = summary["verified"]
+            failed = summary["failed"]
+            results = summary["results"]
             
-            # Filter for LRAT proofs
-            from search.tools.artifact_store import ArtifactType
-            lrat_results = {
-                h: v for h, v in verification_results.items()
-                if store.get(h) and store.get(h).artifact_type == ArtifactType.LRAT
-            }
-            
-            if not lrat_results:
+            if total == 0:
                 console.print("[yellow]No LRAT proofs found in store[/yellow]")
-                console.print(f"Total artifacts: {len(verification_results)}")
                 return
             
-            console.print(f"Found {len(lrat_results)} LRAT proofs")
-            
-            # Count results
-            passed = sum(1 for v in lrat_results.values() if v)
-            failed = sum(1 for v in lrat_results.values() if not v)
+            console.print(f"Found {total} LRAT proofs")
             
             # Show details if verbose
             if verbose:
-                for artifact_hash, is_valid in lrat_results.items():
-                    metadata = store.get(artifact_hash)
-                    if metadata:
-                        status_icon = "[green]✓[/green]" if is_valid else "[red]✗[/red]"
-                        console.print(f"{status_icon} {artifact_hash[:16]}... {metadata.artifact_type.value}")
+                for result in results:
+                    lrat_hash = result["lrat_hash"]
+                    cnf_hash = result.get("cnf_hash", "unknown")
+                    success = result["success"]
+                    message = result["message"]
+                    
+                    status_icon = "[green]✓[/green]" if success else "[red]✗[/red]"
+                    console.print(f"{status_icon} LRAT: {lrat_hash[:16]}...")
+                    console.print(f"     CNF:  {cnf_hash[:16] if cnf_hash else 'unknown'}...")
+                    console.print(f"     {message}")
+                    console.print()
             
-            # Summary
-            console.print(f"\n[bold]Results:[/bold]")
-            console.print(f"  [green]Passed: {passed}[/green]")
-            console.print(f"  [red]Failed: {failed}[/red]")
+            # Summary table
+            from rich.table import Table
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Count", justify="right")
+            table.add_row("Total LRAT Proofs", str(total))
+            table.add_row("Verified", f"[green]{verified}[/green]")
+            table.add_row("Failed", f"[red]{failed}[/red]" if failed > 0 else "0")
+            
+            console.print(table)
             
             if failed > 0:
                 console.print("\n[bold red]Some proofs failed verification![/bold red]")
+                console.print("[yellow]This may indicate:[/yellow]")
+                console.print("  - Proof files have been modified")
+                console.print("  - CNF files are missing or corrupted")
+                console.print("  - LRAT checker encountered an error")
                 raise typer.Exit(code=1)
             else:
-                console.print("\n[bold green]All proofs verified successfully![/bold green]")
+                console.print("\n[bold green]All LRAT proofs verified successfully![/bold green]")
         
         elif proof_hash:
-            console.print(f"[yellow]Verifying proof: {proof_hash}[/yellow]\n")
+            console.print(f"[yellow]Verifying LRAT proof: {proof_hash}[/yellow]\n")
             
-            is_valid = store.verify(proof_hash)
+            result = store.verify_lrat_proof(proof_hash)
             
-            if is_valid:
-                console.print(f"[green]✓ Proof is valid[/green]")
+            if result["success"]:
+                console.print(f"[green]✓ {result['message']}[/green]")
                 
                 if verbose:
+                    console.print("\nDetails:")
+                    console.print(f"  LRAT Hash: {result['lrat_hash']}")
+                    console.print(f"  CNF Hash:  {result.get('cnf_hash', 'unknown')}")
+                    console.print(f"  Verified:  {result['verified_at']}")
+                    
+                    # Get metadata
                     metadata = store.get(proof_hash)
                     if metadata:
-                        console.print("\nMetadata:")
-                        console.print(json.dumps(metadata.to_dict(), indent=2))
+                        console.print(f"\nArtifact Info:")
+                        console.print(f"  Type: {metadata.artifact_type.value}")
+                        console.print(f"  Tool: {metadata.tool_name}")
+                        console.print(f"  Created: {metadata.timestamp}")
             else:
-                console.print(f"[red]✗ Proof verification failed[/red]")
+                console.print(f"[red]✗ {result['message']}[/red]")
                 raise typer.Exit(code=1)
         
         else:

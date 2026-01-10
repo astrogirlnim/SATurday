@@ -98,10 +98,10 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] Heuristic tags for relativizing/natural proofs; oracle diagnostics.  
 [x] Acceptance: Reports tags/rationale.
 
-[ ] **R10. Proof Artifact Round-Trip**  
-[ ] Reference LRAT logs in Lean (hash-anchored).  
-[ ] `make check-proofs` replays/verifies.  
-[ ] Acceptance: Hash breaks fail build.
+[x] **R10. Proof Artifact Round-Trip**  
+[x] Reference LRAT logs in Lean (hash-anchored).  
+[x] `make check-proofs` replays/verifies.  
+[x] Acceptance: Hash breaks fail build.
 
 [ ] **R11. Deterministic Bench Harness**  
 [ ] Seed matrix for small CNFs; CSV/MD summaries.  

@@ -471,6 +471,156 @@ class ArtifactStore:
         
         return children
     
+    def verify_lrat_proof(self, lrat_hash: str) -> Dict[str, Any]:
+        """
+        Verify an LRAT proof against its parent CNF.
+        
+        Args:
+            lrat_hash: Hash of LRAT proof artifact
+            
+        Returns:
+            Dictionary with verification result:
+                - success: bool
+                - message: str
+                - lrat_hash: str
+                - cnf_hash: Optional[str]
+                - verified_at: str (timestamp)
+        """
+        print(f"[ArtifactStore] Verifying LRAT proof: {lrat_hash[:16]}...", file=sys.stderr)
+        
+        # Get LRAT metadata
+        lrat_metadata = self.get(lrat_hash)
+        if not lrat_metadata:
+            return {
+                "success": False,
+                "message": f"LRAT proof not in index: {lrat_hash}",
+                "lrat_hash": lrat_hash,
+                "cnf_hash": None,
+                "verified_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+        
+        # Check LRAT file exists
+        lrat_path = Path(lrat_metadata.file_path)
+        if not lrat_path.exists():
+            return {
+                "success": False,
+                "message": f"LRAT file not found: {lrat_path}",
+                "lrat_hash": lrat_hash,
+                "cnf_hash": None,
+                "verified_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+        
+        # Find parent CNF
+        cnf_hash = None
+        cnf_path = None
+        
+        for parent_hash in lrat_metadata.parent_hashes:
+            parent_metadata = self.get(parent_hash)
+            if parent_metadata and parent_metadata.artifact_type == ArtifactType.CNF:
+                cnf_hash = parent_hash
+                cnf_path = Path(parent_metadata.file_path)
+                break
+        
+        if not cnf_path:
+            return {
+                "success": False,
+                "message": "No parent CNF found for LRAT proof",
+                "lrat_hash": lrat_hash,
+                "cnf_hash": cnf_hash,
+                "verified_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+        
+        # Call external LRAT verifier
+        import subprocess
+        from pathlib import Path as PathType
+        
+        verifier_path = Path(__file__).parent.parent / "bin" / "verify_lrat"
+        
+        try:
+            result = subprocess.run(
+                ["python", str(verifier_path), "--cnf", str(cnf_path), "--lrat", str(lrat_path)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            
+            success = result.returncode == 0
+            message = result.stdout.strip() if success else result.stderr.strip()
+            
+            # Update metadata if successful
+            if success:
+                lrat_metadata.verified = True
+                lrat_metadata.properties["lrat_verified_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+                self._save_index()
+            
+            return {
+                "success": success,
+                "message": message,
+                "lrat_hash": lrat_hash,
+                "cnf_hash": cnf_hash,
+                "verified_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+            
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "message": "LRAT verification timeout (30s)",
+                "lrat_hash": lrat_hash,
+                "cnf_hash": cnf_hash,
+                "verified_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"LRAT verification error: {e}",
+                "lrat_hash": lrat_hash,
+                "cnf_hash": cnf_hash,
+                "verified_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+    
+    def verify_all_lrat_proofs(self) -> Dict[str, Any]:
+        """
+        Verify all LRAT proofs in the store.
+        
+        Returns:
+            Dictionary with verification summary:
+                - total_lrat_proofs: int
+                - verified: int
+                - failed: int
+                - results: List[Dict] - individual results
+        """
+        print(f"[ArtifactStore] Verifying all LRAT proofs", file=sys.stderr)
+        
+        # Find all LRAT artifacts
+        lrat_artifacts = self.query(artifact_type=ArtifactType.LRAT)
+        
+        print(f"[ArtifactStore] Found {len(lrat_artifacts)} LRAT proofs", file=sys.stderr)
+        
+        results = []
+        verified_count = 0
+        failed_count = 0
+        
+        for lrat_metadata in lrat_artifacts:
+            result = self.verify_lrat_proof(lrat_metadata.artifact_hash)
+            results.append(result)
+            
+            if result["success"]:
+                verified_count += 1
+            else:
+                failed_count += 1
+        
+        summary = {
+            "total_lrat_proofs": len(lrat_artifacts),
+            "verified": verified_count,
+            "failed": failed_count,
+            "results": results,
+        }
+        
+        print(f"[ArtifactStore] LRAT verification complete: {verified_count}/{len(lrat_artifacts)} passed", 
+              file=sys.stderr)
+        
+        return summary
+    
     def stats(self) -> Dict[str, Any]:
         """
         Get statistics about the artifact store.
