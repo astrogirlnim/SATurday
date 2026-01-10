@@ -81,9 +81,9 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] Rule-based decomposition for bets; YAML plans with tasks/seeds.  
 [x] Acceptance: Schedules/logs a plan.
 
-[ ] **R2. Conjecturer Agent (Template-Based)**  
-[ ] Grammar-driven generation of Lean stubs/CNF specs.  
-[ ] Acceptance: Emits stubs/specs to folders.
+[x] **R2. Conjecturer Agent (Template-Based)**  
+[x] Grammar-driven generation of Lean stubs/CNF specs.  
+[x] Acceptance: Emits stubs/specs to folders.
 
 [ ] **R3. Counterexample Miner**  
 [ ] Synthesize CNF, run Kissat; extract patterns from logs.  

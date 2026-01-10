@@ -1,0 +1,17 @@
+conjecture_id: formula_parity_n2_s42
+task_id: bet_a_formula_n2_s42
+description: Formula circuit computing parity on 2 inputs
+circuit:
+  type: formula
+  num_inputs: 2
+  max_size: 4
+  fan_out_limit: 1
+target_function:
+  name: parity
+encoding:
+  method: tseitin
+  optimize: false
+seed: 42
+solver_config:
+  timeout_seconds: 60
+  expected_result: UNSAT

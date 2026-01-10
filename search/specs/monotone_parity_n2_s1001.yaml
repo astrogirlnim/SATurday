@@ -1,0 +1,34 @@
+conjecture_id: monotone_parity_n2_s1001
+task_id: bet_a_monotone_n2_s1001
+description: Monotone circuit computing parity on 2 inputs
+circuit:
+  type: monotone
+  num_inputs: 2
+  max_gates: 4
+  depth_limit: 4
+target_function:
+  name: parity
+  truth_table:
+  - inputs:
+    - 0
+    - 0
+    output: 0
+  - inputs:
+    - 1
+    - 0
+    output: 1
+  - inputs:
+    - 0
+    - 1
+    output: 1
+  - inputs:
+    - 1
+    - 1
+    output: 0
+encoding:
+  method: tseitin
+  optimize: false
+seed: 1001
+solver_config:
+  timeout_seconds: 60
+  expected_result: UNSAT
