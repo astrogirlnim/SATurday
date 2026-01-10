@@ -130,36 +130,106 @@ def mine(
 
 @app.command()
 def bench(
-    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
-    seed_start: int = typer.Option(1, "--seed-start", help="Starting seed value"),
-    seed_count: int = typer.Option(10, "--seed-count", help="Number of seeds to test"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output CSV file"),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Benchmark config YAML file"),
+    baseline: Optional[Path] = typer.Option(None, "--baseline", "-b", help="Baseline CSV for comparison"),
+    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Output directory"),
+    fail_fast: bool = typer.Option(False, "--fail-fast", help="Stop on first failure"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed progress"),
 ):
     """
-    Run deterministic benchmark harness with seed matrix.
+    Run deterministic benchmark harness with test matrix.
     
-    Tests small CNF instances across multiple seeds and generates CSV/MD summaries
-    with timing and resource usage statistics.
+    Executes comprehensive benchmarks across circuit types, sizes, and seeds.
+    Generates CSV and Markdown reports with timing and success metrics.
     
     Examples:
-        satday bench --seed-start=1 --seed-count=10
-        satday bench --output=results.csv
+        satday bench
+        satday bench --config=custom_bench.yaml
+        satday bench --baseline=docs/benchmarks/2026-01-10_baseline.csv
+        satday bench --verbose --fail-fast
     """
     console.print("[bold blue]SATurday Benchmark Harness[/bold blue]")
-    console.print(f"Seeds: {seed_start} to {seed_start + seed_count - 1}")
     console.print()
     
     try:
-        # Import benchmark module (to be implemented in R11)
-        console.print("[yellow]Benchmark harness not yet implemented (Phase 3: R11)[/yellow]")
-        console.print("This will run deterministic seed matrix benchmarks.")
-        console.print(f"Planned output: {output or 'docs/reports/bench_TIMESTAMP.md'}")
+        # Import benchmark modules
+        from search.benchmarks.config import BenchmarkConfig
+        from search.benchmarks.harness import BenchmarkHarness
         
-        # Placeholder for future implementation
-        console.print("\n[bold yellow]Coming in Phase 3![/bold yellow]")
+        # Load configuration
+        if config:
+            console.print(f"[yellow]Loading config from {config}[/yellow]")
+            bench_config = BenchmarkConfig.from_yaml(config)
+        else:
+            console.print("[yellow]Using default benchmark configuration[/yellow]")
+            # Load default config
+            default_config_path = repo_root / "infra" / "config" / "benchmark_defaults.yaml"
+            if default_config_path.exists():
+                bench_config = BenchmarkConfig.from_yaml(default_config_path)
+            else:
+                bench_config = BenchmarkConfig.default()
+        
+        console.print(f"Config: {bench_config.config.name}")
+        console.print(f"Description: {bench_config.config.description}")
+        console.print()
+        
+        # Set baseline if provided
+        if baseline:
+            console.print(f"[yellow]Baseline: {baseline}[/yellow]")
+            # TODO: Implement baseline comparison in future
+        
+        # Initialize harness
+        harness = BenchmarkHarness(
+            config=bench_config,
+            fail_fast=fail_fast,
+            verbose=verbose,
+        )
+        
+        # Run benchmark suite
+        console.print("[bold green]Starting benchmark run...[/bold green]")
+        console.print()
+        
+        metrics = harness.run()
+        
+        # Generate reports
+        console.print()
+        output_path = Path(output_dir) if output_dir else None
+        report_paths = harness.generate_reports(output_dir=output_path)
+        
+        # Print summary
+        console.print()
+        console.print("[bold green]Benchmark Complete![/bold green]")
+        console.print()
+        
+        # Create summary table
+        table = Table(title="Summary")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Total Instances", str(metrics.total_instances))
+        table.add_row("Successful", str(metrics.successful_instances))
+        table.add_row("Failed", str(metrics.failed_instances))
+        table.add_row("Success Rate", f"{metrics.success_rate:.1f}%")
+        table.add_row("Duration", f"{metrics.duration:.2f}s")
+        
+        console.print(table)
+        console.print()
+        
+        console.print(f"[bold]Reports:[/bold]")
+        console.print(f"  CSV: {report_paths['csv']}")
+        console.print(f"  Markdown: {report_paths['md']}")
+        
+        # Exit with error if any failures
+        if metrics.failed_instances > 0:
+            console.print()
+            console.print(f"[bold yellow]Warning:[/bold yellow] {metrics.failed_instances} instance(s) failed")
+            raise typer.Exit(code=1)
         
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
+        import traceback
+        if verbose:
+            console.print(traceback.format_exc())
         raise typer.Exit(code=1)
 
 

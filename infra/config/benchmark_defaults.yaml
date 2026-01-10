@@ -1,0 +1,35 @@
+# Default Benchmark Configuration for SATurday
+# This file defines the test matrices and settings for deterministic benchmarking
+
+benchmark:
+  name: "SATurday MVP Benchmark Suite"
+  description: "Deterministic validation of agent pipeline"
+  
+  # Test matrices define parameter combinations to test
+  test_matrices:
+    - name: "BetA_CircuitBounds_Tiny"
+      bet: "A"
+      circuit_types:
+        - "monotone"
+        - "ac0"
+        - "formula"
+      target_functions:
+        - "parity"
+        - "majority"
+      input_sizes: [2, 3, 4, 5]
+      seed_start: 12000
+      seed_count: 3  # Run 3 seeds per configuration
+  
+  # Per-agent timeouts (seconds)
+  timeouts:
+    planner: 10
+    conjecturer: 30
+    miner: 60
+    formalizer: 120
+    critic: 30
+  
+  # Output configuration
+  output:
+    csv_path: "docs/benchmarks"
+    md_path: "docs/benchmarks"
+    include_artifacts: true
