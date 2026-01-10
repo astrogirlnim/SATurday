@@ -1,0 +1,27 @@
+bet: B
+strategy: algorithm_synthesis
+total_tasks: 1
+total_milestones: 1
+total_estimated_time_seconds: 10
+tasks:
+- task_id: bet_b_stub_placeholder
+  bet: B
+  problem_size: 10
+  seed: 100
+  circuit_type: null
+  algorithm_schema: sorting
+  dependencies: []
+  timeout_seconds: 300
+  acceptance_criteria:
+    stub: true
+  priority: 1
+  estimated_time_seconds: 10
+milestones:
+- name: bet_b_placeholder
+  description: Placeholder milestone for Bet B (not yet implemented)
+  required_tasks:
+  - bet_b_stub_placeholder
+  acceptance: Stub only - implement in future
+validation:
+  is_valid: true
+  errors: []
