@@ -109,7 +109,9 @@ class TestSchemaValidation:
         with pytest.raises(ValidationError) as exc_info:
             SaturdayConfig(unknown_field="value")
         
-        assert "extra fields not permitted" in str(exc_info.value).lower()
+        # Pydantic v2 uses "extra inputs are not permitted" instead of "extra fields not permitted"
+        error_msg = str(exc_info.value).lower()
+        assert ("extra fields not permitted" in error_msg or "extra inputs are not permitted" in error_msg)
         
         print(f"[Test] Extra fields correctly rejected")
 

@@ -139,7 +139,7 @@ class ArtifactStore:
         }
         
         # Write atomically via temp file
-        temp_path = self.index_path.with_suffix(".json.tmp", file=sys.stderr)
+        temp_path = self.index_path.with_suffix(".json.tmp")
         
         try:
             with open(temp_path, "w") as f:
