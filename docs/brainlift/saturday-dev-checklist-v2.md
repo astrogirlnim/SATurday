@@ -113,9 +113,9 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 
 **Criteria:** Apply loop to bets; start with one for MVP.
 
-[ ] **R6. Restricted-Circuit Lower Bounds (Bet A)**  
-[ ] Prove baseline bounds in Lean; mine patterns from CNF.  
-[ ] Acceptance: One proved lower bound with artifact.
+[x] **R6. Restricted-Circuit Lower Bounds (Bet A)**  
+[x] Prove baseline bounds in Lean; mine patterns from CNF.  
+[x] Acceptance: One proved lower bound with artifact.
 
 [ ] **R7. Algorithm Synthesis (Bet B)**  
 [ ] Schema search; prove bounds via induction.  
