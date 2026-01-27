@@ -158,12 +158,22 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] All main theorems complete (no sorry), compile successfully
 
 **V3. Systematic Bet A Coverage (Depends on V1, parallel with V2)**  
-[ ] Run full monotone parity baseline n=2-20 if incomplete  
-[ ] Add monotone majority function (expected SAT for small circuits)  
-[ ] Add monotone threshold functions  
-[ ] Test AC0 circuits (constant depth, unbounded fan-in) for parity  
-[ ] Test formula circuits (fan-out 1) for parity  
+[x] Infrastructure: Multi-function template system with registry updates
+[x] Infrastructure: Multi-circuit synthesis encoder (AC0, formula support)
+[x] Add monotone majority function (expected SAT for small circuits)  
+[x] Add monotone threshold functions (threshold-2, threshold-3)
+[x] Test AC0 circuits (constant depth, unbounded fan-in) for parity  
+[x] Test formula circuits (fan-out 1) for parity
+[x] End-to-end verification: Generated sample instances successfully
+[ ] Run full generation for n=6-10 with all configurations  
+[ ] Extend to n=11-20 for monotone parity baseline
 [ ] Acceptance: Comprehensive lower bound landscape with 100+ instances
+
+Status: Infrastructure complete and verified. Ready for large-scale generation.
+- 7 templates registered (3 circuit types × multiple functions)
+- Truth table generation working for all functions
+- Planner generating 180 tasks (3 types × 4 functions × 5 sizes × 3 seeds)
+- Sample generation confirmed working (10/10 conjectures generated)
 
 **V4. Encoding Scalability (Depends on V3 results, enables larger n)**  
 [ ] Implement implicit truth table constraints (avoid 2^n rows for n>8)  
