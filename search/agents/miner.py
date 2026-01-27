@@ -9,6 +9,7 @@ This agent:
 - Reports findings to inform formalization
 """
 
+import gzip
 import json
 import subprocess
 import sys
@@ -245,7 +246,10 @@ class MinerAgent(AgentBase):
         spec: Dict[str, Any]
     ) -> Path:
         """
-        Generate CNF file from specification using CircuitEncoder.
+        Generate CNF file from specification using circuit synthesis encoding.
+        
+        This encodes the question: "Does there exist a circuit of size ≤k
+        that computes the target function?" (not verification of a fixed circuit).
         
         Args:
             context: Agent context for logging
@@ -255,62 +259,47 @@ class MinerAgent(AgentBase):
         Returns:
             Path to generated CNF file
         """
-        # Import circuit modules (use proper package imports)
-        from search.circuits.dsl import MonotoneCircuit, AC0Circuit, FormulaCircuit
-        from search.circuits.to_cnf import CircuitEncoder
+        # Import circuit synthesis encoder
+        from search.circuits.synthesis import CircuitSynthesisEncoder
         from search.io.cnf_writer import CNFWriter
-        from search.tools.artifact_store import ArtifactStore
         
         # Parse spec structure
         circuit_spec = spec.get("circuit", {})
         circuit_type = circuit_spec.get("type", "monotone")
         num_inputs = circuit_spec.get("num_inputs", 3)
+        max_gates = circuit_spec.get("max_gates", 10)
         
         target_func_spec = spec.get("target_function", {})
         if isinstance(target_func_spec, dict):
             target_func_name = target_func_spec.get("name", "parity")
+            truth_table = target_func_spec.get("truth_table", [])
         else:
             # Fallback for string-based specs
             target_func_name = target_func_spec
+            truth_table = []
         
-        context.log(self.name, f"Generating {circuit_type} circuit for {target_func_name} with n={num_inputs}")
+        context.log(
+            self.name,
+            f"Encoding synthesis problem: {circuit_type} circuit for {target_func_name} "
+            f"with n={num_inputs}, max_gates={max_gates}"
+        )
         
-        # Create circuit based on spec
-        if circuit_type == "monotone":
-            circuit = MonotoneCircuit(num_inputs=num_inputs)
-        elif circuit_type == "ac0":
-            max_depth = circuit_spec.get("max_depth", 2)
-            circuit = AC0Circuit(num_inputs=num_inputs, max_depth=max_depth)
-        elif circuit_type == "formula":
-            circuit = FormulaCircuit(num_inputs=num_inputs)
-        else:
-            raise ValueError(f"Unknown circuit class: {circuit_type}")
+        # Verify truth table is provided
+        if not truth_table:
+            raise ValueError(
+                f"Truth table required for synthesis encoding (got empty for {conjecture_id})"
+            )
         
-        # Build circuit for target function
-        inputs = [circuit.add_input(i+1) for i in range(num_inputs)]
+        context.log(self.name, f"Truth table has {len(truth_table)} rows")
         
-        if target_func_name == "parity":
-            # Parity: XOR of all inputs (impossible for monotone)
-            # For testing, build a simple circuit
-            if len(inputs) >= 2:
-                output = circuit.add_and(inputs[:2])
-            else:
-                output = inputs[0]
-        elif target_func_name == "majority":
-            # Majority: Build simple majority circuit
-            if len(inputs) >= 3:
-                output = circuit.add_or(inputs[:3])
-            else:
-                output = inputs[0] if inputs else circuit.add_input(1)
-        else:
-            # Default: just OR all inputs
-            output = circuit.add_or(inputs) if inputs else circuit.add_input(1)
-        
-        circuit.set_output(output)
-        
-        # Encode to CNF
-        encoder = CircuitEncoder()
-        cnf = encoder.encode(circuit)
+        # Use circuit synthesis encoder
+        encoder = CircuitSynthesisEncoder()
+        cnf = encoder.encode_synthesis(
+            n_inputs=num_inputs,
+            max_gates=max_gates,
+            circuit_class=circuit_type,
+            truth_table=truth_table,
+        )
         
         # Write CNF to file
         cnf_filename = f"{conjecture_id}.cnf"
@@ -319,7 +308,15 @@ class MinerAgent(AgentBase):
         writer = CNFWriter()
         writer.write(cnf, cnf_path)
         
-        context.log(self.name, f"Generated CNF: {cnf_path} ({cnf.num_vars} vars, {cnf.num_clauses} clauses)")
+        context.log(
+            self.name,
+            f"Generated synthesis CNF: {cnf_path} "
+            f"({cnf.num_vars} vars, {cnf.num_clauses} clauses)"
+        )
+        context.log(
+            self.name,
+            f"Interpretation: SAT = circuit exists, UNSAT = proven lower bound"
+        )
         
         return cnf_path
     
@@ -573,8 +570,23 @@ class MinerAgent(AgentBase):
         
         lrat_size = lrat_path.stat().st_size
         
-        with open(lrat_path, 'r') as f:
-            lrat_lines = sum(1 for _ in f)
+        # LRAT proofs may be gzip-compressed (check for .gz extension or magic bytes)
+        try:
+            if lrat_path.suffix == '.gz' or lrat_path.name.endswith('.lrat'):
+                # Try gzip first (Kissat outputs compressed LRAT)
+                try:
+                    with gzip.open(lrat_path, 'rt') as f:
+                        lrat_lines = sum(1 for _ in f)
+                except gzip.BadGzipFile:
+                    # Fall back to plain text
+                    with open(lrat_path, 'r') as f:
+                        lrat_lines = sum(1 for _ in f)
+            else:
+                with open(lrat_path, 'r') as f:
+                    lrat_lines = sum(1 for _ in f)
+        except (UnicodeDecodeError, OSError) as e:
+            # If we can't read it, just use file size as proxy
+            lrat_lines = lrat_size // 50  # Rough estimate: 50 bytes per line
         
         return {
             "proof_size_bytes": lrat_size,

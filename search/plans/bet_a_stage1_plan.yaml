@@ -1,0 +1,109 @@
+# Bet A Stage 1: Baseline Exploration Plan
+# Generated: 2026-01-10
+# Execution Time: ~10-30 minutes (100 instances × 1-60s each)
+
+name: "bet-a-stage-1-monotone-parity-baseline"
+description: "Systematic exploration of monotone parity lower bounds for n=2-20"
+bet: "A"
+goal: "Establish baseline with known results; validate full pipeline"
+
+# Metadata
+metadata:
+  stage: 1
+  circuit_type: "monotone"
+  target_function: "parity"
+  expected_outcome: "UNSAT for n >= 2 (exponential lower bounds)"
+  references:
+    - "Razborov (1985): Monotone circuit lower bounds"
+    - "Tardos (1988): Tight exponential bounds for monotone parity"
+
+# Milestones
+milestones:
+  - name: "baseline_validation"
+    description: "Validate system produces expected UNSAT results"
+    acceptance:
+      unsat_rate: 0.90  # Expect 90%+ UNSAT (some small n may SAT)
+      success_rate: 0.95  # 95%+ instances complete without error
+  
+  - name: "proof_generation"
+    description: "Generate LRAT proofs for UNSAT instances"
+    acceptance:
+      lrat_success_rate: 0.95  # 95%+ LRAT proofs valid
+  
+  - name: "formalization"
+    description: "Formalize top instances in Lean"
+    acceptance:
+      lean_compile_rate: 1.0  # All generated Lean code must compile
+
+# Task generation parameters
+tasks:
+  # Generate 100 instances: n in [2-20] × seed range [12000-12099]
+  circuit_type: "monotone"
+  target_function:
+    name: "parity"
+    description: "XOR of all inputs"
+  
+  size_range:
+    min_n: 2
+    max_n: 20
+    step: 1
+  
+  seed_range:
+    start: 12000
+    end: 12099
+    # 100 seeds total
+  
+  # For each n, test ~5 different seeds
+  # n=2: seeds 12000-12004
+  # n=3: seeds 12005-12009
+  # ... distributed across range
+
+# Expected patterns to observe
+expected_patterns:
+  - pattern: "unsat_for_small_n"
+    description: "n=2,3,4 should be UNSAT (circuits too small)"
+    validation: "Check UNSAT rate for n <= 4"
+  
+  - pattern: "exponential_proof_growth"
+    description: "LRAT proof size should grow exponentially with n"
+    validation: "Plot proof size vs n, expect exponential trend"
+  
+  - pattern: "relativizing_proofs"
+    description: "Monotone arguments are typically relativizing"
+    validation: "Critic should flag most proofs as RELATIVIZING"
+
+# Analysis to perform
+analysis:
+  - metric: "unsat_rate_by_n"
+    description: "UNSAT percentage for each value of n"
+    visualization: "line plot"
+  
+  - metric: "lrat_proof_size_by_n"
+    description: "LRAT proof size (bytes) vs n"
+    visualization: "scatter plot with exponential fit"
+  
+  - metric: "solver_time_by_n"
+    description: "Kissat solve time vs n"
+    visualization: "scatter plot"
+  
+  - metric: "barrier_tags"
+    description: "Barrier detection results (relativization, natural proofs)"
+    visualization: "pie chart"
+  
+  - metric: "formalization_success"
+    description: "Number of successfully formalized proofs"
+    visualization: "bar chart"
+
+# Next steps (after Stage 1)
+next_steps:
+  - decision: "if unsat_rate >= 0.90"
+    action: "Proceed to Stage 2: AC0 exploration"
+    rationale: "Baseline validated, system working correctly"
+  
+  - decision: "if unsat_rate < 0.90"
+    action: "Debug: Review SAT instances, check circuit encoding"
+    rationale: "Unexpected SAT results indicate encoding issues"
+  
+  - decision: "if lrat_success_rate < 0.90"
+    action: "Debug: Review LRAT generation, check Kissat configuration"
+    rationale: "LRAT proof generation failing"

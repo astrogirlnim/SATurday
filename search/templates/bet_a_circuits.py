@@ -87,6 +87,12 @@ end SATurday.Conjectures.BetA
         seed = params.get("seed", 0)
         task_id = params.get("task_id", "unknown")
         
+        # OPTIMIZED: Use much smaller gate bounds
+        # Monotone parity is impossible, so even small circuits will be UNSAT
+        # Use O(n) gates instead of O(2^n) for tractable encoding
+        max_gates = min(n * 2, 8)  # Linear in n, capped at 8
+        depth_limit = min(n + 2, 6)  # Shallow circuits
+        
         return {
             "conjecture_id": f"{self.template_id}_n{n}_s{seed}",
             "task_id": task_id,
@@ -94,16 +100,16 @@ end SATurday.Conjectures.BetA
             "circuit": {
                 "type": "monotone",
                 "num_inputs": n,
-                "max_gates": min(2 ** n, 1000),  # Cap for practical SAT solving
-                "depth_limit": n * 2,  # Reasonable depth limit
+                "max_gates": max_gates,
+                "depth_limit": depth_limit,
             },
             "target_function": {
                 "name": "parity",
                 "truth_table": self._generate_parity_truth_table(n),
             },
             "encoding": {
-                "method": "tseitin",
-                "optimize": False,
+                "method": "synthesis",  # Changed from "tseitin"
+                "optimize": True,
             },
             "seed": seed,
             "solver_config": {
@@ -114,8 +120,10 @@ end SATurday.Conjectures.BetA
     
     def _generate_parity_truth_table(self, n: int) -> list:
         """Generate truth table for parity function (for small n)."""
-        if n > 5:
-            return []  # Too large for explicit truth table
+        if n > 8:
+            # For n > 8, truth table is too large (256+ rows)
+            # Use implicit constraints instead (future optimization)
+            return []
         
         truth_table = []
         for i in range(2 ** n):
