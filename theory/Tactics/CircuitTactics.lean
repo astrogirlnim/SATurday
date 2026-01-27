@@ -1,5 +1,6 @@
 import Mathlib.Data.Nat.Basic
 import Mathlib.Tactic
+import Theory.Circuits
 
 /-!
 # Circuit Tactics Library
@@ -10,14 +11,17 @@ Reusable tactics for proving circuit complexity lower bounds.
 - Size and depth monotonicity lemmas
 - Basic circuit properties
 - Composition lemmas
+- Integration with LRAT-certified lower bounds
 
 ## Usage
 Import this module to access circuit-specific tactics for formal proofs.
 
-LOG: Circuit tactics library initialized
+LOG: Circuit tactics library initialized with Circuit module integration
 -/
 
 namespace SATurday.Tactics.Circuit
+
+open SATurday.Circuits
 
 /-! ## Basic Circuit Properties -/
 
