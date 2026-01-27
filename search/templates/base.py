@@ -210,45 +210,66 @@ class TemplateRegistry:
     """
     Registry for conjecture templates.
     
-    Maps (bet, circuit_type) -> list of templates.
+    Maps (bet, circuit_type, function_name) -> template.
     """
     
     def __init__(self):
         """Initialize empty registry."""
-        self.templates: Dict[tuple, list] = {}
+        self.templates: Dict[tuple, ConjectureTemplate] = {}
         print("[TemplateRegistry] Initialized")
     
-    def register(self, bet: str, circuit_type: str, template: ConjectureTemplate):
+    def register(self, bet: str, circuit_type: str, function_name: str, template: ConjectureTemplate):
         """
         Register a template.
         
         Args:
             bet: Research bet (A, B, C, D)
             circuit_type: Circuit type (monotone, ac0, formula, etc.)
+            function_name: Target function (parity, majority, threshold, etc.)
             template: Template instance
         """
-        key = (bet, circuit_type)
-        if key not in self.templates:
-            self.templates[key] = []
-        self.templates[key].append(template)
-        print(f"[TemplateRegistry] Registered {template.template_id} for ({bet}, {circuit_type})")
+        key = (bet, circuit_type, function_name)
+        self.templates[key] = template
+        print(f"[TemplateRegistry] Registered {template.template_id} for ({bet}, {circuit_type}, {function_name})")
     
-    def get_templates(self, bet: str, circuit_type: str) -> list:
+    def get_template(self, bet: str, circuit_type: str, function_name: str) -> Optional[ConjectureTemplate]:
         """
-        Get templates for a bet and circuit type.
+        Get template for a bet, circuit type, and function.
+        
+        Args:
+            bet: Research bet
+            circuit_type: Circuit type
+            function_name: Target function name
+        
+        Returns:
+            Template if found, None otherwise
+        """
+        key = (bet, circuit_type, function_name)
+        template = self.templates.get(key)
+        if template:
+            print(f"[TemplateRegistry] Found template for ({bet}, {circuit_type}, {function_name})")
+        else:
+            print(f"[TemplateRegistry] No template for ({bet}, {circuit_type}, {function_name})")
+        return template
+    
+    def get_templates_for_circuit(self, bet: str, circuit_type: str) -> list:
+        """
+        Get all templates for a bet and circuit type (all functions).
         
         Args:
             bet: Research bet
             circuit_type: Circuit type
         
         Returns:
-            List of templates (empty if none found)
+            List of templates
         """
-        key = (bet, circuit_type)
-        templates = self.templates.get(key, [])
+        templates = [
+            template for key, template in self.templates.items()
+            if key[0] == bet and key[1] == circuit_type
+        ]
         print(f"[TemplateRegistry] Found {len(templates)} templates for ({bet}, {circuit_type})")
         return templates
     
-    def get_all_templates(self) -> Dict[tuple, list]:
+    def get_all_templates(self) -> Dict[tuple, ConjectureTemplate]:
         """Get all registered templates."""
         return self.templates
