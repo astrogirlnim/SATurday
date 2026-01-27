@@ -17,6 +17,10 @@ lean_lib «Tactics» where
   -- Tactic libraries for circuit complexity proofs
   globs := #[.submodules `Tactics]
 
+lean_lib «Conjectures» where
+  -- Generated conjectures and proofs from agent system
+  globs := #[.submodules `Conjectures]
+
 -- Test script to verify basic lemmas
 script test do
   IO.println "LOG: Running SATurday theory tests..."

@@ -1,4 +1,5 @@
 import Theory.Basic
+import Theory.Circuits
 import Tactics.CircuitTactics
 import Tactics.EncodingTactics
 import Tactics.InductionScaffolds
@@ -13,9 +14,10 @@ focusing on circuit lower bounds, algorithm analysis, and P vs NP exploration.
 
 ## Modules
 - `Theory.Basic`: Fundamental definitions and lemmas
+- `Theory.Circuits`: Circuit structures and evaluation semantics
 - `Tactics.CircuitTactics`: Circuit complexity proof tactics
 - `Tactics.EncodingTactics`: CNF encoding correctness tactics
 - `Tactics.InductionScaffolds`: Standard induction patterns
 
-LOG: Theory library root module with tactic libraries
+LOG: Theory library root module with tactic libraries and circuit definitions
 -/
