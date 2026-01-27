@@ -24,6 +24,7 @@ from templates.base import TemplateRegistry, Conjecture
 from templates.bet_a_circuits import (
     MonotoneParityTemplate,
     MonotoneMajorityTemplate,
+    MonotoneThresholdTemplate,
     AC0ParityTemplate,
     AC0MajorityTemplate,
     FormulaParityTemplate,
@@ -54,20 +55,22 @@ class ConjecturerAgent(AgentBase):
         print("[ConjecturerAgent] Registering templates...")
         
         # Bet A: Circuit lower bounds
-        # Each circuit type gets multiple function templates
+        # Register templates by (bet, circuit_type, function_name)
         
         # Monotone circuits
-        self.registry.register("A", "monotone", MonotoneParityTemplate())
-        self.registry.register("A", "monotone", MonotoneMajorityTemplate())
+        self.registry.register("A", "monotone", "parity", MonotoneParityTemplate())
+        self.registry.register("A", "monotone", "majority", MonotoneMajorityTemplate())
+        self.registry.register("A", "monotone", "threshold_2", MonotoneThresholdTemplate(threshold_k=2))
+        self.registry.register("A", "monotone", "threshold_3", MonotoneThresholdTemplate(threshold_k=3))
         
         # AC0 circuits
-        self.registry.register("A", "ac0", AC0ParityTemplate())
-        self.registry.register("A", "ac0", AC0MajorityTemplate())
+        self.registry.register("A", "ac0", "parity", AC0ParityTemplate())
+        self.registry.register("A", "ac0", "majority", AC0MajorityTemplate())
         
         # Formula circuits
-        self.registry.register("A", "formula", FormulaParityTemplate())
+        self.registry.register("A", "formula", "parity", FormulaParityTemplate())
         
-        print(f"[ConjecturerAgent] Registered {len(self.registry.get_all_templates())} template groups")
+        print(f"[ConjecturerAgent] Registered {len(self.registry.get_all_templates())} templates")
     
     def plan(self, context: AgentContext) -> Dict[str, Any]:
         """
@@ -163,24 +166,23 @@ class ConjecturerAgent(AgentBase):
             task_id = task.get("task_id", f"task_{i}")
             bet = task.get("bet", "A")
             circuit_type = task.get("circuit_type", "unknown")
+            function_name = task.get("function_name", "parity")
             
             context.log(self.name, f"Processing task {i+1}/{len(tasks)}: {task_id}")
             
             try:
-                # Get templates for this bet and circuit type
-                templates = registry.get_templates(bet, circuit_type)
+                # Get template for this bet, circuit type, and function
+                template = registry.get_template(bet, circuit_type, function_name)
                 
-                if not templates:
+                if not template:
                     context.log(
                         self.name,
-                        f"No templates found for (bet={bet}, circuit_type={circuit_type})",
+                        f"No template for (bet={bet}, circuit_type={circuit_type}, function={function_name})",
                         level="WARNING"
                     )
                     failed_tasks.append(task_id)
                     continue
                 
-                # Use first template (could rotate or use multiple)
-                template = templates[0]
                 context.log(self.name, f"Using template: {template.template_id}")
                 
                 # Instantiate template

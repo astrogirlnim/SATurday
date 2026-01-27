@@ -45,6 +45,7 @@ class Task:
     problem_size: int
     seed: int
     circuit_type: Optional[str] = None
+    function_name: Optional[str] = None
     algorithm_schema: Optional[str] = None
     dependencies: List[str] = field(default_factory=list)
     timeout_seconds: int = 300
@@ -60,6 +61,7 @@ class Task:
             "problem_size": self.problem_size,
             "seed": self.seed,
             "circuit_type": self.circuit_type,
+            "function_name": self.function_name,
             "algorithm_schema": self.algorithm_schema,
             "dependencies": self.dependencies,
             "timeout_seconds": self.timeout_seconds,
@@ -124,47 +126,53 @@ class BetDecomposer:
         max_size = config.get("max_size", 10)
         num_seeds = config.get("num_seeds", 3)
         
-        # Circuit types to explore (MVP: all three)
-        circuit_types = config.get("circuit_types", ["monotone", "ac0", "formula"])
+        # Circuit types to explore
+        circuit_types = config.get("circuit_types", ["monotone"])
+        
+        # Target functions to explore
+        target_functions = config.get("target_functions", ["parity"])
         
         # Size progression (powers of 2 for efficiency, plus intermediate values)
         size_progression = self._generate_size_progression(2, max_size)
         
         print(f"[BetDecomposer] Circuit types: {circuit_types}")
+        print(f"[BetDecomposer] Target functions: {target_functions}")
         print(f"[BetDecomposer] Size progression: {size_progression}")
         print(f"[BetDecomposer] Seeds per size: {num_seeds}")
         
         tasks = []
         task_counter = 0
         
-        # Generate tasks for each circuit type, size, and seed
+        # Generate tasks for each circuit type, function, size, and seed
         for circuit_type in circuit_types:
-            for size in size_progression:
-                for seed_offset in range(num_seeds):
-                    task_seed = base_seed + task_counter
-                    task_id = f"bet_a_{circuit_type}_n{size}_s{task_seed}"
-                    
-                    # Estimate time: larger circuits take longer
-                    estimated_time = self._estimate_task_time(size, circuit_type)
-                    
-                    task = Task(
-                        task_id=task_id,
-                        bet="A",
-                        problem_size=size,
-                        seed=task_seed,
-                        circuit_type=circuit_type,
-                        timeout_seconds=max(estimated_time * 3, 60),  # 3x estimate or 60s min
-                        estimated_time_seconds=estimated_time,
-                        priority=self._compute_priority(size, circuit_type),
-                        acceptance_criteria={
-                            "generate_cnf": True,
-                            "run_solver": True,
-                            "extract_patterns": True,
-                        },
-                    )
-                    
-                    tasks.append(task)
-                    task_counter += 1
+            for function_name in target_functions:
+                for size in size_progression:
+                    for seed_offset in range(num_seeds):
+                        task_seed = base_seed + task_counter
+                        task_id = f"bet_a_{circuit_type}_{function_name}_n{size}_s{task_seed}"
+                        
+                        # Estimate time: larger circuits take longer
+                        estimated_time = self._estimate_task_time(size, circuit_type)
+                        
+                        task = Task(
+                            task_id=task_id,
+                            bet="A",
+                            problem_size=size,
+                            seed=task_seed,
+                            circuit_type=circuit_type,
+                            function_name=function_name,
+                            timeout_seconds=max(estimated_time * 3, 60),  # 3x estimate or 60s min
+                            estimated_time_seconds=estimated_time,
+                            priority=self._compute_priority(size, circuit_type),
+                            acceptance_criteria={
+                                "generate_cnf": True,
+                                "run_solver": True,
+                                "extract_patterns": True,
+                            },
+                        )
+                        
+                        tasks.append(task)
+                        task_counter += 1
         
         print(f"[BetDecomposer] Generated {len(tasks)} tasks for Bet A")
         

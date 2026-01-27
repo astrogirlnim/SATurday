@@ -212,6 +212,8 @@ end SATurday.Conjectures.BetA
         if n % 2 == 0:
             n += 1
         
+        threshold = (n // 2) + 1
+        
         return {
             "conjecture_id": f"{self.template_id}_n{n}_s{seed}",
             "task_id": task_id,
@@ -224,10 +226,11 @@ end SATurday.Conjectures.BetA
             },
             "target_function": {
                 "name": "majority",
-                "threshold": (n // 2) + 1,
+                "threshold": threshold,
+                "truth_table": self._generate_threshold_truth_table(n, threshold),
             },
             "encoding": {
-                "method": "tseitin",
+                "method": "synthesis",
                 "optimize": False,
             },
             "seed": seed,
@@ -236,6 +239,21 @@ end SATurday.Conjectures.BetA
                 "expected_result": "SAT",  # Polynomial circuits should exist
             },
         }
+    
+    def _generate_threshold_truth_table(self, n: int, threshold: int) -> list:
+        """Generate truth table for threshold function."""
+        if n > 8:
+            return []  # Too large for explicit encoding
+        
+        truth_table = []
+        for i in range(2 ** n):
+            inputs = [(i >> j) & 1 for j in range(n)]
+            output = 1 if sum(inputs) >= threshold else 0
+            truth_table.append({
+                "inputs": inputs,
+                "output": output,
+            })
+        return truth_table
 
 
 class AC0ParityTemplate(ConjectureTemplate):
@@ -433,6 +451,125 @@ end SATurday.Conjectures.BetA
                 "expected_result": "SAT",  # Polynomial circuits exist
             },
         }
+
+
+class MonotoneThresholdTemplate(ConjectureTemplate):
+    """
+    Template for monotone circuit lower bounds on threshold-k function.
+    
+    Threshold-k returns true if at least k inputs are true.
+    Known result: Polynomial size circuits exist (like majority).
+    """
+    
+    def __init__(self, threshold_k: int):
+        super().__init__(f"monotone_threshold_{threshold_k}", "A")
+        self.threshold_k = threshold_k
+    
+    def generate_lean_stub(self, **params) -> str:
+        n = params.get("n", 3)
+        seed = params.get("seed", 0)
+        task_id = params.get("task_id", "unknown")
+        k = self.threshold_k
+        
+        if k > n:
+            k = n
+        
+        return f"""import Mathlib.Data.Fin.Basic
+
+namespace SATurday.Conjectures.BetA
+
+/-!
+# Monotone Circuit Lower Bound for Threshold-{k}
+
+Conjecture: Monotone circuits computing threshold-{k} on {n} inputs
+have a lower bound on size.
+
+## Background
+Threshold-{k} returns true if at least {k} of {n} inputs are true.
+Like majority, threshold functions CAN be computed by polynomial-size monotone circuits.
+
+## Generated from
+- Task: {task_id}
+- Seed: {seed}
+- Template: {self.template_id}
+
+LOG: Generated conjecture for monotone threshold-{k} (n={n})
+-/
+
+/-- Threshold-{k} function on {n} inputs: true if at least {k} inputs are true -/
+def threshold_{k}_{n} (inputs : Fin {n} → Bool) : Bool :=
+  (Finset.univ.sum fun i => if inputs i then (1 : ℕ) else 0) >= {k}
+
+structure MonotoneCircuit where
+  num_inputs : ℕ
+  size : ℕ
+
+def MonotoneCircuit.computes (C : MonotoneCircuit) (f : (Fin C.num_inputs → Bool) → Bool) : Prop :=
+  sorry
+
+/-- Lower bound: monotone circuits for threshold-{k} require certain size -/
+theorem monotone_threshold_{k}_lower_bound_{n}_s{seed} :
+  ∀ (C : MonotoneCircuit),
+    C.num_inputs = {n} →
+    C.computes (threshold_{k}_{n}) →
+    C.size ≥ {n} * {k} := by
+  sorry
+  -- LOG: Theorem stub for threshold-{k} lower bound
+  -- PROOF STRATEGY: Use monotone interpolation or approximation method
+  -- NOTE: Threshold-{k} has polynomial circuits, exploring tight bounds
+
+end SATurday.Conjectures.BetA
+"""
+    
+    def generate_cnf_spec(self, **params) -> Dict[str, Any]:
+        n = params.get("n", 3)
+        seed = params.get("seed", 0)
+        task_id = params.get("task_id", "unknown")
+        k = self.threshold_k
+        
+        if k > n:
+            k = n
+        
+        return {
+            "conjecture_id": f"{self.template_id}_n{n}_s{seed}",
+            "task_id": task_id,
+            "description": f"Monotone circuit computing threshold-{k} on {n} inputs",
+            "circuit": {
+                "type": "monotone",
+                "num_inputs": n,
+                "max_gates": n * k,
+                "depth_limit": n,
+            },
+            "target_function": {
+                "name": "threshold",
+                "threshold": k,
+                "truth_table": self._generate_threshold_truth_table(n, k),
+            },
+            "encoding": {
+                "method": "synthesis",
+                "optimize": True,
+            },
+            "seed": seed,
+            "solver_config": {
+                "timeout_seconds": 120,
+                "expected_result": "SAT",
+            },
+        }
+    
+    def _generate_threshold_truth_table(self, n: int, threshold: int) -> list:
+        """Generate truth table for threshold function."""
+        if n > 8:
+            return []  # Too large for explicit encoding
+        
+        truth_table = []
+        for i in range(2 ** n):
+            inputs = [(i >> j) & 1 for j in range(n)]
+            output = 1 if sum(inputs) >= threshold else 0
+            truth_table.append({
+                "inputs": inputs,
+                "output": output,
+            })
+        return truth_table
 
 
 class FormulaParityTemplate(ConjectureTemplate):

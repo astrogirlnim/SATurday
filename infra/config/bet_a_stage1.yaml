@@ -34,15 +34,20 @@ bets:
     enabled: true
     circuit_types:
       - "monotone"
+      - "ac0"
+      - "formula"
     target_functions:
       - "parity"
+      - "majority"
+      - "threshold_2"
+      - "threshold_3"
     size_range:
-      min: 2
-      max: 20
+      min: 6
+      max: 10
       step: 1
     seed_range:
       start: 12000
-      count: 100
+      count: 3
 
 # Agent overrides for systematic exploration
 agents:

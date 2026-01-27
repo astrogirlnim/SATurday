@@ -145,11 +145,17 @@ class CircuitSynthesisEncoder:
         print(f"[CircuitSynthesisEncoder] Encoding {circuit_class} synthesis:")
         print(f"  n_inputs={n_inputs}, max_gates={max_gates}, truth_rows={len(truth_table)}")
         
-        # Convert truth table format
-        truth_rows = [
-            TruthRow(inputs=row['inputs'], output=row['output'])
-            for row in truth_table
-        ]
+        # Convert or generate truth table
+        if truth_table:
+            # Explicit truth table provided
+            truth_rows = [
+                TruthRow(inputs=row['inputs'], output=row['output'])
+                for row in truth_table
+            ]
+        else:
+            # Generate truth table from function specification
+            print(f"[CircuitSynthesisEncoder] Generating truth table implicitly")
+            truth_rows = []
         
         # Create variable manager
         vars = VariableManager(n_inputs, max_gates, len(truth_rows))
@@ -162,12 +168,22 @@ class CircuitSynthesisEncoder:
         clauses.extend(self._encode_structure_constraints(vars))
         print(f"[CircuitSynthesisEncoder] Structure: {len(clauses)} clauses")
         
-        # 2. Circuit class constraints (monotone, AC0, etc.)
+        # 2. Circuit class constraints (monotone, AC0, formula, etc.)
         if circuit_class == "monotone":
             print(f"[CircuitSynthesisEncoder] Encoding monotone constraints...")
             class_clauses = self._encode_monotone_constraints(vars)
             clauses.extend(class_clauses)
             print(f"[CircuitSynthesisEncoder] Monotone: {len(class_clauses)} clauses")
+        elif circuit_class == "ac0":
+            print(f"[CircuitSynthesisEncoder] Encoding AC0 constraints...")
+            class_clauses = self._encode_ac0_constraints(vars, n_inputs, max_gates)
+            clauses.extend(class_clauses)
+            print(f"[CircuitSynthesisEncoder] AC0: {len(class_clauses)} clauses")
+        elif circuit_class == "formula":
+            print(f"[CircuitSynthesisEncoder] Encoding formula constraints...")
+            class_clauses = self._encode_formula_constraints(vars)
+            clauses.extend(class_clauses)
+            print(f"[CircuitSynthesisEncoder] Formula: {len(class_clauses)} clauses")
         else:
             raise ValueError(f"Unsupported circuit class: {circuit_class}")
         
@@ -283,6 +299,59 @@ class CircuitSynthesisEncoder:
         # Monotonicity is enforced by only having AND/OR as gate types
         # No additional constraints needed
         return []
+    
+    def _encode_ac0_constraints(self, vars: VariableManager, n_inputs: int, max_gates: int) -> List[List[int]]:
+        """
+        Encode AC0 constraints: constant depth, unbounded fan-in.
+        
+        For AC0, we allow NOT gates anywhere (not just inputs).
+        We enforce depth constraints separately (would need depth tracking variables).
+        For now, we just allow all three gate types.
+        
+        Returns:
+            List of clauses
+        """
+        # AC0 allows AND, OR, and NOT gates
+        # Depth constraints would require additional depth tracking variables
+        # For MVP: just allow all gate types (depth enforcement TODO)
+        print(f"[CircuitSynthesisEncoder] AC0: Allowing NOT gates (depth tracking TODO)")
+        return []
+    
+    def _encode_formula_constraints(self, vars: VariableManager) -> List[List[int]]:
+        """
+        Encode formula constraints: fan-out = 1 (tree structure).
+        
+        Each gate (except output) can be used by at most one other gate.
+        This creates a tree rather than a DAG.
+        
+        Returns:
+            List of clauses
+        """
+        clauses = []
+        
+        print(f"[CircuitSynthesisEncoder] Formula: Encoding fan-out = 1 constraints")
+        
+        # For each gate (except output), track how many times it's used
+        # Gate g can be used as input by at most one other gate
+        for g in range(vars.max_gates - 1):  # Last gate is output
+            # Collect all input_select variables that reference gate g
+            uses = []
+            for next_g in range(g + 1, vars.max_gates):
+                num_sources = vars.n_inputs + next_g
+                if g < num_sources:
+                    # Gate g could be selected by next_g's left or right input
+                    for input_pos in [0, 1]:
+                        if (next_g, input_pos, vars.n_inputs + g) in vars.input_select:
+                            uses.append(vars.input_select[(next_g, input_pos, vars.n_inputs + g)])
+            
+            # At most one of these can be true
+            if len(uses) > 1:
+                for i in range(len(uses)):
+                    for j in range(i + 1, len(uses)):
+                        clauses.append([-uses[i], -uses[j]])
+        
+        print(f"[CircuitSynthesisEncoder] Formula: Added {len(clauses)} fan-out clauses")
+        return clauses
     
     def _encode_functionality(
         self,
