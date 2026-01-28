@@ -60,6 +60,7 @@ class ConjecturerAgentConfig(BaseModel):
     enabled: bool = True
     mode: str = Field("template", pattern="^(template|llm)$")
     template_depth: int = Field(3, gt=0)
+    max_conjectures: int = Field(1000, gt=0)
 
 
 class MinerAgentConfig(BaseModel):
@@ -125,11 +126,19 @@ class SizeRange(BaseModel):
         return v
 
 
+class SeedRange(BaseModel):
+    """Seed range configuration."""
+    start: int = Field(12000, ge=0)
+    count: int = Field(3, gt=0)
+
+
 class BetAConfig(BaseModel):
     """Bet A: Restricted-Circuit Lower Bounds."""
     enabled: bool = True
     circuit_types: List[str] = ["monotone", "ac0", "formula"]
+    target_functions: List[str] = ["parity", "majority", "threshold_2", "threshold_3"]
     size_range: SizeRange = SizeRange()
+    seed_range: SeedRange = SeedRange()
 
 
 class BetBConfig(BaseModel):

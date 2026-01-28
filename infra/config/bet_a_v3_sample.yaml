@@ -1,34 +1,31 @@
-# Bet A Stage 1: Known Territory (Baseline)
-# Goal: Formalize existing monotone parity results to validate system
-# Expected: n=2-10 should show clear lower bounds
+# Bet A V3 Sample: Quick validation of multi-function/multi-circuit generation
+# Goal: Verify infrastructure works end-to-end with small sample
+# Expected: 12 instances (3 types × 2 functions × 2 sizes × 1 seed = 12)
 
-# Offline policy enforcement
+# Inherit from defaults
 offline:
   enabled: true
   check_api_keys: true
 
-# Artifact store configuration
 artifacts:
   store_dir: "proofs"
   auto_register: true
   verify_on_load: false
 
-# SAT solver configuration
 solver:
   binary: "infra/build/kissat"
   default_seed: 42
-  timeout_seconds: 60  # 1 minute per instance (generous for small n)
-  enable_lrat: true    # Always generate proofs
+  timeout_seconds: 60
+  enable_lrat: true
   cpu_only: true
 
-# Circuit DSL configuration
 circuits:
   max_gates: 1000
   max_depth: 100
   max_inputs: 100
   validate_topology: true
 
-# Override for Bet A exploration
+# V3 Sample: Reduced scope for quick validation
 bets:
   bet_a:
     enabled: true
@@ -39,17 +36,15 @@ bets:
     target_functions:
       - "parity"
       - "majority"
-      - "threshold_2"
-      - "threshold_3"
     size_range:
       min: 6
-      max: 10
+      max: 7
       step: 1
     seed_range:
       start: 12000
-      count: 3
+      count: 1
 
-# Agent overrides for systematic exploration
+# Agent overrides
 agents:
   planner:
     enabled: true
@@ -58,7 +53,7 @@ agents:
     enabled: true
     mode: "template"
     template_depth: 3
-    max_conjectures: 1000  # Allow full V3 coverage (180 instances)
+    max_conjectures: 100
   miner:
     enabled: true
     small_n_only: false
@@ -74,36 +69,31 @@ agents:
     check_natural_proofs: true
     check_algebraization: false
 
-# Logging for detailed analysis
 logging:
-  level: "DEBUG"
+  level: "INFO"
   format: "jsonl"
   log_dir: "search/logs"
   console_output: true
-  verbose: true
+  verbose: false
 
-# Execution settings
 execution:
   parallel: false
   max_workers: 1
   checkpoint_interval: 10
   continue_on_error: true
 
-# Reproducibility
 reproducibility:
   pin_dependencies: true
   check_determinism: true
   record_hashes: true
   fixed_seeds: true
 
-# Cost guard (enforce zero-cost)
 cost:
   enabled: true
   max_monthly_spend: 0
   block_api_calls: true
   allowed_domains: []
 
-# Verification configuration
 verification:
   enable_lrat_check: true
   lrat_checker: "lrat-check"
