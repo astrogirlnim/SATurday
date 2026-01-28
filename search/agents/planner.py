@@ -122,18 +122,26 @@ class BetDecomposer:
         """
         print(f"[BetDecomposer] Decomposing Bet A: Circuit Lower Bounds")
         
+        # Extract bet_a specific config if nested, otherwise use flat config
+        bet_a_config = config.get("bets", {}).get("bet_a", {}) if "bets" in config else config
+        
         # Extract configuration with defaults
-        max_size = config.get("max_size", 10)
-        num_seeds = config.get("num_seeds", 3)
+        # Try nested structure first, fall back to flat
+        size_range = bet_a_config.get("size_range", {})
+        max_size = size_range.get("max", bet_a_config.get("max_size", 10))
+        
+        seed_range = bet_a_config.get("seed_range", {})
+        num_seeds = seed_range.get("count", bet_a_config.get("num_seeds", 3))
         
         # Circuit types to explore
-        circuit_types = config.get("circuit_types", ["monotone"])
+        circuit_types = bet_a_config.get("circuit_types", ["monotone"])
         
         # Target functions to explore
-        target_functions = config.get("target_functions", ["parity"])
+        target_functions = bet_a_config.get("target_functions", ["parity"])
         
-        # Size progression (powers of 2 for efficiency, plus intermediate values)
-        size_progression = self._generate_size_progression(2, max_size)
+        # Size progression (use config range if specified)
+        min_size = size_range.get("min", 2)
+        size_progression = self._generate_size_progression(min_size, max_size)
         
         print(f"[BetDecomposer] Circuit types: {circuit_types}")
         print(f"[BetDecomposer] Target functions: {target_functions}")
@@ -143,12 +151,15 @@ class BetDecomposer:
         tasks = []
         task_counter = 0
         
+        # Use seed_start from config if specified, otherwise use base_seed
+        seed_start = seed_range.get("start", base_seed)
+        
         # Generate tasks for each circuit type, function, size, and seed
         for circuit_type in circuit_types:
             for function_name in target_functions:
                 for size in size_progression:
                     for seed_offset in range(num_seeds):
-                        task_seed = base_seed + task_counter
+                        task_seed = seed_start + task_counter
                         task_id = f"bet_a_{circuit_type}_{function_name}_n{size}_s{task_seed}"
                         
                         # Estimate time: larger circuits take longer

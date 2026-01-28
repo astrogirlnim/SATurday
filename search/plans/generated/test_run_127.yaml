@@ -1,14 +1,15 @@
 bet: A
 strategy: circuit_lower_bounds
-total_tasks: 9
+total_tasks: 3
 total_milestones: 3
-total_estimated_time_seconds: 148
+total_estimated_time_seconds: 45
 tasks:
-- task_id: bet_a_monotone_n2_s42
+- task_id: bet_a_monotone_parity_n2_s42
   bet: A
   problem_size: 2
   seed: 42
   circuit_type: monotone
+  function_name: parity
   algorithm_schema: null
   dependencies: []
   timeout_seconds: 60
@@ -18,11 +19,12 @@ tasks:
     extract_patterns: true
   priority: 1
   estimated_time_seconds: 10
-- task_id: bet_a_monotone_n3_s43
+- task_id: bet_a_monotone_parity_n3_s43
   bet: A
   problem_size: 3
   seed: 43
   circuit_type: monotone
+  function_name: parity
   algorithm_schema: null
   dependencies: []
   timeout_seconds: 60
@@ -32,11 +34,12 @@ tasks:
     extract_patterns: true
   priority: 2
   estimated_time_seconds: 15
-- task_id: bet_a_monotone_n4_s44
+- task_id: bet_a_monotone_parity_n4_s44
   bet: A
   problem_size: 4
   seed: 44
   circuit_type: monotone
+  function_name: parity
   algorithm_schema: null
   dependencies: []
   timeout_seconds: 60
@@ -46,111 +49,21 @@ tasks:
     extract_patterns: true
   priority: 2
   estimated_time_seconds: 20
-- task_id: bet_a_ac0_n2_s45
-  bet: A
-  problem_size: 2
-  seed: 45
-  circuit_type: ac0
-  algorithm_schema: null
-  dependencies: []
-  timeout_seconds: 60
-  acceptance_criteria:
-    generate_cnf: true
-    run_solver: true
-    extract_patterns: true
-  priority: 3
-  estimated_time_seconds: 15
-- task_id: bet_a_ac0_n3_s46
-  bet: A
-  problem_size: 3
-  seed: 46
-  circuit_type: ac0
-  algorithm_schema: null
-  dependencies: []
-  timeout_seconds: 66
-  acceptance_criteria:
-    generate_cnf: true
-    run_solver: true
-    extract_patterns: true
-  priority: 4
-  estimated_time_seconds: 22
-- task_id: bet_a_ac0_n4_s47
-  bet: A
-  problem_size: 4
-  seed: 47
-  circuit_type: ac0
-  algorithm_schema: null
-  dependencies: []
-  timeout_seconds: 90
-  acceptance_criteria:
-    generate_cnf: true
-    run_solver: true
-    extract_patterns: true
-  priority: 4
-  estimated_time_seconds: 30
-- task_id: bet_a_formula_n2_s48
-  bet: A
-  problem_size: 2
-  seed: 48
-  circuit_type: formula
-  algorithm_schema: null
-  dependencies: []
-  timeout_seconds: 60
-  acceptance_criteria:
-    generate_cnf: true
-    run_solver: true
-    extract_patterns: true
-  priority: 2
-  estimated_time_seconds: 8
-- task_id: bet_a_formula_n3_s49
-  bet: A
-  problem_size: 3
-  seed: 49
-  circuit_type: formula
-  algorithm_schema: null
-  dependencies: []
-  timeout_seconds: 60
-  acceptance_criteria:
-    generate_cnf: true
-    run_solver: true
-    extract_patterns: true
-  priority: 3
-  estimated_time_seconds: 12
-- task_id: bet_a_formula_n4_s50
-  bet: A
-  problem_size: 4
-  seed: 50
-  circuit_type: formula
-  algorithm_schema: null
-  dependencies: []
-  timeout_seconds: 60
-  acceptance_criteria:
-    generate_cnf: true
-    run_solver: true
-    extract_patterns: true
-  priority: 3
-  estimated_time_seconds: 16
 milestones:
 - name: first_monotone_bound
   description: First proved lower bound for monotone circuits
   required_tasks:
-  - bet_a_monotone_n2_s42
-  - bet_a_monotone_n3_s43
-  - bet_a_monotone_n4_s44
+  - bet_a_monotone_parity_n2_s42
+  - bet_a_monotone_parity_n3_s43
+  - bet_a_monotone_parity_n4_s44
   acceptance: At least one UNSAT proof with formalized lower bound
 - name: ac0_exploration
   description: AC0 circuit exploration complete
-  required_tasks:
-  - bet_a_ac0_n2_s45
-  - bet_a_ac0_n3_s46
-  - bet_a_ac0_n4_s47
+  required_tasks: []
   acceptance: All AC0 tasks completed with pattern extraction
 - name: formula_baseline
   description: Formula circuit baseline established
-  required_tasks:
-  - bet_a_formula_n2_s48
-  - bet_a_formula_n3_s49
-  - bet_a_formula_n4_s50
+  required_tasks: []
   acceptance: Formula tasks provide comparison baseline
 validation:
   is_valid: true

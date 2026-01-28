@@ -165,15 +165,24 @@ To streamline for a simple MVP, I rewrote it: Reduced to ~25 items by merging re
 [x] Test AC0 circuits (constant depth, unbounded fan-in) for parity  
 [x] Test formula circuits (fan-out 1) for parity
 [x] End-to-end verification: Generated sample instances successfully
-[ ] Run full generation for n=6-10 with all configurations  
+[x] Enhanced PlannerAgent to extract nested bets.bet_a config structure
+[x] Added SeedRange and target_functions support to config schemas
+[x] Updated ConjecturerAgent to respect max_conjectures limit (1000)
+[x] Fixed tests for 3-tuple template registry keys
+[x] Generated 639+ Lean stubs across all circuit types and functions
+[x] Verified CNF generation for monotone, AC0, and formula circuits
+[ ] Run full generation for n=6-10 with all configurations (IN PROGRESS)
 [ ] Extend to n=11-20 for monotone parity baseline
 [ ] Acceptance: Comprehensive lower bound landscape with 100+ instances
 
-Status: Infrastructure complete and verified. Ready for large-scale generation.
-- 7 templates registered (3 circuit types × multiple functions)
-- Truth table generation working for all functions
-- Planner generating 180 tasks (3 types × 4 functions × 5 sizes × 3 seeds)
-- Sample generation confirmed working (10/10 conjectures generated)
+Status: Infrastructure COMPLETE. Full generation running (slow due to SAT solving).
+- 7 templates registered: monotone (parity, majority, threshold-2, threshold-3), AC0 (parity, majority), formula (parity)
+- Config properly generates 180 tasks (3 circuit types × 4 functions × 5 sizes × 3 seeds)
+- Planner extracts nested config: bets.bet_a.{circuit_types, target_functions, size_range, seed_range}
+- Sample verified: monotone/AC0/formula circuits generating correctly for n=6-7
+- 639 total Lean stubs in theory/Conjectures/BetA/ from various runs
+- CNF encodings working (some are large: 16MB for majority n=6)
+- Full batch generation takes several hours due to SAT solving per instance
 
 **V4. Encoding Scalability (Depends on V3 results, enables larger n)**  
 [ ] Implement implicit truth table constraints (avoid 2^n rows for n>8)  

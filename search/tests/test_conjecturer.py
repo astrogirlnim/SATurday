@@ -127,18 +127,18 @@ class TestTemplateRegistry:
         registry = TemplateRegistry()
         template = MonotoneParityTemplate()
         
-        registry.register("A", "monotone", template)
+        registry.register("A", "monotone", "parity", template)
         
-        templates = registry.get_templates("A", "monotone")
-        assert len(templates) == 1
-        assert templates[0] == template
+        retrieved = registry.get_template("A", "monotone", "parity")
+        assert retrieved is not None
+        assert retrieved == template
     
     def test_get_nonexistent_templates(self):
         """Test getting templates that don't exist."""
         registry = TemplateRegistry()
         
-        templates = registry.get_templates("Z", "unknown")
-        assert len(templates) == 0
+        template = registry.get_template("Z", "unknown", "unknown")
+        assert template is None
 
 
 class TestMonotoneParityTemplate:
@@ -255,16 +255,20 @@ class TestConjecturerAgent:
         agent = ConjecturerAgent()
         
         # Check monotone templates
-        monotone_templates = agent.registry.get_templates("A", "monotone")
-        assert len(monotone_templates) >= 2  # parity and majority
+        monotone_parity = agent.registry.get_template("A", "monotone", "parity")
+        monotone_majority = agent.registry.get_template("A", "monotone", "majority")
+        assert monotone_parity is not None
+        assert monotone_majority is not None
         
         # Check AC0 templates
-        ac0_templates = agent.registry.get_templates("A", "ac0")
-        assert len(ac0_templates) >= 2
+        ac0_parity = agent.registry.get_template("A", "ac0", "parity")
+        ac0_majority = agent.registry.get_template("A", "ac0", "majority")
+        assert ac0_parity is not None
+        assert ac0_majority is not None
         
         # Check formula templates
-        formula_templates = agent.registry.get_templates("A", "formula")
-        assert len(formula_templates) >= 1
+        formula_parity = agent.registry.get_template("A", "formula", "parity")
+        assert formula_parity is not None
     
     def test_plan_phase(self):
         """Test planning phase."""

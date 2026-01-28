@@ -106,7 +106,10 @@ class ConjecturerAgent(AgentBase):
         context.log(self.name, f"Tasks by circuit type: {task_by_circuit}")
         
         # For MVP: Limit number of conjectures to avoid overwhelming output
-        max_conjectures = context.config.get("max_conjectures", 10)
+        # Check in agents.conjecturer first, then fall back to top-level config
+        agents_config = context.config.get("agents", {})
+        conjecturer_config = agents_config.get("conjecturer", {})
+        max_conjectures = conjecturer_config.get("max_conjectures", context.config.get("max_conjectures", 10))
         sample_tasks = tasks[:max_conjectures] if len(tasks) > max_conjectures else tasks
         
         if len(tasks) > max_conjectures:
