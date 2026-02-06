@@ -1,0 +1,96 @@
+# Bet A V3 Test: Quick validation of n=9-10 before full n=11-20 run
+# Goal: Verify implicit truth table generation works for n > 8
+# Expected: 6 instances (2 sizes × 3 seeds) all UNSAT
+
+offline:
+  enabled: true
+  check_api_keys: true
+
+artifacts:
+  store_dir: "proofs"
+  auto_register: true
+  verify_on_load: false
+
+solver:
+  binary: "infra/build/kissat"
+  default_seed: 42
+  timeout_seconds: 180
+  enable_lrat: true
+  cpu_only: true
+
+circuits:
+  max_gates: 1000
+  max_depth: 100
+  max_inputs: 100
+  validate_topology: true
+
+# V3 Test: n=9-10 only
+bets:
+  bet_a:
+    enabled: true
+    circuit_types:
+      - "monotone"
+    target_functions:
+      - "parity"
+    size_range:
+      min: 9
+      max: 10
+      step: 1
+    seed_range:
+      start: 13000
+      count: 3
+
+agents:
+  planner:
+    enabled: true
+    task_batch_size: 100
+  conjecturer:
+    enabled: true
+    mode: "template"
+    template_depth: 3
+    max_conjectures: 20
+  miner:
+    enabled: true
+    small_n_only: false
+    max_variables: 100000
+    max_clauses: 1000000
+  formalizer:
+    enabled: true
+    allow_sorry: true
+    tactic_timeout: 30
+  critic:
+    enabled: true
+    check_relativization: true
+    check_natural_proofs: true
+    check_algebraization: false
+
+logging:
+  level: "DEBUG"
+  format: "jsonl"
+  log_dir: "search/logs"
+  console_output: true
+  verbose: true
+
+execution:
+  parallel: false
+  max_workers: 1
+  checkpoint_interval: 5
+  continue_on_error: true
+
+reproducibility:
+  pin_dependencies: true
+  check_determinism: true
+  record_hashes: true
+  fixed_seeds: true
+
+cost:
+  enabled: true
+  max_monthly_spend: 0
+  block_api_calls: true
+  allowed_domains: []
+
+verification:
+  enable_lrat_check: true
+  lrat_checker: "lrat-check"
+  enable_lean_build: true
+  lean_timeout: 300

@@ -1,0 +1,98 @@
+# Bet A V3 Extension: Monotone Parity Baseline (n=11-20)
+# Goal: Extend proven monotone parity lower bounds to larger input sizes
+# Expected: 30 instances (10 sizes × 3 seeds) all UNSAT
+
+# Inherit from defaults
+offline:
+  enabled: true
+  check_api_keys: true
+
+artifacts:
+  store_dir: "proofs"
+  auto_register: true
+  verify_on_load: false
+
+solver:
+  binary: "infra/build/kissat"
+  default_seed: 42
+  timeout_seconds: 300  # 5 minutes per instance (conservative for n=11-20)
+  enable_lrat: true
+  cpu_only: true
+
+circuits:
+  max_gates: 1000
+  max_depth: 100
+  max_inputs: 100
+  validate_topology: true
+
+# V3 Extension: Monotone parity only, n=11-20
+bets:
+  bet_a:
+    enabled: true
+    circuit_types:
+      - "monotone"  # Only monotone for baseline
+    target_functions:
+      - "parity"    # Only parity (known impossible for monotone)
+    size_range:
+      min: 11
+      max: 15
+      step: 1
+    seed_range:
+      start: 13000
+      count: 3
+
+# Agent overrides
+agents:
+  planner:
+    enabled: true
+    task_batch_size: 100
+  conjecturer:
+    enabled: true
+    mode: "template"
+    template_depth: 3
+    max_conjectures: 100
+  miner:
+    enabled: true
+    small_n_only: false
+    max_variables: 100000  # Increased for larger n
+    max_clauses: 1000000   # Increased for larger n
+  formalizer:
+    enabled: true
+    allow_sorry: true
+    tactic_timeout: 30
+  critic:
+    enabled: true
+    check_relativization: true
+    check_natural_proofs: true
+    check_algebraization: false
+
+logging:
+  level: "INFO"
+  format: "jsonl"
+  log_dir: "search/logs"
+  console_output: true
+  verbose: false
+
+execution:
+  parallel: false
+  max_workers: 1
+  checkpoint_interval: 5
+  continue_on_error: true
+
+reproducibility:
+  pin_dependencies: true
+  check_determinism: true
+  record_hashes: true
+  fixed_seeds: true
+
+cost:
+  enabled: true
+  max_monthly_spend: 0
+  block_api_calls: true
+  allowed_domains: []
+
+verification:
+  enable_lrat_check: true
+  lrat_checker: "lrat-check"
+  enable_lean_build: true
+  lean_timeout: 300

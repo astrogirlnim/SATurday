@@ -180,6 +180,56 @@ class MinerAgent(AgentBase):
             metrics=metrics,
         )
     
+    def _generate_truth_table(
+        self,
+        function_name: str,
+        n_inputs: int,
+        func_spec: Dict[str, Any]
+    ) -> List[Dict]:
+        """
+        Generate truth table for a target function.
+        
+        Args:
+            function_name: Name of function ("parity", "majority", "threshold")
+            n_inputs: Number of input variables
+            func_spec: Function specification (may contain threshold value, etc.)
+        
+        Returns:
+            List of truth table rows (dicts with 'inputs' and 'output')
+        """
+        print(f"[MinerAgent] Generating truth table for {function_name}(n={n_inputs})")
+        
+        truth_table = []
+        
+        if function_name == "parity":
+            # Parity: XOR of all inputs
+            for i in range(2 ** n_inputs):
+                inputs = [(i >> j) & 1 for j in range(n_inputs)]
+                output = sum(inputs) % 2
+                truth_table.append({"inputs": inputs, "output": output})
+        
+        elif function_name == "majority":
+            # Majority: true if more than half inputs are true
+            threshold = (n_inputs // 2) + 1
+            for i in range(2 ** n_inputs):
+                inputs = [(i >> j) & 1 for j in range(n_inputs)]
+                output = 1 if sum(inputs) >= threshold else 0
+                truth_table.append({"inputs": inputs, "output": output})
+        
+        elif function_name == "threshold" or function_name.startswith("threshold_"):
+            # Threshold-k: true if at least k inputs are true
+            threshold = func_spec.get("threshold", 2)
+            for i in range(2 ** n_inputs):
+                inputs = [(i >> j) & 1 for j in range(n_inputs)]
+                output = 1 if sum(inputs) >= threshold else 0
+                truth_table.append({"inputs": inputs, "output": output})
+        
+        else:
+            raise ValueError(f"Unknown function: {function_name}")
+        
+        print(f"[MinerAgent] Generated {len(truth_table)} rows for {function_name}")
+        return truth_table
+    
     def _mine_conjecture(
         self,
         context: AgentContext,
@@ -284,13 +334,34 @@ class MinerAgent(AgentBase):
             f"with n={num_inputs}, max_gates={max_gates}"
         )
         
-        # Verify truth table is provided
+        # Determine encoding mode based on truth table availability
         if not truth_table:
-            raise ValueError(
-                f"Truth table required for synthesis encoding (got empty for {conjecture_id})"
+            context.log(
+                self.name,
+                f"Empty truth table - checking encoding strategy for {target_func_name}"
             )
-        
-        context.log(self.name, f"Truth table has {len(truth_table)} rows")
+            
+            # For parity, use symbolic encoding if n > 10
+            if target_func_name == "parity" and num_inputs > 10:
+                encoding_mode = "symbolic"
+                context.log(
+                    self.name,
+                    f"Using symbolic encoding for {target_func_name} (n={num_inputs} > 10)"
+                )
+            elif num_inputs <= 10:
+                # Generate explicit truth table for n <= 10
+                encoding_mode = "explicit"
+                truth_table = self._generate_truth_table(target_func_name, num_inputs, target_func_spec)
+                context.log(self.name, f"Generated {len(truth_table)} truth table rows for explicit encoding")
+            else:
+                raise ValueError(
+                    f"Cannot encode {target_func_name} for n={num_inputs} > 10. "
+                    f"Symbolic encoding not yet implemented for this function."
+                )
+        else:
+            # Explicit truth table provided
+            encoding_mode = "explicit"
+            context.log(self.name, f"Using explicit encoding with {len(truth_table)} truth table rows")
         
         # Use circuit synthesis encoder
         encoder = CircuitSynthesisEncoder()
@@ -299,6 +370,8 @@ class MinerAgent(AgentBase):
             max_gates=max_gates,
             circuit_class=circuit_type,
             truth_table=truth_table,
+            encoding_mode=encoding_mode,
+            target_function=target_func_name,
         )
         
         # Write CNF to file
