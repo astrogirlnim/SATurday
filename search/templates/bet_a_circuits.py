@@ -120,9 +120,9 @@ end SATurday.Conjectures.BetA
     
     def _generate_parity_truth_table(self, n: int) -> list:
         """Generate truth table for parity function (for small n)."""
-        if n > 8:
-            # For n > 8, truth table is too large (256+ rows)
-            # Use implicit constraints instead (future optimization)
+        if n > 10:
+            # For n > 10, truth table is too large (1024+ rows)
+            # Return empty list to trigger implicit encoding mode
             return []
         
         truth_table = []
