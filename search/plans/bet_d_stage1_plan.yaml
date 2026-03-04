@@ -1,0 +1,84 @@
+# Bet D Stage 1: Barrier-Aware Reductions
+# Three reduction schemas directly targeting P vs NP proof barriers.
+#
+# Research context:
+#   The three known barriers to P != NP proofs:
+#   1. Relativization (Baker-Gill-Solovay 1975): proof holds relative to all oracles
+#   2. Natural proofs (Razborov-Rudich 1994): proof is large and constructive
+#   3. Algebraization (Aaronson-Wigderson 2009): proof works for algebraic oracles
+#
+#   Any valid P != NP proof must avoid ALL THREE barriers.
+#   Bet D encodes candidate proof techniques and tests which barriers they avoid.
+
+name: "bet-d-stage-1-barrier-aware-reductions"
+description: "Three reduction schemas targeting P vs NP proof barriers for n=2-6"
+bet: "D"
+config: "infra/config/bet_d_stage1.yaml"
+goal: "Classify reduction techniques by barrier status; find non-relativizing, non-algebrizing candidates"
+
+metadata:
+  stage: 1
+  schemas:
+    - non_relativizing_reduction
+    - oracle_barrier_test
+    - algebraization_reduction
+  references:
+    - "Baker, Gill, Solovay (1975): Relativizations of the P=NP question"
+    - "Razborov, Rudich (1994): Natural proofs"
+    - "Aaronson, Wigderson (2009): Algebrization: a new barrier in complexity theory"
+    - "Shamir (1992): IP = PSPACE (canonical non-relativizing proof)"
+
+milestones:
+  - name: "first_non_relativizing_unsat"
+    description: "First UNSAT for non_relativizing_reduction; Critic classifies technique"
+    acceptance:
+      unsat_count: 1
+      critic_classifies_technique: true
+
+  - name: "oracle_witnesses_generated"
+    description: "V10 Critic produces explicit BGS oracle witnesses for all oracle_barrier_test tasks"
+    acceptance:
+      oracle_witnesses: true
+      all_tasks_complete: true
+
+  - name: "algebraization_unsat"
+    description: "Algebraization lower bound UNSAT: MLE of parity has no small circuit on Booleans"
+    acceptance:
+      unsat_count: 1
+
+tasks:
+  schemas:
+    - non_relativizing_reduction
+    - oracle_barrier_test
+    - algebraization_reduction
+  source_problems:
+    - sat
+  size_range:
+    min_n: 2
+    max_n: 6
+    step: 1
+  seed_range:
+    start: 40000
+    count: 2
+
+expected_patterns:
+  - pattern: "unsat_all_schemas"
+    description: "All schemas return UNSAT (no small circuit fakes the reduction)"
+    validation: "All 30 tasks should return UNSAT"
+
+  - pattern: "non_relativizing_detection"
+    description: "Critic oracle-world diagnostics classify non_relativizing_reduction as non-relativizing"
+    validation: "V10 oracle_world_diagnostics marks technique as non-relativizing"
+
+  - pattern: "algebraization_matches_parity"
+    description: "Algebraization MLE encoding identical to parity lower bound"
+    validation: "UNSAT results match the parity lower bound baseline"
+
+next_steps:
+  - decision: "if all UNSAT and non_relativizing_reduction classified as non-relativizing"
+    action: "Proceed to Stage 2: test larger n (n=7-10) and multi-source reductions"
+    rationale: "Stage 1 validates barrier classification pipeline"
+
+  - decision: "if some SAT results"
+    action: "Debug: check truth table generation for that schema"
+    rationale: "SAT means a small circuit fakes the reduction -- likely encoding issue"

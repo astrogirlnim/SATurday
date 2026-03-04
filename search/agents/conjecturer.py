@@ -46,6 +46,12 @@ from templates.bet_c_hardness import (
     PRGSecurityTemplate,
     NisanWigdersonImplicationTemplate,
 )
+# V8: Bet D barrier-aware reduction templates
+from templates.bet_d_barriers import (
+    NonRelativizingReductionTemplate,
+    OracleBarrierTestTemplate,
+    AlgebraizationReductionTemplate,
+)
 
 
 class ConjecturerAgent(AgentBase):
@@ -106,6 +112,18 @@ class ConjecturerAgent(AgentBase):
                                    PRGSecurityTemplate())
             self.registry.register("C", "nw_implication",       "parity",
                                    NisanWigdersonImplicationTemplate())
+
+        # V8: Bet D: Barrier-Aware Reductions
+        # Key: (bet="D", algorithm_schema=schema_name, function_name=source_problem)
+        # algorithm_schema carries the reduction schema; function_name carries the source problem.
+        # Registered for each source problem variant (sat, 3sat, circuit_sat).
+        for src in ["sat", "3sat", "circuit_sat"]:
+            self.registry.register("D", "non_relativizing_reduction", src,
+                                   NonRelativizingReductionTemplate())
+            self.registry.register("D", "oracle_barrier_test",        src,
+                                   OracleBarrierTestTemplate())
+            self.registry.register("D", "algebraization_reduction",   src,
+                                   AlgebraizationReductionTemplate())
 
         print(f"[ConjecturerAgent] Registered {len(self.registry.get_all_templates())} templates")
     
@@ -218,21 +236,28 @@ class ConjecturerAgent(AgentBase):
         for i, task in enumerate(tasks):
             task_id = task.get("task_id", f"task_{i}")
             bet = task.get("bet", "A")
-            # Bet B and C use algorithm_schema as "circuit_type" in registry
+            # Bet B, C, D all use algorithm_schema as the lookup key's "circuit_type".
+            # Bet D additionally uses function_name (source_problem) as the registry key.
             algorithm_schema = task.get("algorithm_schema")
             if bet == "B":
                 # Bet B: algorithm_schema is the schema (sorting/searching/graph_reach)
                 circuit_type = algorithm_schema if algorithm_schema else task.get("circuit_type", "unknown")
             elif bet == "C":
                 # V7: Bet C: algorithm_schema is the test schema (hardness_correlation/prg_security/nw_implication)
-                # circuit_type field still holds the actual circuit type (monotone, ac0)
-                # but we route via algorithm_schema for template lookup
+                circuit_type = algorithm_schema if algorithm_schema else task.get("circuit_type", "unknown")
+            elif bet == "D":
+                # V8: Bet D: algorithm_schema is the reduction schema
+                # (non_relativizing_reduction/oracle_barrier_test/algebraization_reduction)
                 circuit_type = algorithm_schema if algorithm_schema else task.get("circuit_type", "unknown")
             else:
                 circuit_type = task.get("circuit_type", "unknown")
-            # Bet B function_name is always "algorithm"; Bet C uses actual function_name; Bet A uses function_name
+
+            # Determine function_name for registry lookup
             if bet == "B":
                 function_name = "algorithm"
+            elif bet == "D":
+                # V8: function_name is the source problem (sat/3sat/circuit_sat)
+                function_name = task.get("function_name", "sat")
             else:
                 function_name = task.get("function_name", "parity")
 
