@@ -270,5 +270,48 @@ V4 STATUS: COMPLETE
 * **Critical:** V1 (blocks everything), V2 (first verified results)
 * **High:** V3 (comprehensive coverage), V5 (publication), V9 (LLM activation — transforms system from pipeline to research engine)
 * **Medium:** V4b (algebraic encoding — unblocks large n), V6-V8 (research expansion), V10 (real barrier analysis)
-* **Dependency order for next phase:** V4b (unblocks large-n data) -> V9 (activates LLM, requires verified results to ground prompts) -> V10 (requires LLM loop to be meaningful) -> V5/V6/V7/V8 in parallel
-* **Status Tracking** Phase 5 is current focus; V1 must complete before significant V2-V8 progress
+* **Dependency order for next phase:** V11 -> V14 -> V12 -> V13 (V11 unblocks all; V12 is the primary formal math milestone; V13 is the active proof-search loop)
+* **Status Tracking** Phase 5 V1-V4, V4b, V6-V10 COMPLETE. Phase 6 (V11-V14) is the current focus.
+
+---
+
+### Phase 6: Proof Depth and Active Discovery (Depends on Phase 5)
+
+**Goal:** Close the gap between the infrastructure SATurday has and the mathematical depth
+it can produce. The verified theorems are real but trivial (n=2,3,4). Phase 6 pushes toward
+a parameterized formal lower bound and an active LLM-driven proof search loop.
+
+**Dependency order:** V11 must come first. V14 can begin immediately after V11.
+V12 requires V11 + several V14 successes as inductive base cases.
+V13 requires V11 + V10 (already complete).
+
+**V11. Upgrade LLM to Math-Capable Model (Depends on V9 infrastructure — HIGHEST LEVERAGE)**
+[ ] Pull deepseek-prover-v2 or mathstral:7b via Ollama (one command: `ollama pull mathstral:7b`)
+[ ] Update LLMConfig defaults in infra/config/schemas.py and infra/config/defaults.yaml
+[ ] Update few-shot prompts in search/agents/conjecturer.py to use new model's strengths
+[ ] Benchmark: time a conjecture cycle, compare output Lean stub complexity
+[ ] Acceptance: LLM produces at least one non-trivial Lean tactic (not True := by sorry) for n=2 monotone parity
+
+**V12. Parameterized Inductive Proof for Parity (Depends on V11, V14)**
+[ ] Design Lean theorem statement: for all n >= 2, no monotone circuit of size < 2^(n/4) computes parity
+[ ] Use LLM + Formalizer to generate inductive step tactic skeleton
+[ ] Ground base cases in existing LRAT certificates for n=2,3,4 (and V14 results for n=5-10)
+[ ] Wire Critic oracle-world diagnostic to validate the inductive argument is non-relativizing
+[ ] Acceptance: Lean theorem compiles without sorry, using induction over n, with LRAT anchors at base cases
+[ ] Note: This is the primary formal mathematics milestone of the project. Achieving it would be a novel contribution.
+
+**V13. Active Critic-Conjecturer Proof-Search Loop for Bet D (Depends on V11, V10)**
+[ ] Connect V10 oracle witnesses (separating/collapsing oracles) to V11 LLM in a closed loop
+[ ] When Critic classifies a proof as relativizing, automatically prompt LLM with the oracle witness
+[ ] LLM proposes non-relativizing algebraic tweak; Formalizer attempts to verify it
+[ ] Log all loop iterations (witness -> proposal -> verification attempt) to search/logs/
+[ ] Acceptance: At least one loop iteration produces a Lean proof that the Critic classifies as non-relativizing
+[ ] Key files: search/agents/critic.py, search/agents/conjecturer.py, search/analysis/oracle_worlds.py
+
+**V14. Extend Sorry-Free Lean Coverage to n=5-10 (Depends on V11, parallel with V12 prep)**
+[ ] For n=5,6,7,8,9,10: run Miner to produce LRAT certificates (already done for most)
+[ ] Feed LRAT + CNF spec to Formalizer with V11 LLM to close sorry in each theorem
+[ ] Each closed sorry is a new machine-verified lower bound
+[ ] Target: at least 4 of 6 (n=5,6,7,8) sorry-free before attempting V12 induction
+[ ] Acceptance: >= 4 new Lean theorems (no sorry) anchored to named LRAT hashes
+[ ] Key files: theory/Conjectures/BetA/Proofs/, search/agents/formalizer.py
