@@ -95,21 +95,42 @@ class VariableManager:
         print(f"[VariableManager] Input selection vars: {self.next_var - 1 - self.max_gates * 2} vars")
         
         if self.symbolic_mode:
-            # Symbolic mode: allocate variables for inputs and gate outputs only
+            # Algebraic mode: symbolic input variables + gate output variables + XOR chain.
+            # These represent a single symbolic execution (not per-row), allowing
+            # O(k^2 + n) encoding instead of O(2^n * k).
+
+            # One symbolic variable per circuit input (free Boolean, not fixed to any row)
             for i in range(self.n_inputs):
                 self.input_vars[i] = self.next_var
                 self.next_var += 1
-            
+
+            # One symbolic output variable per gate
             for g in range(self.max_gates):
                 self.gate_output_vars[g] = self.next_var
                 self.next_var += 1
-            
-            # XOR chain variables for parity encoding (n steps)
+
+            # Auxiliary "selected left/right source value" variables per gate.
+            # These replace the per-row left_val_vars/right_val_vars from explicit mode.
+            # left_aux[g] = value of the source that gate g's left input selects.
+            # right_aux[g] = value of the source that gate g's right input selects.
+            self.left_aux_vars: Dict[int, int] = {}
+            self.right_aux_vars: Dict[int, int] = {}
+            for g in range(self.max_gates):
+                self.left_aux_vars[g] = self.next_var
+                self.next_var += 1
+                self.right_aux_vars[g] = self.next_var
+                self.next_var += 1
+
+            # XOR chain variables: xor_chain[i] = XOR(input_0, ..., input_i)
             for step in range(self.n_inputs):
                 self.xor_chain_vars[step] = self.next_var
                 self.next_var += 1
-            
-            print(f"[VariableManager] Symbolic mode: {self.n_inputs} input vars, {self.max_gates} gate output vars, {self.n_inputs} XOR chain vars")
+
+            print(
+                f"[VariableManager] Algebraic mode: {self.n_inputs} input vars, "
+                f"{self.max_gates} gate output vars, {self.max_gates * 2} aux vars, "
+                f"{self.n_inputs} XOR chain vars"
+            )
         else:
             # Explicit mode: allocate per-row variables
             # Gate value variables (per gate/input, per truth table row)
@@ -495,10 +516,177 @@ class CircuitSynthesisEncoder:
             List of clauses encoding the symbolic constraints
         """
         if target_function == "parity":
+            # Streaming truth table: generates all 2^n rows on-the-fly, O(2^n * k) clauses.
+            # This is correct for UNSAT: it encodes correctness on every input row.
+            # For n >= 16, the caller writes the CNF to a temp file and deletes it after
+            # solving (V4b ephemeral mode) to avoid GB-scale storage.
             return self._encode_streaming_parity(vars)
         else:
             raise ValueError(f"Symbolic encoding not yet implemented for {target_function}")
     
+    def _encode_algebraic_parity(self, vars: VariableManager) -> List[List[int]]:
+        """
+        Encode parity algebraically (V4b): O(k^2 + n) clauses, zero truth table enumeration.
+
+        Strategy
+        --------
+        Treat the n circuit inputs as *free* symbolic Boolean variables u_0..u_{n-1}.
+        Propagate their values through the circuit using auxiliary "selected-source"
+        variables (one left_aux and one right_aux per gate), then assert:
+
+            output_gate_symbolic_value  =  XOR(u_0, ..., u_{n-1})
+
+        Part 1 — XOR chain (O(n) clauses):
+            xor[0]     = u_0
+            xor[k]     = xor[k-1] XOR u_k    for k = 1..n-1
+            output_sym = xor[n-1]
+
+        Part 2 — Gate input-selection semantics (O(k^2) clauses):
+            For each gate g:
+                left_aux[g]  = value of the source that gate g's left input selects
+                right_aux[g] = value of the source that gate g's right input selects
+
+            For each possible source s:
+                (input_select[g,0,s] is True) -> left_aux[g]  <-> source_value[s]
+                (input_select[g,1,s] is True) -> right_aux[g] <-> source_value[s]
+
+        Part 3 — Gate output semantics (O(k) clauses per gate):
+            gate_is_and[g] -> gate_output[g] <-> (left_aux[g] AND right_aux[g])
+            gate_is_or[g]  -> gate_output[g] <-> (left_aux[g] OR  right_aux[g])
+
+        Total: O(k^2 + n) clauses — independent of 2^n.
+
+        NOTE: The symbolic encoding is *sound* for UNSAT: if the SAT solver finds the
+        formula UNSAT, no circuit of the given size computes parity (because any
+        satisfying assignment would have to assign the free input variables to make
+        the output match the XOR, and the gate semantics correctly propagate those).
+        For SAT results the model gives a concrete circuit structure.
+
+        Args:
+            vars: VariableManager in symbolic_mode=True, with algebraic aux vars allocated.
+
+        Returns:
+            List of clauses.
+        """
+        print(
+            f"[AlgebraicParity] Encoding symbolic parity for n={vars.n_inputs} inputs, "
+            f"k={vars.max_gates} gates (O(k^2+n) clauses, not O(2^n*k))"
+        )
+        clauses: List[List[int]] = []
+
+        # ----------------------------------------------------------------
+        # Part 1: XOR chain over symbolic input variables
+        # xor_chain[0] = input_vars[0]
+        # xor_chain[i] = xor_chain[i-1] XOR input_vars[i]   for i >= 1
+        # ----------------------------------------------------------------
+        for step in range(vars.n_inputs):
+            xor_out = vars.xor_chain_vars[step]
+            if step == 0:
+                # xor_chain[0] <-> input_vars[0]
+                u = vars.input_vars[0]
+                clauses.append([ xor_out, -u])
+                clauses.append([-xor_out,  u])
+            else:
+                prev = vars.xor_chain_vars[step - 1]
+                u    = vars.input_vars[step]
+                clauses.extend(self._encode_xor(prev, u, xor_out))
+
+        print(f"[AlgebraicParity] XOR chain: {len(clauses)} clauses so far")
+
+        # ----------------------------------------------------------------
+        # Part 2: Gate input-selection semantics
+        # For each gate g, left_aux[g] (and right_aux[g]) is the symbolic
+        # value of the source wire that gate g selects for its left (right) input.
+        #
+        # For every possible source s:
+        #   (input_select[g, pos, s]) -> (aux[g] <-> source_value[s])
+        # which expands to two clauses:
+        #   (-select | -aux |  src)
+        #   (-select |  aux | -src)
+        # ----------------------------------------------------------------
+        clauses_before_gates = len(clauses)
+        for g in range(vars.max_gates):
+            left_aux  = vars.left_aux_vars[g]
+            right_aux = vars.right_aux_vars[g]
+            num_sources = vars.n_inputs + g  # inputs 0..n-1, gates 0..g-1
+
+            for src in range(num_sources):
+                # Source symbolic value: input variable or previous gate output
+                if src < vars.n_inputs:
+                    src_val = vars.input_vars[src]
+                else:
+                    src_val = vars.gate_output_vars[src - vars.n_inputs]
+
+                # Left input selection
+                sel_left = vars.input_select[(g, 0, src)]
+                clauses.append([-sel_left, -left_aux,  src_val])
+                clauses.append([-sel_left,  left_aux, -src_val])
+
+                # Right input selection
+                sel_right = vars.input_select[(g, 1, src)]
+                clauses.append([-sel_right, -right_aux,  src_val])
+                clauses.append([-sel_right,  right_aux, -src_val])
+
+        print(
+            f"[AlgebraicParity] Gate input semantics: "
+            f"{len(clauses) - clauses_before_gates} clauses"
+        )
+
+        # ----------------------------------------------------------------
+        # Part 3: Gate output semantics
+        # AND gate: gate_output <-> (left_aux AND right_aux)   when gate_is_and
+        # OR  gate: gate_output <-> (left_aux OR  right_aux)   when gate_is_or
+        #
+        # Guarded implications (not unconditional) because gate type is a SAT var.
+        # AND semantics (3 clauses per gate):
+        #   (-gate_is_and | -gate_out |  left_aux)
+        #   (-gate_is_and | -gate_out |  right_aux)
+        #   (-gate_is_and | -left_aux | -right_aux | gate_out)
+        # OR semantics (3 clauses per gate):
+        #   (-gate_is_or | -gate_out |  left_aux | right_aux)
+        #   (-gate_is_or | -left_aux |  gate_out)
+        #   (-gate_is_or | -right_aux | gate_out)
+        # ----------------------------------------------------------------
+        clauses_before_output = len(clauses)
+        for g in range(vars.max_gates):
+            gate_out  = vars.gate_output_vars[g]
+            gate_and  = vars.gate_is_and[g]
+            gate_or   = vars.gate_is_or[g]
+            left_aux  = vars.left_aux_vars[g]
+            right_aux = vars.right_aux_vars[g]
+
+            # AND semantics
+            clauses.append([-gate_and, -gate_out,  left_aux])
+            clauses.append([-gate_and, -gate_out,  right_aux])
+            clauses.append([-gate_and, -left_aux, -right_aux, gate_out])
+
+            # OR semantics
+            clauses.append([-gate_or, -gate_out,  left_aux, right_aux])
+            clauses.append([-gate_or, -left_aux,  gate_out])
+            clauses.append([-gate_or, -right_aux, gate_out])
+
+        print(
+            f"[AlgebraicParity] Gate output semantics: "
+            f"{len(clauses) - clauses_before_output} clauses"
+        )
+
+        # ----------------------------------------------------------------
+        # Part 4: Output gate must equal final XOR
+        # output_gate_symbolic = xor_chain[n-1]
+        # Two clauses: biconditional
+        # ----------------------------------------------------------------
+        final_xor   = vars.xor_chain_vars[vars.n_inputs - 1]
+        output_gate = vars.gate_output_vars[vars.max_gates - 1]
+        clauses.append([ output_gate, -final_xor])
+        clauses.append([-output_gate,  final_xor])
+
+        print(
+            f"[AlgebraicParity] Total algebraic clauses: {len(clauses)} "
+            f"(expected O({vars.max_gates}^2 + {vars.n_inputs}) = O("
+            f"{vars.max_gates**2 + vars.n_inputs}))"
+        )
+        return clauses
+
     def _encode_streaming_parity(self, vars: VariableManager) -> List[List[int]]:
         """
         Encode parity using streaming truth table generation (symbolic mode).

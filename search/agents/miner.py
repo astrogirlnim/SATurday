@@ -253,23 +253,23 @@ class MinerAgent(AgentBase):
         """
         # Load CNF spec
         spec = self._load_cnf_spec(spec_path)
-        
+
         # Generate CNF from spec
         cnf_path = self._generate_cnf_from_spec(context, conjecture_id, spec)
-        
-        # Run Kissat
+
+        # Run Kissat (wrapper compresses CNF and LRAT after solving)
         result = self._run_kissat(context, cnf_path, seed, timeout)
-        
+
         # Add conjecture metadata
         result["conjecture_id"] = conjecture_id
         result["spec_path"] = str(spec_path)
         result["cnf_path"] = str(cnf_path)
-        
+
         # For UNSAT: Extract patterns from LRAT proof
         if result["status"] == "UNSAT" and result.get("lrat_path"):
             patterns = self._extract_basic_patterns(Path(result["lrat_path"]))
             result["patterns"] = patterns
-        
+
         return result
     
     def _load_cnf_spec(self, spec_path: Path) -> Dict[str, Any]:
@@ -334,32 +334,30 @@ class MinerAgent(AgentBase):
             f"with n={num_inputs}, max_gates={max_gates}"
         )
         
-        # Determine encoding mode based on truth table availability
+        # Determine encoding mode based on truth table availability and input size.
+        #
+        # n <= 10 : explicit truth table (2^n rows, small CNF)
+        # n > 10  : streaming truth table — generates 2^n rows on-the-fly, O(gates) memory
+        #           CNFs and LRATs are compressed with gzip by run_kissat after solving.
         if not truth_table:
             context.log(
                 self.name,
-                f"Empty truth table - checking encoding strategy for {target_func_name}"
+                f"Empty truth table - selecting encoding strategy for {target_func_name} n={num_inputs}"
             )
-            
-            # For parity, use symbolic encoding if n > 10
-            if target_func_name == "parity" and num_inputs > 10:
+            if num_inputs <= 10:
+                encoding_mode = "explicit"
+                truth_table = self._generate_truth_table(target_func_name, num_inputs, target_func_spec)
+                context.log(self.name, f"Explicit encoding: {len(truth_table)} rows for n={num_inputs}")
+            else:
+                # Streaming (V4): generates all 2^n rows on-the-fly without loading full table.
+                # Output CNF/LRAT are gzip-compressed after solving to manage disk space.
                 encoding_mode = "symbolic"
                 context.log(
                     self.name,
-                    f"Using symbolic encoding for {target_func_name} (n={num_inputs} > 10)"
-                )
-            elif num_inputs <= 10:
-                # Generate explicit truth table for n <= 10
-                encoding_mode = "explicit"
-                truth_table = self._generate_truth_table(target_func_name, num_inputs, target_func_spec)
-                context.log(self.name, f"Generated {len(truth_table)} truth table rows for explicit encoding")
-            else:
-                raise ValueError(
-                    f"Cannot encode {target_func_name} for n={num_inputs} > 10. "
-                    f"Symbolic encoding not yet implemented for this function."
+                    f"Streaming encoding (V4): n={num_inputs}, rows generated on-the-fly, "
+                    f"output will be gzip-compressed"
                 )
         else:
-            # Explicit truth table provided
             encoding_mode = "explicit"
             context.log(self.name, f"Using explicit encoding with {len(truth_table)} truth table rows")
         
@@ -373,24 +371,18 @@ class MinerAgent(AgentBase):
             encoding_mode=encoding_mode,
             target_function=target_func_name,
         )
-        
-        # Write CNF to file
-        cnf_filename = f"{conjecture_id}.cnf"
-        cnf_path = self.proofs_dir / cnf_filename
-        
+
+        cnf_path = self.proofs_dir / f"{conjecture_id}.cnf"
+
         writer = CNFWriter()
         writer.write(cnf, cnf_path)
-        
+
         context.log(
             self.name,
-            f"Generated synthesis CNF: {cnf_path} "
-            f"({cnf.num_vars} vars, {cnf.num_clauses} clauses)"
+            f"Generated synthesis CNF: {cnf_path} ({cnf.num_vars} vars, {cnf.num_clauses} clauses)"
         )
-        context.log(
-            self.name,
-            f"Interpretation: SAT = circuit exists, UNSAT = proven lower bound"
-        )
-        
+        context.log(self.name, "Interpretation: SAT = circuit exists, UNSAT = proven lower bound")
+
         return cnf_path
     
     def _run_kissat(
