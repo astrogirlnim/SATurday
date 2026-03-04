@@ -409,9 +409,14 @@ class MinerAgent(AgentBase):
         
         # Determine encoding mode based on truth table availability and input size.
         #
-        # n <= 10 : explicit truth table (2^n rows, small CNF)
-        # n > 10  : streaming truth table — generates 2^n rows on-the-fly, O(gates) memory
-        #           CNFs and LRATs are compressed with gzip by run_kissat after solving.
+        # n <= 10  : explicit truth table (2^n rows, small CNF, kept on disk)
+        # n 11+    : streaming truth table — generates 2^n rows on-the-fly, O(max_gates) memory.
+        #            CNFs and LRATs are gzip-compressed after solving to manage disk space.
+        #
+        # V4b note: a purely algebraic (XOR-chain symbolic) encoding exists in synthesis.py
+        # but is NOT sound for lower bound proofs — it only encodes one symbolic input
+        # assignment, not all 2^n. Sound lower bounds require the streaming truth-table
+        # approach which encodes correctness on every input row.
         if not truth_table:
             context.log(
                 self.name,
@@ -423,12 +428,13 @@ class MinerAgent(AgentBase):
                 context.log(self.name, f"Explicit encoding: {len(truth_table)} rows for n={num_inputs}")
             else:
                 # Streaming (V4): generates all 2^n rows on-the-fly without loading full table.
+                # Sound for UNSAT: each row encodes circuit correctness on that input.
                 # Output CNF/LRAT are gzip-compressed after solving to manage disk space.
                 encoding_mode = "symbolic"
                 context.log(
                     self.name,
-                    f"Streaming encoding (V4): n={num_inputs}, rows generated on-the-fly, "
-                    f"output will be gzip-compressed"
+                    f"Streaming encoding (V4): n={num_inputs}, {target_func_name} function, "
+                    f"rows generated on-the-fly, gzip-compressed after solving"
                 )
         else:
             encoding_mode = "explicit"
