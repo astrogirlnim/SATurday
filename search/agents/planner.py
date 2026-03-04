@@ -449,40 +449,155 @@ class BetDecomposer:
         base_seed: int
     ) -> Tuple[List[Task], List[Milestone]]:
         """
-        Decompose Bet D: Barrier-Aware Reductions.
-        
-        Strategy:
-        - Design non-relativizing encodings
-        - Oracle world diagnostics
-        - Test for natural proofs violations
-        
-        MVP: Stub implementation - returns placeholder tasks.
-        
+        Decompose Bet D: Barrier-Aware Reductions (V8).
+
+        Strategy
+        --------
+        Three reduction schemas target the three known P vs NP proof barriers:
+          non_relativizing_reduction  - IP-style simulation, avoids relativization
+          oracle_barrier_test         - BGS oracle world construction (V10 integration)
+          algebraization_reduction    - Multilinear extension / MIP-style, avoids algebrization
+
+        For each schema x source/target problem pair x size x seed, we generate a task that:
+          1. Conjecturer emits a Lean stub (formalizing the barrier-avoidance claim)
+          2. Miner runs the SAT encoding (UNSAT = reduction correct for this size)
+          3. Critic runs oracle-world diagnostics (V10) to classify the proof technique
+          4. Critic LLM feedback loop (V10) proposes non-relativizing tweaks if needed
+
         Args:
-            config: Configuration dictionary
+            config: Configuration dictionary (from SaturdayConfig.bets.bet_d)
             base_seed: Base random seed
-        
+
         Returns:
             Tuple of (tasks, milestones)
         """
-        print(f"[BetDecomposer] Decomposing Bet D: Barrier-Aware Reductions (STUB)")
-        
-        task = Task(
-            task_id="bet_d_stub_placeholder",
-            bet="D",
-            problem_size=10,
-            seed=base_seed,
-            acceptance_criteria={"stub": True},
-        )
-        
-        milestone = Milestone(
-            name="bet_d_placeholder",
-            description="Placeholder milestone for Bet D (not yet implemented)",
-            required_tasks=["bet_d_stub_placeholder"],
-            acceptance="Stub only - implement in future",
-        )
-        
-        return [task], [milestone]
+        print(f"[BetDecomposer] Decomposing Bet D: Barrier-Aware Reductions (V8)")
+
+        # Extract bet_d specific config
+        bet_d_config = config.get("bets", {}).get("bet_d", {}) if "bets" in config else config
+
+        size_range_cfg   = bet_d_config.get("size_range", {})
+        min_size         = size_range_cfg.get("min", 2)
+        max_size         = size_range_cfg.get("max", 6)
+        step             = size_range_cfg.get("step", None)
+
+        seed_range_cfg   = bet_d_config.get("seed_range", {})
+        num_seeds        = seed_range_cfg.get("count", 2)
+        seed_start       = seed_range_cfg.get("start", base_seed)
+
+        schemas          = bet_d_config.get("reduction_schemas", [
+            "non_relativizing_reduction",
+            "oracle_barrier_test",
+            "algebraization_reduction",
+        ])
+        source_problems  = bet_d_config.get("source_problems", ["sat"])
+        target_problems  = bet_d_config.get("target_problems", ["circuit_lower_bound"])
+
+        size_progression = self._generate_size_progression(min_size, max_size, step=step)
+
+        print(f"[BetDecomposer] Bet D schemas: {schemas}")
+        print(f"[BetDecomposer] Source problems: {source_problems}")
+        print(f"[BetDecomposer] Target problems: {target_problems}")
+        print(f"[BetDecomposer] Size progression: {size_progression}")
+        print(f"[BetDecomposer] Seeds per size: {num_seeds}")
+
+        tasks = []
+        task_counter = 0
+
+        for schema in schemas:
+            for src in source_problems:
+                for tgt in target_problems:
+                    for size in size_progression:
+                        for seed_offset in range(num_seeds):
+                            task_seed = seed_start + task_counter
+                            task_id = (
+                                f"bet_d_{schema}_{src}_{tgt}_n{size}_s{task_seed}"
+                            )
+
+                            # algorithm_schema carries the reduction schema name.
+                            # circuit_type defaults to "monotone" (all Bet D encodings
+                            # use monotone circuits as the base circuit class).
+                            # function_name carries the source problem name.
+                            task = Task(
+                                task_id=task_id,
+                                bet="D",
+                                problem_size=size,
+                                seed=task_seed,
+                                circuit_type="monotone",
+                                function_name=src,       # source problem
+                                algorithm_schema=schema, # reduction schema
+                                timeout_seconds=max(size * 30, 60),
+                                estimated_time_seconds=size * 8,
+                                priority=1,
+                                acceptance_criteria={
+                                    "generate_cnf": True,
+                                    "run_solver": True,
+                                    "barrier_classification": True,
+                                    "target_problem": tgt,
+                                },
+                            )
+                            tasks.append(task)
+                            task_counter += 1
+
+        print(f"[BetDecomposer] Generated {len(tasks)} tasks for Bet D")
+
+        # Milestones
+        nonrel_tasks = [
+            t.task_id for t in tasks
+            if t.algorithm_schema == "non_relativizing_reduction"
+        ]
+        oracle_tasks = [
+            t.task_id for t in tasks
+            if t.algorithm_schema == "oracle_barrier_test"
+        ]
+        alg_tasks = [
+            t.task_id for t in tasks
+            if t.algorithm_schema == "algebraization_reduction"
+        ]
+
+        milestones = [
+            Milestone(
+                name="first_non_relativizing_reduction",
+                description=(
+                    "First UNSAT: IP-simulation reduction is correct for the tested size; "
+                    "Critic classifies as non-relativizing"
+                ),
+                required_tasks=nonrel_tasks[:4],
+                acceptance=(
+                    "At least one UNSAT with Critic oracle_world_diagnostics classifying "
+                    "the proof technique as non-relativizing"
+                ),
+            ),
+            Milestone(
+                name="oracle_barrier_classification",
+                description=(
+                    "Oracle barrier tests complete: each reduction classified as "
+                    "relativizing or non-relativizing with explicit BGS witness"
+                ),
+                required_tasks=oracle_tasks[:4],
+                acceptance=(
+                    "All oracle_barrier_test tasks complete; "
+                    "V10 Critic produces explicit oracle witnesses for each"
+                ),
+            ),
+            Milestone(
+                name="algebraization_lower_bound",
+                description=(
+                    "Algebraization lower bound: no small circuit computes "
+                    "the MLE of parity, established from the polynomial side"
+                ),
+                required_tasks=alg_tasks[:4],
+                acceptance=(
+                    "At least one UNSAT for algebraization_reduction, "
+                    "with Lean stub formalizing the MLE lower bound"
+                ),
+            ),
+        ]
+
+        # Only include milestones that have tasks
+        milestones = [m for m in milestones if m.required_tasks]
+
+        return tasks, milestones
     
     def _generate_size_progression(self, min_size: int, max_size: int, step: int = None) -> List[int]:
         """

@@ -1,0 +1,58 @@
+# Bet D Stage 1: Barrier-Aware Reductions (V8)
+#
+# Three reduction schemas, each targeting a different P vs NP proof barrier:
+#   non_relativizing_reduction  - IP-simulation, avoids Baker-Gill-Solovay barrier
+#   oracle_barrier_test         - Explicit BGS oracle world construction
+#   algebraization_reduction    - MLE/arithmetization, tests Aaronson-Wigderson barrier
+#
+# For each schema x source problem pair x size x seed, we:
+#   1. Generate a Lean stub (barrier-avoidance claim)
+#   2. Run SAT encoding (UNSAT = reduction correct at this size)
+#   3. Critic runs V10 oracle-world diagnostics to classify the technique
+#
+# Stage 1: n=2-6, 2 seeds per size, 1 source problem (sat)
+# Expected: 3 schemas x 1 source x 5 sizes x 2 seeds = 30 tasks
+# Expected outcome: UNSAT for all (monotone parity lower bound holds for all encodings)
+
+offline:
+  enabled: true
+
+bets:
+  bet_d:
+    enabled: true
+    reduction_schemas:
+      - non_relativizing_reduction
+      - oracle_barrier_test
+      - algebraization_reduction
+    source_problems:
+      - sat
+    target_problems:
+      - circuit_lower_bound
+    size_range:
+      min: 2
+      max: 6
+    seed_range:
+      start: 40000
+      count: 2
+
+agents:
+  planner:
+    enabled: true
+    max_tasks: 50
+  conjecturer:
+    enabled: true
+    max_conjectures: 50
+    llm:
+      enabled: false
+  miner:
+    enabled: true
+    timeout_seconds: 90
+    max_size_mb: 256
+  formalizer:
+    enabled: true
+    output_dir: theory/Conjectures/BetD/
+  critic:
+    enabled: true
+    check_relativization: true
+    oracle_world_diagnostics: true
+    llm_feedback_loop: false

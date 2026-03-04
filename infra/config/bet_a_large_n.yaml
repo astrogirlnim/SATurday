@@ -20,6 +20,7 @@ bets:
     size_range:
       min: 16
       max: 20
+      step: 1
     seed_range:
       start: 50000
       count: 2
