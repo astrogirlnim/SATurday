@@ -1,0 +1,110 @@
+# Bet B Stage 1: Algorithm Synthesis with Polynomial Bounds
+# Goal: Synthesize and prove polynomial-time algorithm schemas for
+#       sorting, searching, and graph reachability on small inputs.
+# Expected: SAT for small n (algorithm witnesses exist), with extracted runtime bounds.
+
+# Offline policy enforcement
+offline:
+  enabled: true
+  check_api_keys: true
+
+# Artifact store configuration
+artifacts:
+  store_dir: "proofs"
+  auto_register: true
+  verify_on_load: false
+
+# SAT solver configuration
+solver:
+  binary: "infra/build/kissat"
+  default_seed: 42
+  timeout_seconds: 120  # 2 minutes per instance
+  enable_lrat: true
+  cpu_only: true
+
+# Circuit DSL configuration (reused for algorithm schema encoding)
+circuits:
+  max_gates: 500
+  max_depth: 50
+  max_inputs: 20
+  validate_topology: true
+
+# Bet B: Algorithm synthesis exploration
+bets:
+  bet_b:
+    enabled: true
+    algorithm_schemas:
+      - "sorting"
+      - "searching"
+      - "graph_reach"
+    size_range:
+      min: 2
+      max: 6
+      step: 1
+    seed_range:
+      start: 20000
+      count: 2
+
+# Agent configuration
+agents:
+  planner:
+    enabled: true
+    task_batch_size: 50
+  conjecturer:
+    enabled: true
+    mode: "template"
+    max_conjectures: 100
+    llm:
+      enabled: false  # Set to true to use LLM conjecture generation (V9)
+      model: "llama3.2:1b"  # Smaller model, good at structured output with few-shot
+      endpoint: "http://localhost:11434"
+  miner:
+    enabled: true
+    small_n_only: false
+    max_variables: 200
+    max_clauses: 50000
+  formalizer:
+    enabled: true
+    allow_sorry: true
+    tactic_timeout: 30
+  critic:
+    enabled: true
+    check_relativization: true
+    check_natural_proofs: false
+    check_algebraization: false
+
+# Logging
+logging:
+  level: "DEBUG"
+  format: "jsonl"
+  log_dir: "search/logs"
+  console_output: true
+  verbose: true
+
+# Execution settings
+execution:
+  parallel: false
+  max_workers: 1
+  checkpoint_interval: 10
+  continue_on_error: true
+
+# Reproducibility
+reproducibility:
+  pin_dependencies: true
+  check_determinism: true
+  record_hashes: true
+  fixed_seeds: true
+
+# Cost guard
+cost:
+  enabled: true
+  max_monthly_spend: 0
+  block_api_calls: true
+  allowed_domains: []
+
+# Verification
+verification:
+  enable_lrat_check: true
+  lrat_checker: "lrat-check"
+  enable_lean_build: true
+  lean_timeout: 300
