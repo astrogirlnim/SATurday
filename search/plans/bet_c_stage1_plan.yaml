@@ -1,0 +1,42 @@
+# Bet C Stage 1 Execution Plan
+# Hardness-vs-Randomness correlation test pipeline
+# Generated manually for V7 implementation
+
+name: "bet_c_stage1"
+description: "Hardness-vs-Randomness Stage 1: Correlation tests for parity hardness"
+bet: "C"
+strategy: "hardness_randomness"
+
+# Pipeline stages
+stages:
+  - name: "plan"
+    agent: "planner"
+    description: "Decompose Bet C into correlation test tasks"
+
+  - name: "conjecture"
+    agent: "conjecturer"
+    description: "Generate Lean stubs and CNF specs for correlation tests"
+    depends_on: ["plan"]
+
+  - name: "mine"
+    agent: "miner"
+    description: "Run SAT solver on correlation test instances"
+    depends_on: ["conjecture"]
+
+  - name: "formalize"
+    agent: "formalizer"
+    description: "Convert UNSAT patterns to Lean theorems"
+    depends_on: ["mine"]
+
+  - name: "critique"
+    agent: "critic"
+    description: "Analyze proofs with oracle-world diagnostics (V10)"
+    depends_on: ["formalize"]
+
+# Acceptance criteria
+acceptance:
+  min_unsat_count: 1
+  description: "At least one correlation test UNSAT proves hardness of parity for small circuits"
+
+# Config reference
+config_file: "infra/config/bet_c_stage1.yaml"

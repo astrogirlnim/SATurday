@@ -40,6 +40,12 @@ from templates.bet_b_algorithms import (
     SearchingAlgorithmTemplate,
     GraphReachabilityTemplate,
 )
+# V7: Bet C hardness-vs-randomness templates
+from templates.bet_c_hardness import (
+    HardnessCorrelationTemplate,
+    PRGSecurityTemplate,
+    NisanWigdersonImplicationTemplate,
+)
 
 
 class ConjecturerAgent(AgentBase):
@@ -86,6 +92,20 @@ class ConjecturerAgent(AgentBase):
         self.registry.register("B", "sorting",    "algorithm", SortingAlgorithmTemplate())
         self.registry.register("B", "searching",  "algorithm", SearchingAlgorithmTemplate())
         self.registry.register("B", "graph_reach","algorithm", GraphReachabilityTemplate())
+
+        # V7: Bet C: Hardness-vs-Randomness
+        # Key: (bet="C", circuit_type=circuit_type, function_name=schema_name)
+        # Schema name is stored in algorithm_schema field and used as the key's circuit_type.
+        # For each (circuit_type, function) pair we register the three schema variants.
+        # Registration covers: (C, hardness_correlation, parity), (C, prg_security, parity), etc.
+        # The conjecturer routes via algorithm_schema -> circuit_type for Bet C (same as Bet B).
+        for c_type in ["monotone", "ac0"]:
+            self.registry.register("C", "hardness_correlation", "parity",
+                                   HardnessCorrelationTemplate())
+            self.registry.register("C", "prg_security",         "parity",
+                                   PRGSecurityTemplate())
+            self.registry.register("C", "nw_implication",       "parity",
+                                   NisanWigdersonImplicationTemplate())
 
         print(f"[ConjecturerAgent] Registered {len(self.registry.get_all_templates())} templates")
     
@@ -198,11 +218,23 @@ class ConjecturerAgent(AgentBase):
         for i, task in enumerate(tasks):
             task_id = task.get("task_id", f"task_{i}")
             bet = task.get("bet", "A")
-            # Bet B uses algorithm_schema as "circuit_type" in registry
+            # Bet B and C use algorithm_schema as "circuit_type" in registry
             algorithm_schema = task.get("algorithm_schema")
-            circuit_type = algorithm_schema if algorithm_schema else task.get("circuit_type", "unknown")
-            # Bet B function_name is always "algorithm"; Bet A uses explicit function_name
-            function_name = "algorithm" if bet == "B" else task.get("function_name", "parity")
+            if bet == "B":
+                # Bet B: algorithm_schema is the schema (sorting/searching/graph_reach)
+                circuit_type = algorithm_schema if algorithm_schema else task.get("circuit_type", "unknown")
+            elif bet == "C":
+                # V7: Bet C: algorithm_schema is the test schema (hardness_correlation/prg_security/nw_implication)
+                # circuit_type field still holds the actual circuit type (monotone, ac0)
+                # but we route via algorithm_schema for template lookup
+                circuit_type = algorithm_schema if algorithm_schema else task.get("circuit_type", "unknown")
+            else:
+                circuit_type = task.get("circuit_type", "unknown")
+            # Bet B function_name is always "algorithm"; Bet C uses actual function_name; Bet A uses function_name
+            if bet == "B":
+                function_name = "algorithm"
+            else:
+                function_name = task.get("function_name", "parity")
 
             context.log(self.name, f"Processing task {i+1}/{len(tasks)}: {task_id} (bet={bet}, type={circuit_type})")
 
@@ -527,6 +559,98 @@ conjecture_id={task_id.replace('bet_', 'llm_')}"""
 
         print(f"[ConjecturerAgent] LLM effective response length: {len(response_text)} chars")
         return response_text
+
+    # ------------------------------------------------------------------
+    # V10: Non-Relativizing Tweak Proposal (Oracle Feedback Loop)
+    # ------------------------------------------------------------------
+
+    def propose_non_relativizing_tweak(
+        self,
+        oracle_witness: Dict[str, Any],
+        context: "AgentContext",
+        endpoint: str,
+        model: str,
+    ) -> Optional[str]:
+        """
+        V10: Given an oracle witness from the Critic, ask the LLM to propose
+        a non-relativizing variant of the proof technique.
+
+        This closes the loop: Critic detects relativization -> oracle witness ->
+        Conjecturer proposes a fix -> Critic re-evaluates.
+
+        The prompt describes the oracle world and asks for a concrete
+        non-relativizing Lean proof sketch to replace the current approach.
+
+        Args:
+            oracle_witness: Dict from OracleWitness.to_dict()
+            context:        Agent context for logging
+            endpoint:       Ollama base URL
+            model:          Ollama model name
+
+        Returns:
+            Non-relativizing proof sketch as a string, or None on failure
+        """
+        print(f"[ConjecturerAgent] V10: Proposing non-relativizing tweak for oracle witness")
+        print(f"[ConjecturerAgent] V10: Oracle type={oracle_witness.get('oracle_type')}, "
+              f"technique={oracle_witness.get('proof_technique')}")
+
+        if not oracle_witness.get("relativizes", True):
+            print(f"[ConjecturerAgent] V10: Witness is non-relativizing; no tweak needed")
+            return None
+
+        circuit_class   = oracle_witness.get("circuit_class", "monotone")
+        technique       = oracle_witness.get("proof_technique", "unknown")
+        oracle_desc     = oracle_witness.get("witness_description", "")[:200]
+        oracle_queries  = oracle_witness.get("oracle_queries", [])
+        existing_suggest = oracle_witness.get("non_rel_suggestion", "")
+
+        # Build prompt for non-relativizing alternative
+        query_text = "\n".join(f"  {q[:100]}" for q in oracle_queries[:2]) if oracle_queries else "  (none)"
+
+        prompt = f"""You are a complexity theorist helping to fix a relativizing proof.
+
+The proof for a {circuit_class} circuit lower bound uses technique: {technique}
+This technique relativizes, meaning it cannot separate P from NP.
+
+Oracle witness:
+{oracle_desc}
+
+Oracle queries that break the argument:
+{query_text}
+
+Existing suggestion: {existing_suggest[:200] if existing_suggest else "none"}
+
+Task: Propose a concrete non-relativizing Lean 4 proof sketch that could replace
+or augment the current technique. Focus on algebraic or arithmetization-based arguments.
+
+Respond in this format (no hyphens):
+
+<NON_REL_SKETCH>
+[Lean 4 proof sketch using non-relativizing techniques. 
+Must use algebraic or polynomial methods, not case analysis or simple induction.
+Include: theorem statement, key lemmas, and a brief proof strategy.]
+</NON_REL_SKETCH>"""
+
+        try:
+            response = self._call_ollama(endpoint, model, prompt)
+            if not response:
+                return None
+
+            import re
+            match = re.search(r"<NON_REL_SKETCH>(.*?)</NON_REL_SKETCH>", response, re.DOTALL)
+            if match:
+                sketch = match.group(1).strip()
+                print(f"[ConjecturerAgent] V10: Non-rel sketch generated ({len(sketch)} chars)")
+                if context:
+                    context.log("conjecturer", f"V10: Non-rel tweak proposed ({len(sketch)} chars)")
+                return sketch
+            else:
+                print(f"[ConjecturerAgent] V10: No <NON_REL_SKETCH> block in LLM response")
+                return None
+
+        except Exception as e:
+            print(f"[ConjecturerAgent] V10: Non-rel tweak generation failed: {e}", file=__import__("sys").stderr)
+            return None
 
     def _parse_llm_response(
         self,

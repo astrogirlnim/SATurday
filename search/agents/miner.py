@@ -250,6 +250,53 @@ class MinerAgent(AgentBase):
                 truth_table.append({"inputs": inputs, "output": 0})
             print(f"[MinerAgent] Algorithm schema truth table (satisfiability stub): {len(truth_table)} rows for n={n_inputs}")
 
+        elif function_name in ("hardness_correlation", "correlation_test"):
+            # Bet C: Correlation test truth table.
+            # We generate the full truth table for the target base function (parity by default).
+            # The SAT encoding then asks: does a circuit exist that agrees with this truth table
+            # on > (0.5 + epsilon) fraction of inputs?
+            # For correlation UNSAT: no such circuit => function is hard for size k.
+            base_func = func_spec.get("base_function", "parity")
+            print(f"[MinerAgent] Correlation test truth table: base_func={base_func}, n={n_inputs}")
+            if base_func == "parity":
+                for i in range(2 ** n_inputs):
+                    inputs = [(i >> j) & 1 for j in range(n_inputs)]
+                    output = sum(inputs) % 2
+                    truth_table.append({"inputs": inputs, "output": output})
+            else:
+                # Fallback: parity (most interesting for Bet C)
+                for i in range(2 ** n_inputs):
+                    inputs = [(i >> j) & 1 for j in range(n_inputs)]
+                    output = sum(inputs) % 2
+                    truth_table.append({"inputs": inputs, "output": output})
+            print(f"[MinerAgent] Correlation test truth table: {len(truth_table)} rows for n={n_inputs}")
+
+        elif function_name in ("prg_security", "prg_distinguisher"):
+            # Bet C: PRG security test.
+            # We use a truth table that encodes the PRG's output distribution.
+            # The SAT encoding asks: does a distinguisher circuit exist?
+            # For this MVP, we use parity of seed bits as the PRG function.
+            # UNSAT => no distinguisher => PRG is secure at this size.
+            print(f"[MinerAgent] PRG security truth table: using parity-based PRG for n={n_inputs}")
+            for i in range(2 ** min(n_inputs, 8)):
+                inputs = [(i >> j) & 1 for j in range(n_inputs)]
+                # PRG output: parity of all input bits (seed)
+                prg_output = sum(inputs) % 2
+                truth_table.append({"inputs": inputs, "output": prg_output})
+            print(f"[MinerAgent] PRG security truth table: {len(truth_table)} rows for n={n_inputs}")
+
+        elif function_name in ("nw_implication", "implication_check"):
+            # Bet C: Nisan-Wigderson implication check.
+            # We encode the contrapositive: if a distinguisher exists for PRG_f,
+            # then a circuit for f exists (reconstruction argument).
+            # For MVP, this uses parity as the base function.
+            print(f"[MinerAgent] NW implication truth table: using parity, n={n_inputs}")
+            for i in range(2 ** min(n_inputs, 8)):
+                inputs = [(i >> j) & 1 for j in range(n_inputs)]
+                output = sum(inputs) % 2
+                truth_table.append({"inputs": inputs, "output": output})
+            print(f"[MinerAgent] NW implication truth table: {len(truth_table)} rows for n={n_inputs}")
+
         else:
             raise ValueError(f"Unknown function: {function_name}")
         

@@ -92,6 +92,10 @@ class CriticAgentConfig(BaseModel):
     check_relativization: bool = True
     check_natural_proofs: bool = True
     check_algebraization: bool = False
+    # V10: Use oracle-world diagnostics (explicit witness construction) instead of heuristics
+    oracle_world_diagnostics: bool = True
+    # V10: If LLM active, feed oracle witness back to conjecturer for non-rel tweak proposals
+    llm_feedback_loop: bool = True
 
 
 class AgentsConfig(BaseModel):
@@ -158,8 +162,20 @@ class BetBConfig(BaseModel):
 
 
 class BetCConfig(BaseModel):
-    """Bet C: Hardness-vs-Randomness."""
+    """Bet C: Hardness-vs-Randomness (V7)."""
     enabled: bool = False
+    # Correlation test schemas: hardness_correlation, prg_security, nw_implication
+    test_schemas: List[str] = ["hardness_correlation", "prg_security", "nw_implication"]
+    # Circuit types to test correlation against
+    circuit_types: List[str] = ["monotone", "ac0"]
+    # Target functions to probe
+    target_functions: List[str] = ["parity"]
+    # Size range for the correlation test (n = number of inputs)
+    size_range: SizeRange = SizeRange(min=2, max=6)
+    # Seed range
+    seed_range: SeedRange = SeedRange(start=30000, count=2)
+    # Epsilon for correlation threshold (correlation > 0.5 + epsilon)
+    epsilon: float = 0.1
 
 
 class BetDConfig(BaseModel):

@@ -1,24 +1,31 @@
 """
-Proof Critic Agent - Barrier-aware analysis using heuristic detection.
+Proof Critic Agent - Real barrier analysis with oracle-world diagnostics (V10).
 
 This agent:
 - Analyzes Lean proofs for known complexity-theoretic barriers
-- Detects relativization barrier signals
-- Detects natural proof barrier signals
-- Performs oracle diagnostics
-- Provides actionable suggestions for improvement
+- V10: Constructs EXPLICIT relativized oracle worlds (Baker-Gill-Solovay witnesses)
+  instead of heuristic string matching
+- Detects natural proof barrier signals (Razborov-Rudich)
+- If LLM is active: feeds oracle witness back to conjecturer for non-relativizing tweak proposals
+- Provides actionable suggestions with theoretical grounding
 
 ## Architecture
-- ProofParser: Extracts structure from Lean theorem files
-- BarrierDetector: Applies heuristic checks for barriers
-- CriticAgent: Orchestrates analysis and generates reports
+- ProofParser:           Extracts structure from Lean theorem files
+- BarrierDetector:       Heuristic checks (natural proofs, algebraization)
+- OracleWorldDiagnostic: V10 - constructs explicit oracle witnesses via OracleWorldBuilder
+- CriticAgent:           Orchestrates analysis and generates reports
 
-## Barrier Detection
-1. Relativization: Checks if proof uses oracle-independent techniques
-2. Natural Proofs: Checks for largeness + constructivity combination
-3. Oracle Diagnostics: Conceptually tests proof with different oracles
+## V10 Upgrade
+The key upgrade from V1-V9 is that relativization detection no longer uses
+keyword matching. Instead:
+1. OracleWorldBuilder (search/analysis/oracle_worlds.py) constructs explicit
+   Baker-Gill-Solovay oracle worlds for each proof attempt.
+2. The oracle witness includes: oracle type, proof technique, relativization verdict,
+   concrete oracle queries, and a non-relativizing suggestion.
+3. If the LLM conjecturer is active (config: agents.critic.llm_feedback_loop),
+   the oracle witness is fed back to the LLM to propose a non-relativizing variant.
 
-LOG: Enhanced Proof Critic with heuristic barrier detection
+LOG: V10 - Real barrier analysis with oracle-world diagnostics
 """
 
 import re
@@ -28,6 +35,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
 from .core import AgentBase, AgentContext, AgentResult
+
+# V10: Oracle world analysis module
+from search.analysis.oracle_worlds import OracleWorldBuilder, OracleWitness, construct_oracle_witness_for_proof
 
 
 @dataclass
@@ -42,9 +52,10 @@ class ProofAnalysis:
         has_sorry: Whether proof uses sorry placeholder
         relativization: Relativization check results
         natural_proofs: Natural proof check results
-        oracle_diagnostics: Oracle diagnostic results
+        oracle_diagnostics: Oracle diagnostic results (V10: explicit witness dict)
         barrier_tags: List of barrier tags (e.g., RELATIVIZING, NON_RELATIVIZING)
         overall_assessment: Quality assessment string
+        oracle_witness: Optional[OracleWitness] - V10 explicit oracle world (may be None)
     """
     theorem_name: str
     theorem_file: str
@@ -55,6 +66,7 @@ class ProofAnalysis:
     oracle_diagnostics: Dict[str, Any]
     barrier_tags: List[str]
     overall_assessment: str
+    oracle_witness: Optional["OracleWitness"] = None
 
 
 class ProofParser:
@@ -457,16 +469,129 @@ class BarrierDetector:
             return "unknown"
 
 
+class OracleWorldDiagnostic:
+    """
+    V10: Real oracle-world diagnostic for barrier classification.
+
+    Replaces the heuristic relativization check in BarrierDetector with an
+    explicit oracle-world construction via OracleWorldBuilder.
+
+    For each proof, this:
+    1. Calls OracleWorldBuilder.construct_witness() to get an explicit
+       Baker-Gill-Solovay oracle witness.
+    2. Translates the witness into the same dict format that BarrierDetector
+       previously returned, so downstream code is unchanged.
+    3. Optionally feeds the witness to the LLM (via Ollama) to propose a
+       non-relativizing variant of the proof.
+
+    This is the item that transforms the Critic from a keyword-matching
+    heuristic into an oracle-world reasoning system.
+    """
+
+    def __init__(
+        self,
+        ollama_endpoint: Optional[str] = None,
+        llm_model: Optional[str] = None,
+    ):
+        """
+        Initialize the oracle-world diagnostic.
+
+        Args:
+            ollama_endpoint: Optional Ollama URL (activates LLM analysis)
+            llm_model:       Optional Ollama model name
+        """
+        self.builder = OracleWorldBuilder(
+            ollama_endpoint=ollama_endpoint,
+            llm_model=llm_model,
+        )
+        print(f"[OracleWorldDiagnostic] Initialized. LLM feedback: {ollama_endpoint is not None}")
+
+    def check_relativization_with_witness(
+        self,
+        proof_data: Dict[str, Any],
+        proof_file: str,
+        circuit_type: str,
+    ) -> Tuple[Dict[str, Any], "OracleWitness"]:
+        """
+        Perform oracle-world relativization check and return both the
+        standard-format result dict AND the full OracleWitness.
+
+        This replaces BarrierDetector.check_relativization().
+
+        Args:
+            proof_data:    Parsed proof data from ProofParser
+            proof_file:    Path to Lean file
+            circuit_type:  Circuit class (monotone, AC0, formula)
+
+        Returns:
+            (relativization_dict, oracle_witness) where relativization_dict
+            matches the format expected by _compile_tags() and report().
+        """
+        print(f"[OracleWorldDiagnostic] Checking relativization via oracle worlds: {proof_file}")
+
+        witness = self.builder.construct_witness(proof_file, proof_data, circuit_type)
+
+        # Build the standard relativization result dict (same format as BarrierDetector)
+        evidence = []
+        suggestions = []
+
+        evidence.append(
+            f"Oracle type: {witness.oracle_type} | Technique: {witness.proof_technique}"
+        )
+        evidence.append(
+            f"Oracle world constructed: {witness.witness_description[:120]}..."
+        )
+        for q in witness.oracle_queries[:2]:
+            evidence.append(f"Oracle query: {q[:100]}...")
+
+        if witness.relativizes:
+            suggestions.append(
+                f"Proof uses '{witness.proof_technique}' which relativizes. "
+                f"Construct a non-relativizing variant using algebraic or interactive methods."
+            )
+            if witness.non_rel_suggestion:
+                suggestions.append(f"Proposed fix: {witness.non_rel_suggestion[:200]}")
+            suggestions.append(
+                "Reference: Baker-Gill-Solovay 1975. Separating oracle B constructed explicitly."
+            )
+        else:
+            suggestions.append(
+                f"Proof uses '{witness.proof_technique}' which is non-relativizing. "
+                f"This is a positive signal toward P vs NP relevance."
+            )
+            suggestions.append(
+                "Continue developing this technique; verify it avoids natural proofs barrier too."
+            )
+
+        result = {
+            "relativizes": witness.relativizes,
+            "confidence": witness.confidence,
+            "evidence": evidence,
+            "suggestions": suggestions,
+            "oracle_type": witness.oracle_type,
+            "proof_technique": witness.proof_technique,
+            "non_rel_suggestion": witness.non_rel_suggestion,
+            "llm_reasoning": witness.llm_reasoning,
+        }
+
+        print(f"[OracleWorldDiagnostic] Result: relativizes={witness.relativizes}, "
+              f"confidence={witness.confidence:.2f}, technique={witness.proof_technique}")
+
+        return result, witness
+
+
 class CriticAgent(AgentBase):
     """
-    Barrier-aware proof critic using heuristic analysis.
+    Barrier-aware proof critic with oracle-world diagnostics (V10).
     
     Analyzes Lean theorem files for complexity-theoretic barriers:
-    1. Relativization barrier detection
-    2. Natural proofs barrier detection
+    1. V10: Real relativization detection via explicit oracle-world construction
+    2. Natural proofs barrier detection (Razborov-Rudich)
     3. Oracle diagnostics
+    4. V10: LLM feedback loop: oracle witness -> conjecturer for non-rel proposals
     
-    Provides confidence-scored analysis with actionable suggestions.
+    Provides confidence-scored analysis with actionable suggestions grounded
+    in explicit oracle witnesses rather than keyword heuristics.
     """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -480,6 +605,8 @@ class CriticAgent(AgentBase):
         self.config = config or {}
         self.parser = ProofParser()
         self.detector = BarrierDetector()
+        # V10: Oracle-world diagnostic (initialized lazily with LLM config from context)
+        self._oracle_diagnostic: Optional[OracleWorldDiagnostic] = None
     
     def plan(self, context: AgentContext) -> Dict[str, Any]:
         """
@@ -519,16 +646,49 @@ class CriticAgent(AgentBase):
     def act(self, context: AgentContext, plan: Dict[str, Any]) -> AgentResult:
         """
         Execute barrier analysis on theorems.
+
+        V10 upgrade: uses OracleWorldDiagnostic for relativization instead of
+        heuristic string matching. Oracle witnesses are included in the output
+        artifacts and optionally fed back to the LLM conjecturer.
         
         Args:
             context: Agent execution context
             plan: Analysis plan from plan()
             
         Returns:
-            AgentResult with analyses and summary
+            AgentResult with analyses, oracle witnesses, and summary
         """
-        context.log(self.name, "Analyzing proofs for complexity-theoretic barriers")
+        context.log(self.name, "Analyzing proofs for complexity-theoretic barriers (V10: oracle-world mode)")
         
+        # V10: Initialize oracle-world diagnostic from context config
+        agents_cfg     = context.config.get("agents", {})
+        critic_cfg     = agents_cfg.get("critic", {})
+        use_oracle_diag = critic_cfg.get("oracle_world_diagnostics", True)
+        llm_feedback    = critic_cfg.get("llm_feedback_loop", False)
+
+        # Extract LLM config from conjecturer section (shared LLM infrastructure)
+        conj_cfg    = agents_cfg.get("conjecturer", {})
+        llm_cfg     = conj_cfg.get("llm", {})
+        llm_enabled = llm_cfg.get("enabled", False)
+        llm_endpoint = llm_cfg.get("endpoint", "http://localhost:11434")
+        llm_model    = llm_cfg.get("model", "llama3.2:1b")
+
+        context.log(self.name, f"V10 oracle diagnostics: use_oracle_diag={use_oracle_diag}, "
+                               f"llm_feedback={llm_feedback}, llm_active={llm_enabled}")
+
+        if use_oracle_diag and self._oracle_diagnostic is None:
+            # Initialize oracle-world diagnostic; pass LLM config if feedback loop active
+            if llm_feedback and llm_enabled:
+                self._oracle_diagnostic = OracleWorldDiagnostic(
+                    ollama_endpoint=llm_endpoint,
+                    llm_model=llm_model,
+                )
+                context.log(self.name, f"V10: OracleWorldDiagnostic initialized with LLM "
+                                       f"(model={llm_model})")
+            else:
+                self._oracle_diagnostic = OracleWorldDiagnostic()
+                context.log(self.name, "V10: OracleWorldDiagnostic initialized (rule-based mode)")
+
         theorem_files = plan.get("theorem_files", [])
         conjectures = plan.get("conjectures", [])
         
@@ -542,6 +702,8 @@ class CriticAgent(AgentBase):
         context.log(self.name, f"Built conjecture map with {len(conjecture_map)} entries")
         
         analyses = []
+        oracle_witnesses = []  # V10: collect all oracle witnesses for artifacts
+
         for theorem_file in theorem_files:
             context.log(self.name, f"Analyzing {theorem_file}")
             
@@ -558,10 +720,46 @@ class CriticAgent(AgentBase):
             context.log(self.name, f"  Circuit type: {circuit_type}")
             context.log(self.name, f"  Has sorry: {proof_data['has_sorry']}")
             
-            # Run barrier checks
-            rel_check = self.detector.check_relativization(proof_data)
+            # V10: Use oracle-world diagnostic for relativization if enabled
+            oracle_witness = None
+            if use_oracle_diag and self._oracle_diagnostic is not None:
+                context.log(self.name, f"  V10: Constructing oracle witness for {theorem_file}")
+                rel_check, oracle_witness = self._oracle_diagnostic.check_relativization_with_witness(
+                    proof_data=proof_data,
+                    proof_file=str(theorem_file),
+                    circuit_type=circuit_type,
+                )
+                oracle_witnesses.append(oracle_witness.to_dict())
+                context.log(
+                    self.name,
+                    f"  V10: Oracle witness: relativizes={oracle_witness.relativizes}, "
+                    f"technique={oracle_witness.proof_technique}, "
+                    f"confidence={oracle_witness.confidence:.2f}"
+                )
+                if oracle_witness.non_rel_suggestion:
+                    context.log(
+                        self.name,
+                        f"  V10: Non-rel suggestion: {oracle_witness.non_rel_suggestion[:80]}..."
+                    )
+            else:
+                # Fallback: legacy heuristic check
+                context.log(self.name, "  Using legacy heuristic relativization check")
+                rel_check = self.detector.check_relativization(proof_data)
+
+            # Natural proofs check (unchanged from original)
             nat_check = self.detector.check_natural_proofs(proof_data, circuit_type)
+
+            # Oracle diagnostics (legacy, still useful for core technique ID)
             oracle_diag = self.detector.oracle_diagnostics(proof_data)
+            # V10: Enrich oracle_diag with explicit witness info if available
+            if oracle_witness:
+                oracle_diag["v10_witness_available"] = True
+                oracle_diag["v10_oracle_type"] = oracle_witness.oracle_type
+                oracle_diag["v10_proof_technique"] = oracle_witness.proof_technique
+                oracle_diag["v10_oracle_queries"] = oracle_witness.oracle_queries[:2]
+                oracle_diag["v10_non_rel_suggestion"] = oracle_witness.non_rel_suggestion
+            else:
+                oracle_diag["v10_witness_available"] = False
             
             # Compile analysis
             analysis = ProofAnalysis(
@@ -574,6 +772,7 @@ class CriticAgent(AgentBase):
                 oracle_diagnostics=oracle_diag,
                 barrier_tags=self._compile_tags(rel_check, nat_check, oracle_diag),
                 overall_assessment=self._assess_proof_quality(rel_check, nat_check, oracle_diag),
+                oracle_witness=oracle_witness,
             )
             
             analyses.append(analysis)
@@ -583,11 +782,18 @@ class CriticAgent(AgentBase):
         
         # Generate summary statistics
         summary = self._generate_summary(analyses)
+        # V10: add oracle witness summary
+        summary["oracle_witnesses_constructed"] = len(oracle_witnesses)
+        summary["non_rel_suggestions_generated"] = sum(
+            1 for w in oracle_witnesses if w.get("non_rel_suggestion")
+        )
         
         context.log(self.name, f"Analysis complete: {len(analyses)} proofs analyzed")
         context.log(self.name, f"  Relativizing: {summary['relativizing_count']}")
         context.log(self.name, f"  Non-relativizing: {summary['non_relativizing_count']}")
         context.log(self.name, f"  Natural proof concerns: {summary['natural_proof_count']}")
+        context.log(self.name, f"  V10 oracle witnesses: {summary['oracle_witnesses_constructed']}")
+        context.log(self.name, f"  V10 non-rel suggestions: {summary['non_rel_suggestions_generated']}")
         
         # Convert analyses to dictionaries for serialization
         analyses_dicts = [self._analysis_to_dict(a) for a in analyses]
@@ -595,6 +801,7 @@ class CriticAgent(AgentBase):
         artifacts = {
             "analyses": analyses_dicts,
             "summary": summary,
+            "oracle_witnesses": oracle_witnesses,  # V10: explicit witnesses for downstream use
         }
         
         metrics = {
@@ -603,6 +810,8 @@ class CriticAgent(AgentBase):
             "non_relativizing": summary["non_relativizing_count"],
             "natural_proof_violations": summary["natural_proof_count"],
             "clean_proofs": summary["clean_count"],
+            "oracle_witnesses_constructed": summary["oracle_witnesses_constructed"],
+            "non_rel_suggestions_generated": summary["non_rel_suggestions_generated"],
         }
         
         return AgentResult(
@@ -626,7 +835,7 @@ class CriticAgent(AgentBase):
         analyses = result.artifacts.get("analyses", [])
         summary = result.artifacts.get("summary", {})
         
-        report = f"""# Proof Critic Report
+        report = f"""# Proof Critic Report (V10: Oracle-World Diagnostics)
 
 ## Executive Summary
 - **Theorems Analyzed**: {summary.get('total_analyzed', 0)}
@@ -634,9 +843,11 @@ class CriticAgent(AgentBase):
 - **Non-Relativizing Proofs**: {summary.get('non_relativizing_count', 0)}
 - **Natural Proof Concerns**: {summary.get('natural_proof_count', 0)}
 - **Clean Proofs (No Barriers)**: {summary.get('clean_count', 0)}
+- **V10 Oracle Witnesses Constructed**: {summary.get('oracle_witnesses_constructed', 0)}
+- **V10 Non-Rel Suggestions Generated**: {summary.get('non_rel_suggestions_generated', 0)}
 - **Status**: {result.status}
 
-## Key Findings
+## Key Findings (V10)
 
 """
         
@@ -646,7 +857,17 @@ class CriticAgent(AgentBase):
             report += f"- {summary['clean_count']} proofs avoid both relativization and natural proof barriers\n"
         if summary.get('natural_proof_count', 0) > 0:
             report += f"- Warning: {summary['natural_proof_count']} proofs may hit natural proof barrier\n"
-        
+        if summary.get('oracle_witnesses_constructed', 0) > 0:
+            report += (
+                f"- V10: {summary['oracle_witnesses_constructed']} explicit oracle witnesses constructed "
+                f"(Baker-Gill-Solovay witnesses; not heuristic tags)\n"
+            )
+        if summary.get('non_rel_suggestions_generated', 0) > 0:
+            report += (
+                f"- V10: {summary['non_rel_suggestions_generated']} non-relativizing improvement "
+                f"suggestions generated\n"
+            )
+
         report += "\n## Detailed Analysis\n"
         
         for analysis in analyses:
@@ -691,6 +912,21 @@ class CriticAgent(AgentBase):
             report += f"- **Oracle Dependent**: {oracle['oracle_dependent']}\n"
             report += f"- **Would Fail with Hard Oracle**: {oracle['would_fail_with_hard_oracle']}\n"
             report += f"- **Interpretation**: {oracle['interpretation']}\n"
+
+            # V10: Oracle world witness section
+            if oracle.get("v10_witness_available"):
+                report += f"\n#### V10: Explicit Oracle-World Witness\n"
+                report += f"- **Oracle Type**: {oracle.get('v10_oracle_type', 'unknown')}\n"
+                report += f"- **Proof Technique Identified**: {oracle.get('v10_proof_technique', 'unknown')}\n"
+                v10_queries = oracle.get("v10_oracle_queries", [])
+                if v10_queries:
+                    report += f"- **Oracle Queries**:\n"
+                    for q in v10_queries[:2]:
+                        report += f"  - {q[:120]}\n"
+                v10_suggestion = oracle.get("v10_non_rel_suggestion")
+                if v10_suggestion:
+                    report += f"- **Non-Relativizing Suggestion**:\n"
+                    report += f"  {v10_suggestion[:300]}\n"
         
         report += "\n## Recommendations\n\n"
         
@@ -851,7 +1087,7 @@ class CriticAgent(AgentBase):
         Returns:
             Dictionary representation
         """
-        return {
+        d = {
             "theorem_name": analysis.theorem_name,
             "theorem_file": analysis.theorem_file,
             "circuit_type": analysis.circuit_type,
@@ -862,3 +1098,7 @@ class CriticAgent(AgentBase):
             "barrier_tags": analysis.barrier_tags,
             "overall_assessment": analysis.overall_assessment,
         }
+        # V10: Include oracle witness if present
+        if analysis.oracle_witness is not None:
+            d["oracle_witness"] = analysis.oracle_witness.to_dict()
+        return d
