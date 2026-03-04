@@ -197,7 +197,8 @@ Status: Infrastructure COMPLETE. Full generation running (slow due to SAT solvin
 [x] Implement streaming truth table generation (avoid storing 2^n rows in memory)
 [x] Generate clauses on-the-fly per truth table row (one row at a time)
 [x] Test with n=11-15 monotone parity (verified UNSAT results)
-[x] Acceptance: Successfully handles n=11-20 within timeout
+[x] Auto-compress CNF and LRAT files >1MB with gzip after solving (run_kissat)
+[x] Acceptance: Successfully handles n=11-20 within timeout; output compressed automatically
 
 V4 STATUS: COMPLETE
 - n=11: 72K vars, 1.07M clauses, 20MB, ~15s solve time, UNSAT
