@@ -232,8 +232,29 @@ V4 STATUS: COMPLETE
 [ ] Document reduction with barrier analysis  
 [ ] Acceptance: Reduction with explicit barrier classification
 
-**Priority Classification**  
-* **Critical:** V1 (blocks everything), V2 (first verified results)  
-* **High:** V3 (comprehensive coverage), V5 (publication)  
-* **Medium:** V4 (scalability), V6-V8 (research expansion)  
+**V4b. Algebraic Parity Encoding (Depends on V4, unblocks V3 n=16-20 and all large-n work)**
+[ ] Replace streaming truth table with proper XOR-constraint encoding (O(n) clauses, not O(2^n))
+[ ] Use auxiliary variables to encode XOR chains without enumerating truth table rows
+[ ] Validate: n=16 CNF must be under 10MB and solve within 60s
+[ ] Extend V3 monotone parity baseline to n=16-20
+[ ] Acceptance: n=20 UNSAT proof generated, CNF under 100MB
+
+**V9. LLM Conjecturer Activation (Depends on V1, V2 — current system is template-only)**
+[ ] Pull DeepSeek-Prover-V2-7B locally via Ollama or MLX (Apple Silicon optimized)
+[ ] Replace template generation in ConjecturerAgent with LLM prompting: given known lower bounds, propose tighter bounds or novel circuit classes
+[ ] Implement prompt-response caching to stay within $100/mo cost cap
+[ ] Feed LLM-generated Lean stubs back through Miner and Formalizer pipeline
+[ ] Acceptance: At least one LLM-proposed conjecture survives Miner refutation and compiles in Lean
+
+**V10. Real Barrier Analysis in Critic Agent (Depends on V9, V8)**
+[ ] Upgrade Critic from heuristic tag to oracle-world diagnostic: construct explicit relativized worlds
+[ ] For each proof attempt, check whether the argument is oracle-relative (if so, it cannot separate P from NP)
+[ ] Integrate with LLM Conjecturer: if Critic detects relativization, prompt LLM to propose non-relativizing tweak
+[ ] Acceptance: At least one proof attempt classified as relativizing with explicit oracle witness; at least one non-relativizing variant proposed
+
+**Priority Classification**
+* **Critical:** V1 (blocks everything), V2 (first verified results)
+* **High:** V3 (comprehensive coverage), V5 (publication), V9 (LLM activation — transforms system from pipeline to research engine)
+* **Medium:** V4b (algebraic encoding — unblocks large n), V6-V8 (research expansion), V10 (real barrier analysis)
+* **Dependency order for next phase:** V4b (unblocks large-n data) -> V9 (activates LLM, requires verified results to ground prompts) -> V10 (requires LLM loop to be meaningful) -> V5/V6/V7/V8 in parallel
 * **Status Tracking** Phase 5 is current focus; V1 must complete before significant V2-V8 progress
