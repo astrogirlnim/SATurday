@@ -326,40 +326,122 @@ class BetDecomposer:
         base_seed: int
     ) -> Tuple[List[Task], List[Milestone]]:
         """
-        Decompose Bet C: Hardness-vs-Randomness Implications.
-        
+        Decompose Bet C: Hardness-vs-Randomness Implications (V7).
+
         Strategy:
-        - Correlation tests between circuit hardness and PRGs
-        - Formalize micro-implications in Lean
-        - Explore small circuit sizes with explicit functions
-        
-        MVP: Stub implementation - returns placeholder tasks.
-        
+        - Correlation tests: for each (circuit_type, function, size), ask whether
+          a small circuit can correlate above threshold with the target function.
+          UNSAT => hardness; SAT => circuit witness (function not hard).
+        - PRG security tests: does a distinguisher exist for PRG_f at this size?
+        - Nisan-Wigderson micro-implications: formalize H=>R for bounded sizes in Lean.
+
+        For each schema in test_schemas:
+          For each circuit_type in circuit_types:
+            For each function in target_functions:
+              For each size in size_range:
+                For each seed in seed_range:
+                  Emit one task.
+
         Args:
-            config: Configuration dictionary
+            config:    Configuration dictionary (expects bets.bet_c or flat)
             base_seed: Base random seed
-        
+
         Returns:
             Tuple of (tasks, milestones)
         """
-        print(f"[BetDecomposer] Decomposing Bet C: Hardness-Randomness (STUB)")
-        
-        task = Task(
-            task_id="bet_c_stub_placeholder",
-            bet="C",
-            problem_size=10,
-            seed=base_seed,
-            acceptance_criteria={"stub": True},
-        )
-        
-        milestone = Milestone(
-            name="bet_c_placeholder",
-            description="Placeholder milestone for Bet C (not yet implemented)",
-            required_tasks=["bet_c_stub_placeholder"],
-            acceptance="Stub only - implement in future",
-        )
-        
-        return [task], [milestone]
+        print(f"[BetDecomposer] Decomposing Bet C: Hardness-Randomness (V7)")
+
+        # Extract bet_c specific config
+        bet_c_config = config.get("bets", {}).get("bet_c", {}) if "bets" in config else config
+
+        size_range_cfg   = bet_c_config.get("size_range", {})
+        min_size         = size_range_cfg.get("min", 2)
+        max_size         = size_range_cfg.get("max", 6)
+        step             = size_range_cfg.get("step", None)
+
+        seed_range_cfg   = bet_c_config.get("seed_range", {})
+        num_seeds        = seed_range_cfg.get("count", 2)
+        seed_start       = seed_range_cfg.get("start", base_seed)
+
+        schemas          = bet_c_config.get("test_schemas", ["hardness_correlation"])
+        circuit_types    = bet_c_config.get("circuit_types", ["monotone"])
+        target_functions = bet_c_config.get("target_functions", ["parity"])
+        epsilon          = bet_c_config.get("epsilon", 0.1)
+
+        size_progression = self._generate_size_progression(min_size, max_size, step=step)
+
+        print(f"[BetDecomposer] Bet C schemas: {schemas}")
+        print(f"[BetDecomposer] Circuit types: {circuit_types}")
+        print(f"[BetDecomposer] Target functions: {target_functions}")
+        print(f"[BetDecomposer] Size progression: {size_progression}")
+        print(f"[BetDecomposer] Seeds per size: {num_seeds}")
+
+        tasks = []
+        task_counter = 0
+
+        for schema in schemas:
+            for circuit_type in circuit_types:
+                for function_name in target_functions:
+                    for size in size_progression:
+                        for seed_offset in range(num_seeds):
+                            task_seed = seed_start + task_counter
+                            task_id = f"bet_c_{schema}_{circuit_type}_{function_name}_n{size}_s{task_seed}"
+
+                            # Embed schema in circuit_type field for conjecturer routing.
+                            # Schema determines which template to use; circuit_type is preserved.
+                            task = Task(
+                                task_id=task_id,
+                                bet="C",
+                                problem_size=size,
+                                seed=task_seed,
+                                circuit_type=circuit_type,
+                                function_name=function_name,
+                                algorithm_schema=schema,  # Reuse field to carry schema name
+                                timeout_seconds=max(size * 30, 60),
+                                estimated_time_seconds=size * 5,
+                                priority=1,
+                                acceptance_criteria={
+                                    "generate_cnf": True,
+                                    "run_solver": True,
+                                    "check_correlation": True,
+                                    "epsilon": epsilon,
+                                },
+                            )
+                            tasks.append(task)
+                            task_counter += 1
+
+        print(f"[BetDecomposer] Generated {len(tasks)} tasks for Bet C")
+
+        # Milestones
+        corr_tasks = [t.task_id for t in tasks if t.algorithm_schema == "hardness_correlation"]
+        prg_tasks  = [t.task_id for t in tasks if t.algorithm_schema == "prg_security"]
+        nw_tasks   = [t.task_id for t in tasks if t.algorithm_schema == "nw_implication"]
+
+        milestones = [
+            Milestone(
+                name="first_hardness_correlation",
+                description="First hardness correlation UNSAT: parity is hard for small circuits",
+                required_tasks=corr_tasks[:4],
+                acceptance="At least one UNSAT proving no size-k circuit achieves threshold correlation",
+            ),
+            Milestone(
+                name="prg_security_baseline",
+                description="PRG security baseline: PRG_parity fools small circuits",
+                required_tasks=prg_tasks[:4],
+                acceptance="At least one UNSAT proving no small distinguisher for PRG_parity",
+            ),
+            Milestone(
+                name="nw_implication_lean",
+                description="Nisan-Wigderson micro-implication formalized in Lean",
+                required_tasks=nw_tasks[:2],
+                acceptance="Lean stubs written for H<=>R implication theorems",
+            ),
+        ]
+
+        # Only include milestones that have tasks
+        milestones = [m for m in milestones if m.required_tasks]
+
+        return tasks, milestones
     
     def decompose_bet_d_barriers(
         self,

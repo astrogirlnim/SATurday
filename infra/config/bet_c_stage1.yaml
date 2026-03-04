@@ -1,0 +1,118 @@
+# Bet C Stage 1: Hardness-vs-Randomness Correlation Tests
+# Goal: Check whether small monotone and AC0 circuits can correlate with parity.
+# Expected: UNSAT for correlation_threshold tests (parity is hard for small circuits).
+# Significance: Establishes the hardness side of the Nisan-Wigderson H<=>R connection.
+
+# Offline policy enforcement
+offline:
+  enabled: true
+  check_api_keys: true
+
+# Artifact store configuration
+artifacts:
+  store_dir: "proofs"
+  auto_register: true
+  verify_on_load: false
+
+# SAT solver configuration
+solver:
+  binary: "infra/build/kissat"
+  default_seed: 42
+  timeout_seconds: 120
+  enable_lrat: true
+  cpu_only: true
+
+# Circuit DSL configuration
+circuits:
+  max_gates: 200
+  max_depth: 30
+  max_inputs: 20
+  validate_topology: true
+
+# Bet C: Hardness-vs-Randomness
+bets:
+  bet_c:
+    enabled: true
+    test_schemas:
+      - "hardness_correlation"
+      - "prg_security"
+      - "nw_implication"
+    circuit_types:
+      - "monotone"
+      - "ac0"
+    target_functions:
+      - "parity"
+    size_range:
+      min: 2
+      max: 6
+      step: 1
+    seed_range:
+      start: 30000
+      count: 2
+    epsilon: 0.1
+
+# Agent configuration
+agents:
+  planner:
+    enabled: true
+    task_batch_size: 50
+  conjecturer:
+    enabled: true
+    mode: "template"
+    max_conjectures: 100
+    llm:
+      enabled: false
+      model: "llama3.2:1b"
+      endpoint: "http://localhost:11434"
+  miner:
+    enabled: true
+    small_n_only: false
+    max_variables: 200
+    max_clauses: 50000
+  formalizer:
+    enabled: true
+    allow_sorry: true
+    tactic_timeout: 30
+  critic:
+    enabled: true
+    check_relativization: true
+    check_natural_proofs: true
+    check_algebraization: false
+    oracle_world_diagnostics: true
+    llm_feedback_loop: false
+
+# Logging
+logging:
+  level: "DEBUG"
+  format: "jsonl"
+  log_dir: "search/logs"
+  console_output: true
+  verbose: true
+
+# Execution settings
+execution:
+  parallel: false
+  max_workers: 1
+  checkpoint_interval: 10
+  continue_on_error: true
+
+# Reproducibility
+reproducibility:
+  pin_dependencies: true
+  check_determinism: true
+  record_hashes: true
+  fixed_seeds: true
+
+# Cost guard
+cost:
+  enabled: true
+  max_monthly_spend: 0
+  block_api_calls: true
+  allowed_domains: []
+
+# Verification
+verification:
+  enable_lrat_check: true
+  lrat_checker: "lrat-check"
+  enable_lean_build: true
+  lean_timeout: 300
