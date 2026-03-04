@@ -14,13 +14,19 @@ Usage:
 """
 
 import argparse
+import gzip
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+
+# Files larger than this threshold (bytes) are gzip-compressed after solving.
+# Keeps proofs/ manageable for large n without manual cleanup.
+COMPRESS_THRESHOLD_BYTES = 1 * 1024 * 1024  # 1 MB
 
 # Add parent to path for imports
 parent_dir = Path(__file__).parent.parent.parent
@@ -86,6 +92,42 @@ def validate_cnf(cnf_path: Path) -> Tuple[int, int]:
         sys.exit(1)
     
     return num_vars, num_clauses
+
+
+def compress_file(path: Path) -> Path:
+    """
+    Gzip-compress a file in-place, replacing it with <path>.gz.
+
+    Only compresses if the file exceeds COMPRESS_THRESHOLD_BYTES.
+    Returns the final path (compressed or original).
+    """
+    if not path.exists():
+        return path
+
+    size = path.stat().st_size
+    if size < COMPRESS_THRESHOLD_BYTES:
+        log(f"Skipping compression for {path.name} ({size / 1024:.1f} KB < threshold)")
+        return path
+
+    gz_path = path.with_suffix(path.suffix + ".gz")
+    log(f"Compressing {path.name} ({size / (1024*1024):.1f} MB) -> {gz_path.name}")
+
+    with open(path, "rb") as f_in:
+        with gzip.open(gz_path, "wb", compresslevel=6) as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+    original_size = size
+    compressed_size = gz_path.stat().st_size
+    ratio = compressed_size / original_size if original_size > 0 else 1.0
+    log(
+        f"Compressed {path.name}: {original_size / (1024*1024):.1f} MB -> "
+        f"{compressed_size / (1024*1024):.1f} MB ({ratio:.1%} ratio)"
+    )
+
+    # Remove original only after successful compression
+    path.unlink()
+    log(f"Removed original: {path.name}")
+    return gz_path
 
 
 def run_kissat(
@@ -190,9 +232,20 @@ def run_kissat(
             log(f"ERROR: Solver failed with exit code {result.returncode}")
             log(f"STDERR: {result.stderr}")
         
+        # Compress large output files to keep proofs/ manageable.
+        # CNF files for n>=11 can be 20MB-2GB; LRAT proofs are typically 2-5x larger.
+        # We compress both after solving so the original data is preserved but stored
+        # efficiently. Artifact store paths are updated to point to .gz files.
+        final_lrat_path = lrat_path
+        if status == "UNSAT" and lrat_path.exists():
+            final_lrat_path = compress_file(lrat_path)
+
+        # Compress the CNF too if large (streaming CNFs for n>=11 are 20MB+)
+        final_cnf_path = compress_file(cnf_path)
+
         # Build metadata
         metadata = {
-            "input_cnf": str(cnf_path),
+            "input_cnf": str(final_cnf_path),
             "input_hash": input_hash,
             "num_variables": num_vars,
             "num_clauses": num_clauses,
@@ -201,7 +254,7 @@ def run_kissat(
             "exit_code": result.returncode,
             "time_seconds": elapsed_time,
             "kissat_version": "3.1.1",
-            "lrat_proof": str(lrat_path) if lrat_path.exists() else None,
+            "lrat_proof": str(final_lrat_path) if final_lrat_path.exists() else None,
             "solver_log": str(log_path),
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
@@ -220,21 +273,21 @@ def run_kissat(
             try:
                 store = ArtifactStore(output_dir)
                 
-                # Register input CNF (may already be registered)
+                # Register input CNF (use compressed path if compression occurred)
                 cnf_metadata = store.register(
-                    file_path=cnf_path,
+                    file_path=final_cnf_path,
                     artifact_type=ArtifactType.CNF,
                     tool_name="user",
                     tool_version="1.0.0",
                     copy_to_store=False,
                 )
-                
+
                 cnf_hash = cnf_metadata.artifact_hash
-                
-                # Register LRAT proof if UNSAT
-                if status == "UNSAT" and lrat_path.exists():
+
+                # Register LRAT proof if UNSAT (use compressed path)
+                if status == "UNSAT" and final_lrat_path.exists():
                     store.register(
-                        file_path=lrat_path,
+                        file_path=final_lrat_path,
                         artifact_type=ArtifactType.LRAT,
                         tool_name="kissat",
                         tool_version=metadata["kissat_version"],
