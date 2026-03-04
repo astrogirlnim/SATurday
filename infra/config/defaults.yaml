@@ -56,6 +56,15 @@ agents:
     # Options: "template", "llm" (llm requires local model)
     template_depth: 3
     # Maximum depth for template generation
+    # V11: LLM configuration (mathstral:7b is default math-capable model)
+    llm:
+      enabled: false
+      # Set to true to activate LLM conjecture path. Requires Ollama running.
+      model: "mathstral:7b"
+      # V11: mathstral:7b pulls from ollama (4.1GB). Fallback: deepseek-r1:1.5b
+      endpoint: "http://localhost:11434"
+      num_predict: 8192
+      temperature: 0.1
   
   # Miner agent
   miner:
@@ -74,6 +83,11 @@ agents:
     # Allow incomplete proofs with sorry placeholders
     tactic_timeout: 30
     # Timeout per tactic in seconds
+    # V14: LLM-assisted sorry closing
+    close_sorry_attempts: 3
+    # Number of LLM attempts per sorry proof before giving up
+    close_sorry_with_llm: true
+    # Use LLM (V11 model) to close sorry stubs when LLM is enabled
   
   # Critic agent
   critic:

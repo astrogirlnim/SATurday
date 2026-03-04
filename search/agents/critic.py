@@ -660,7 +660,7 @@ class CriticAgent(AgentBase):
         """
         context.log(self.name, "Analyzing proofs for complexity-theoretic barriers (V10: oracle-world mode)")
         
-        # V10: Initialize oracle-world diagnostic from context config
+        # V10/V13: Initialize oracle-world diagnostic from context config
         agents_cfg     = context.config.get("agents", {})
         critic_cfg     = agents_cfg.get("critic", {})
         use_oracle_diag = critic_cfg.get("oracle_world_diagnostics", True)
@@ -671,10 +671,16 @@ class CriticAgent(AgentBase):
         llm_cfg     = conj_cfg.get("llm", {})
         llm_enabled = llm_cfg.get("enabled", False)
         llm_endpoint = llm_cfg.get("endpoint", "http://localhost:11434")
-        llm_model    = llm_cfg.get("model", "llama3.2:1b")
+        # V11: default is mathstral:7b
+        llm_model    = llm_cfg.get("model", "mathstral:7b")
+        llm_num_predict = llm_cfg.get("num_predict", 8192)
+        llm_temperature = llm_cfg.get("temperature", 0.1)
 
-        context.log(self.name, f"V10 oracle diagnostics: use_oracle_diag={use_oracle_diag}, "
-                               f"llm_feedback={llm_feedback}, llm_active={llm_enabled}")
+        # V13: active loop requires both oracle diagnostics AND LLM enabled
+        v13_active = use_oracle_diag and llm_feedback and llm_enabled
+        context.log(self.name, f"[V10/V13] oracle_diag={use_oracle_diag}, "
+                               f"llm_feedback={llm_feedback}, llm_active={llm_enabled}, "
+                               f"v13_active_loop={v13_active}, model={llm_model}")
 
         if use_oracle_diag and self._oracle_diagnostic is None:
             # Initialize oracle-world diagnostic; pass LLM config if feedback loop active
@@ -794,7 +800,36 @@ class CriticAgent(AgentBase):
         context.log(self.name, f"  Natural proof concerns: {summary['natural_proof_count']}")
         context.log(self.name, f"  V10 oracle witnesses: {summary['oracle_witnesses_constructed']}")
         context.log(self.name, f"  V10 non-rel suggestions: {summary['non_rel_suggestions_generated']}")
-        
+
+        # ------------------------------------------------------------------
+        # V13: Active Critic-Conjecturer oracle feedback loop
+        # For each relativizing proof, call the Conjecturer LLM with the
+        # oracle witness to propose a non-relativizing algebraic tweak.
+        # Log every iteration (witness -> proposal -> status) to search/logs/.
+        # ------------------------------------------------------------------
+        v13_loop_results = []
+        if v13_active:
+            context.log(self.name, "[V13] Starting active Critic-Conjecturer feedback loop")
+            v13_loop_results = self._run_v13_feedback_loop(
+                analyses=analyses,
+                oracle_witnesses=oracle_witnesses,
+                context=context,
+                llm_endpoint=llm_endpoint,
+                llm_model=llm_model,
+                llm_num_predict=llm_num_predict,
+                llm_temperature=llm_temperature,
+            )
+            summary["v13_loop_iterations"] = len(v13_loop_results)
+            summary["v13_non_rel_proposals"] = sum(
+                1 for r in v13_loop_results if r.get("proposal") is not None
+            )
+            context.log(self.name,
+                        f"[V13] Loop complete: {len(v13_loop_results)} iterations, "
+                        f"{summary['v13_non_rel_proposals']} proposals generated")
+        else:
+            summary["v13_loop_iterations"] = 0
+            summary["v13_non_rel_proposals"] = 0
+
         # Convert analyses to dictionaries for serialization
         analyses_dicts = [self._analysis_to_dict(a) for a in analyses]
         
@@ -802,6 +837,7 @@ class CriticAgent(AgentBase):
             "analyses": analyses_dicts,
             "summary": summary,
             "oracle_witnesses": oracle_witnesses,  # V10: explicit witnesses for downstream use
+            "v13_loop_results": v13_loop_results,  # V13: active loop iterations
         }
         
         metrics = {
@@ -812,6 +848,8 @@ class CriticAgent(AgentBase):
             "clean_proofs": summary["clean_count"],
             "oracle_witnesses_constructed": summary["oracle_witnesses_constructed"],
             "non_rel_suggestions_generated": summary["non_rel_suggestions_generated"],
+            "v13_loop_iterations": summary["v13_loop_iterations"],
+            "v13_non_rel_proposals": summary["v13_non_rel_proposals"],
         }
         
         return AgentResult(
@@ -821,6 +859,137 @@ class CriticAgent(AgentBase):
             metrics=metrics,
         )
     
+    def _run_v13_feedback_loop(
+        self,
+        analyses: List["ProofAnalysis"],
+        oracle_witnesses: List[Dict[str, Any]],
+        context: "AgentContext",
+        llm_endpoint: str,
+        llm_model: str,
+        llm_num_predict: int,
+        llm_temperature: float,
+    ) -> List[Dict[str, Any]]:
+        """
+        V13: Active Critic-Conjecturer proof-search loop for Bet D.
+
+        For each proof that the Critic classifies as relativizing, feed the
+        oracle witness back to the Conjecturer LLM (via propose_non_relativizing_tweak)
+        to generate a non-relativizing algebraic variant.
+
+        Each iteration is logged to search/logs/v13_loop_iterations.jsonl with:
+        - oracle witness dict (what the Critic found)
+        - LLM proposal (what the Conjecturer suggested)
+        - timestamp and model info
+
+        Args:
+            analyses:         ProofAnalysis list from act() loop
+            oracle_witnesses: Oracle witness dicts collected during analysis
+            context:          AgentContext for logging
+            llm_endpoint:     Ollama base URL
+            llm_model:        V11 model name (mathstral:7b)
+            llm_num_predict:  Token budget for LLM
+            llm_temperature:  Sampling temperature
+
+        Returns:
+            List of loop iteration dicts for artifact storage
+        """
+        import json
+        import time
+        from pathlib import Path
+
+        # Import ConjecturerAgent for the propose_non_relativizing_tweak method.
+        # We instantiate a lightweight proxy rather than running the full agent.
+        try:
+            from search.agents.conjecturer import ConjecturerAgent
+            conjecturer_proxy = ConjecturerAgent()
+        except Exception as e:
+            context.log(self.name, f"[V13] Cannot import ConjecturerAgent: {e}", level="ERROR")
+            return []
+
+        loop_results = []
+
+        # Set up log file for V13 iterations
+        log_dir = Path("search/logs")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "v13_loop_iterations.jsonl"
+
+        context.log(self.name,
+                    f"[V13] Processing {len(analyses)} analyses for relativizing proofs")
+        print(f"LOG [CriticAgent V13]: Active feedback loop starting. "
+              f"Oracle witnesses: {len(oracle_witnesses)}. "
+              f"Model: {llm_model}", file=sys.stderr)
+
+        for i, (analysis, witness_dict) in enumerate(zip(analyses, oracle_witnesses)):
+            # Only run the loop for proofs the Critic classified as relativizing
+            is_relativizing = (
+                "RELATIVIZING" in analysis.barrier_tags
+                or witness_dict.get("relativizes", False)
+            )
+
+            if not is_relativizing:
+                context.log(self.name,
+                            f"[V13] Skipping {analysis.theorem_name}: not relativizing")
+                continue
+
+            context.log(self.name,
+                        f"[V13] Iteration {i+1}: {analysis.theorem_name} is relativizing. "
+                        f"Oracle type: {witness_dict.get('oracle_type', 'unknown')}")
+            print(f"LOG [CriticAgent V13]: Iteration {i+1}: feeding oracle witness for "
+                  f"{analysis.theorem_name} to LLM", file=sys.stderr)
+
+            proposal = None
+            start_time = time.time()
+            try:
+                proposal = conjecturer_proxy.propose_non_relativizing_tweak(
+                    oracle_witness=witness_dict,
+                    context=context,
+                    endpoint=llm_endpoint,
+                    model=llm_model,
+                )
+                elapsed = time.time() - start_time
+                if proposal:
+                    context.log(self.name,
+                                f"[V13] LLM proposal received in {elapsed:.1f}s "
+                                f"({len(proposal)} chars)")
+                    print(f"LOG [CriticAgent V13]: Proposal preview: {proposal[:200]}",
+                          file=sys.stderr)
+                else:
+                    context.log(self.name,
+                                f"[V13] LLM returned None (no proposal) in {elapsed:.1f}s")
+            except Exception as e:
+                elapsed = time.time() - start_time
+                context.log(self.name,
+                            f"[V13] LLM error after {elapsed:.1f}s: {e}",
+                            level="ERROR")
+
+            iteration = {
+                "iteration": i + 1,
+                "theorem_name": analysis.theorem_name,
+                "theorem_file": analysis.theorem_file,
+                "barrier_tags": analysis.barrier_tags,
+                "oracle_witness": witness_dict,
+                "proposal": proposal,
+                "proposal_length": len(proposal) if proposal else 0,
+                "model": llm_model,
+                "timestamp": time.time(),
+                "has_proposal": proposal is not None,
+            }
+            loop_results.append(iteration)
+
+            # Log iteration to JSONL file for downstream analysis
+            try:
+                with open(log_file, "a") as f:
+                    f.write(json.dumps(iteration) + "\n")
+                context.log(self.name, f"[V13] Logged iteration to {log_file}")
+            except Exception as e:
+                context.log(self.name, f"[V13] Could not write to log file: {e}", level="WARNING")
+
+        print(f"LOG [CriticAgent V13]: Loop complete. "
+              f"Iterations: {len(loop_results)}, "
+              f"Proposals: {sum(1 for r in loop_results if r['has_proposal'])}",
+              file=sys.stderr)
+        return loop_results
+
     def report(self, context: AgentContext, result: AgentResult) -> str:
         """
         Generate Markdown report for barrier analysis.
@@ -928,6 +1097,24 @@ class CriticAgent(AgentBase):
                     report += f"- **Non-Relativizing Suggestion**:\n"
                     report += f"  {v10_suggestion[:300]}\n"
         
+        # V13: Active loop results section
+        v13_results = result.artifacts.get("v13_loop_results", [])
+        if v13_results:
+            report += "\n## V13: Active Critic-Conjecturer Feedback Loop\n\n"
+            report += f"- **Loop Iterations**: {summary.get('v13_loop_iterations', 0)}\n"
+            report += f"- **Non-Relativizing Proposals Generated**: {summary.get('v13_non_rel_proposals', 0)}\n"
+            report += f"- **Log File**: `search/logs/v13_loop_iterations.jsonl`\n\n"
+            for iteration in v13_results:
+                report += f"### Iteration {iteration['iteration']}: {iteration['theorem_name']}\n"
+                report += f"- Oracle type: {iteration['oracle_witness'].get('oracle_type', 'unknown')}\n"
+                report += f"- Proposal received: {iteration['has_proposal']}\n"
+                if iteration.get("proposal"):
+                    report += f"- Proposal preview: `{iteration['proposal'][:200]}...`\n"
+        elif summary.get("v13_loop_iterations", 0) == 0:
+            report += "\n## V13: Active Feedback Loop\n\n"
+            report += "V13 loop not active. To enable: set agents.critic.llm_feedback_loop=true "
+            report += "and agents.conjecturer.llm.enabled=true in config.\n"
+
         report += "\n## Recommendations\n\n"
         
         if summary.get('relativizing_count', 0) > summary.get('non_relativizing_count', 0):

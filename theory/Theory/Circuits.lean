@@ -215,4 +215,50 @@ axiom lrat_implies_lower_bound (proof : CircuitLowerBoundProof) :
     C.num_inputs = proof.n → C.size ≤ proof.max_gates →
     ¬(C.computes f)
 
+/-! ## Parity Function -/
+
+/-- The parity function on n Boolean inputs: XOR of all inputs. -/
+def parity (n : ℕ) (inputs : Fin n → Bool) : Bool :=
+  Finset.univ.fold (· ^^ ·) false (fun i => inputs i)
+
+/-! ## V12: Parameterized Lower Bound Statement -/
+
+/--
+  V12 Goal: For all n ≥ 2, no monotone circuit of size < 2^(n/4) computes parity on n inputs.
+
+  This is the formal statement of Razborov's 1985 monotone circuit lower bound for parity,
+  parameterized over n. The statement uses the same lrat_implies_lower_bound axiom as
+  the verified base cases (n=2,3,4).
+
+  The proof structure is:
+  - Base cases: n=2,3,4 are verified by LRAT certificates (MonotoneParityN2/N3/N4Proof.lean)
+  - Inductive step: requires showing that any monotone circuit for parity on n+1 inputs
+    can be reduced to monotone circuits for parity on n inputs with exponential blowup.
+
+  Note: The inductive step is the hard part. It requires formalizing the Razborov
+  sunflower argument, which is a substantial proof-engineering effort (V12 milestone).
+  The LRAT base cases are machine-verified; the induction is the open research goal.
+-/
+theorem monotone_parity_exponential_lower_bound (n : ℕ) (hn : 2 ≤ n) :
+    ∀ (C : Circuit),
+      C.num_inputs = n →
+      isMonotone C = true →
+      C.computes (parity n) →
+      2^(n / 4) ≤ C.size := by
+  sorry  -- V12: Inductive proof pending; base cases n=2,3,4 verified in BetA/Proofs/
+
+/--
+  V12 Base case scaffold: Connects the verified n=2,3,4 theorems to the parameterized
+  statement. This is a helper that will be used in the inductive proof.
+-/
+theorem monotone_parity_base_cases (n : ℕ) (hn2 : n = 2 ∨ n = 3 ∨ n = 4) :
+    ∀ (C : Circuit),
+      C.num_inputs = n →
+      isMonotone C = true →
+      C.computes (parity n) →
+      2^(n / 4) ≤ C.size := by
+  rcases hn2 with rfl | rfl | rfl
+  -- n = 2: 2^(2/4) = 2^0 = 1 <= C.size; we know C.size > 4
+  all_goals sorry  -- V12: Wire to MonotoneParityN2Proof, N3Proof, N4Proof
+
 end SATurday.Circuits
