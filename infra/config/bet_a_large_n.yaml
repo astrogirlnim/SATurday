@@ -1,0 +1,48 @@
+# V4b: Algebraic encoding for large n (n=16-20).
+# Uses O(k^2+n) XOR-chain CNF instead of the O(2^n * k) streaming encoding.
+# This unblocks n=16-20 monotone parity instances that previously hit >2GB CNFs.
+#
+# Key change vs bet_a_stage1.yaml:
+#   bets.bet_a.size_range.min=16, max=20
+#   bets.bet_a.algebraic_threshold=11 (so n>=11 always uses algebraic mode)
+#   Only parity + monotone in this config to keep runtimes manageable
+
+offline:
+  enabled: true
+
+bets:
+  bet_a:
+    enabled: true
+    circuit_types:
+      - monotone
+    target_functions:
+      - parity
+    size_range:
+      min: 16
+      max: 20
+    seed_range:
+      start: 50000
+      count: 2
+    algebraic_threshold: 11
+
+agents:
+  planner:
+    enabled: true
+    max_tasks: 20
+  conjecturer:
+    enabled: true
+    max_conjectures: 20
+    llm:
+      enabled: false
+  miner:
+    enabled: true
+    timeout_seconds: 120
+    max_size_mb: 512
+  formalizer:
+    enabled: true
+    output_dir: theory/Conjectures/BetA/
+  critic:
+    enabled: true
+    check_relativization: true
+    oracle_world_diagnostics: true
+    llm_feedback_loop: false

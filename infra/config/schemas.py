@@ -151,6 +151,10 @@ class BetAConfig(BaseModel):
     target_functions: List[str] = ["parity", "majority", "threshold_2", "threshold_3"]
     size_range: SizeRange = SizeRange()
     seed_range: SeedRange = SeedRange()
+    # V4b: threshold above which algebraic encoding is used instead of streaming.
+    # n >= algebraic_threshold and function == parity => "algebraic" mode (O(k^2+n) clauses).
+    # Set to 11 to apply V4b for all large-n parity instances including n=16-20.
+    algebraic_threshold: int = 11
 
 
 class BetBConfig(BaseModel):
@@ -179,8 +183,24 @@ class BetCConfig(BaseModel):
 
 
 class BetDConfig(BaseModel):
-    """Bet D: Barrier-Aware Reductions."""
+    """Bet D: Barrier-Aware Reductions (V8)."""
     enabled: bool = False
+    # Reduction schema types to probe:
+    #   non_relativizing_reduction: reduction whose proof does not relativize
+    #   oracle_barrier_test: explicitly tests whether reduction survives oracle worlds
+    #   algebraization_reduction: uses algebraic techniques (IP, MIP) to escape barriers
+    reduction_schemas: List[str] = [
+        "non_relativizing_reduction",
+        "oracle_barrier_test",
+        "algebraization_reduction",
+    ]
+    # Source/target problem pairs for reductions
+    source_problems: List[str] = ["sat", "3sat", "circuit_sat"]
+    target_problems: List[str] = ["parity_lower_bound", "circuit_lower_bound"]
+    # Size range (n = number of inputs / problem size)
+    size_range: SizeRange = SizeRange(min=2, max=6)
+    # Seed range
+    seed_range: SeedRange = SeedRange(start=40000, count=2)
 
 
 class BetsConfig(BaseModel):

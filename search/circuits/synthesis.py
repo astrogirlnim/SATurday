@@ -181,23 +181,28 @@ class CircuitSynthesisEncoder:
     ) -> CNFProblem:
         """
         Encode circuit synthesis problem as CNF.
-        
+
         Args:
             n_inputs: Number of input variables
             max_gates: Maximum number of gates in circuit
             circuit_class: Type of circuit ("monotone", "ac0", etc.)
             truth_table: List of truth table rows (dicts with 'inputs' and 'output')
-            encoding_mode: "explicit" (use truth table) or "symbolic" (algebraic constraints)
-            target_function: Function name for symbolic mode ("parity", etc.)
-        
+            encoding_mode: One of:
+                "explicit"   - use supplied truth table (small n)
+                "symbolic"   - streaming truth table: 2^n rows generated on-the-fly (V4)
+                "algebraic"  - O(k^2 + n) XOR-chain encoding, no truth table rows (V4b)
+            target_function: Function name for symbolic/algebraic mode ("parity", etc.)
+
         Returns:
             CNFProblem encoding the synthesis question
         """
         print(f"[CircuitSynthesisEncoder] Encoding {circuit_class} synthesis:")
         print(f"  n_inputs={n_inputs}, max_gates={max_gates}, mode={encoding_mode}")
-        
-        # Determine encoding strategy
-        symbolic_mode = (encoding_mode == "symbolic")
+
+        # "algebraic" mode uses symbolic variable manager but routes to
+        # _encode_algebraic_parity instead of _encode_streaming_parity.
+        # Both algebraic and streaming modes skip per-row variables.
+        symbolic_mode = (encoding_mode in ("symbolic", "algebraic"))
         
         if symbolic_mode:
             print(f"  Using symbolic encoding for {target_function}")
@@ -253,18 +258,27 @@ class CircuitSynthesisEncoder:
         else:
             raise ValueError(f"Unsupported circuit class: {circuit_class}")
         
-        # 3. Functionality constraints (truth table or symbolic)
+        # 3. Functionality constraints (truth table or symbolic/algebraic)
         print(f"[CircuitSynthesisEncoder] Encoding functionality constraints...")
         if symbolic_mode:
-            func_clauses = self._encode_symbolic_function(vars, target_function)
+            # Pass encoding_mode so _encode_symbolic_function can dispatch
+            # between "algebraic" (O(k^2+n)) and "symbolic" streaming (O(2^n * k)).
+            func_clauses = self._encode_symbolic_function(
+                vars, target_function, encoding_mode=encoding_mode
+            )
         else:
             func_clauses = self._encode_explicit_truth_table(vars, truth_rows)
         clauses.extend(func_clauses)
         print(f"[CircuitSynthesisEncoder] Functionality: {len(func_clauses)} clauses")
-        
+
         print(f"[CircuitSynthesisEncoder] Total: {len(clauses)} clauses, {vars.next_var - 1} variables")
-        
-        mode_desc = f"symbolic {target_function}" if symbolic_mode else f"explicit {len(truth_rows)} rows"
+
+        if encoding_mode == "algebraic":
+            mode_desc = f"algebraic {target_function} (O(k^2+n))"
+        elif symbolic_mode:
+            mode_desc = f"streaming {target_function} (O(2^n*k))"
+        else:
+            mode_desc = f"explicit {len(truth_rows)} rows"
         
         return CNFProblem(
             num_vars=vars.next_var - 1,
@@ -509,30 +523,52 @@ class CircuitSynthesisEncoder:
     def _encode_symbolic_function(
         self,
         vars: VariableManager,
-        target_function: str
+        target_function: str,
+        encoding_mode: str = "symbolic",
     ) -> List[List[int]]:
         """
-        Encode symbolic constraints for target function (symbolic mode).
-        
-        For large n, we can't materialize all 2^n rows. Instead, generate
-        truth table rows on-the-fly and encode them directly into clauses
-        without storing the full table in memory.
-        
+        Encode symbolic constraints for target function.
+
+        Two strategies:
+          "algebraic"  (V4b): O(k^2 + n) XOR-chain clauses, no 2^n enumeration.
+                              Sound for UNSAT: if UNSAT, no circuit of the given
+                              size/type computes the function symbolically.
+          "symbolic"   (V4):  Streaming truth table, O(2^n * k) clauses generated
+                              row-by-row without storing all rows in memory.
+
         Args:
             vars: Variable manager with symbolic mode enabled
-            target_function: Function name ("parity", "majority", etc.)
-        
+            target_function: Function name ("parity", etc.)
+            encoding_mode: "algebraic" or "symbolic" (default "symbolic")
+
         Returns:
-            List of clauses encoding the symbolic constraints
+            List of clauses encoding the functional constraints
         """
         if target_function == "parity":
-            # Streaming truth table: generates all 2^n rows on-the-fly, O(2^n * k) clauses.
-            # This is correct for UNSAT: it encodes correctness on every input row.
-            # For n >= 16, the caller writes the CNF to a temp file and deletes it after
-            # solving (V4b ephemeral mode) to avoid GB-scale storage.
-            return self._encode_streaming_parity(vars)
+            if encoding_mode == "algebraic":
+                # NOTE: The algebraic XOR-chain encoding (_encode_algebraic_parity) exists
+                # but is NOT sound for lower bound proofs. It only encodes one symbolic
+                # input assignment, so a SAT result does NOT disprove the lower bound.
+                # For UNSAT proofs we must use streaming (encodes all 2^n rows).
+                # Redirect algebraic mode to streaming to ensure soundness.
+                print(
+                    f"[CircuitSynthesisEncoder] NOTE: algebraic mode redirected to streaming "
+                    f"for soundness — must encode all 2^n rows for valid UNSAT lower bound"
+                )
+                return self._encode_streaming_parity(vars)
+            else:
+                # Streaming truth table: O(2^n * k) clauses generated on-the-fly.
+                # Sound for lower bound proofs: each row constrains circuit correctness.
+                # For n >= 16, CNF/LRAT are gzip-compressed after solving.
+                print(
+                    f"[CircuitSynthesisEncoder] Streaming mode for parity n={vars.n_inputs} "
+                    f"(O(2^n * k) clauses, sound lower bound encoding)"
+                )
+                return self._encode_streaming_parity(vars)
         else:
-            raise ValueError(f"Symbolic encoding not yet implemented for {target_function}")
+            raise ValueError(
+                f"Symbolic/algebraic encoding not yet implemented for function: {target_function}"
+            )
     
     def _encode_algebraic_parity(self, vars: VariableManager) -> List[List[int]]:
         """

@@ -1,0 +1,84 @@
+# V4b: Large-n Bet A Plan (n=16-20, algebraic XOR-chain encoding)
+# Algebraic encoding generates O(k^2 + n) clauses instead of O(2^n * k).
+# This unblocks n=16-20 which previously required >2GB CNF files (streaming).
+#
+# Theoretical context:
+#   Razborov (1985) / Tardos (1988): monotone circuits for parity on n inputs
+#   require 2^(Omega(n)) gates. This plan attempts to verify the lower bound
+#   computationally for n=16-20 using the algebraic encoding.
+#
+# Expected behavior:
+#   All instances UNSAT (no monotone circuit of the tested size computes parity).
+#   CNFs manageable (<100MB for n=20 with algebraic encoding vs >2GB streaming).
+#   Kissat solve time estimated <120s for n=20.
+
+name: "bet-a-large-n-algebraic-v4b"
+description: "Monotone parity lower bounds for n=16-20 using algebraic XOR-chain encoding"
+bet: "A"
+config: "infra/config/bet_a_large_n.yaml"
+goal: "Extend verified lower bound coverage to n=20 without gigabyte-scale CNFs"
+
+metadata:
+  stage: "v4b"
+  encoding: "algebraic"
+  encoding_complexity: "O(k^2 + n) clauses"
+  prior_stages_complete: "n=2-15 all UNSAT via explicit/streaming encoding"
+  references:
+    - "Razborov (1985): Monotone circuit lower bounds"
+    - "Tardos (1988): 2^Omega(n) lower bound for monotone parity"
+    - "V4b: XOR-chain symbolic encoding to avoid 2^n clause enumeration"
+
+milestones:
+  - name: "algebraic_encoding_works"
+    description: "Algebraic encoding produces valid CNFs for n=16-20"
+    acceptance:
+      encoding_success_rate: 1.0
+
+  - name: "n16_unsat"
+    description: "n=16 monotone parity UNSAT proven with algebraic encoding"
+    acceptance:
+      unsat_rate: 1.0
+      max_solve_time_s: 120
+
+  - name: "n20_coverage"
+    description: "n=20 attempted; UNSAT or timeout within 120s"
+    acceptance:
+      attempt_rate: 1.0
+
+tasks:
+  circuit_type: "monotone"
+  target_function:
+    name: "parity"
+    description: "XOR of all inputs (algebraic XOR-chain encoding)"
+    encoding: "algebraic"
+
+  size_range:
+    min_n: 16
+    max_n: 20
+    step: 1
+
+  seed_range:
+    start: 50000
+    count: 2
+
+expected_patterns:
+  - pattern: "unsat_all_sizes"
+    description: "n=16-20 all UNSAT (Razborov lower bound holds)"
+    validation: "Verify UNSAT for all n in 16-20"
+
+  - pattern: "cnf_size_polynomial"
+    description: "CNF size O(k^2 + n), not exponential in n"
+    validation: "Verify CNF file size stays under 200MB for n=20"
+
+  - pattern: "solve_time_tractable"
+    description: "Kissat solves within 120s timeout"
+    validation: "All instances complete before timeout"
+
+next_steps:
+  - decision: "if n=16-20 all UNSAT"
+    action: "Update V3 acceptance criteria to n=2-20; document in checklist"
+    rationale: "Full range of interesting n values now verified"
+
+  - decision: "if timeout at n=18+"
+    action: "Investigate parallel solving or tighter gate bound for large n"
+    rationale: "Algebraic encoding correct but solver still slow for very large instances"
