@@ -66,26 +66,27 @@
 - [x] 3 LRAT proofs anchored in Lean (n=2, n=3, n=4)
 - [ ] n=16-20: blocked, needs V4b algebraic encoding
 
-#### V4: Streaming Encoding — COMPLETE
+#### V4: Streaming Encoding + Auto-Compression — COMPLETE
 
 - [x] `_encode_streaming_parity` in `synthesis.py`: O(gates) memory, O(2^n) clauses
 - [x] Auto-selection in `miner.py`: streaming for parity n>10, explicit otherwise
 - [x] Validated: n=11-15 all UNSAT within timeouts
-- Metrics: n=15 = 1.42M vars, 21.5M clauses, 446MB, ~50s
+- [x] `compress_file()` in `run_kissat`: gzip-compresses CNF/LRAT >1MB after solving
+- Metrics: n=15 = 1.42M vars, 21.5M clauses, 446MB raw (~50MB compressed), ~50s
 
 ---
 
 ## Remaining Work (Prioritized)
 
-### V4b: Algebraic Parity Encoding — NEXT (no blockers)
+### V4b: Algebraic Parity Encoding — DEFERRED (research problem, not implementation gap)
 
-- [ ] XOR-constraint encoding: O(n) clauses, not O(2^n)
-- [ ] Auxiliary variables for XOR chains without truth table enumeration
-- [ ] Validate: n=16 under 10MB, solve within 60s
-- [ ] Extend V3 baseline to n=16-20
-- **Unblocks:** n=16-20 and all large-n work
+- Attempted symbolic XOR-chain: unsound (SAT result — only constrains one input point, not all 2^n)
+- Attempted ephemeral streaming: no improvement (94M clauses for n=17 takes minutes to write)
+- True algebraic universal encoding for SAT is a circuit complexity research question
+- Compression (V4 addition) handles the storage concern; solve-time is the real blocker
+- Status: deferred until a concrete algebraic approach is identified
 
-### V9: LLM Conjecturer Activation — HIGHEST LEVERAGE (needs V1/V2 as grounding)
+### V9: LLM Conjecturer Activation — NEXT, HIGHEST LEVERAGE (V1/V2 done = grounding exists)
 
 - [ ] DeepSeek-Prover-V2-7B via Ollama or MLX (Apple Silicon)
 - [ ] Replace template generation in ConjecturerAgent with LLM prompting

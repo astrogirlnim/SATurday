@@ -1,52 +1,37 @@
 # Active Context: Current Work and Next Steps
 
-## Last Updated: 2026-01-28
+## Last Updated: 2026-01-28 (Session 3)
 
-## Recent Work (Last Two Sessions)
+## Recent Work (This Session)
 
-### Session 1: V4 Encoding Scalability + V3 Baseline Extension
+### Storage Compression — COMPLETE
 
-**V4 (Streaming Truth Table) — COMPLETE:**
-- Implemented streaming truth table encoding in `search/circuits/synthesis.py`
-  - New method `_encode_streaming_parity`: generates clauses row-by-row, never loads full 2^n table into memory
-  - New method `_encode_single_row_streaming`: encodes one truth table row with fresh per-row variables
-  - `encode_synthesis` now accepts `encoding_mode: str` ("explicit" or "streaming") and `target_function: Optional[str]`
-- Modified `search/agents/miner.py`:
-  - Auto-selects encoding mode: `streaming` for parity with n > 10, `explicit` otherwise
-  - Added `_generate_truth_table` helper for n <= 10
-- Modified `search/templates/bet_a_circuits.py`:
-  - Changed threshold for empty truth table return from `n > 8` to `n > 10`
-- Modified `search/agents/planner.py`:
-  - `_generate_size_progression` now respects explicit `step` param from config (was ignoring it)
+Added auto-compress-after-solve to `search/bin/run_kissat`:
+- New `compress_file()` function: gzip-compresses any file over 1MB in-place
+  - Replaces `foo.cnf` with `foo.cnf.gz`, `foo.lrat` with `foo.lrat.gz`
+  - Uses `compresslevel=6` (good ratio, not painfully slow)
+  - Logs original size, compressed size, and ratio
+  - Deletes original only after successful compression
+- Wired in after solver completes: LRAT compressed first, then CNF
+- Artifact store paths updated to reflect `.gz` filenames (`copy_to_store=False` so no store changes needed)
+- Threshold: 1MB — small files (n<=7) skip compression, large files (n>=11) always compress
+- Expected ratios: CNF ~8-10x, LRAT ~5-8x (both are repetitive text)
 
-**V3 Extension (n=11-15) — COMPLETE:**
-- Created `infra/config/bet_a_v3_extension.yaml` for n=11-15 run
-- Successfully generated 9 instances: all UNSAT
-- Metrics:
-  - n=11: 72K vars, 1.07M clauses, 20MB, ~15s, UNSAT
-  - n=13: 331K vars, 4.96M clauses, 96MB, ~40s, UNSAT
-  - n=15: 1.42M vars, 21.5M clauses, 446MB, ~50s, UNSAT
-- n=16-20 deferred: streaming produces 2GB+ CNFs per instance (impractical)
+Also reverted all V4b experiment code:
+- `miner.py`: removed tiered n thresholds and ephemeral temp-file logic; restored clean two-tier (n<=10 explicit, n>10 streaming)
+- `synthesis.py`: `_encode_algebraic_parity` still present but not called; routing restored to streaming
+- Deleted `infra/config/bet_a_v4b_test.yaml` (test config)
+- Cleaned leftover large LRATs (1.1GB + 471MB) from failed runs; proofs/ back to 28MB
 
-**Storage Cleanup:**
-- Deleted all CNFs > 1MB (n=11-15 CNFs deleted post-verification)
-- Deleted all LRATs not referenced by the 3 verified Lean proofs (n=2, n=3, n=4)
-- Deleted 315 generated run reports from `docs/reports/`
-- `proofs/` directory: 15GB -> 28MB
-- Git commit: "Delete 315 generated run reports - noise with no research value" (9af64f4)
+Git commit: "Add auto-compression to run_kissat; revert V4b experiments" (b0a8d9d)
 
-### Session 2: Roadmap Review + Checklist Update
+### V4b Status — DEFERRED
 
-**Strategic Review:**
-- Re-read project-concept.md, mvp-critique.md, market-analysis.md, agent-recommendations.md
-- Produced honest gap analysis: pipeline is a reproducer, not an explorer — the LLM Conjecturer is the missing intelligence layer
+Attempted two approaches for algebraic n=16+ encoding:
+1. Symbolic XOR-chain: unsound — returns SAT because it only constrains one symbolic input point, not all 2^n inputs
+2. Ephemeral streaming: no improvement — 94M clauses for n=17 takes minutes to write even to /tmp
 
-**Checklist Updated (`docs/brainlift/saturday-dev-checklist-v2.md`):**
-- Added V4b: Algebraic Parity Encoding (O(n) clauses, unblocks n=16-20)
-- Added V9: LLM Conjecturer Activation (DeepSeek-Prover-V2-7B via Ollama/MLX)
-- Added V10: Real Barrier Analysis in Critic Agent (oracle-world diagnostics)
-- Updated Priority Classification with dependency order
-- Git commit: "Add V4b, V9, V10 to checklist: algebraic encoding, LLM conjecturer, real barrier analysis" (e822537)
+Conclusion: V4b requires a fundamentally different problem formulation (e.g., BDD-based, algebraic circuit complexity methods). Deferred. Compression handles storage; n=16-20 remains a solve-time problem, not a storage problem.
 
 ---
 
@@ -56,46 +41,40 @@
 
 1. Full agent pipeline: Planner -> Conjecturer -> Miner -> Formalizer -> Critic
 2. Multi-circuit synthesis: monotone, AC0, formula circuits
-3. Multi-function templates: parity, majority, threshold-2, threshold-3 (7 templates total)
+3. Multi-function templates: 7 templates (parity, majority, threshold-2, threshold-3)
 4. Streaming encoding: handles parity n=11-15 without loading full truth table
 5. SAT solving with LRAT proof extraction (Kissat, ARM64)
-6. Content-addressed artifact store (SHA256)
-7. Verified proofs: 3 complete Lean theorems (n=2, n=3, n=4 monotone parity)
-8. Lean infrastructure: circuit semantics, LRAT-Lean axiom, tactic library
+6. Auto-compression: CNF and LRAT files >1MB gzip-compressed after solving
+7. Content-addressed artifact store (SHA256)
+8. Verified proofs: 3 complete Lean theorems (n=2, n=3, n=4 monotone parity)
+9. Lean infrastructure: circuit semantics, LRAT-Lean axiom, tactic library
 
 ### What's Missing (The Honest Gap)
 
-1. **LLM Conjecturer** (V9) — R2 is template-only; no LLM integration exists yet
-   - System explores a fixed search space rather than proposing novel conjectures
-   - This is the single highest-leverage item to activate
-2. **Algebraic encoding** (V4b) — streaming still produces O(2^n) clauses; n=16-20 blocked
+1. **LLM Conjecturer** (V9) — R2 is template-only; the system explores a fixed search space
+2. **n=16-20** — streaming produces 2GB+ CNFs; requires algebraic encoding not yet found
 3. **Bets B, C, D** (V6, V7, V8) — not started
-4. **Real barrier analysis** (V10) — R5 is heuristic tagging only, no oracle-world diagnostics
+4. **Real barrier analysis** (V10) — R5 is heuristic tagging only
 5. **Publication package** (V5) — not started
 
 ---
 
 ## Next Steps (Dependency Order)
 
-### V4b: Algebraic Parity Encoding (Immediate Unblock)
-- Replace streaming truth table with XOR-constraint encoding: O(n) clauses instead of O(2^n)
-- Use auxiliary variables for XOR chains without enumerating rows
-- Target: n=16 CNF under 10MB, solve within 60s
-- Unblocks: V3 n=16-20, all large-n work
-
-### V9: LLM Conjecturer Activation (Highest Leverage)
-- Pull DeepSeek-Prover-V2-7B locally via Ollama or MLX
+### V9: LLM Conjecturer Activation — HIGHEST LEVERAGE, NO BLOCKERS
+- V1 and V2 are done (verified results exist to ground prompts)
+- Pull a local math/proof LLM via Ollama (e.g. deepseek-r1, mathstral)
 - Replace template generation in ConjecturerAgent with LLM prompting
-- Feed existing verified results (n=2-4) as grounding context
+- Feed known lower bounds (n=2-4 verified) as context; ask LLM to propose tighter bounds or novel circuit classes
 - Implement prompt-response caching
-- Acceptance: one LLM-proposed conjecture survives Miner + compiles in Lean
+- Acceptance: one LLM-proposed conjecture survives Miner refutation + compiles in Lean
 
-### V10: Real Barrier Analysis (After V9)
-- Upgrade Critic: construct explicit relativized worlds for each proof attempt
-- Detect oracle-relative arguments, feed back to LLM Conjecturer
-- Acceptance: one proof classified as relativizing with oracle witness; one non-relativizing variant proposed
+### V4b: Algebraic Parity Encoding — DEFERRED (research problem)
+- True algebraic SAT encoding for universal circuit correctness is non-trivial
+- Not a software engineering problem; needs circuit complexity insight
+- Low priority until a concrete approach is identified
 
-### V5/V6/V7/V8: Publication + Bets B/C/D (Parallel after V9)
+### V5/V6/V7/V8: Publication + Bets B/C/D — MEDIUM, parallel after V9
 
 ---
 
@@ -103,12 +82,13 @@
 
 | File | Role | Recent Changes |
 |---|---|---|
-| `search/circuits/synthesis.py` | CNF encoding | Added streaming mode, `_encode_streaming_parity`, `_encode_single_row_streaming` |
-| `search/agents/miner.py` | SAT orchestration | Auto-selects encoding mode; added `_generate_truth_table` |
-| `search/templates/bet_a_circuits.py` | Lean stubs + CNF specs | Threshold for empty truth table changed n>8 -> n>10 |
-| `search/agents/planner.py` | Task generation | Respects explicit `step` param from config |
-| `infra/config/bet_a_v3_extension.yaml` | V3 n=11-15 config | Created |
-| `docs/brainlift/saturday-dev-checklist-v2.md` | Roadmap | Added V4b, V9, V10; updated priority order |
+| `search/bin/run_kissat` | Kissat wrapper | Added `compress_file()`, auto-compress after solve |
+| `search/agents/miner.py` | SAT orchestration | Reverted to clean V4: n<=10 explicit, n>10 streaming |
+| `search/circuits/synthesis.py` | CNF encoding | `_encode_algebraic_parity` present but not called |
+| `search/templates/bet_a_circuits.py` | Lean stubs + CNF specs | Threshold n>10 for streaming |
+| `search/agents/planner.py` | Task generation | Respects explicit `step` param |
+| `infra/config/bet_a_v3_extension.yaml` | V3 n=11-15 config | Exists |
+| `docs/brainlift/saturday-dev-checklist-v2.md` | Roadmap | V4 compression item checked |
 | `theory/Conjectures/BetA/Proofs/MonotoneParityN2Proof.lean` | Verified theorem | LRAT: 382dd167... |
 | `theory/Conjectures/BetA/Proofs/MonotoneParityN3Proof.lean` | Verified theorem | LRAT: 46e4bd59... |
 | `theory/Conjectures/BetA/Proofs/MonotoneParityN4Proof.lean` | Verified theorem | LRAT: 53aa50fc... |
@@ -117,6 +97,6 @@
 
 ## Blockers
 
-- **n=16-20 blocked**: needs V4b algebraic encoding
-- **Novel exploration blocked**: needs V9 LLM Conjecturer
-- **No current blockers for V4b implementation** — can start immediately
+- **n=16-20**: algebraic encoding is a research problem, not just implementation
+- **Novel exploration**: needs V9 LLM Conjecturer — this is the next item
+- **No blockers for V9**: Ollama is installable locally, V1/V2 results exist as grounding
