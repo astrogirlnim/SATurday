@@ -1,19 +1,25 @@
 """
-Conjecturer Agent - Template-based conjecture generation.
+Conjecturer Agent - Template-based and LLM-driven conjecture generation.
 
 This agent generates conjectures using:
-- Grammar-driven templates (MVP)
-- Optional local LLM (future)
+- Grammar-driven templates (Bet A circuits, Bet B algorithms)
+- Optional local LLM via Ollama (V9: deepseek-r1 or compatible model)
+
+LLM path: when config has agents.conjecturer.llm.enabled = true,
+the agent calls the local Ollama endpoint to generate Lean stubs and
+CNF specs from a structured prompt. Results are cached to avoid redundant
+calls. Falls back to template path on any LLM error.
 
 Outputs:
 - Lean theorem stubs written to theory/Conjectures/
 - CNF specifications written to search/specs/
-
-For MVP: Uses bet-specific templates for circuit lower bounds.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from pathlib import Path
+import json
+import hashlib
+import time
 from .core import AgentBase, AgentContext, AgentResult
 
 # Import template system
@@ -29,47 +35,58 @@ from templates.bet_a_circuits import (
     AC0MajorityTemplate,
     FormulaParityTemplate,
 )
+from templates.bet_b_algorithms import (
+    SortingAlgorithmTemplate,
+    SearchingAlgorithmTemplate,
+    GraphReachabilityTemplate,
+)
 
 
 class ConjecturerAgent(AgentBase):
     """
-    Template-based conjecture generator.
-    
-    Generates conjectures from planner tasks using bet-specific templates.
+    Template-based and LLM-driven conjecture generator.
+
+    Generates conjectures from planner tasks using:
+    1. Template path (default): bet-specific templates for Bet A and Bet B.
+    2. LLM path (optional): local Ollama model generates Lean stubs and CNF
+       specs from structured prompts. Activated when config has
+       agents.conjecturer.llm.enabled = true.
+
     For each task:
-    1. Selects appropriate template based on bet and circuit type
-    2. Instantiates template with task parameters
-    3. Generates Lean theorem stub with sorry placeholder
-    4. Generates CNF specification for SAT mining
-    5. Writes both to output directories
+    - Selects appropriate template OR calls LLM endpoint
+    - Generates Lean theorem stub with sorry placeholder
+    - Generates CNF specification for SAT mining
+    - Writes both to output directories
+    - Caches LLM responses to avoid duplicate API calls
     """
-    
+
     def __init__(self):
         super().__init__("conjecturer")
         self.registry = TemplateRegistry()
         self._register_templates()
+        # LLM prompt cache: keyed by SHA256(prompt), value is LLM response text
+        self._llm_cache: Dict[str, str] = {}
         print(f"[ConjecturerAgent] Initialized with {len(self.registry.get_all_templates())} template types")
     
     def _register_templates(self):
-        """Register all available templates."""
+        """Register all available templates for Bet A (circuits) and Bet B (algorithms)."""
         print("[ConjecturerAgent] Registering templates...")
-        
+
         # Bet A: Circuit lower bounds
-        # Register templates by (bet, circuit_type, function_name)
-        
-        # Monotone circuits
-        self.registry.register("A", "monotone", "parity", MonotoneParityTemplate())
-        self.registry.register("A", "monotone", "majority", MonotoneMajorityTemplate())
+        self.registry.register("A", "monotone", "parity",      MonotoneParityTemplate())
+        self.registry.register("A", "monotone", "majority",    MonotoneMajorityTemplate())
         self.registry.register("A", "monotone", "threshold_2", MonotoneThresholdTemplate(threshold_k=2))
         self.registry.register("A", "monotone", "threshold_3", MonotoneThresholdTemplate(threshold_k=3))
-        
-        # AC0 circuits
-        self.registry.register("A", "ac0", "parity", AC0ParityTemplate())
-        self.registry.register("A", "ac0", "majority", AC0MajorityTemplate())
-        
-        # Formula circuits
-        self.registry.register("A", "formula", "parity", FormulaParityTemplate())
-        
+        self.registry.register("A", "ac0",      "parity",      AC0ParityTemplate())
+        self.registry.register("A", "ac0",      "majority",    AC0MajorityTemplate())
+        self.registry.register("A", "formula",  "parity",      FormulaParityTemplate())
+
+        # Bet B: Algorithm synthesis
+        # Key: (bet="B", circuit_type=schema_name, function_name="algorithm")
+        self.registry.register("B", "sorting",    "algorithm", SortingAlgorithmTemplate())
+        self.registry.register("B", "searching",  "algorithm", SearchingAlgorithmTemplate())
+        self.registry.register("B", "graph_reach","algorithm", GraphReachabilityTemplate())
+
         print(f"[ConjecturerAgent] Registered {len(self.registry.get_all_templates())} templates")
     
     def plan(self, context: AgentContext) -> Dict[str, Any]:
@@ -165,42 +182,70 @@ class ConjecturerAgent(AgentBase):
         conjectures: List[Conjecture] = []
         failed_tasks = []
         
+        # Determine LLM config
+        agents_config = context.config.get("agents", {})
+        conjecturer_config = agents_config.get("conjecturer", {})
+        llm_config = conjecturer_config.get("llm", {})
+        llm_enabled = llm_config.get("enabled", False)
+        llm_model   = llm_config.get("model", "deepseek-r1:7b")
+        llm_endpoint = llm_config.get("endpoint", "http://localhost:11434")
+
+        if llm_enabled:
+            context.log(self.name, f"LLM mode enabled: model={llm_model}, endpoint={llm_endpoint}")
+        else:
+            context.log(self.name, "LLM mode disabled: using template path only")
+
         for i, task in enumerate(tasks):
             task_id = task.get("task_id", f"task_{i}")
             bet = task.get("bet", "A")
-            circuit_type = task.get("circuit_type", "unknown")
-            function_name = task.get("function_name", "parity")
-            
-            context.log(self.name, f"Processing task {i+1}/{len(tasks)}: {task_id}")
-            
+            # Bet B uses algorithm_schema as "circuit_type" in registry
+            algorithm_schema = task.get("algorithm_schema")
+            circuit_type = algorithm_schema if algorithm_schema else task.get("circuit_type", "unknown")
+            # Bet B function_name is always "algorithm"; Bet A uses explicit function_name
+            function_name = "algorithm" if bet == "B" else task.get("function_name", "parity")
+
+            context.log(self.name, f"Processing task {i+1}/{len(tasks)}: {task_id} (bet={bet}, type={circuit_type})")
+
             try:
-                # Get template for this bet, circuit type, and function
-                template = registry.get_template(bet, circuit_type, function_name)
-                
-                if not template:
-                    context.log(
-                        self.name,
-                        f"No template for (bet={bet}, circuit_type={circuit_type}, function={function_name})",
-                        level="WARNING"
+                conjecture: Optional[Conjecture] = None
+
+                # LLM path: attempt first if enabled
+                if llm_enabled:
+                    conjecture = self._generate_via_llm(
+                        context, task, llm_endpoint, llm_model,
+                        lean_dir, spec_dir
                     )
-                    failed_tasks.append(task_id)
-                    continue
-                
-                context.log(self.name, f"Using template: {template.template_id}")
-                
-                # Instantiate template
-                conjecture = template.instantiate(task)
-                
+                    if conjecture:
+                        context.log(self.name, f"LLM generated conjecture for {task_id}")
+                    else:
+                        context.log(self.name, f"LLM failed for {task_id}, falling back to template", level="WARNING")
+
+                # Template path: fallback (or primary if LLM disabled)
+                if conjecture is None:
+                    template = registry.get_template(bet, circuit_type, function_name)
+
+                    if not template:
+                        context.log(
+                            self.name,
+                            f"No template for (bet={bet}, type={circuit_type}, function={function_name})",
+                            level="WARNING"
+                        )
+                        failed_tasks.append(task_id)
+                        continue
+
+                    context.log(self.name, f"Using template: {template.template_id}")
+                    conjecture = template.instantiate(task)
+
                 # Write Lean stub
                 lean_path = conjecture.write_lean_stub(lean_dir)
                 context.log(self.name, f"Wrote Lean stub: {lean_path}")
-                
+
                 # Write CNF spec
                 spec_path = conjecture.write_cnf_spec(spec_dir)
                 context.log(self.name, f"Wrote CNF spec: {spec_path}")
-                
+
                 conjectures.append(conjecture)
-                
+
             except Exception as e:
                 context.log(
                     self.name,
@@ -213,7 +258,7 @@ class ConjecturerAgent(AgentBase):
             self.name,
             f"Generated {len(conjectures)} conjectures ({len(failed_tasks)} failed)"
         )
-        
+
         # Store conjectures in artifacts
         artifacts = {
             "conjectures": [c.to_dict() for c in conjectures],
@@ -226,7 +271,8 @@ class ConjecturerAgent(AgentBase):
             "num_generated": len(conjectures),
             "num_failed": len(failed_tasks),
             "success_rate": len(conjectures) / len(tasks) if tasks else 0,
-            "mode": "template",
+            "mode": "llm+template" if llm_enabled else "template",
+            "llm_enabled": llm_enabled,
         }
         
         status = "success" if conjectures else "failure"
@@ -237,7 +283,311 @@ class ConjecturerAgent(AgentBase):
             artifacts=artifacts,
             metrics=metrics,
         )
-    
+
+    # ------------------------------------------------------------------
+    # LLM Conjecture Generation (V9)
+    # ------------------------------------------------------------------
+
+    def _generate_via_llm(
+        self,
+        context: AgentContext,
+        task: Dict[str, Any],
+        endpoint: str,
+        model: str,
+        lean_dir: Path,
+        spec_dir: Path,
+    ) -> Optional[Conjecture]:
+        """
+        Generate a conjecture using a local Ollama LLM.
+
+        Sends a structured prompt describing the research task and asks the
+        model to produce:
+        1. A Lean 4 theorem stub (with sorry placeholder)
+        2. A YAML CNF spec dictionary
+
+        The response is parsed and a Conjecture object is constructed.
+        Results are cached by prompt hash to avoid duplicate calls.
+
+        Args:
+            context:   Agent execution context (for logging)
+            task:      Task dictionary from planner
+            endpoint:  Ollama base URL (e.g., http://localhost:11434)
+            model:     Ollama model name (e.g., deepseek-r1:7b)
+            lean_dir:  Output directory for Lean stubs
+            spec_dir:  Output directory for CNF specs
+
+        Returns:
+            Conjecture on success, None on any failure (triggers fallback)
+        """
+        try:
+            import urllib.request
+            import urllib.error
+
+            task_id      = task.get("task_id", "unknown")
+            bet          = task.get("bet", "A")
+            n            = task.get("problem_size", 2)
+            seed         = task.get("seed", 0)
+            circuit_type = task.get("circuit_type") or task.get("algorithm_schema", "unknown")
+            func_name    = task.get("function_name") or task.get("algorithm_schema", "unknown")
+
+            # Build prompt
+            prompt = self._build_llm_prompt(task_id, bet, n, seed, circuit_type, func_name)
+
+            # Check cache first
+            prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
+            if prompt_hash in self._llm_cache:
+                context.log(self.name, f"LLM cache hit for task {task_id} (hash={prompt_hash})")
+                raw_response = self._llm_cache[prompt_hash]
+            else:
+                context.log(self.name, f"Calling Ollama model={model} for task {task_id}")
+                raw_response = self._call_ollama(endpoint, model, prompt)
+                self._llm_cache[prompt_hash] = raw_response
+                context.log(self.name, f"LLM response cached (hash={prompt_hash})")
+
+            # Parse LLM response into Conjecture fields
+            lean_stub, cnf_spec = self._parse_llm_response(raw_response, task_id, bet, n, seed)
+
+            if lean_stub is None or cnf_spec is None:
+                context.log(self.name, f"LLM response parse failed for {task_id}", level="WARNING")
+                return None
+
+            conjecture_id = f"llm_{bet.lower()}_{circuit_type}_n{n}_s{seed}"
+
+            conjecture = Conjecture(
+                conjecture_id=conjecture_id,
+                task_id=task_id,
+                bet=bet,
+                lean_stub=lean_stub,
+                cnf_spec=cnf_spec,
+                metadata={
+                    "template_id": f"llm_{model}",
+                    "problem_size": n,
+                    "seed": seed,
+                    "circuit_type": circuit_type,
+                    "llm_model": model,
+                    "prompt_hash": prompt_hash,
+                },
+            )
+
+            context.log(self.name, f"LLM conjecture created: {conjecture_id}")
+            return conjecture
+
+        except Exception as e:
+            context.log(self.name, f"LLM generation error for task {task.get('task_id')}: {e}", level="ERROR")
+            return None
+
+    def _build_llm_prompt(
+        self,
+        task_id: str,
+        bet: str,
+        n: int,
+        seed: int,
+        circuit_type: str,
+        func_name: str,
+    ) -> str:
+        """
+        Build a structured prompt for the LLM.
+
+        The prompt explicitly:
+        - Describes the research context (circuit complexity / algorithm synthesis)
+        - Specifies the theorem to be conjectured
+        - Requests Lean 4 stub in a clearly delimited block
+        - Requests CNF spec as YAML in a clearly delimited block
+        - Instructs the model never to use hyphens in output
+
+        Args:
+            task_id, bet, n, seed, circuit_type, func_name: Task parameters
+
+        Returns:
+            Prompt string
+        """
+        if bet == "A":
+            problem_desc = (
+                f"circuit lower bound: does a {circuit_type} circuit of size <= {n*n} "
+                f"compute the {func_name} function on {n} inputs?"
+            )
+            lean_context = (
+                f"The theorem should state: any {circuit_type} circuit computing "
+                f"{func_name} on {n} inputs requires more than {n} gates."
+            )
+        else:
+            problem_desc = (
+                f"algorithm synthesis: does a {circuit_type} algorithm schema of "
+                f"at most {n*n} steps correctly solve the {func_name} problem on inputs of size {n}?"
+            )
+            lean_context = (
+                f"The theorem should state existence of a program schema of depth <= {n*n} "
+                f"that correctly solves {func_name} for all inputs of size {n}."
+            )
+
+        # Few-shot example to anchor the output format.
+        # The model must copy this pattern exactly, substituting the given values.
+        few_shot_example = f"""<LEAN_STUB>
+import Mathlib.Tactic
+
+theorem example_lower_bound : True := by
+  sorry
+</LEAN_STUB>
+
+<CNF_SPEC>
+conjecture_id: example_n2_s0
+task_id: example_task
+description: example problem n=2
+circuit:
+  type: monotone
+  num_inputs: 2
+  max_gates: 4
+target_function:
+  name: parity
+  n: 2
+encoding:
+  method: circuit_synthesis
+seed: 0
+solver_config:
+  timeout_seconds: 60
+</CNF_SPEC>"""
+
+        prompt = f"""Output exactly two tagged blocks. No explanation. No extra text.
+
+Example format:
+{few_shot_example}
+
+Now generate a similar pair for:
+{lean_context}
+Do not use hyphens. Use sorry as the Lean proof body.
+task_id={task_id}, bet={bet}, n={n}, seed={seed}
+circuit_type={circuit_type}, function={func_name}
+conjecture_id={task_id.replace('bet_', 'llm_')}"""
+
+        return prompt
+
+    def _call_ollama(self, endpoint: str, model: str, prompt: str) -> str:
+        """
+        Call Ollama REST API to generate a completion.
+
+        Uses /api/generate endpoint with stream=false.
+
+        Args:
+            endpoint: Ollama base URL
+            model:    Model name
+            prompt:   Input prompt
+
+        Returns:
+            Response text from the model
+
+        Raises:
+            Exception on network or HTTP error
+        """
+        import urllib.request
+        import urllib.error
+
+        url = f"{endpoint}/api/generate"
+        payload = json.dumps({
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.2,
+                # 4096 tokens: enough for thinking + structured output blocks.
+                # DeepSeek-R1 models emit chain-of-thought in "thinking" before "response".
+                "num_predict": 4096,
+            },
+        }).encode("utf-8")
+
+        print(f"[ConjecturerAgent] POST {url} model={model}")
+        start_time = time.time()
+
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            raw = resp.read().decode("utf-8")
+
+        elapsed = time.time() - start_time
+        print(f"[ConjecturerAgent] Ollama response received in {elapsed:.1f}s ({len(raw)} bytes)")
+
+        data = json.loads(raw)
+
+        # DeepSeek-R1 models output chain-of-thought in "thinking" and the final answer
+        # in "response". If "response" is empty, fall back to "thinking" content.
+        response_text = data.get("response", "")
+        thinking_text = data.get("thinking", "")
+        done_reason   = data.get("done_reason", "unknown")
+
+        print(f"[ConjecturerAgent] done_reason={done_reason}, response={len(response_text)} chars, thinking={len(thinking_text)} chars")
+
+        if not response_text and thinking_text:
+            # Model used all tokens in thinking; extract structured blocks from thinking
+            print(f"[ConjecturerAgent] Response empty, using thinking field ({len(thinking_text)} chars)")
+            response_text = thinking_text
+
+        print(f"[ConjecturerAgent] LLM effective response length: {len(response_text)} chars")
+        return response_text
+
+    def _parse_llm_response(
+        self,
+        raw: str,
+        task_id: str,
+        bet: str,
+        n: int,
+        seed: int,
+    ):
+        """
+        Parse LLM response into (lean_stub, cnf_spec) tuple.
+
+        Expects delimited blocks:
+          <LEAN_STUB>...</LEAN_STUB>
+          <CNF_SPEC>...</CNF_SPEC>
+
+        Args:
+            raw:     Raw LLM response text
+            task_id: Task ID for logging
+            bet, n, seed: Fallback values if parsing fails
+
+        Returns:
+            (lean_stub: str | None, cnf_spec: dict | None)
+        """
+        import re
+        import yaml as _yaml
+
+        lean_stub = None
+        cnf_spec  = None
+
+        # Extract Lean stub
+        lean_match = re.search(r"<LEAN_STUB>(.*?)</LEAN_STUB>", raw, re.DOTALL)
+        if lean_match:
+            lean_stub = lean_match.group(1).strip()
+            print(f"[ConjecturerAgent] Parsed Lean stub ({len(lean_stub)} chars)")
+        else:
+            print(f"[ConjecturerAgent] No <LEAN_STUB> block found in LLM response for {task_id}")
+
+        # Extract CNF spec YAML
+        spec_match = re.search(r"<CNF_SPEC>(.*?)</CNF_SPEC>", raw, re.DOTALL)
+        if spec_match:
+            yaml_text = spec_match.group(1).strip()
+            try:
+                cnf_spec = _yaml.safe_load(yaml_text)
+                if not isinstance(cnf_spec, dict):
+                    print(f"[ConjecturerAgent] CNF spec is not a dict for {task_id}")
+                    cnf_spec = None
+                else:
+                    # Ensure required fields are present
+                    cnf_spec.setdefault("conjecture_id", f"llm_{bet.lower()}_n{n}_s{seed}")
+                    cnf_spec.setdefault("task_id", task_id)
+                    cnf_spec.setdefault("seed", seed)
+                    print(f"[ConjecturerAgent] Parsed CNF spec: {list(cnf_spec.keys())}")
+            except Exception as e:
+                print(f"[ConjecturerAgent] YAML parse error for {task_id}: {e}")
+                cnf_spec = None
+        else:
+            print(f"[ConjecturerAgent] No <CNF_SPEC> block found in LLM response for {task_id}")
+
+        return lean_stub, cnf_spec
+
     def report(self, context: AgentContext, result: AgentResult) -> str:
         """
         Generate Markdown report for conjecture generation.

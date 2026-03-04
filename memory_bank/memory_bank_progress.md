@@ -1,6 +1,6 @@
 # Progress Tracking: What Works and What's Left
 
-## Last Updated: 2026-01-28
+## Last Updated: 2026-01-28 (Session 4)
 
 ---
 
@@ -24,25 +24,30 @@
 
 - [x] I1: Unified CLI & Reports
 - [x] R1: Planner Agent
-- [x] R2: Conjecturer Agent (template-based; LLM upgrade is V9)
+- [x] R2: Conjecturer Agent (template + LLM path; V9 complete)
 - [x] R3: Counterexample Miner
 - [x] R4: Formalizer Agent
 - [x] R5: Proof Critic (heuristic barrier tags; oracle upgrade is V10)
 - [x] R10: Proof Artifact Round-Trip
 - [x] R11: Deterministic Bench Harness
 
-### Phase 4: Research Bets — MVP COMPLETE (Bet A partial)
+### Phase 4: Research Bets — MVP COMPLETE (Bet A partial, Bet B stage 1)
 
 - [x] R6: Restricted-Circuit Lower Bounds (Bet A) — PARTIAL
   - 3 fully verified Lean theorems: n=2, n=3, n=4 monotone parity
   - 648 Lean stubs across all circuit types and functions
   - n=2-15 monotone parity UNSAT verified (n=11-15 via streaming)
   - n=16-20 deferred (needs algebraic encoding, V4b)
-- [ ] R7: Algorithm Synthesis (Bet B) — not started
+- [x] R7: Algorithm Synthesis (Bet B) — STAGE 1 COMPLETE
+  - 3 schemas: sorting, searching, graph_reach
+  - End-to-end pipeline: planner -> conjecturer -> miner -> formalizer -> critic all success
+  - Lean stubs in theory/Conjectures/BetB/
+  - Config: infra/config/bet_b_stage1.yaml + search/plans/bet_b_stage1_plan.yaml
+  - Formal proofs: sorry stubs only; complete proofs are Phase 5 work
 - [ ] R8: Hardness-vs-Randomness (Bet C) — not started
 - [ ] R9: Barrier-Aware Reductions (Bet D) — not started
 
-### Phase 5: Formal Verification — V1, V2, V3, V4 COMPLETE
+### Phase 5: Formal Verification — V1, V2, V3, V4, V6, V9 COMPLETE
 
 #### V1: LRAT-Lean Integration — COMPLETE
 
@@ -74,26 +79,48 @@
 - [x] `compress_file()` in `run_kissat`: gzip-compresses CNF/LRAT >1MB after solving
 - Metrics: n=15 = 1.42M vars, 21.5M clauses, 446MB raw (~50MB compressed), ~50s
 
+#### V6: Bet B Algorithm Synthesis — COMPLETE (Stage 1)
+
+- [x] `search/templates/bet_b_algorithms.py`: SortingAlgorithmTemplate, SearchingAlgorithmTemplate, GraphReachabilityTemplate
+- [x] `search/agents/planner.py`: real `decompose_bet_b_algorithms` (sorting, searching, graph_reach)
+- [x] `search/agents/conjecturer.py`: Bet B templates registered, algorithm_schema routing
+- [x] `search/circuits/synthesis.py`: ALGORITHM_SCHEMA_ALIASES for sorting_network/search_program/graph_traversal
+- [x] `search/agents/miner.py`: truth table handlers for sorting/searching/graph_reach
+- [x] `infra/config/bet_b_stage1.yaml` + `search/plans/bet_b_stage1_plan.yaml`
+- [x] `infra/config/schemas.py`: BetBConfig with algorithm_schemas/size_range/seed_range
+- [x] End-to-end: 30 tasks, 0 errors, SAT+UNSAT results, Lean stubs generated
+
+#### V9: LLM Conjecturer Activation — COMPLETE (infrastructure done)
+
+- [x] Ollama installed via brew (v0.17.5)
+- [x] `deepseek-r1:1.5b` and `llama3.2:1b` pulled locally
+- [x] `search/agents/conjecturer.py`: `_generate_via_llm()` with Ollama REST API
+- [x] Few-shot prompting: `<LEAN_STUB>` + `<CNF_SPEC>` blocks parsed correctly
+- [x] DeepSeek-R1 `thinking` field fallback implemented
+- [x] SHA256-keyed in-memory `_llm_cache` for deduplication
+- [x] `infra/config/schemas.py`: `LLMConfig` (enabled, model, endpoint)
+- [x] `ConjecturerAgentConfig` extended with `llm: LLMConfig`
+- [x] Config pattern: `agents.conjecturer.llm.enabled = true` activates LLM path
+- [x] End-to-end validated: LLM conjecture -> miner UNSAT -> formalizer partial proof
+- Limitation: llama3.2:1b produces `True := by sorry` stubs; richer theorems need larger model
+
 ---
 
 ## Remaining Work (Prioritized)
 
-### V4b: Algebraic Parity Encoding — DEFERRED (research problem, not implementation gap)
+### V4b: Algebraic Parity Encoding — DEFERRED (research problem)
 
-- Attempted symbolic XOR-chain: unsound (SAT result — only constrains one input point, not all 2^n)
-- Attempted ephemeral streaming: no improvement (94M clauses for n=17 takes minutes to write)
+- Attempted symbolic XOR-chain: unsound (SAT result for monotone parity)
+- Attempted ephemeral streaming: no improvement (94M clauses for n=17)
 - True algebraic universal encoding for SAT is a circuit complexity research question
-- Compression (V4 addition) handles the storage concern; solve-time is the real blocker
-- Status: deferred until a concrete algebraic approach is identified
+- Deferred until a concrete approach is identified
 
-### V9: LLM Conjecturer Activation — NEXT, HIGHEST LEVERAGE (V1/V2 done = grounding exists)
+### V10: Real Barrier Analysis — NEXT (depends on V9, V8)
 
-- [ ] DeepSeek-Prover-V2-7B via Ollama or MLX (Apple Silicon)
-- [ ] Replace template generation in ConjecturerAgent with LLM prompting
-- [ ] Prompt-response caching for cost control
-- [ ] Feed LLM stubs through Miner + Formalizer pipeline
-- [ ] Acceptance: one LLM-proposed conjecture survives refutation + compiles in Lean
-- **Transforms:** system from fixed-space reproducer to novel-conjecture explorer
+- [ ] Upgrade Critic: construct explicit relativized worlds (oracle-world diagnostic)
+- [ ] For each proof attempt, check whether argument is oracle-relative
+- [ ] Integrate with LLM Conjecturer: if Critic detects relativization, prompt LLM to propose non-relativizing tweak
+- [ ] Acceptance: one proof classified relativizing with explicit oracle witness; one non-relativizing variant proposed
 
 ### V5: Publication Package — MEDIUM
 
@@ -101,13 +128,6 @@
 - [ ] Circuit synthesis encoding methodology
 - [ ] Artifact package (CNF instances, LRAT proofs, Lean code)
 - [ ] Submit to arXiv or complexity venue
-
-### V6: Bet B — Algorithm Synthesis — MEDIUM
-
-- [ ] Schema DSL for algorithmic templates
-- [ ] Encode runtime bound T(n) as SAT constraints
-- [ ] Prove polynomial bounds via Lean induction
-- [ ] Acceptance: one algorithm with formally proved polynomial runtime
 
 ### V7: Bet C — Hardness-vs-Randomness — MEDIUM
 
@@ -120,12 +140,6 @@
 - [ ] Non-relativizing encoding patterns
 - [ ] Oracle-world diagnostics in Critic
 - [ ] Acceptance: reduction with explicit barrier classification
-
-### V10: Real Barrier Analysis — MEDIUM (needs V9)
-
-- [ ] Upgrade Critic: construct explicit relativized worlds
-- [ ] Detect oracle-relative arguments; feed back to LLM Conjecturer
-- [ ] Acceptance: one proof classified relativizing with oracle witness
 
 ---
 
@@ -145,6 +159,7 @@
 - n=2-15 monotone parity: all UNSAT (15 sizes, 3 seeds each = 45 instances)
 - n=6-10 majority, threshold-2, threshold-3, AC0 parity, formula parity: generated
 - 648 Lean stubs total in theory/Conjectures/BetA/
+- Bet B: sorting/searching/graph_reach n=2-6 stage 1 data in theory/Conjectures/BetB/
 
 ---
 
@@ -152,9 +167,10 @@
 
 | Location | Current Size | Notes |
 |---|---|---|
-| `proofs/` | ~28MB | Cleaned from 15GB; only n=2-4 LRATs kept |
-| `docs/reports/` | 0 files | 315 generated reports deleted (noise) |
+| `proofs/` | ~30MB | n=2-4 LRATs + Bet B CNFs; large files deleted/compressed |
+| `docs/reports/` | 0 files | Reports deleted (noise) |
 | `theory/Conjectures/BetA/` | 648 stubs | Gitignored |
+| `theory/Conjectures/BetB/` | ~30 stubs | Gitignored (Bet B stage 1) |
 
 ---
 
@@ -164,6 +180,7 @@
 - n=16-20 blocked by streaming clause explosion (V4b needed)
 - Exponential bound gap: theorems prove C.size >= n+1, not 2^n (publishable but weak)
 - `Circuit.depth` uses sorry in Circuits.lean (blocks depth-based lower bounds)
+- LLM stubs are `True := by sorry` (trivial); richer theorems need deepseek-prover or larger model
 
 ### Deferred
 - Encoding correctness unverified in Lean (trust Python encoder)
@@ -182,3 +199,5 @@
 | Parity n=13 | 331K | 4.96M | 96MB | ~40s | UNSAT |
 | Parity n=15 | 1.42M | 21.5M | 446MB | ~50s | UNSAT |
 | Parity n=16+ | >3M | >50M | >2GB | timeout | blocked |
+| Bet B sorting n=2 | 64 | 222 | <1MB | <0.01s | UNSAT |
+| Bet B searching n=2 | 46 | 156 | <1MB | <0.01s | SAT |

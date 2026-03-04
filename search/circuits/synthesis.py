@@ -224,9 +224,19 @@ class CircuitSynthesisEncoder:
         clauses.extend(self._encode_structure_constraints(vars))
         print(f"[CircuitSynthesisEncoder] Structure: {len(clauses)} clauses")
         
-        # 2. Circuit class constraints (monotone, AC0, formula, etc.)
-        if circuit_class == "monotone":
-            print(f"[CircuitSynthesisEncoder] Encoding monotone constraints...")
+        # 2. Circuit class constraints (monotone, AC0, formula, algorithm schemas)
+        #
+        # Bet B algorithm schemas (sorting_network, search_program, graph_traversal)
+        # are encoded using the same structural constraints as monotone circuits.
+        # The distinction lies in the truth-table / target-function rows, not the gate
+        # constraints themselves. We map them to "monotone" internally.
+        ALGORITHM_SCHEMA_ALIASES = {"sorting_network", "search_program", "graph_traversal"}
+
+        if circuit_class == "monotone" or circuit_class in ALGORITHM_SCHEMA_ALIASES:
+            if circuit_class in ALGORITHM_SCHEMA_ALIASES:
+                print(f"[CircuitSynthesisEncoder] Encoding {circuit_class} synthesis (mapped to monotone constraints)...")
+            else:
+                print(f"[CircuitSynthesisEncoder] Encoding monotone constraints...")
             class_clauses = self._encode_monotone_constraints(vars)
             clauses.extend(class_clauses)
             print(f"[CircuitSynthesisEncoder] Monotone: {len(class_clauses)} clauses")

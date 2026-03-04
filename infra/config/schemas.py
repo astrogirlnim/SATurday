@@ -55,12 +55,20 @@ class PlannerAgentConfig(BaseModel):
     task_batch_size: int = Field(10, gt=0)
 
 
+class LLMConfig(BaseModel):
+    """LLM configuration for the conjecturer agent (V9)."""
+    enabled: bool = False
+    model: str = "llama3.2:1b"  # Non-reasoning model; better structured output with few-shot
+    endpoint: str = "http://localhost:11434"
+
+
 class ConjecturerAgentConfig(BaseModel):
     """Conjecturer agent configuration."""
     enabled: bool = True
-    mode: str = Field("template", pattern="^(template|llm)$")
+    mode: str = Field("template", pattern="^(template|llm|llm\\+template)$")
     template_depth: int = Field(3, gt=0)
     max_conjectures: int = Field(1000, gt=0)
+    llm: LLMConfig = LLMConfig()
 
 
 class MinerAgentConfig(BaseModel):
@@ -116,13 +124,13 @@ class SizeRange(BaseModel):
     """Size range for parameter sweep."""
     min: int = Field(5, gt=0)
     max: int = Field(20, gt=0)
-    step: int = Field(5, gt=0)
-    
+    step: Optional[int] = None  # None means use automatic progression heuristic
+
     @validator('max')
-    def max_must_be_greater_than_min(cls, v, values):
-        """Validate max > min."""
-        if 'min' in values and v <= values['min']:
-            raise ValueError('max must be greater than min')
+    def max_must_be_gte_min(cls, v, values):
+        """Validate max >= min (single-point ranges are allowed)."""
+        if 'min' in values and v < values['min']:
+            raise ValueError('max must be >= min')
         return v
 
 
@@ -142,8 +150,11 @@ class BetAConfig(BaseModel):
 
 
 class BetBConfig(BaseModel):
-    """Bet B: Algorithm Synthesis."""
+    """Bet B: Algorithm Synthesis with Polynomial Bounds."""
     enabled: bool = False
+    algorithm_schemas: List[str] = ["sorting", "searching", "graph_reach"]
+    size_range: SizeRange = SizeRange(min=2, max=6)
+    seed_range: SeedRange = SeedRange(start=20000, count=2)
 
 
 class BetCConfig(BaseModel):

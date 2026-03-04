@@ -218,42 +218,107 @@ class BetDecomposer:
         base_seed: int
     ) -> Tuple[List[Task], List[Milestone]]:
         """
-        Decompose Bet B: Algorithm Synthesis with Proofs.
-        
-        Strategy:
-        - Algorithm schemas: sorting, searching, graph algorithms
-        - Generate instances with polynomial-time bounds
-        - Prove bounds via recurrence relations and induction
-        
-        MVP: Stub implementation - returns placeholder tasks.
-        
+        Decompose Bet B: Algorithm Synthesis with Proved Polynomial Bounds.
+
+        Strategy: For each algorithm schema, generate tasks asking
+        "Does a polynomial-time algorithm with runtime bound T(n) exist
+        for problem P on inputs of size n?"
+
+        Encoded as SAT: "Does there exist a program schema of depth d
+        that correctly solves P on all inputs of size n in at most T(n) steps?"
+        UNSAT => no such algorithm exists at that bound.
+        SAT   => witness is a concrete algorithm description.
+
+        Schemas:
+        - sorting:    Does a comparison-sort of depth O(n log n) exist?
+        - searching:  Does a linear-time search on sorted arrays exist?
+        - graph_reach: Does a BFS/DFS reachability algorithm of O(V+E) exist?
+        - matching:   Does a bipartite matching algorithm of O(V*E) exist?
+
         Args:
             config: Configuration dictionary
             base_seed: Base random seed
-        
+
         Returns:
             Tuple of (tasks, milestones)
         """
-        print(f"[BetDecomposer] Decomposing Bet B: Algorithm Synthesis (STUB)")
-        
-        # Stub: Generate one placeholder task
-        task = Task(
-            task_id="bet_b_stub_placeholder",
-            bet="B",
-            problem_size=10,
-            seed=base_seed,
-            algorithm_schema="sorting",
-            acceptance_criteria={"stub": True},
-        )
-        
-        milestone = Milestone(
-            name="bet_b_placeholder",
-            description="Placeholder milestone for Bet B (not yet implemented)",
-            required_tasks=["bet_b_stub_placeholder"],
-            acceptance="Stub only - implement in future",
-        )
-        
-        return [task], [milestone]
+        print(f"[BetDecomposer] Decomposing Bet B: Algorithm Synthesis")
+
+        bet_b_config = config.get("bets", {}).get("bet_b", {}) if "bets" in config else config
+
+        size_range  = bet_b_config.get("size_range", {})
+        min_size    = size_range.get("min", 2)
+        max_size    = size_range.get("max", 8)
+        step        = size_range.get("step", None)
+
+        seed_range  = bet_b_config.get("seed_range", {})
+        num_seeds   = seed_range.get("count", 2)
+        seed_start  = seed_range.get("start", base_seed)
+
+        # Algorithm schemas to explore
+        schemas = bet_b_config.get("algorithm_schemas", [
+            "sorting",
+            "searching",
+            "graph_reach",
+        ])
+
+        size_progression = self._generate_size_progression(min_size, max_size, step=step)
+
+        print(f"[BetDecomposer] Algorithm schemas: {schemas}")
+        print(f"[BetDecomposer] Size progression: {size_progression}")
+        print(f"[BetDecomposer] Seeds per size: {num_seeds}")
+
+        tasks = []
+        task_counter = 0
+
+        for schema in schemas:
+            for size in size_progression:
+                for seed_offset in range(num_seeds):
+                    task_seed = seed_start + task_counter
+                    task_id = f"bet_b_{schema}_n{size}_s{task_seed}"
+
+                    task = Task(
+                        task_id=task_id,
+                        bet="B",
+                        problem_size=size,
+                        seed=task_seed,
+                        algorithm_schema=schema,
+                        timeout_seconds=max(size * 30, 60),
+                        estimated_time_seconds=size * 5,
+                        priority=1,
+                        acceptance_criteria={
+                            "generate_cnf": True,
+                            "run_solver": True,
+                            "extract_bound": True,
+                        },
+                    )
+                    tasks.append(task)
+                    task_counter += 1
+
+        print(f"[BetDecomposer] Generated {len(tasks)} tasks for Bet B")
+
+        milestones = [
+            Milestone(
+                name="first_sorting_bound",
+                description="First proved runtime bound for a sorting algorithm schema",
+                required_tasks=[t.task_id for t in tasks if t.algorithm_schema == "sorting"][:2],
+                acceptance="At least one SAT/UNSAT result with extracted runtime bound",
+            ),
+            Milestone(
+                name="searching_bound",
+                description="Searching algorithm bound established",
+                required_tasks=[t.task_id for t in tasks if t.algorithm_schema == "searching"][:2],
+                acceptance="Searching schema tasks completed with pattern extraction",
+            ),
+            Milestone(
+                name="graph_reach_bound",
+                description="Graph reachability algorithm bound established",
+                required_tasks=[t.task_id for t in tasks if t.algorithm_schema == "graph_reach"][:2],
+                acceptance="Graph schema tasks completed with pattern extraction",
+            ),
+        ]
+
+        return tasks, milestones
     
     def decompose_bet_c_hardness_randomness(
         self,

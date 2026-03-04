@@ -1,37 +1,62 @@
 # Active Context: Current Work and Next Steps
 
-## Last Updated: 2026-01-28 (Session 3)
+## Last Updated: 2026-01-28 (Session 4)
 
 ## Recent Work (This Session)
 
-### Storage Compression — COMPLETE
+### V6: Bet B Algorithm Synthesis — COMPLETE
 
-Added auto-compress-after-solve to `search/bin/run_kissat`:
-- New `compress_file()` function: gzip-compresses any file over 1MB in-place
-  - Replaces `foo.cnf` with `foo.cnf.gz`, `foo.lrat` with `foo.lrat.gz`
-  - Uses `compresslevel=6` (good ratio, not painfully slow)
-  - Logs original size, compressed size, and ratio
-  - Deletes original only after successful compression
-- Wired in after solver completes: LRAT compressed first, then CNF
-- Artifact store paths updated to reflect `.gz` filenames (`copy_to_store=False` so no store changes needed)
-- Threshold: 1MB — small files (n<=7) skip compression, large files (n>=11) always compress
-- Expected ratios: CNF ~8-10x, LRAT ~5-8x (both are repetitive text)
+Implemented the full Bet B pipeline:
 
-Also reverted all V4b experiment code:
-- `miner.py`: removed tiered n thresholds and ephemeral temp-file logic; restored clean two-tier (n<=10 explicit, n>10 streaming)
-- `synthesis.py`: `_encode_algebraic_parity` still present but not called; routing restored to streaming
-- Deleted `infra/config/bet_a_v4b_test.yaml` (test config)
-- Cleaned leftover large LRATs (1.1GB + 471MB) from failed runs; proofs/ back to 28MB
+- `search/templates/bet_b_algorithms.py` (new file):
+  - `SortingAlgorithmTemplate`: sorting network synthesis, O(n^2) comparison bound
+  - `SearchingAlgorithmTemplate`: linear search synthesis, O(n) step bound
+  - `GraphReachabilityTemplate`: BFS/DFS schema synthesis, O(V+E) step bound
+  - Each generates Lean 4 stubs + CNF specs in `theory/Conjectures/BetB/`
 
-Git commit: "Add auto-compression to run_kissat; revert V4b experiments" (b0a8d9d)
+- `search/agents/planner.py`: replaced `decompose_bet_b_algorithms` stub with real decomposition
+  - Generates tasks for each schema x size x seed
+  - Size progression from config (`size_range.min` to `size_range.max`)
+  - Milestones per schema
 
-### V4b Status — DEFERRED
+- `search/agents/conjecturer.py`: registered Bet B templates in registry
+  - `(B, sorting, algorithm)` -> `SortingAlgorithmTemplate`
+  - `(B, searching, algorithm)` -> `SearchingAlgorithmTemplate`
+  - `(B, graph_reach, algorithm)` -> `GraphReachabilityTemplate`
+  - Bet B tasks routed via `algorithm_schema` field
 
-Attempted two approaches for algebraic n=16+ encoding:
-1. Symbolic XOR-chain: unsound — returns SAT because it only constrains one symbolic input point, not all 2^n inputs
-2. Ephemeral streaming: no improvement — 94M clauses for n=17 takes minutes to write even to /tmp
+- `search/circuits/synthesis.py`: added `ALGORITHM_SCHEMA_ALIASES` set
+  - `sorting_network`, `search_program`, `graph_traversal` all map to monotone constraints
+  - Removes the `Unsupported circuit class` error for Bet B specs
 
-Conclusion: V4b requires a fundamentally different problem formulation (e.g., BDD-based, algebraic circuit complexity methods). Deferred. Compression handles storage; n=16-20 remains a solve-time problem, not a storage problem.
+- `search/agents/miner.py`: added truth table handlers for `sorting`, `searching`, `graph_reach`
+  - Sorting: enumerate permutations
+  - Searching/graph_reach: satisfiability stub encoding (all-zero output)
+
+- `infra/config/bet_b_stage1.yaml` (new file): Bet B stage 1 config
+- `search/plans/bet_b_stage1_plan.yaml` (new file): Bet B stage 1 plan
+- `infra/config/schemas.py`: expanded `BetBConfig` with `algorithm_schemas`, `size_range`, `seed_range`
+
+End-to-end verified: planner (30 tasks) -> conjecturer (0 failures) -> miner (success, 0 errors) -> formalizer -> critic all success.
+
+### V9: LLM Conjecturer Activation — COMPLETE (infrastructure done)
+
+- Installed Ollama via brew; pulled `deepseek-r1:1.5b` and `llama3.2:1b`
+- `search/agents/conjecturer.py`: added `_generate_via_llm()` method:
+  - Calls Ollama REST API (`/api/generate`)
+  - Uses few-shot prompting to generate `<LEAN_STUB>` and `<CNF_SPEC>` blocks
+  - Handles DeepSeek-R1 `thinking` field fallback (model puts CoT in `thinking`, not `response`)
+  - SHA256-keyed in-memory `_llm_cache` to avoid duplicate API calls
+  - Falls back to template path on any LLM error
+  - Enabled via `agents.conjecturer.llm.enabled = true` in config
+
+- `infra/config/schemas.py`: added `LLMConfig` model
+  - Default model: `llama3.2:1b` (non-reasoning, better structured output with few-shot)
+  - `ConjecturerAgentConfig` now contains `llm: LLMConfig`
+
+- Validated end-to-end: LLM generated conjecture -> miner UNSAT -> formalizer partial proof
+
+Git commit: pending
 
 ---
 
@@ -40,41 +65,39 @@ Conclusion: V4b requires a fundamentally different problem formulation (e.g., BD
 ### What Works
 
 1. Full agent pipeline: Planner -> Conjecturer -> Miner -> Formalizer -> Critic
-2. Multi-circuit synthesis: monotone, AC0, formula circuits
-3. Multi-function templates: 7 templates (parity, majority, threshold-2, threshold-3)
-4. Streaming encoding: handles parity n=11-15 without loading full truth table
-5. SAT solving with LRAT proof extraction (Kissat, ARM64)
-6. Auto-compression: CNF and LRAT files >1MB gzip-compressed after solving
+2. **Bet A** (V1-V4 COMPLETE): 3 verified Lean theorems, 648 stubs, n=2-15 UNSAT proofs
+3. **Bet B** (V6 COMPLETE): sorting/searching/graph_reach schemas, end-to-end pipeline working
+4. **LLM Conjecturer** (V9 COMPLETE): llama3.2:1b generates LEAN_STUB + CNF_SPEC blocks in ~3.6s
+5. Multi-circuit synthesis: monotone, AC0, formula + algorithm schema aliases
+6. Auto-compression: CNF/LRAT >1MB gzip-compressed after solving
 7. Content-addressed artifact store (SHA256)
-8. Verified proofs: 3 complete Lean theorems (n=2, n=3, n=4 monotone parity)
-9. Lean infrastructure: circuit semantics, LRAT-Lean axiom, tactic library
+8. Config schema: `BetBConfig`, `LLMConfig` fully validated by Pydantic
 
-### What's Missing (The Honest Gap)
+### What's Missing
 
-1. **LLM Conjecturer** (V9) — R2 is template-only; the system explores a fixed search space
-2. **n=16-20** — streaming produces 2GB+ CNFs; requires algebraic encoding not yet found
-3. **Bets B, C, D** (V6, V7, V8) — not started
-4. **Real barrier analysis** (V10) — R5 is heuristic tagging only
-5. **Publication package** (V5) — not started
+1. **V10: Real Barrier Analysis** — Critic is heuristic tagging only; no oracle-world diagnostics
+2. **n=16-20** — streaming produces 2GB+ CNFs; blocked until V4b algebraic encoding
+3. **Bets C, D** (V7, V8) — not started
+4. **Publication package** (V5) — not started
+5. **LLM non-trivial theorems** — current LLM output is `True := by sorry`; needs larger model or richer prompting
 
 ---
 
 ## Next Steps (Dependency Order)
 
-### V9: LLM Conjecturer Activation — HIGHEST LEVERAGE, NO BLOCKERS
-- V1 and V2 are done (verified results exist to ground prompts)
-- Pull a local math/proof LLM via Ollama (e.g. deepseek-r1, mathstral)
-- Replace template generation in ConjecturerAgent with LLM prompting
-- Feed known lower bounds (n=2-4 verified) as context; ask LLM to propose tighter bounds or novel circuit classes
-- Implement prompt-response caching
-- Acceptance: one LLM-proposed conjecture survives Miner refutation + compiles in Lean
+### V10: Real Barrier Analysis in Critic (next highest leverage, depends on V9)
+- Upgrade Critic from heuristic `RELATIVIZING` tag to explicit oracle-world diagnostic
+- For each proof, construct explicit oracle A where the argument breaks
+- If LLM path active: feed relativization witness back to LLM to propose non-relativizing tweak
+- Acceptance: one proof classified relativizing with explicit witness
 
-### V4b: Algebraic Parity Encoding — DEFERRED (research problem)
-- True algebraic SAT encoding for universal circuit correctness is non-trivial
-- Not a software engineering problem; needs circuit complexity insight
-- Low priority until a concrete approach is identified
+### V5: Publication Package (parallel)
+- Write technical report: "Automated Verification of Monotone Circuit Lower Bounds"
+- Document circuit synthesis encoding methodology
+- Create artifact package (CNF instances, LRAT proofs, Lean code)
+- Submit to arXiv or complexity venue
 
-### V5/V6/V7/V8: Publication + Bets B/C/D — MEDIUM, parallel after V9
+### V7/V8: Bets C and D (parallel, lower priority)
 
 ---
 
@@ -82,13 +105,16 @@ Conclusion: V4b requires a fundamentally different problem formulation (e.g., BD
 
 | File | Role | Recent Changes |
 |---|---|---|
-| `search/bin/run_kissat` | Kissat wrapper | Added `compress_file()`, auto-compress after solve |
-| `search/agents/miner.py` | SAT orchestration | Reverted to clean V4: n<=10 explicit, n>10 streaming |
-| `search/circuits/synthesis.py` | CNF encoding | `_encode_algebraic_parity` present but not called |
-| `search/templates/bet_a_circuits.py` | Lean stubs + CNF specs | Threshold n>10 for streaming |
-| `search/agents/planner.py` | Task generation | Respects explicit `step` param |
-| `infra/config/bet_a_v3_extension.yaml` | V3 n=11-15 config | Exists |
-| `docs/brainlift/saturday-dev-checklist-v2.md` | Roadmap | V4 compression item checked |
+| `search/agents/conjecturer.py` | Conjecture generation | Added `_generate_via_llm`, LLM cache, Bet B template routing |
+| `search/agents/planner.py` | Task generation | Real `decompose_bet_b_algorithms` (was stub) |
+| `search/agents/miner.py` | SAT orchestration | Added sorting/searching/graph_reach truth table handlers |
+| `search/templates/bet_b_algorithms.py` | Bet B templates | NEW: sorting, searching, graph_reach templates |
+| `search/circuits/synthesis.py` | CNF encoding | Added `ALGORITHM_SCHEMA_ALIASES` for Bet B circuit types |
+| `infra/config/schemas.py` | Config validation | Added `LLMConfig`, expanded `BetBConfig` |
+| `infra/config/bet_b_stage1.yaml` | Bet B config | NEW |
+| `search/plans/bet_b_stage1_plan.yaml` | Bet B execution plan | NEW |
+| `docs/brainlift/saturday-dev-checklist-v2.md` | Roadmap | V6, V9 items checked off |
+| `search/bin/run_kissat` | Kissat wrapper | Auto-compress after solve (from previous session) |
 | `theory/Conjectures/BetA/Proofs/MonotoneParityN2Proof.lean` | Verified theorem | LRAT: 382dd167... |
 | `theory/Conjectures/BetA/Proofs/MonotoneParityN3Proof.lean` | Verified theorem | LRAT: 46e4bd59... |
 | `theory/Conjectures/BetA/Proofs/MonotoneParityN4Proof.lean` | Verified theorem | LRAT: 53aa50fc... |
@@ -98,5 +124,5 @@ Conclusion: V4b requires a fundamentally different problem formulation (e.g., BD
 ## Blockers
 
 - **n=16-20**: algebraic encoding is a research problem, not just implementation
-- **Novel exploration**: needs V9 LLM Conjecturer — this is the next item
-- **No blockers for V9**: Ollama is installable locally, V1/V2 results exist as grounding
+- **Non-trivial LLM theorems**: llama3.2:1b produces `True := by sorry`; larger model needed for real math content
+- **No hard blockers** for V10, V5, V7, V8

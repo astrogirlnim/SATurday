@@ -1,0 +1,66 @@
+# Bet B Stage 1: Algorithm Synthesis with Polynomial Bounds
+# Goal: Validate algorithm synthesis pipeline for sorting, searching, graph reachability
+# Expected: SAT for small n (concrete algorithm witnesses extracted from solver)
+
+name: "bet-b-stage-1-algorithm-synthesis-baseline"
+description: "Systematic exploration of algorithm synthesis lower/upper bounds for n=2-6"
+bet: "B"
+goal: "Establish baseline: does a polynomial-time algorithm schema of bounded depth exist?"
+
+# Metadata
+metadata:
+  stage: 1
+  schemas:
+    - "sorting"
+    - "searching"
+    - "graph_reach"
+  expected_outcome: "SAT for small n (witnesses exist); UNSAT proofs for impossible bounds"
+  references:
+    - "Complexity Zoo: P vs NP context"
+    - "Knuth Vol 3: Sorting and Searching (comparison model)"
+
+# Milestones
+milestones:
+  - name: "baseline_validation"
+    description: "Validate Bet B pipeline produces SAT results for sorting n=2-4"
+    acceptance:
+      sat_rate: 0.80  # Expect 80%+ SAT (algorithms exist for small n)
+      success_rate: 0.95
+
+  - name: "witness_extraction"
+    description: "Extract concrete algorithm descriptions from SAT witnesses"
+    acceptance:
+      witness_rate: 0.70  # 70%+ SAT results have extractable witnesses
+
+# Task generation parameters (passed to planner via bets.bet_b config)
+tasks:
+  algorithm_schemas:
+    - "sorting"
+    - "searching"
+    - "graph_reach"
+  size_range:
+    min_n: 2
+    max_n: 6
+    step: 1
+  seed_range:
+    start: 20000
+    end: 20019
+
+# Analysis to perform
+analysis:
+  - metric: "sat_rate_by_schema"
+    description: "SAT percentage for each algorithm schema"
+  - metric: "solver_time_by_n"
+    description: "Kissat solve time vs n"
+  - metric: "witness_size_by_schema"
+    description: "Extracted algorithm schema size vs n"
+
+# Next steps
+next_steps:
+  - decision: "if sat_rate >= 0.80"
+    action: "Proceed to Stage 2: larger n, tighter bounds"
+    rationale: "Baseline validated; algorithm synthesis pipeline operational"
+
+  - decision: "if sat_rate < 0.80"
+    action: "Debug: Review algorithm schema encoding in miner"
+    rationale: "Unexpected UNSAT results indicate encoding issues"
