@@ -56,10 +56,22 @@ class PlannerAgentConfig(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    """LLM configuration for the conjecturer agent (V9)."""
+    """LLM configuration for the conjecturer agent (V9/V11).
+    
+    V11 upgrade: default model changed from llama3.2:1b to mathstral:7b.
+    mathstral:7b is a 7B parameter math-reasoning model trained on Lean 4 and
+    mathematical proof tasks. It produces non-trivial Lean tactics rather than
+    True := by sorry stubs.
+    """
     enabled: bool = False
-    model: str = "llama3.2:1b"  # Non-reasoning model; better structured output with few-shot
+    # V11: mathstral:7b is the primary math-capable model.
+    # Fallback: deepseek-r1:1.5b (installed), llama3.2:1b (installed).
+    model: str = "mathstral:7b"
     endpoint: str = "http://localhost:11434"
+    # V11: token budget for mathstral (7B needs more than 1.5B for Lean tactics)
+    num_predict: int = 8192
+    # V11: lower temperature for Lean proof generation (more deterministic)
+    temperature: float = 0.1
 
 
 class ConjecturerAgentConfig(BaseModel):
@@ -84,6 +96,10 @@ class FormalizerAgentConfig(BaseModel):
     enabled: bool = True
     allow_sorry: bool = True
     tactic_timeout: int = Field(30, gt=0)
+    # V14: number of LLM attempts per sorry-containing proof before giving up
+    close_sorry_attempts: int = Field(3, gt=0)
+    # V14: use LLM to attempt closing sorry stubs (requires LLM enabled)
+    close_sorry_with_llm: bool = True
 
 
 class CriticAgentConfig(BaseModel):

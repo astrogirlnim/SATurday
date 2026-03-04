@@ -224,13 +224,18 @@ class ConjecturerAgent(AgentBase):
         agents_config = context.config.get("agents", {})
         conjecturer_config = agents_config.get("conjecturer", {})
         llm_config = conjecturer_config.get("llm", {})
-        llm_enabled = llm_config.get("enabled", False)
-        llm_model   = llm_config.get("model", "deepseek-r1:7b")
+        llm_enabled  = llm_config.get("enabled", False)
+        # V11: default is mathstral:7b; fallback kept for configs that don't specify
+        llm_model    = llm_config.get("model", "mathstral:7b")
         llm_endpoint = llm_config.get("endpoint", "http://localhost:11434")
+        llm_num_predict = llm_config.get("num_predict", 8192)
+        llm_temperature = llm_config.get("temperature", 0.1)
 
         if llm_enabled:
-            context.log(self.name, f"LLM mode enabled: model={llm_model}, endpoint={llm_endpoint}")
-        else:
+            context.log(self.name, f"[V11] LLM mode: model={llm_model}, endpoint={llm_endpoint}, "
+                        f"num_predict={llm_num_predict}, temperature={llm_temperature}")
+
+        if not llm_enabled:
             context.log(self.name, "LLM mode disabled: using template path only")
 
         for i, task in enumerate(tasks):
@@ -270,7 +275,9 @@ class ConjecturerAgent(AgentBase):
                 if llm_enabled:
                     conjecture = self._generate_via_llm(
                         context, task, llm_endpoint, llm_model,
-                        lean_dir, spec_dir
+                        lean_dir, spec_dir,
+                        num_predict=llm_num_predict,
+                        temperature=llm_temperature,
                     )
                     if conjecture:
                         context.log(self.name, f"LLM generated conjecture for {task_id}")
@@ -353,25 +360,33 @@ class ConjecturerAgent(AgentBase):
         model: str,
         lean_dir: Path,
         spec_dir: Path,
+        num_predict: int = 8192,
+        temperature: float = 0.1,
     ) -> Optional[Conjecture]:
         """
         Generate a conjecture using a local Ollama LLM.
 
+        V11: Updated to pass num_predict and temperature to _call_ollama.
+        mathstral:7b needs more token budget (8192) and lower temperature (0.1)
+        than the old llama3.2:1b defaults.
+
         Sends a structured prompt describing the research task and asks the
         model to produce:
-        1. A Lean 4 theorem stub (with sorry placeholder)
+        1. A Lean 4 theorem stub with real proof tactics (not True := by sorry)
         2. A YAML CNF spec dictionary
 
         The response is parsed and a Conjecture object is constructed.
         Results are cached by prompt hash to avoid duplicate calls.
 
         Args:
-            context:   Agent execution context (for logging)
-            task:      Task dictionary from planner
-            endpoint:  Ollama base URL (e.g., http://localhost:11434)
-            model:     Ollama model name (e.g., deepseek-r1:7b)
-            lean_dir:  Output directory for Lean stubs
-            spec_dir:  Output directory for CNF specs
+            context:      Agent execution context (for logging)
+            task:         Task dictionary from planner
+            endpoint:     Ollama base URL (e.g., http://localhost:11434)
+            model:        Ollama model name (e.g., mathstral:7b)
+            lean_dir:     Output directory for Lean stubs
+            spec_dir:     Output directory for CNF specs
+            num_predict:  Max tokens to generate (V11: 8192 for mathstral)
+            temperature:  Sampling temperature (V11: 0.1 for Lean proof tasks)
 
         Returns:
             Conjecture on success, None on any failure (triggers fallback)
@@ -387,8 +402,9 @@ class ConjecturerAgent(AgentBase):
             circuit_type = task.get("circuit_type") or task.get("algorithm_schema", "unknown")
             func_name    = task.get("function_name") or task.get("algorithm_schema", "unknown")
 
-            # Build prompt
-            prompt = self._build_llm_prompt(task_id, bet, n, seed, circuit_type, func_name)
+            # Build prompt (V11: mathstral-optimized when model contains mathstral)
+            prompt = self._build_llm_prompt(task_id, bet, n, seed, circuit_type, func_name,
+                                            model=model)
 
             # Check cache first
             prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
@@ -396,8 +412,11 @@ class ConjecturerAgent(AgentBase):
                 context.log(self.name, f"LLM cache hit for task {task_id} (hash={prompt_hash})")
                 raw_response = self._llm_cache[prompt_hash]
             else:
-                context.log(self.name, f"Calling Ollama model={model} for task {task_id}")
-                raw_response = self._call_ollama(endpoint, model, prompt)
+                context.log(self.name, f"[V11] Calling Ollama model={model} for task {task_id} "
+                            f"(num_predict={num_predict}, temperature={temperature})")
+                raw_response = self._call_ollama(endpoint, model, prompt,
+                                                  num_predict=num_predict,
+                                                  temperature=temperature)
                 self._llm_cache[prompt_hash] = raw_response
                 context.log(self.name, f"LLM response cached (hash={prompt_hash})")
 
@@ -441,9 +460,18 @@ class ConjecturerAgent(AgentBase):
         seed: int,
         circuit_type: str,
         func_name: str,
+        model: str = "mathstral:7b",
     ) -> str:
         """
         Build a structured prompt for the LLM.
+
+        V11: Generates a mathstral-optimized prompt when model contains "mathstral".
+        The mathstral prompt:
+        - Provides Lean 4 imports and namespace context
+        - Shows the exact theorem structure from existing verified proofs (n=2,3,4)
+        - Asks for a real tactic proof attempt (not True := by sorry)
+        - Leverages mathstral's training on Lean 4 and mathematical proofs
+        - Falls back to the original few-shot format for other models
 
         The prompt explicitly:
         - Describes the research context (circuit complexity / algorithm synthesis)
@@ -454,32 +482,95 @@ class ConjecturerAgent(AgentBase):
 
         Args:
             task_id, bet, n, seed, circuit_type, func_name: Task parameters
+            model: Model name (used to select prompt style)
 
         Returns:
             Prompt string
         """
+        is_mathstral = "mathstral" in model.lower() or "prover" in model.lower()
+
         if bet == "A":
-            problem_desc = (
-                f"circuit lower bound: does a {circuit_type} circuit of size <= {n*n} "
-                f"compute the {func_name} function on {n} inputs?"
-            )
             lean_context = (
                 f"The theorem should state: any {circuit_type} circuit computing "
-                f"{func_name} on {n} inputs requires more than {n} gates."
+                f"{func_name} on {n} inputs requires more than {n * n // 2} gates."
             )
         else:
-            problem_desc = (
-                f"algorithm synthesis: does a {circuit_type} algorithm schema of "
-                f"at most {n*n} steps correctly solve the {func_name} problem on inputs of size {n}?"
-            )
             lean_context = (
                 f"The theorem should state existence of a program schema of depth <= {n*n} "
                 f"that correctly solves {func_name} for all inputs of size {n}."
             )
 
-        # Few-shot example to anchor the output format.
-        # The model must copy this pattern exactly, substituting the given values.
-        few_shot_example = f"""<LEAN_STUB>
+        conjecture_id = task_id.replace("bet_", "llm_")
+
+        if is_mathstral:
+            # V11: Mathstral-optimized prompt with real Lean 4 context and working proof pattern.
+            # We show the exact structure from MonotoneParityN2Proof.lean so mathstral can
+            # produce a structurally valid proof attempt (not just True := by sorry).
+            few_shot_lean = f"""import Mathlib.Data.Bool.Basic
+import Mathlib.Tactic
+import Theory.Circuits
+
+namespace SATurday.Conjectures.BetA.Proofs
+
+open SATurday.Circuits
+
+def parity_2_lrat_proof : CircuitLowerBoundProof := {{
+  n := 2,
+  max_gates := 4,
+  lrat_hash := "382dd167cdb833c99c7e8ddfe8159aac7d7173cf5f981a336196b307f3a64819",
+  cnf_hash := "382dd167cdb833c99c7e8ddfe8159aac7d7173cf5f981a336196b307f3a64819",
+  function_name := "parity_2",
+  circuit_class := "monotone"
+}}
+
+theorem monotone_parity_2_lower_bound :
+  forall (C : Circuit),
+    C.num_inputs = 2 to
+    isMonotone C = true to
+    C.computes (parity C.num_inputs) to
+    C.size > 4 := by
+  intro C h_inputs h_monotone h_computes
+  have h_lrat : forall (D : Circuit) (f : (Fin D.num_inputs to Bool) to Bool),
+      D.num_inputs = 2 to D.size <= 4 to not(D.computes f) :=
+    lrat_implies_lower_bound parity_2_lrat_proof
+  by_contra h_not_gt
+  have h_le : C.size <= 4 := Nat.not_lt.mp h_not_gt
+  have h_no_compute : not(C.computes (parity C.num_inputs)) :=
+    h_lrat C (parity C.num_inputs) h_inputs h_le
+  exact h_no_compute h_computes
+
+end SATurday.Conjectures.BetA.Proofs"""
+
+            prompt = f"""You are an expert in Lean 4 formal proofs and circuit complexity theory.
+
+CONTEXT: We are proving monotone circuit lower bounds for Boolean functions.
+The axiom lrat_implies_lower_bound is defined in Theory.Circuits and states:
+  axiom lrat_implies_lower_bound (proof : CircuitLowerBoundProof) :
+    forall (C : Circuit) (f : (Fin C.num_inputs to Bool) to Bool),
+      C.num_inputs = proof.n to C.size <= proof.max_gates to not(C.computes f)
+
+Here is a complete verified example for n=2:
+{few_shot_lean}
+
+TASK: Write a complete Lean 4 proof file for n={n}, {circuit_type} circuit, {func_name} function.
+{lean_context}
+Use lrat_implies_lower_bound with a CircuitLowerBoundProof record.
+The lrat_hash and cnf_hash for n={n}: use "TODO_RUN_MINER_N{n}".
+The max_gates bound should be {n * n}.
+
+Write the COMPLETE Lean 4 file including:
+1. All imports (Mathlib.Data.Bool.Basic, Mathlib.Tactic, Theory.Circuits, etc.)
+2. The namespace and open statements
+3. The CircuitLowerBoundProof record def
+4. The main theorem with the full by_contra proof
+5. The closing end statement
+
+Output ONLY the Lean 4 file content. No explanation. No extra text. No markdown fences.
+Start with "import Mathlib" and end with "end SATurday.Conjectures.BetA.Proofs"."""
+
+        else:
+            # Original few-shot format for smaller models (deepseek-r1:1.5b, llama3.2:1b)
+            few_shot_example = f"""<LEAN_STUB>
 import Mathlib.Tactic
 
 theorem example_lower_bound : True := by
@@ -504,7 +595,7 @@ solver_config:
   timeout_seconds: 60
 </CNF_SPEC>"""
 
-        prompt = f"""Output exactly two tagged blocks. No explanation. No extra text.
+            prompt = f"""Output exactly two tagged blocks. No explanation. No extra text.
 
 Example format:
 {few_shot_example}
@@ -514,20 +605,33 @@ Now generate a similar pair for:
 Do not use hyphens. Use sorry as the Lean proof body.
 task_id={task_id}, bet={bet}, n={n}, seed={seed}
 circuit_type={circuit_type}, function={func_name}
-conjecture_id={task_id.replace('bet_', 'llm_')}"""
+conjecture_id={conjecture_id}"""
 
         return prompt
 
-    def _call_ollama(self, endpoint: str, model: str, prompt: str) -> str:
+    def _call_ollama(
+        self,
+        endpoint: str,
+        model: str,
+        prompt: str,
+        num_predict: int = 8192,
+        temperature: float = 0.1,
+    ) -> str:
         """
         Call Ollama REST API to generate a completion.
+
+        V11: num_predict and temperature are now parameters.
+        mathstral:7b uses num_predict=8192, temperature=0.1.
+        deepseek-r1:1.5b / llama3.2:1b use num_predict=4096, temperature=0.2.
 
         Uses /api/generate endpoint with stream=false.
 
         Args:
-            endpoint: Ollama base URL
-            model:    Model name
-            prompt:   Input prompt
+            endpoint:    Ollama base URL
+            model:       Model name
+            prompt:      Input prompt
+            num_predict: Max tokens to generate
+            temperature: Sampling temperature
 
         Returns:
             Response text from the model
@@ -544,10 +648,10 @@ conjecture_id={task_id.replace('bet_', 'llm_')}"""
             "prompt": prompt,
             "stream": False,
             "options": {
-                "temperature": 0.2,
-                # 4096 tokens: enough for thinking + structured output blocks.
-                # DeepSeek-R1 models emit chain-of-thought in "thinking" before "response".
-                "num_predict": 4096,
+                "temperature": temperature,
+                # V11: token budget is configurable; mathstral needs more than 4096
+                # for a complete Lean proof with imports, namespace, and tactics.
+                "num_predict": num_predict,
             },
         }).encode("utf-8")
 
@@ -688,9 +792,18 @@ Include: theorem statement, key lemmas, and a brief proof strategy.]
         """
         Parse LLM response into (lean_stub, cnf_spec) tuple.
 
-        Expects delimited blocks:
+        V11 update: mathstral:7b outputs markdown code fences (```lean ... ```)
+        rather than custom XML tags. This parser now handles both formats:
+
+        Format 1 (small models - llama3.2:1b, deepseek-r1:1.5b):
           <LEAN_STUB>...</LEAN_STUB>
           <CNF_SPEC>...</CNF_SPEC>
+
+        Format 2 (mathstral:7b, deepseek-prover):
+          ```lean
+          ...
+          ```
+          (CNF spec synthesized from task parameters when not in response)
 
         Args:
             raw:     Raw LLM response text
@@ -706,15 +819,46 @@ Include: theorem statement, key lemmas, and a brief proof strategy.]
         lean_stub = None
         cnf_spec  = None
 
-        # Extract Lean stub
+        # ------------------------------------------------------------------
+        # LEAN STUB EXTRACTION
+        # Priority order:
+        #   1. <LEAN_STUB>...</LEAN_STUB> tags (small models)
+        #   2. ```lean ... ``` markdown fence (mathstral)
+        #   3. ``` ... ``` generic fence containing Lean imports
+        # ------------------------------------------------------------------
+
         lean_match = re.search(r"<LEAN_STUB>(.*?)</LEAN_STUB>", raw, re.DOTALL)
         if lean_match:
             lean_stub = lean_match.group(1).strip()
-            print(f"[ConjecturerAgent] Parsed Lean stub ({len(lean_stub)} chars)")
+            print(f"[ConjecturerAgent] [V11] Parsed Lean stub via <LEAN_STUB> tag ({len(lean_stub)} chars)")
         else:
-            print(f"[ConjecturerAgent] No <LEAN_STUB> block found in LLM response for {task_id}")
+            # Try ```lean ... ``` (mathstral format)
+            lean_fence = re.search(r"```lean\s*\n(.*?)```", raw, re.DOTALL)
+            if lean_fence:
+                lean_stub = lean_fence.group(1).strip()
+                print(f"[ConjecturerAgent] [V11] Parsed Lean stub via ```lean fence ({len(lean_stub)} chars)")
+            else:
+                # Try generic ``` ... ``` containing Lean identifiers
+                generic_fence = re.search(r"```\s*\n(import Mathlib.*?)```", raw, re.DOTALL)
+                if generic_fence:
+                    lean_stub = generic_fence.group(1).strip()
+                    print(f"[ConjecturerAgent] [V11] Parsed Lean stub via generic fence ({len(lean_stub)} chars)")
+                else:
+                    # Last resort: if response contains 'import Mathlib' followed by theorem, extract it
+                    import_match = re.search(r"(import Mathlib.*?end \w+(?:\.\w+)*)", raw, re.DOTALL)
+                    if import_match:
+                        lean_stub = import_match.group(1).strip()
+                        print(f"[ConjecturerAgent] [V11] Parsed Lean stub via import pattern ({len(lean_stub)} chars)")
+                    else:
+                        print(f"[ConjecturerAgent] No Lean stub found in LLM response for {task_id}")
 
-        # Extract CNF spec YAML
+        # ------------------------------------------------------------------
+        # CNF SPEC EXTRACTION
+        # Priority order:
+        #   1. <CNF_SPEC>...</CNF_SPEC> tags (small models)
+        #   2. Synthesize from task parameters (mathstral typically omits CNF spec)
+        # ------------------------------------------------------------------
+
         spec_match = re.search(r"<CNF_SPEC>(.*?)</CNF_SPEC>", raw, re.DOTALL)
         if spec_match:
             yaml_text = spec_match.group(1).strip()
@@ -724,16 +868,36 @@ Include: theorem statement, key lemmas, and a brief proof strategy.]
                     print(f"[ConjecturerAgent] CNF spec is not a dict for {task_id}")
                     cnf_spec = None
                 else:
-                    # Ensure required fields are present
                     cnf_spec.setdefault("conjecture_id", f"llm_{bet.lower()}_n{n}_s{seed}")
                     cnf_spec.setdefault("task_id", task_id)
                     cnf_spec.setdefault("seed", seed)
-                    print(f"[ConjecturerAgent] Parsed CNF spec: {list(cnf_spec.keys())}")
+                    print(f"[ConjecturerAgent] Parsed CNF spec via tags: {list(cnf_spec.keys())}")
             except Exception as e:
                 print(f"[ConjecturerAgent] YAML parse error for {task_id}: {e}")
                 cnf_spec = None
-        else:
-            print(f"[ConjecturerAgent] No <CNF_SPEC> block found in LLM response for {task_id}")
+
+        # V11: If we got a Lean stub but no CNF spec (mathstral typically omits it),
+        # synthesize a minimal CNF spec from the task parameters.
+        if lean_stub is not None and cnf_spec is None:
+            print(f"[ConjecturerAgent] [V11] Synthesizing CNF spec from task params for {task_id}")
+            cnf_spec = {
+                "conjecture_id": f"llm_{bet.lower()}_n{n}_s{seed}",
+                "task_id": task_id,
+                "description": f"LLM-generated conjecture for n={n} (mathstral:7b)",
+                "circuit": {
+                    "type": "monotone",
+                    "num_inputs": n,
+                    "max_gates": n * n,
+                },
+                "target_function": {
+                    "name": "parity",
+                    "n": n,
+                },
+                "encoding": {"method": "circuit_synthesis"},
+                "seed": seed,
+                "solver_config": {"timeout_seconds": 300},
+            }
+            print(f"[ConjecturerAgent] [V11] Synthesized CNF spec keys: {list(cnf_spec.keys())}")
 
         return lean_stub, cnf_spec
 
