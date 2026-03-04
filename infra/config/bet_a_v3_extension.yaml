@@ -34,8 +34,8 @@ bets:
     target_functions:
       - "parity"    # Only parity (known impossible for monotone)
     size_range:
-      min: 11
-      max: 15
+      min: 16
+      max: 17
       step: 1
     seed_range:
       start: 13000
@@ -50,7 +50,7 @@ agents:
     enabled: true
     mode: "template"
     template_depth: 3
-    max_conjectures: 100
+    max_conjectures: 20
   miner:
     enabled: true
     small_n_only: false

@@ -141,7 +141,8 @@ class BetDecomposer:
         
         # Size progression (use config range if specified)
         min_size = size_range.get("min", 2)
-        size_progression = self._generate_size_progression(min_size, max_size)
+        step = size_range.get("step", None)  # Explicit step from config overrides heuristic
+        size_progression = self._generate_size_progression(min_size, max_size, step=step)
         
         print(f"[BetDecomposer] Circuit types: {circuit_types}")
         print(f"[BetDecomposer] Target functions: {target_functions}")
@@ -336,22 +337,29 @@ class BetDecomposer:
         
         return [task], [milestone]
     
-    def _generate_size_progression(self, min_size: int, max_size: int) -> List[int]:
+    def _generate_size_progression(self, min_size: int, max_size: int, step: int = None) -> List[int]:
         """
         Generate size progression for tasks.
         
-        Strategy: Start small (2), then increase gradually.
+        Strategy: If step is provided, use it exactly.
+        Otherwise: Start small (2), then increase gradually.
         For small max_size, use every value.
         For large max_size, use exponential progression.
         
         Args:
             min_size: Minimum problem size
             max_size: Maximum problem size
+            step: Explicit step size (overrides heuristic if provided)
         
         Returns:
             List of problem sizes
         """
-        if max_size <= 10:
+        print(f"[PlannerAgent] Generating size progression: min={min_size}, max={max_size}, step={step}")
+        
+        if step is not None:
+            # Explicit step provided - use it exactly
+            return list(range(min_size, max_size + 1, step))
+        elif max_size <= 10:
             # For small ranges, use all values
             return list(range(min_size, max_size + 1))
         else:
