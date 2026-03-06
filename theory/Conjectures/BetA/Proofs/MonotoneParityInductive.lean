@@ -53,36 +53,36 @@ open SATurday.Circuits
 /-- LRAT records for n=5 through n=10. Hashes filled after V14 Miner runs. -/
 def parity_5_lrat_proof : CircuitLowerBoundProof := {
   n := 5,
-  max_gates := 25,
-  lrat_hash := "TODO_RUN_MINER_N5",
-  cnf_hash := "TODO_RUN_MINER_N5",
+  max_gates := 5,
+  lrat_hash := "645b006dc631d867548053d88cdf9e3f4d1be579016b509a4f104bb539c18f5a",
+  cnf_hash := "645b006dc631d867548053d88cdf9e3f4d1be579016b509a4f104bb539c18f5a",
   function_name := "parity_5",
   circuit_class := "monotone"
 }
 
 def parity_6_lrat_proof : CircuitLowerBoundProof := {
   n := 6,
-  max_gates := 36,
-  lrat_hash := "TODO_RUN_MINER_N6",
-  cnf_hash := "TODO_RUN_MINER_N6",
+  max_gates := 6,
+  lrat_hash := "000e987b4781258d56c4359ef99ef7e774cc7d603fb1dac4082945f1542afcbf",
+  cnf_hash := "000e987b4781258d56c4359ef99ef7e774cc7d603fb1dac4082945f1542afcbf",
   function_name := "parity_6",
   circuit_class := "monotone"
 }
 
 def parity_7_lrat_proof : CircuitLowerBoundProof := {
   n := 7,
-  max_gates := 49,
-  lrat_hash := "TODO_RUN_MINER_N7",
-  cnf_hash := "TODO_RUN_MINER_N7",
+  max_gates := 7,
+  lrat_hash := "92b9a09f40422a0960216641ec046268e3eb8c2a86d8e14669997979e2463ef6",
+  cnf_hash := "92b9a09f40422a0960216641ec046268e3eb8c2a86d8e14669997979e2463ef6",
   function_name := "parity_7",
   circuit_class := "monotone"
 }
 
 def parity_8_lrat_proof : CircuitLowerBoundProof := {
   n := 8,
-  max_gates := 64,
-  lrat_hash := "TODO_RUN_MINER_N8",
-  cnf_hash := "TODO_RUN_MINER_N8",
+  max_gates := 8,
+  lrat_hash := "4438653a5346e41f14f3e39b4580f7b1f18988e766238a174b48362b4e7bd310",
+  cnf_hash := "4438653a5346e41f14f3e39b4580f7b1f18988e766238a174b48362b4e7bd310",
   function_name := "parity_8",
   circuit_class := "monotone"
 }
