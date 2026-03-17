@@ -10,73 +10,65 @@ Runs until a goal is reached, a HALT condition fires, or a human is needed.
 
 ## Flow Overview
 
+### Main Loop
+
 ```mermaid
-flowchart TD
-    START([Run Oracle]) --> CTX
-    CTX[Step 0 Load Context] --> DL{Deadlock?}
-    DL -- yes --> H1([HITL 1 Ask for new direction])
-    H1 --> CTX
-    DL -- no --> PLAN
+flowchart LR
+    S0[Load Context] --> S1[Planner]
+    S1 --> S2[Algebraist]
+    S1 --> S3[Geometer]
+    S1 --> S4[Skeptic]
+    S2 --> S5[Miner]
+    S3 --> S5
+    S4 --> S5
+    S5 --> S6{SAT witness?}
+    S6 -- no --> S7[Formalizer]
+    S6 -- yes --> S8[Guardrail]
+    S7 --> S9[Critic]
+    S9 --> S10[Reflector]
+    S10 --> S8[Guardrail]
+    S8 -- continue --> S1
+    S8 -- publish --> DONE([Done])
+    S8 -- halt --> HALT([Halt])
 
-    PLAN[Step 1 Planner] --> ALG
-    PLAN --> GEO
-    PLAN --> SKP
+    style S2 fill:#d4e6f1,stroke:#2980b9
+    style S3 fill:#d5f5e3,stroke:#27ae60
+    style S4 fill:#fde8d8,stroke:#e67e22
+    style S8 fill:#f2f3f4,stroke:#2c3e50,stroke-width:2px
+    style DONE fill:#d5f5e3,stroke:#1e8449,stroke-width:2px
+    style HALT fill:#fadbd8,stroke:#922b21,stroke-width:2px
+```
 
-    ALG[Step 2a Algebraist]
-    GEO[Step 2b Geometer]
-    SKP[Step 2c Skeptic]
+### Guardrail Decisions
 
-    ALG --> MINE
-    GEO --> MINE
-    SKP --> MINE
+```mermaid
+flowchart LR
+    G[Guardrail] --> D1{Decision}
+    D1 -- compiled and verified --> PUBLISH[Publish and commit]
+    D1 -- continue --> LOOP[Next iteration]
+    D1 -- SAT witness --> REDUCE[Reduce n]
+    D1 -- same technique x3 --> ROTATE[Rotate bet]
+    D1 -- blocked x3 --> H2([HITL 2])
+    D1 -- no progress x5 --> H3([HITL 3])
+    D1 -- sorry stuck x3 --> H4([HITL 4])
+    D1 -- max iterations --> HALT([Halt])
 
-    MINE[Step 3 Miner] --> R1
-    R1{Step 4 Reflector - SAT witness?}
-    R1 -- yes --> INVAL[INVALIDATE]
-    R1 -- no --> SEL[Select best UNSAT]
-    SEL --> FORM
+    PUBLISH --> GOAL{All goals met?}
+    GOAL -- yes --> DONE([Exit success])
+    GOAL -- no --> LOOP
 
-    FORM[Step 5 Formalizer] --> CRIT
-    CRIT[Step 6 Critic] --> REF
-    REF[Step 7 Reflector - ReflectionSummary]
+    REDUCE --> LOOP
+    ROTATE --> LOOP
+    H2 --> LOOP
+    H3 --> LOOP
+    H4 --> LOOP
 
-    INVAL --> G
-    REF --> G
-
-    G[Step 8 Guardrail Engine]
-
-    G -- compiled no sorry GOOD --> PUB[PUBLISH]
-    G -- CONTINUE --> PLAN
-    G -- INVALIDATE --> LESS[Reduce n] --> PLAN
-    G -- SWITCH STRATEGY --> ROT[Rotate bet] --> PLAN
-    G -- BLOCKED x3 --> H2([HITL 2 All paths relativizing])
-    G -- no progress x5 --> H3([HITL 3 No delta])
-    G -- formalizer failed x3 --> H4([HITL 4 Sorry stuck])
-    G -- max iterations --> HALT([Exit HALT])
-
-    H2 --> PLAN
-    H3 --> PLAN
-    H4 --> FORM
-
-    PUB --> GOAL{Goal met?}
-    GOAL -- yes --> DONE([Exit Success])
-    GOAL -- no --> PLAN
-
-    style ALG fill:#d4e6f1,stroke:#2980b9
-    style GEO fill:#d5f5e3,stroke:#27ae60
-    style SKP fill:#fde8d8,stroke:#e67e22
-    style MINE fill:#f4f6f7,stroke:#7f8c8d
-    style FORM fill:#eaf0fb,stroke:#5d6d7e
-    style CRIT fill:#fdf2f8,stroke:#8e44ad
-    style PLAN fill:#fef9e7,stroke:#f39c12
-    style G fill:#f2f3f4,stroke:#2c3e50,stroke-width:2px
-    style H1 fill:#fdedec,stroke:#c0392b,stroke-width:2px
     style H2 fill:#fdedec,stroke:#c0392b,stroke-width:2px
     style H3 fill:#fdedec,stroke:#c0392b,stroke-width:2px
     style H4 fill:#fdedec,stroke:#c0392b,stroke-width:2px
+    style PUBLISH fill:#d5f5e3,stroke:#27ae60
     style DONE fill:#d5f5e3,stroke:#1e8449,stroke-width:2px
     style HALT fill:#fadbd8,stroke:#922b21,stroke-width:2px
-    style PUB fill:#d5f5e3,stroke:#27ae60
 ```
 
 ## Step 0: Load Context (always first)
