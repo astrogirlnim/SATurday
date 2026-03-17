@@ -17,9 +17,10 @@ flowchart LR
     S7 --> S9[Critic]
     S9 --> S10[Reflector]
     S10 --> S8
-    S8 -- continue --> S1
-    S8 -- publish --> DONE([Done])
+    S8 -- continue --> S9[Cleanup]
+    S8 -- publish --> S9
     S8 -- halt --> HALT([Halt])
+    S9 --> S1
 
     style S2 fill:#d4e6f1,stroke:#2980b9
     style S3 fill:#d5f5e3,stroke:#27ae60

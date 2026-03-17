@@ -31,9 +31,11 @@ flowchart LR
     S7 --> S9[Critic]
     S9 --> S10[Reflector]
     S10 --> S8
-    S8 -- continue --> S1
-    S8 -- publish --> DONE([Done])
+    S8 -- continue --> S9[Cleanup]
+    S8 -- publish --> S9
     S8 -- halt --> HALT([Halt])
+    S9 --> DONE([Done or next iteration])
+    DONE --> S1
 ```
 
 ### Guardrail Decisions
@@ -438,6 +440,66 @@ Inject into the appropriate step and continue.
 
 ---
 
+## Step 9: Cleanup (spawn shell subagent — every iteration)
+
+Always run this after the Guardrail action and before looping back to Step 1.
+Spawn a `shell` subagent so it runs independently and cannot corrupt the
+orchestrating agent's state.
+
+```
+Task tool call:
+  subagent_type: shell
+  description: "ORACLE Cleanup - iteration {k}"
+  prompt: |
+    Run the following cleanup commands in order.
+    Working directory: /Users/nmm/Development/SATurday
+
+    # 1. Delete CNF input files from proofs/ — safe once LRAT is verified.
+    #    Never delete .lrat, .json, .log, or index.json.
+    find proofs/ -name "*.cnf" -delete
+    echo "Deleted CNF files from proofs/"
+
+    # 2. Delete intermediate CNF specs from this iteration only.
+    #    search/specs/ holds per-run inputs that are no longer needed
+    #    once Miner has produced its MinerResult.
+    find search/specs/ -name "*.yaml" -mmin +5 -delete
+    find search/specs/ -name "*.cnf" -mmin +5 -delete
+    echo "Deleted stale spec files from search/specs/"
+
+    # 3. Every 5 iterations, purge the Lean build cache.
+    #    theory/.lake can reach 5GB+. It is fully regenerable via lake build.
+    #    Only purge if iteration number is divisible by 5.
+    ITERATION={k}
+    if [ $((ITERATION % 5)) -eq 0 ]; then
+      if [ -d theory/.lake ]; then
+        rm -rf theory/.lake
+        echo "Purged theory/.lake (iteration $ITERATION)"
+      fi
+    fi
+
+    # 4. Trim solver run logs older than 7 days from search/logs/.
+    #    Keeps recent logs for debugging but prevents unbounded growth.
+    #    Never delete oracle_reflections.jsonl, guardrail_decisions.jsonl,
+    #    miner_results.jsonl, counterexamples.jsonl, or hitl_interventions.jsonl.
+    find search/logs/ -name "*.log" -mtime +7 -delete
+    find search/logs/ -name "run_*.jsonl" -mtime +7 -delete
+    echo "Trimmed old log files from search/logs/"
+
+    # 5. Report disk usage after cleanup.
+    echo "--- Disk usage after cleanup ---"
+    du -sh proofs/ search/logs/ search/specs/ theory/.lake 2>/dev/null || true
+    df -h . | tail -1
+
+    # Return a JSON summary.
+    echo '{"cleanup": "complete", "iteration": '$ITERATION'}'
+```
+
+Do not proceed to the next iteration until the cleanup subagent exits cleanly.
+If cleanup fails (exit code non-zero), log the error and continue anyway —
+a cleanup failure must never block the research loop.
+
+---
+
 ## Loop Invariants (check every iteration)
 
 - [ ] Kissat runs used fixed seed from IterationPlan.parameter_range.seed
@@ -463,6 +525,7 @@ Inject into the appropriate step and continue.
 | 6 | Critic | `.cursor/rules/oracle-agent-critic.mdc` | Task generalPurpose |
 | 7 | Reflector pass 2 | `.cursor/rules/oracle-agent-reflector.mdc` | orchestrating agent |
 | 8 | Guardrail | `.cursor/rules/oracle-agent-guardrail.mdc` | orchestrating agent |
+| 9 | Cleanup | (inline shell commands) | Task shell |
 
 ---
 
