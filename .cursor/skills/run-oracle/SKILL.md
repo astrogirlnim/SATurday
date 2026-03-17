@@ -13,58 +13,53 @@ Runs until a goal is reached, a HALT condition fires, or a human is needed.
 ```mermaid
 flowchart TD
     START([Run Oracle]) --> CTX
-
-    CTX["Step 0: Load Context\nmemory_bank/ + docs/ + rules/\nproofs/index.json\noracle_reflections.jsonl"]
-    CTX --> DL{Deadlock?}
-    DL -- yes --> H1[/"HITL_1: Ask human\nfor new direction"/]
+    CTX[Step 0 Load Context] --> DL{Deadlock?}
+    DL -- yes --> H1([HITL 1 Ask for new direction])
     H1 --> CTX
     DL -- no --> PLAN
 
-    PLAN["Step 1: Planner\noracle-agent-planner.mdc\nProduces IterationPlan\nhypothesis + 3 persona tasks"]
-    PLAN --> ALG & GEO & SKP
+    PLAN[Step 1 Planner] --> ALG
+    PLAN --> GEO
+    PLAN --> SKP
 
-    ALG["Step 2a: Algebraist\noracle-agent-algebraist.mdc\nmathstral:7b\nPolynomial framing"]
-    GEO["Step 2b: Geometer\noracle-agent-geometer.mdc\nmathstral:7b\nCombinatorial framing"]
-    SKP["Step 2c: Skeptic\noracle-agent-skeptic.mdc\ndeepseek-r1:1.5b\nAdversarial"]
+    ALG[Step 2a Algebraist]
+    GEO[Step 2b Geometer]
+    SKP[Step 2c Skeptic]
 
-    ALG & GEO & SKP --> MINE
+    ALG --> MINE
+    GEO --> MINE
+    SKP --> MINE
 
-    MINE["Step 3: Miner\noracle-agent-miner.mdc\nKissat + LRAT + SHA256\n3x parallel runs"]
-    MINE --> R1
-
-    R1{"Step 4: Reflector\nSAT witness\nfrom Skeptic?"}
-    R1 -- yes --> INVAL["INVALIDATE\nlog counterexamples.jsonl"]
-    R1 -- no --> SEL["Rank UNSAT results\nselect winner"]
+    MINE[Step 3 Miner] --> R1
+    R1{Step 4 Reflector - SAT witness?}
+    R1 -- yes --> INVAL[INVALIDATE]
+    R1 -- no --> SEL[Select best UNSAT]
     SEL --> FORM
 
-    FORM["Step 5: Formalizer\noracle-agent-formalizer.mdc\nlake build\nsorry-closure x3 attempts"]
-    FORM --> CRIT
-
-    CRIT["Step 6: Critic\noracle-agent-critic.mdc\n3x barrier profiles\nV13 feedback loop"]
-    CRIT --> REF
-
-    REF["Step 7: Reflector\noracle-agent-reflector.mdc\nBuild ReflectionSummary\ncompute progress_delta"]
+    FORM[Step 5 Formalizer] --> CRIT
+    CRIT[Step 6 Critic] --> REF
+    REF[Step 7 Reflector - ReflectionSummary]
 
     INVAL --> G
     REF --> G
 
-    G["Step 8: Guardrail Engine\noracle-agent-guardrail.mdc\nwrite guardrail_decisions.jsonl"]
+    G[Step 8 Guardrail Engine]
 
-    G -- "compiled + no sorry + GOOD" --> PUB["PUBLISH\nproofs/index.json\ngit commit"]
-    G -- "CONTINUE" --> PLAN
-    G -- "INVALIDATE" --> LESS["Reduce n"] --> PLAN
-    G -- "SWITCH_STRATEGY x3" --> ROT["Rotate bet A to B to C to D"] --> PLAN
-    G -- "BLOCKED x3 iters" --> H2[/"HITL_2: All paths relativizing\nAsk for non-relativizing technique"/]
-    G -- "no progress x5 iters" --> H3[/"HITL_3: No delta\nAsk: increase n, switch bet, or lemma"/]
-    G -- "formalizer failed x3" --> H4[/"HITL_4: Sorry stuck\nAsk for Lean proof strategy"/]
-    G -- "k >= max_iterations" --> HALT([Exit 2: HALT])
+    G -- compiled no sorry GOOD --> PUB[PUBLISH]
+    G -- CONTINUE --> PLAN
+    G -- INVALIDATE --> LESS[Reduce n] --> PLAN
+    G -- SWITCH STRATEGY --> ROT[Rotate bet] --> PLAN
+    G -- BLOCKED x3 --> H2([HITL 2 All paths relativizing])
+    G -- no progress x5 --> H3([HITL 3 No delta])
+    G -- formalizer failed x3 --> H4([HITL 4 Sorry stuck])
+    G -- max iterations --> HALT([Exit HALT])
 
     H2 --> PLAN
     H3 --> PLAN
     H4 --> FORM
 
-    PUB --> GOAL{All success\ncriteria met?}
-    GOAL -- yes --> DONE([Exit 0: Goal reached])
+    PUB --> GOAL{Goal met?}
+    GOAL -- yes --> DONE([Exit Success])
     GOAL -- no --> PLAN
 
     style ALG fill:#d4e6f1,stroke:#2980b9
