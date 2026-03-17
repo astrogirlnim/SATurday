@@ -12,83 +12,60 @@ Runs until a goal is reached, a HALT condition fires, or a human is needed.
 
 ```mermaid
 flowchart TD
-    START([Run Oracle]) --> S0
+    START([Run Oracle]) --> CTX
 
-    subgraph S0 ["Step 0: Load Context"]
-        CTX["Read memory_bank/ + docs/\n.cursor/rules/ + proofs/index.json\noracle_reflections.jsonl"]
-        CTX --> DL{Deadlock?}
-        DL -- yes --> H1[/"HITL_1\nAsk: new direction"/]
-        H1 --> CTX
-        DL -- no --> S1
-    end
+    CTX["Step 0: Load Context\nmemory_bank/ + docs/ + rules/\nproofs/index.json\noracle_reflections.jsonl"]
+    CTX --> DL{Deadlock?}
+    DL -- yes --> H1[/"HITL_1: Ask human\nfor new direction"/]
+    H1 --> CTX
+    DL -- no --> PLAN
 
-    subgraph S1 ["Step 1: Plan"]
-        PLAN["Planner\noracle-agent-planner.mdc\nProduces IterationPlan\nhypothesis + 3 persona tasks"]
-    end
+    PLAN["Step 1: Planner\noracle-agent-planner.mdc\nProduces IterationPlan\nhypothesis + 3 persona tasks"]
+    PLAN --> ALG & GEO & SKP
 
-    S1 --> S2
+    ALG["Step 2a: Algebraist\noracle-agent-algebraist.mdc\nmathstral:7b\nPolynomial framing"]
+    GEO["Step 2b: Geometer\noracle-agent-geometer.mdc\nmathstral:7b\nCombinatorial framing"]
+    SKP["Step 2c: Skeptic\noracle-agent-skeptic.mdc\ndeepseek-r1:1.5b\nAdversarial"]
 
-    subgraph S2 ["Step 2: Conjecture — parallel"]
-        ALG["Algebraist\nmathstral:7b\nPolynomial framing"]
-        GEO["Geometer\nmathstral:7b\nCombinatorial framing"]
-        SKP["Skeptic\ndeepseek-r1:1.5b\nAdversarial — find SAT"]
-    end
+    ALG & GEO & SKP --> MINE
 
-    S2 --> S3
+    MINE["Step 3: Miner\noracle-agent-miner.mdc\nKissat + LRAT + SHA256\n3x parallel runs"]
+    MINE --> R1
 
-    subgraph S3 ["Step 3: Mine — parallel Kissat"]
-        MINE["Miner\noracle-agent-miner.mdc\nKissat + LRAT + SHA256\n3x MinerResult"]
-    end
+    R1{"Step 4: Reflector\nSAT witness\nfrom Skeptic?"}
+    R1 -- yes --> INVAL["INVALIDATE\nlog counterexamples.jsonl"]
+    R1 -- no --> SEL["Rank UNSAT results\nselect winner"]
+    SEL --> FORM
 
-    S3 --> S4
+    FORM["Step 5: Formalizer\noracle-agent-formalizer.mdc\nlake build\nsorry-closure x3 attempts"]
+    FORM --> CRIT
 
-    subgraph S4 ["Step 4: Aggregate (Reflector pass 1)"]
-        R1{"SAT witness\nfrom Skeptic?"}
-        R1 -- yes --> INVAL["INVALIDATE\nlog counterexamples.jsonl\nskip formalize"]
-        R1 -- no --> SEL["Rank UNSAT results\nselect winner"]
-    end
+    CRIT["Step 6: Critic\noracle-agent-critic.mdc\n3x barrier profiles\nV13 feedback loop"]
+    CRIT --> REF
 
-    SEL --> S5
+    REF["Step 7: Reflector\noracle-agent-reflector.mdc\nBuild ReflectionSummary\ncompute progress_delta"]
 
-    subgraph S5 ["Step 5: Formalize"]
-        FORM["Formalizer\noracle-agent-formalizer.mdc\nlake build + sorry-closure\nup to 3 LLM attempts"]
-    end
+    INVAL --> G
+    REF --> G
 
-    S5 --> S6
+    G["Step 8: Guardrail Engine\noracle-agent-guardrail.mdc\nwrite guardrail_decisions.jsonl"]
 
-    subgraph S6 ["Step 6: Critique"]
-        CRIT["Critic\noracle-agent-critic.mdc\n3x barrier profiles\nV13 feedback loop"]
-    end
-
-    S6 --> S7
-
-    subgraph S7 ["Step 7: Reflect (Reflector pass 2)"]
-        REF["Reflector\nBuild ReflectionSummary\ncompute progress_delta\nwrite oracle_reflections.jsonl"]
-    end
-
-    INVAL --> S8
-    S7 --> S8
-
-    subgraph S8 ["Step 8: Guardrail Decision"]
-        G["Guardrail Engine\noracle-agent-guardrail.mdc\nwrite guardrail_decisions.jsonl"]
-    end
-
-    G -- "compiled + no sorry\n+ lrat valid + grade GOOD" --> PUB["PUBLISH\nupdate proofs/index.json\ngit commit"]
-    G -- "CONTINUE" --> S1
-    G -- "INVALIDATE" --> LESS["Reduce n\nor restrict class"] --> S1
-    G -- "SWITCH_STRATEGY\nsame technique x3" --> ROT["Rotate bet\nA->B->C->D"] --> S1
-    G -- "BLOCKED x3 iters" --> H2[/"HITL_2\nAll paths relativizing\nAsk: non-relativizing technique"/]
-    G -- "no progress x5 iters" --> H3[/"HITL_3\nAsk: increase n, switch bet,\nor provide lemma"/]
-    G -- "formalizer failed x3" --> H4[/"HITL_4\nAsk: Lean proof strategy"/]
+    G -- "compiled + no sorry + GOOD" --> PUB["PUBLISH\nproofs/index.json\ngit commit"]
+    G -- "CONTINUE" --> PLAN
+    G -- "INVALIDATE" --> LESS["Reduce n"] --> PLAN
+    G -- "SWITCH_STRATEGY x3" --> ROT["Rotate bet A to B to C to D"] --> PLAN
+    G -- "BLOCKED x3 iters" --> H2[/"HITL_2: All paths relativizing\nAsk for non-relativizing technique"/]
+    G -- "no progress x5 iters" --> H3[/"HITL_3: No delta\nAsk: increase n, switch bet, or lemma"/]
+    G -- "formalizer failed x3" --> H4[/"HITL_4: Sorry stuck\nAsk for Lean proof strategy"/]
     G -- "k >= max_iterations" --> HALT([Exit 2: HALT])
 
-    H2 --> S1
-    H3 --> S1
-    H4 --> S5
+    H2 --> PLAN
+    H3 --> PLAN
+    H4 --> FORM
 
     PUB --> GOAL{All success\ncriteria met?}
     GOAL -- yes --> DONE([Exit 0: Goal reached])
-    GOAL -- no --> HARDER["Increment n"] --> S1
+    GOAL -- no --> PLAN
 
     style ALG fill:#d4e6f1,stroke:#2980b9
     style GEO fill:#d5f5e3,stroke:#27ae60
