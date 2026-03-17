@@ -8,6 +8,10 @@ description: Runs the ORACLE multi-agent mathematical research loop. Coordinates
 Works for any formal math research project. Reads project context at startup.
 Runs until a goal is reached, a HALT condition fires, or a human is needed.
 
+Each step below that says "Spawn subagent" requires a REAL `Task` tool call — not
+reading a rule in your own context. Subagents have isolated context. Pass all
+necessary state explicitly in the prompt.
+
 ## Flow Overview
 
 ### Main Loop
@@ -26,17 +30,10 @@ flowchart LR
     S6 -- yes --> S8[Guardrail]
     S7 --> S9[Critic]
     S9 --> S10[Reflector]
-    S10 --> S8[Guardrail]
+    S10 --> S8
     S8 -- continue --> S1
     S8 -- publish --> DONE([Done])
     S8 -- halt --> HALT([Halt])
-
-    style S2 fill:#d4e6f1,stroke:#2980b9
-    style S3 fill:#d5f5e3,stroke:#27ae60
-    style S4 fill:#fde8d8,stroke:#e67e22
-    style S8 fill:#f2f3f4,stroke:#2c3e50,stroke-width:2px
-    style DONE fill:#d5f5e3,stroke:#1e8449,stroke-width:2px
-    style HALT fill:#fadbd8,stroke:#922b21,stroke-width:2px
 ```
 
 ### Guardrail Decisions
@@ -62,188 +59,417 @@ flowchart LR
     H2 --> LOOP
     H3 --> LOOP
     H4 --> LOOP
-
-    style H2 fill:#fdedec,stroke:#c0392b,stroke-width:2px
-    style H3 fill:#fdedec,stroke:#c0392b,stroke-width:2px
-    style H4 fill:#fdedec,stroke:#c0392b,stroke-width:2px
-    style PUBLISH fill:#d5f5e3,stroke:#27ae60
-    style DONE fill:#d5f5e3,stroke:#1e8449,stroke-width:2px
-    style HALT fill:#fadbd8,stroke:#922b21,stroke-width:2px
 ```
 
-## Step 0: Load Context (always first)
+---
 
-Read these files before anything else:
+## Step 0: Load Context (orchestrating agent — no subagent)
 
-- `memory_bank/mmemory_bank_projectbrief.md` -> problem_statement, success_criteria
-- `memory_bank/mmemory_bank_activeContext.md` -> current_progress, open_tasks
-- `memory_bank/mmemory_bank_progress.md` -> what works, known failures
-- `memory_bank/mmemory_bank_systemPatterns.md` -> architecture constraints
-- `docs/brainlift/saturday-dev-checklist-v2.md` -> open conjectures
-- `infra/config/defaults.yaml` -> system config (models, seeds, max_n)
-- `.cursor/rules/*.mdc` -> behavioral constraints (no emojis, no cloud, etc.)
-- `search/logs/oracle_reflections.jsonl` -> last entry (prior iteration state)
-- `search/logs/guardrail_decisions.jsonl` -> last entry (prior decision)
-- `proofs/index.json` -> verified artifact inventory
+Read these files directly before spawning anything:
 
-Construct `ResearchContext` mentally. If `oracle_reflections.jsonl` has no entries,
-this is iteration 0 (fresh start).
+- `memory_bank/mmemory_bank_projectbrief.md`
+- `memory_bank/mmemory_bank_activeContext.md`
+- `memory_bank/mmemory_bank_progress.md`
+- `memory_bank/mmemory_bank_systemPatterns.md`
+- `docs/brainlift/saturday-dev-checklist-v2.md`
+- `infra/config/defaults.yaml`
+- `search/logs/oracle_reflections.jsonl` (last entry if exists)
+- `search/logs/guardrail_decisions.jsonl` (last entry if exists)
+- `proofs/index.json`
 
-Check for immediate deadlock: if `known_barriers` shows all bets blocked with no
-open conjectures, trigger **HITL_1** before starting the loop.
+Construct `ResearchContext` in memory. If `oracle_reflections.jsonl` is empty,
+this is iteration 0.
 
-## Step 1: Plan (invoke oracle-agent-planner rule)
+If all bets are blocked with no open conjectures: trigger HITL_1 now (print prompt,
+wait for human input) before continuing.
 
-Read `.cursor/rules/oracle-agent-planner.mdc`. Follow it exactly.
+---
 
-Produce `IterationPlan` with:
-- A falsifiable `hypothesis`
-- Three distinct `persona_assignments` (algebraist task / geometer task / skeptic task)
-- A `parameter_range` (specific n values, not open-ended)
-- A `fallback_strategy`
+## Step 1: Planner (spawn subagent)
 
-Log to `search/logs/oracle_planner.jsonl`.
+Spawn a `generalPurpose` subagent. The prompt must be fully self-contained.
 
-## Step 2: Generate Conjectures in Parallel (3 subagents)
-
-Invoke all three persona rules. Run their tasks concurrently (3 parallel tool calls).
-
-**Algebraist** - read `.cursor/rules/oracle-agent-algebraist.mdc`
-Run: `python -c "from search.agents.conjecturer import AlgebraistPersona; ..."`
-Or invoke existing `satday mine` with algebraic framing.
-
-**Geometer** - read `.cursor/rules/oracle-agent-geometer.mdc`
-Run: `python -c "from search.agents.conjecturer import GeometerPersona; ..."`
-
-**Skeptic** - read `.cursor/rules/oracle-agent-skeptic.mdc`
-Run: `python -c "from search.agents.conjecturer import SkepticPersona; ..."`
-Note: Skeptic's CNF asks if a circuit EXISTS (adversarial), not that none exists.
-
-Each produces: `{lean_stub, cnf_spec, proof_sketch, barrier_risk}` or `{cnf_spec}` for Skeptic.
-
-## Step 3: Mine (invoke oracle-agent-miner rule)
-
-Read `.cursor/rules/oracle-agent-miner.mdc`. Follow it exactly.
-
-Run Kissat on all 3 CNF specs. Use existing infrastructure:
-```bash
-python -m search.agents.miner --config infra/config/defaults.yaml --spec {cnf_spec_path}
 ```
-Or invoke the supervisor with the 3 specs in sequence.
+Task tool call:
+  subagent_type: generalPurpose
+  description: "ORACLE Planner - iteration {k}"
+  prompt: |
+    You are the Planner subagent in the ORACLE mathematical research loop.
 
-Collect 3x `MinerResult`. Log to `search/logs/miner_results.jsonl`.
+    First, read this rule file in full:
+      .cursor/rules/oracle-agent-planner.mdc
 
-## Step 4: Aggregate (first Reflector pass)
+    Your inputs for this iteration:
+      ResearchContext: {paste ResearchContext JSON here}
+      Prior ReflectionSummary: {paste last entry from oracle_reflections.jsonl, or "none"}
+      GuardrailEngine next_action: {paste last guardrail decision action, or "fresh start"}
 
-Read `.cursor/rules/oracle-agent-reflector.mdc`, section "First Invocation: Post-Miner".
+    Execute your role exactly as the rule specifies.
 
-**If Skeptic returned SAT**: write to `search/logs/counterexamples.jsonl`, skip to Step 7
-with decision=INVALIDATE.
+    Return ONLY a JSON block with this structure:
+    {
+      "iteration": <k>,
+      "hypothesis": "<falsifiable statement>",
+      "decomposed_tasks": [...],
+      "success_criteria": {...},
+      "fallback_strategy": "<string>",
+      "persona_assignments": {
+        "algebraist": "<specific task>",
+        "geometer": "<specific task>",
+        "skeptic": "<specific task>"
+      },
+      "parameter_range": {"n_min": <int>, "n_max": <int>, "seed": <int>, "circuit_class": "<string>"}
+    }
 
-**If all UNSAT**: rank by composite score, select winner for Formalizer.
-
-## Step 5: Formalize (invoke oracle-agent-formalizer rule)
-
-Read `.cursor/rules/oracle-agent-formalizer.mdc`. Follow it exactly.
-
-Run:
-```bash
-python -m search.agents.formalizer --lrat-hash {hash} --hypothesis "{hypothesis}"
-lake build {lean_file}
+    Write the JSON to search/logs/oracle_planner.jsonl as a new line.
 ```
 
-Produce `FormalResult`. If sorry present after 3 LLM attempts, mark `llm_attempts=3`.
+Collect the `IterationPlan` JSON from the subagent's output before proceeding.
 
-## Step 6: Critique (invoke oracle-agent-critic rule)
+---
 
-Read `.cursor/rules/oracle-agent-critic.mdc`. Follow it exactly.
+## Step 2: Conjecture Generation (3 parallel subagents)
 
-Pass ALL 3 ConjectureOutputs (not just the winner) to the Critic.
-Run existing critic agent:
-```bash
-python -m search.agents.critic --proofs {all_three_lean_stubs} --report
+Spawn ALL THREE in the SAME message (parallel dispatch — one message, three Task calls).
+Each prompt is self-contained and receives the IterationPlan from Step 1.
+
+### Task call A — Algebraist
+```
+  subagent_type: generalPurpose
+  description: "ORACLE Algebraist - iteration {k}"
+  prompt: |
+    You are the Algebraist subagent in the ORACLE mathematical research loop.
+
+    First, read this rule file in full:
+      .cursor/rules/oracle-agent-algebraist.mdc
+
+    Your IterationPlan for this iteration:
+      {paste full IterationPlan JSON from Step 1}
+
+    Your specific task: {paste IterationPlan.persona_assignments.algebraist}
+
+    Execute your role exactly as the rule specifies. Use Ollama local model
+    mathstral:7b via: ollama run mathstral:7b
+
+    Return ONLY a JSON block:
+    {
+      "persona": "algebraist",
+      "lean_stub": "<full Lean 4 theorem text>",
+      "cnf_spec": {...},
+      "proof_sketch": "<natural language>",
+      "barrier_risk": "algebraization|safe|unknown",
+      "technique_used": "<string>"
+    }
+
+    Write the CNF spec to search/specs/ and the lean stub to
+    theory/Conjectures/ using the naming convention in the rule.
 ```
 
-Produce `CriticReport` with barrier profiles for all 3 approaches.
+### Task call B — Geometer
+```
+  subagent_type: generalPurpose
+  description: "ORACLE Geometer - iteration {k}"
+  prompt: |
+    You are the Geometer subagent in the ORACLE mathematical research loop.
 
-## Step 7: Reflect (second Reflector pass)
+    First, read this rule file in full:
+      .cursor/rules/oracle-agent-geometer.mdc
 
-Read `.cursor/rules/oracle-agent-reflector.mdc`, section "Second Invocation: Post-Critic".
+    Your IterationPlan for this iteration:
+      {paste full IterationPlan JSON from Step 1}
 
-Build `ReflectionSummary`. Compute `progress_delta` vs. prior JSONL entry.
-Write to `search/logs/oracle_reflections.jsonl`.
+    Your specific task: {paste IterationPlan.persona_assignments.geometer}
 
-## Step 8: Guardrail Decision
+    Execute your role exactly as the rule specifies. Use Ollama local model
+    mathstral:7b via: ollama run mathstral:7b
 
-Read `.cursor/rules/oracle-agent-guardrail.mdc`. Follow decision table exactly.
+    Return ONLY a JSON block:
+    {
+      "persona": "geometer",
+      "lean_stub": "<full Lean 4 theorem text>",
+      "cnf_spec": {...},
+      "proof_sketch": "<natural language>",
+      "natural_proof_risk": "high|low|unknown",
+      "key_object": "<combinatorial object>",
+      "technique_used": "<string>"
+    }
 
-Write decision to `search/logs/guardrail_decisions.jsonl`.
+    Write the CNF spec to search/specs/ and the lean stub to
+    theory/Conjectures/ using the naming convention in the rule.
+```
 
-Then execute the decision:
+### Task call C — Skeptic
+```
+  subagent_type: generalPurpose
+  description: "ORACLE Skeptic - iteration {k}"
+  prompt: |
+    You are the Skeptic subagent in the ORACLE mathematical research loop.
 
-### PUBLISH
+    First, read this rule file in full:
+      .cursor/rules/oracle-agent-skeptic.mdc
+
+    Your IterationPlan for this iteration:
+      {paste full IterationPlan JSON from Step 1}
+
+    Your specific task: {paste IterationPlan.persona_assignments.skeptic}
+
+    Execute your role exactly as the rule specifies. Use Ollama local model
+    deepseek-r1:1.5b via: ollama run deepseek-r1:1.5b
+
+    You are adversarial. Generate a CNF spec that asks whether a circuit
+    of size SMALLER than the claimed lower bound EXISTS (not that none exists).
+    This is the complement of what the other personas generate.
+
+    Return ONLY a JSON block:
+    {
+      "persona": "skeptic",
+      "cnf_spec": {...},
+      "circuit_size_tested": <int>,
+      "outcome": "pending"
+    }
+
+    Write the CNF spec to search/specs/ using the naming convention in the rule.
+```
+
+Wait for all three to complete before proceeding.
+
+---
+
+## Step 3: Miner (spawn shell subagent)
+
+Spawn a `shell` subagent to run Kissat on all three CNF specs.
+
+```
+Task tool call:
+  subagent_type: shell
+  description: "ORACLE Miner - run Kissat on 3 specs"
+  prompt: |
+    Run Kissat on the following three CNF spec files produced in this iteration.
+    For each, use the existing infrastructure:
+
+    1. cd /Users/nmm/Development/SATurday
+    2. For each spec file path below, run:
+         python -m search.agents.miner \
+           --config infra/config/defaults.yaml \
+           --spec {spec_file_path}
+    
+    Spec files (from Step 2 outputs):
+      - Algebraist spec: {cnf_spec path from algebraist output}
+      - Geometer spec:   {cnf_spec path from geometer output}
+      - Skeptic spec:    {cnf_spec path from skeptic output}
+
+    For each run, capture:
+      - outcome: UNSAT | SAT | TIMEOUT | ERROR
+      - lrat_hash (if UNSAT)
+      - sat_assignment (if SAT — this is a counterexample)
+      - solve_time_s
+      - cnf_vars, cnf_clauses
+
+    Append all three results as JSON lines to search/logs/miner_results.jsonl.
+
+    Return a JSON array of three MinerResult objects.
+```
+
+---
+
+## Step 4: Aggregate (orchestrating agent — no subagent)
+
+Evaluate the three MinerResults yourself:
+
+- If Skeptic's result is SAT: write the witness to `search/logs/counterexamples.jsonl`,
+  set decision = INVALIDATE, skip Steps 5 and 6, go directly to Step 8.
+- If all UNSAT or TIMEOUT: rank by `(1/solve_time_s)*0.4 + (clauses/vars)*0.3`.
+  Select the highest-scoring UNSAT result as the winner for formalization.
+
+---
+
+## Step 5: Formalizer (spawn subagent)
+
+Spawn a `generalPurpose` subagent with the winning MinerResult.
+
+```
+Task tool call:
+  subagent_type: generalPurpose
+  description: "ORACLE Formalizer - iteration {k}"
+  prompt: |
+    You are the Formalizer subagent in the ORACLE mathematical research loop.
+
+    First, read this rule file in full:
+      .cursor/rules/oracle-agent-formalizer.mdc
+
+    Winning MinerResult:
+      {paste winning MinerResult JSON}
+
+    Conjecture output that produced this result:
+      {paste winning ConjectureOutput JSON — algebraist or geometer}
+
+    Execute your role exactly as the rule specifies:
+    1. Generate a Lean 4 theorem embedding the LRAT hash
+    2. Run: lake build <theorem_file>
+    3. If sorry present, attempt close_sorry_with_llm up to 3 times
+       using: python -m search.agents.formalizer --close-sorry <file>
+    4. Run lake build after each attempt
+
+    Return ONLY a JSON block:
+    {
+      "lean_file": "<path>",
+      "compiled": <bool>,
+      "has_sorry": <bool>,
+      "sorry_count": <int>,
+      "axioms_used": [...],
+      "lrat_hash": "<hash>",
+      "llm_attempts": <int>
+    }
+```
+
+---
+
+## Step 6: Critic (spawn subagent)
+
+Spawn a `generalPurpose` subagent. Pass ALL three conjecture outputs, not just the winner.
+
+```
+Task tool call:
+  subagent_type: generalPurpose
+  description: "ORACLE Critic - iteration {k}"
+  prompt: |
+    You are the Critic subagent in the ORACLE mathematical research loop.
+
+    First, read this rule file in full:
+      .cursor/rules/oracle-agent-critic.mdc
+
+    All three conjecture outputs from this iteration:
+      Algebraist: {paste algebraist ConjectureOutput JSON}
+      Geometer:   {paste geometer ConjectureOutput JSON}
+      Skeptic:    {paste skeptic SkepticOutput JSON}
+
+    Formalization result:
+      {paste FormalResult JSON from Step 5}
+
+    Execute your role exactly as the rule specifies:
+    - Score all 3 approaches for relativization, natural proofs, algebraization
+    - Run V13 feedback loop if any approach is relativizing
+    - Assign overall_grade
+
+    Return ONLY a JSON block:
+    {
+      "all_barrier_profiles": [...],
+      "winner_barrier_profile": {...},
+      "best_barrier_approach": "algebraist|geometer|skeptic",
+      "overall_grade": "EXCELLENT|GOOD|MODERATE|CAUTION|BLOCKED",
+      "v13_proposals": [...],
+      "recommendations": [...],
+      "block_detected": <bool>
+    }
+```
+
+---
+
+## Step 7: Reflect (orchestrating agent — no subagent)
+
+Build the ReflectionSummary yourself from all collected outputs:
+
+```json
+{
+  "iteration": <k>,
+  "hypothesis_tested": "<from IterationPlan>",
+  "algebraist_outcome": "<UNSAT in Xs | TIMEOUT | skipped>",
+  "geometer_outcome": "<UNSAT in Xs | TIMEOUT | skipped>",
+  "skeptic_outcome": "<no witness | SAT witness: N gates>",
+  "formalization_status": "<compiled | sorry(N) | failed | skipped>",
+  "barrier_grade": "<from CriticReport.overall_grade>",
+  "best_barrier_approach": "<from CriticReport>",
+  "progress_delta": "<POSITIVE | NEUTRAL | NEGATIVE vs prior entry>",
+  "open_questions": [...]
+}
+```
+
+Compare to prior entry in `search/logs/oracle_reflections.jsonl` to compute
+`progress_delta`. Append the ReflectionSummary as a new line to that file.
+
+---
+
+## Step 8: Guardrail Decision (orchestrating agent — no subagent)
+
+Evaluate the decision table in order (first match wins). Maintain running counts
+across iterations in memory:
+
+| Condition | Decision |
+|---|---|
+| compiled=true AND has_sorry=false AND lrat valid AND grade in GOOD/EXCELLENT | PUBLISH |
+| skeptic_outcome contains "SAT witness" | INVALIDATE |
+| barrier_grade=BLOCKED for 3+ consecutive iterations | HITL_2 |
+| formalizer compiled=false for 3+ consecutive iterations | HITL_4 |
+| progress_delta=NEGATIVE for 5+ consecutive iterations | HITL_3 |
+| same technique 3+ consecutive iterations | SWITCH_STRATEGY |
+| iteration_count >= max_iterations (default 50) | HALT |
+| default | CONTINUE |
+
+Write decision + full ReflectionSummary to `search/logs/guardrail_decisions.jsonl`.
+
+Then execute:
+
+**PUBLISH**
 ```bash
-# Update proofs/index.json with new artifact
 python search/tools/inspect_artifacts.py --register {lrat_hash}
-# Commit
 git add theory/Conjectures/ proofs/ search/logs/
 git commit -m "Verify: {theorem_name} n={n} lrat={lrat_hash[:8]}"
-# Update checklist
-# Check if all success_criteria met -> if yes, print summary and EXIT
-# If not, increment n and loop back to Step 1
 ```
+Check if all success_criteria met. If yes: print summary, exit. If no: increment n,
+loop back to Step 1.
 
-### CONTINUE
-Loop back to Step 1 with updated ResearchContext (inject ReflectionSummary).
+**CONTINUE** — loop back to Step 1 with updated ResearchContext.
 
-### INVALIDATE
-Reduce n by 1 (or restrict circuit class). Loop back to Step 1.
+**INVALIDATE** — reduce n by 1, loop back to Step 1.
 
-### SWITCH_STRATEGY
-Rotate bet (A->B->C->D->A). Loop back to Step 1.
+**SWITCH_STRATEGY** — rotate bet (A->B->C->D->A), loop back to Step 1.
 
-### HALT
+**HALT**
 ```bash
-# Write halt report
-python search/reporting/md_reporter.py --halt --output docs/reports/halt_report_{timestamp}.md
+python search/reporting/md_reporter.py --halt \
+  --output docs/reports/halt_report_{timestamp}.md
 git add docs/reports/ search/logs/
 git commit -m "HALT: oracle loop exhausted after {k} iterations"
 ```
-Print summary. Exit.
 
-### HITL_1 through HITL_4
-Print the specific prompt from the Guardrail rule (verbatim, do not paraphrase).
-Wait for human input. Log response to `search/logs/hitl_interventions.jsonl`.
-Inject response at the appropriate phase and continue loop.
+**HITL_1 through HITL_4** — print the verbatim prompt from the relevant guardrail
+rule. Wait for human text input. Log to `search/logs/hitl_interventions.jsonl`.
+Inject into the appropriate step and continue.
+
+---
 
 ## Loop Invariants (check every iteration)
 
-- [ ] Every Kissat run used a fixed seed from IterationPlan.parameter_range.seed
-- [ ] Every LRAT hash was verified by the LRAT checker before being accepted
-- [ ] No cloud APIs were called (zero_cost_guard.py enforces this)
+- [ ] Kissat runs used fixed seed from IterationPlan.parameter_range.seed
+- [ ] Every LRAT hash verified by LRAT checker before accepting
+- [ ] No cloud APIs called (zero_cost_guard.py enforces this)
 - [ ] All LLM calls used Ollama local models only
-- [ ] ReflectionSummary was written to JSONL before GuardrailEngine ran
-- [ ] GuardrailEngine decision was written to JSONL before acting on it
+- [ ] ReflectionSummary written to JSONL before Guardrail evaluated
+- [ ] Guardrail decision written to JSONL before acting on it
+
+---
 
 ## Persona Rule Reference
 
-| Phase | Subagent | Rule File |
-|---|---|---|
-| 1 | Planner | `.cursor/rules/oracle-agent-planner.mdc` |
-| 2a | Algebraist | `.cursor/rules/oracle-agent-algebraist.mdc` |
-| 2b | Geometer | `.cursor/rules/oracle-agent-geometer.mdc` |
-| 2c | Skeptic | `.cursor/rules/oracle-agent-skeptic.mdc` |
-| 3 | Miner | `.cursor/rules/oracle-agent-miner.mdc` |
-| 4,7 | Reflector | `.cursor/rules/oracle-agent-reflector.mdc` |
-| 5 | Formalizer | `.cursor/rules/oracle-agent-formalizer.mdc` |
-| 6 | Critic | `.cursor/rules/oracle-agent-critic.mdc` |
-| 8 | Guardrail | `.cursor/rules/oracle-agent-guardrail.mdc` |
+| Phase | Subagent | Rule File | Spawned via |
+|---|---|---|---|
+| 1 | Planner | `.cursor/rules/oracle-agent-planner.mdc` | Task generalPurpose |
+| 2a | Algebraist | `.cursor/rules/oracle-agent-algebraist.mdc` | Task generalPurpose (parallel) |
+| 2b | Geometer | `.cursor/rules/oracle-agent-geometer.mdc` | Task generalPurpose (parallel) |
+| 2c | Skeptic | `.cursor/rules/oracle-agent-skeptic.mdc` | Task generalPurpose (parallel) |
+| 3 | Miner | `.cursor/rules/oracle-agent-miner.mdc` | Task shell |
+| 4 | Reflector pass 1 | `.cursor/rules/oracle-agent-reflector.mdc` | orchestrating agent |
+| 5 | Formalizer | `.cursor/rules/oracle-agent-formalizer.mdc` | Task generalPurpose |
+| 6 | Critic | `.cursor/rules/oracle-agent-critic.mdc` | Task generalPurpose |
+| 7 | Reflector pass 2 | `.cursor/rules/oracle-agent-reflector.mdc` | orchestrating agent |
+| 8 | Guardrail | `.cursor/rules/oracle-agent-guardrail.mdc` | orchestrating agent |
+
+---
 
 ## Adapting to a Different Math Problem
 
 Replace the memory bank files with those for the new project.
-The loop structure, persona roles, guardrail conditions, and HITL triggers
-are all project-agnostic. The only project-specific coupling is:
+The only project-specific coupling is:
 - `problem_statement` (from projectbrief.md)
-- `oracle_type` (Kissat for SAT problems; swap for SMT/Groebner/other for different domains)
-- `formal_verifier` (Lean 4 here; swap for Coq/Isabelle for other projects)
+- `oracle_type` (Kissat for SAT; swap for SMT/Groebner/other domains)
+- `formal_verifier` (Lean 4 here; swap for Coq/Isabelle)
