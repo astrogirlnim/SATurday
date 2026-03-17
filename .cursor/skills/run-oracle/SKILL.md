@@ -8,6 +8,105 @@ description: Runs the ORACLE multi-agent mathematical research loop. Coordinates
 Works for any formal math research project. Reads project context at startup.
 Runs until a goal is reached, a HALT condition fires, or a human is needed.
 
+## Flow Overview
+
+```mermaid
+flowchart TD
+    START([Run Oracle]) --> S0
+
+    subgraph S0 ["Step 0: Load Context"]
+        CTX["Read memory_bank/ + docs/\n.cursor/rules/ + proofs/index.json\noracle_reflections.jsonl"]
+        CTX --> DL{Deadlock?}
+        DL -- yes --> H1[/"HITL_1\nAsk: new direction"/]
+        H1 --> CTX
+        DL -- no --> S1
+    end
+
+    subgraph S1 ["Step 1: Plan"]
+        PLAN["Planner\noracle-agent-planner.mdc\nProduces IterationPlan\nhypothesis + 3 persona tasks"]
+    end
+
+    S1 --> S2
+
+    subgraph S2 ["Step 2: Conjecture — parallel"]
+        ALG["Algebraist\nmathstral:7b\nPolynomial framing"]
+        GEO["Geometer\nmathstral:7b\nCombinatorial framing"]
+        SKP["Skeptic\ndeepseek-r1:1.5b\nAdversarial — find SAT"]
+    end
+
+    S2 --> S3
+
+    subgraph S3 ["Step 3: Mine — parallel Kissat"]
+        MINE["Miner\noracle-agent-miner.mdc\nKissat + LRAT + SHA256\n3x MinerResult"]
+    end
+
+    S3 --> S4
+
+    subgraph S4 ["Step 4: Aggregate (Reflector pass 1)"]
+        R1{"SAT witness\nfrom Skeptic?"}
+        R1 -- yes --> INVAL["INVALIDATE\nlog counterexamples.jsonl\nskip formalize"]
+        R1 -- no --> SEL["Rank UNSAT results\nselect winner"]
+    end
+
+    SEL --> S5
+
+    subgraph S5 ["Step 5: Formalize"]
+        FORM["Formalizer\noracle-agent-formalizer.mdc\nlake build + sorry-closure\nup to 3 LLM attempts"]
+    end
+
+    S5 --> S6
+
+    subgraph S6 ["Step 6: Critique"]
+        CRIT["Critic\noracle-agent-critic.mdc\n3x barrier profiles\nV13 feedback loop"]
+    end
+
+    S6 --> S7
+
+    subgraph S7 ["Step 7: Reflect (Reflector pass 2)"]
+        REF["Reflector\nBuild ReflectionSummary\ncompute progress_delta\nwrite oracle_reflections.jsonl"]
+    end
+
+    INVAL --> S8
+    S7 --> S8
+
+    subgraph S8 ["Step 8: Guardrail Decision"]
+        G["Guardrail Engine\noracle-agent-guardrail.mdc\nwrite guardrail_decisions.jsonl"]
+    end
+
+    G -- "compiled + no sorry\n+ lrat valid + grade GOOD" --> PUB["PUBLISH\nupdate proofs/index.json\ngit commit"]
+    G -- "CONTINUE" --> S1
+    G -- "INVALIDATE" --> LESS["Reduce n\nor restrict class"] --> S1
+    G -- "SWITCH_STRATEGY\nsame technique x3" --> ROT["Rotate bet\nA->B->C->D"] --> S1
+    G -- "BLOCKED x3 iters" --> H2[/"HITL_2\nAll paths relativizing\nAsk: non-relativizing technique"/]
+    G -- "no progress x5 iters" --> H3[/"HITL_3\nAsk: increase n, switch bet,\nor provide lemma"/]
+    G -- "formalizer failed x3" --> H4[/"HITL_4\nAsk: Lean proof strategy"/]
+    G -- "k >= max_iterations" --> HALT([Exit 2: HALT])
+
+    H2 --> S1
+    H3 --> S1
+    H4 --> S5
+
+    PUB --> GOAL{All success\ncriteria met?}
+    GOAL -- yes --> DONE([Exit 0: Goal reached])
+    GOAL -- no --> HARDER["Increment n"] --> S1
+
+    style ALG fill:#d4e6f1,stroke:#2980b9
+    style GEO fill:#d5f5e3,stroke:#27ae60
+    style SKP fill:#fde8d8,stroke:#e67e22
+    style MINE fill:#f4f6f7,stroke:#7f8c8d
+    style FORM fill:#eaf0fb,stroke:#5d6d7e
+    style CRIT fill:#fdf2f8,stroke:#8e44ad
+    style PLAN fill:#fef9e7,stroke:#f39c12
+    style G fill:#f2f3f4,stroke:#2c3e50,stroke-width:2px
+    style H1 fill:#fdedec,stroke:#c0392b,stroke-width:2px
+    style H2 fill:#fdedec,stroke:#c0392b,stroke-width:2px
+    style H3 fill:#fdedec,stroke:#c0392b,stroke-width:2px
+    style H4 fill:#fdedec,stroke:#c0392b,stroke-width:2px
+    style DONE fill:#d5f5e3,stroke:#1e8449,stroke-width:2px
+    style HALT fill:#fadbd8,stroke:#922b21,stroke-width:2px
+    style PUB fill:#d5f5e3,stroke:#27ae60
+```
+
 ## Step 0: Load Context (always first)
 
 Read these files before anything else:
