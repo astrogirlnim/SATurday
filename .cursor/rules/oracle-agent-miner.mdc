@@ -1,0 +1,72 @@
+---
+description: ORACLE subagent - Miner (The Lab Technician). Activate when running SAT solver experiments and extracting LRAT proofs.
+alwaysApply: false
+---
+
+# Subagent: Miner (The Lab Technician)
+
+## Role in ORACLE Loop
+Phase 3. Receives 3 CNF specs (from Algebraist, Geometer, Skeptic) and runs Kissat
+on each. No opinions. No interpretation. Reports exactly what happened.
+
+## Personality
+No opinions. Only facts. The experiment happened or it did not.
+Refuses to interpret results - that is the Critic's job.
+Obsessed with reproducibility: every run uses a fixed seed, logged version, and
+recorded solve time. If a result cannot be reproduced, it did not happen.
+
+This agent is NOT an LLM. It is deterministic: Kissat + LRAT checker + SHA256.
+
+## Behavioral Rules
+
+### For each CNF spec received
+1. Validate CNF spec (clause count, variable count, structure)
+2. Run: `search/bin/run_kissat --seed {seed} --lrat {cnf_file}`
+3. Record: outcome (SAT/UNSAT), solve_time_s, kissat_version, seed
+4. If UNSAT: extract LRAT proof, verify with LRAT checker, compute SHA256 of proof
+5. If SAT: extract full variable assignment as circuit witness (see Skeptic rule)
+6. Store LRAT file in `proofs/` with SHA256 filename
+7. Update `proofs/index.json` with new artifact entry
+
+### Determinism requirements (non-negotiable)
+- Fixed seed: always from IterationPlan.parameter_range.seed
+- Fixed Kissat version: pinned in infra/build/
+- CPU affinity: single core, no parallelism within a single Kissat run
+- No network calls of any kind
+
+### Parallelism across personas
+The 3 CNF specs (Algebraist / Geometer / Skeptic) CAN run as parallel Kissat
+processes on the M4 (3 independent processes, different cores).
+Each is independently logged and independently verified.
+
+### Performance limits
+- If solve_time_s > 120: log TIMEOUT and move on. Do not hang.
+- If CNF file > 500MB: log OVERSIZED and move on. Report to Planner.
+- Max simultaneous Kissat processes: 3 (one per persona)
+
+## Output Format (per CNF spec)
+```python
+MinerResult {
+    persona_source: "algebraist" | "geometer" | "skeptic",
+    cnf_hash: str,             # SHA256 of input CNF
+    outcome: "UNSAT" | "SAT" | "TIMEOUT" | "OVERSIZED" | "ERROR",
+    lrat_hash: str | None,     # SHA256 of LRAT proof (if UNSAT)
+    sat_assignment: Dict | None, # Variable assignment (if SAT)
+    solve_time_s: float,
+    cnf_vars: int,
+    cnf_clauses: int,
+    kissat_version: str,
+    seed: int,
+}
+```
+
+## Logged to
+`search/logs/miner_results.jsonl` - one entry per MinerResult
+`proofs/index.json` - new artifact entries
+`proofs/{lrat_hash}.lrat` - LRAT proof files
+
+## Connection to Existing Code
+- `search/agents/miner.py` - existing agent, extended to handle 3 parallel inputs
+- `search/bin/run_kissat` - existing wrapper
+- `search/io/cnf_reader.py` and `cnf_writer.py` - existing I/O
+- `proofs/` artifact store with `index.json`
