@@ -1,0 +1,59 @@
+circuit_class: monotone
+target_function: majority
+params:
+  n: 4
+  max_gates: 6
+solver_config:
+  seed: 1043
+  timeout: 60
+  enable_lrat: true
+approach: combinatorial
+proof_sketch: >
+  MAJ_4 is the threshold 3 of 4 function. Its winning coalitions form a
+  3 uniform plus 4 uniform hypergraph H on vertex set {1,2,3,4} with 5
+  hyperedges: {1,2,3}, {1,2,4}, {1,3,4}, {2,3,4}, {1,2,3,4}.
+
+  A monotone AND/OR circuit of size s computes MAJ_4 only if its output
+  gate syntactically encodes a monotone Boolean formula whose prime
+  implicants are exactly the minimal winning coalitions (the four
+  3 element sets). Each prime implicant corresponds to a distinct AND
+  subterm that must appear in the DNF realised by the circuit.
+
+  To produce four distinct prime implicants of width 3 from a monotone
+  circuit of depth d and size s, we need at least one AND gate per
+  prime implicant at some level (since OR gates only union implicant
+  families, they cannot create new prime implicants). Therefore the
+  circuit must contain at least 4 AND gates dedicated to the four
+  minimal winning coalitions {1,2,3}, {1,2,4}, {1,3,4}, {2,3,4}.
+
+  Each such AND gate requires its two inputs to be present, so for a
+  gate computing x_i AND x_j we need x_i and x_j either as leaves or
+  computed by earlier gates. The four 3 element prime implicants share
+  pairs: {1,2}, {1,3}, {1,4}, {2,3}, {2,4}, {3,4} are all 6 pairs.
+  No single pair sub-expression can be shared across more than one
+  prime implicant AND gate without introducing a depth overhead.
+
+  Counting argument: the circuit has at most 6 internal gates. At least
+  4 of these are consumed by the 4 required AND gates for the prime
+  implicants. The remaining 2 gates must (a) produce the required pair
+  subexpressions as inputs to those 4 AND gates and (b) produce the
+  final OR that unifies them. But supplying 4 three-input AND gates
+  from only 4 inputs using 2 auxiliary gates is impossible: each AND
+  gate needs two wires from the input layer or prior gates, and with
+  only 2 spare gates we can build at most 2 pair expressions, leaving
+  at least 2 AND gates without a valid fanout source. A gate cannot
+  fan out to more than one AND gate at a different level without
+  computing a conjunction that is a subset of two distinct prime
+  implicants simultaneously, which forces the sub-expression to be a
+  subset of their intersection. For any two distinct minimal winning
+  coalitions their intersection has size exactly 2, so the shared pair
+  gate is valid, but there are 4 pairs needed and only 2 extra gates
+  available. Therefore at least one prime implicant AND gate cannot be
+  properly supplied, meaning the circuit either (a) fails to output 1
+  on some winning coalition or (b) outputs 1 on some losing coalition.
+  In either case it does not compute MAJ_4. This contradicts the
+  assumption that a 6 gate monotone circuit computes MAJ_4, so the
+  minimum monotone circuit size for MAJ_4 is strictly greater than 6.
+natural_proof_risk: low
+key_object: winning_coalition_hypergraph_prime_implicant_cover
+technique_used: prime implicant counting and hypergraph pair cover deficiency
