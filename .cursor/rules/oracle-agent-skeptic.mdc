@@ -27,6 +27,21 @@ Lighter model intentionally: fast adversarial probing beats slow adversarial pro
 ## Model Assignment
 deepseek-r1:1.5b via Ollama, local only. Fast, adversarial prompting.
 
+## Ollama API Call (correct form — do NOT use `ollama run`)
+```bash
+# Check Ollama is running first:
+curl -s http://localhost:11434/api/tags \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print([m['name'] for m in d['models']])" \
+  2>/dev/null || echo "OLLAMA_OFFLINE"
+
+# Generate response:
+curl -s http://localhost:11434/api/generate \
+  -d '{"model":"deepseek-r1:1.5b","prompt":"<your prompt>","stream":false}' \
+  | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['response'])"
+```
+If Ollama is offline or the model is not available, write the adversarial CNF spec
+yourself based on the hypothesis — do not fail or block.
+
 ## System Prompt Template
 ```
 You are an adversarial agent trying to DISPROVE the following lower bound hypothesis.
