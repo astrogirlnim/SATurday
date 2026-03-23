@@ -21,18 +21,42 @@ This agent is NOT an LLM. It is deterministic: Kissat + LRAT checker + SHA256.
 
 ### For each CNF spec received
 1. Validate CNF spec (clause count, variable count, structure)
-2. Run: `search/bin/run_kissat --seed {seed} --lrat {cnf_file}`
-3. Record: outcome (SAT/UNSAT), solve_time_s, kissat_version, seed
-4. If UNSAT: extract LRAT proof, verify with LRAT checker, compute SHA256 of proof
-5. If SAT: extract full variable assignment as circuit witness (see Skeptic rule)
-6. Store LRAT file in `proofs/` with SHA256 filename
-7. Update `proofs/index.json` with new artifact entry
+2. Generate CNF via CircuitSynthesisEncoder (NOT run_kissat — that wrapper has CLI
+   issues). Use this exact Python pattern:
+   ```python
+   from search.circuits.synthesis import CircuitSynthesisEncoder
+   from pathlib import Path
+   encoder = CircuitSynthesisEncoder()
+   cnf = encoder.encode_synthesis(
+       n_inputs=n, max_gates=max_gates, circuit_class='monotone',
+       truth_table=tt, encoding_mode='explicit'
+   )
+   cnf_path = Path('search/specs/{persona}_iter_{n}_{max_gates}_s{seed}.cnf')
+   with open(cnf_path, 'w') as f:
+       f.write(f'p cnf {cnf.num_vars} {len(cnf.clauses)}\n')
+       for clause in cnf.clauses:
+           f.write(' '.join(map(str, clause)) + ' 0\n')
+   ```
+   CRITICAL: Always pass a `Path` object when writing CNF files. Passing a `str`
+   to `CNFWriter.write()` raises `AttributeError: 'str' object has no attribute 'parent'`.
+   Write directly via `open(Path(...), 'w')` as shown above.
+3. Run Kissat directly (proof is the second positional arg, not a flag):
+   ```bash
+   infra/build/kissat <cnf_path> <lrat_path> --seed=<seed>
+   ```
+   Exit code 20 = UNSAT. Exit code 10 = SAT. Anything else = ERROR.
+4. Record: outcome (SAT/UNSAT), solve_time_s, seed
+5. If UNSAT: compute SHA256 of the .lrat file via `hashlib.sha256(open(lrat_path,'rb').read()).hexdigest()`
+6. If SAT: extract full variable assignment as circuit witness (see Skeptic rule)
+7. Append MinerResult to `search/logs/miner_results.jsonl`
 
 ### Determinism requirements (non-negotiable)
-- Fixed seed: always from IterationPlan.parameter_range.seed
+- Fixed seed: always from IterationPlan.parameter_range.seed (passed as `--seed=N`)
 - Fixed Kissat version: pinned in infra/build/
 - CPU affinity: single core, no parallelism within a single Kissat run
 - No network calls of any kind
+- The Miner step runs via Shell tool directly in the orchestrating agent — not via
+  a shell subagent (shell subagent lacks the Read tool and cannot introspect APIs)
 
 ### Parallelism across personas
 The 3 CNF specs (Algebraist / Geometer / Skeptic) CAN run as parallel Kissat

@@ -12,6 +12,11 @@ Each step below that says "Spawn subagent" requires a REAL `Task` tool call — 
 reading a rule in your own context. Subagents have isolated context. Pass all
 necessary state explicitly in the prompt.
 
+**Shell tool note**: Use the `Shell` tool directly (not a shell subagent) for all
+file I/O, CNF generation, and Kissat invocations. The `shell` subagent type lacks
+the Read tool and cannot inspect files — it will fail on any step requiring file
+discovery or API introspection.
+
 ## Flow Overview
 
 ### Main Loop
@@ -67,20 +72,27 @@ flowchart LR
 
 ## Step 0: Load Context (orchestrating agent — no subagent)
 
-Read these files directly before spawning anything:
+Read these files directly using the Read tool before spawning anything:
 
-- `memory_bank/mmemory_bank_projectbrief.md`
-- `memory_bank/mmemory_bank_activeContext.md`
+- `memory_bank/mmemory_bank_activeContext.md` (primary — always present)
 - `memory_bank/mmemory_bank_progress.md`
 - `memory_bank/mmemory_bank_systemPatterns.md`
+- `memory_bank/memory_bank_projectbrief.md` (may be missing — fall back to activeContext)
 - `docs/brainlift/saturday-dev-checklist-v2.md`
 - `infra/config/defaults.yaml`
-- `search/logs/oracle_reflections.jsonl` (last entry if exists)
+- `search/logs/oracle_reflections.jsonl` (last entry if exists — use `tail -1` via Shell)
 - `search/logs/guardrail_decisions.jsonl` (last entry if exists)
 - `proofs/index.json`
 
-Construct `ResearchContext` in memory. If `oracle_reflections.jsonl` is empty,
-this is iteration 0.
+**Fallback rule**: If `memory_bank_projectbrief.md` is missing or empty, derive the
+`problem_statement` from `mmemory_bank_activeContext.md` — it contains the current
+research focus and bet descriptions.
+
+Construct `ResearchContext` in memory. If `oracle_reflections.jsonl` is empty or
+missing, this is iteration 0.
+
+**Disk check** (run via Shell before starting): `df -h . | tail -1` — if free space
+is under 5GB, log a warning and skip CNF sizes above n=8 this iteration.
 
 If all bets are blocked with no open conjectures: trigger HITL_1 now (print prompt,
 wait for human input) before continuing.
@@ -90,6 +102,12 @@ wait for human input) before continuing.
 ## Step 1: Planner (spawn subagent)
 
 Spawn a `generalPurpose` subagent. The prompt must be fully self-contained.
+
+Substitute the following fields from your ResearchContext before sending:
+- `{k}` — current iteration number (integer)
+- `{RESEARCH_CONTEXT_JSON}` — the full ResearchContext dict serialized as JSON
+- `{PRIOR_REFLECTION}` — last line of oracle_reflections.jsonl, or the string "none"
+- `{GUARDRAIL_ACTION}` — last line of guardrail_decisions.jsonl action field, or "fresh start"
 
 ```
 Task tool call:
@@ -102,28 +120,40 @@ Task tool call:
       .cursor/rules/oracle-agent-planner.mdc
 
     Your inputs for this iteration:
-      ResearchContext: {paste ResearchContext JSON here}
-      Prior ReflectionSummary: {paste last entry from oracle_reflections.jsonl, or "none"}
-      GuardrailEngine next_action: {paste last guardrail decision action, or "fresh start"}
+      ResearchContext: {RESEARCH_CONTEXT_JSON}
+      Prior ReflectionSummary: {PRIOR_REFLECTION}
+      GuardrailEngine next_action: {GUARDRAIL_ACTION}
 
     Execute your role exactly as the rule specifies.
 
-    Return ONLY a JSON block with this structure:
+    Return ONLY a JSON block with this exact structure (no other text):
     {
-      "iteration": <k>,
-      "hypothesis": "<falsifiable statement>",
-      "decomposed_tasks": [...],
-      "success_criteria": {...},
-      "fallback_strategy": "<string>",
-      "persona_assignments": {
-        "algebraist": "<specific task>",
-        "geometer": "<specific task>",
-        "skeptic": "<specific task>"
+      "iteration": {k},
+      "hypothesis": "<falsifiable statement — must name specific n and size bound>",
+      "decomposed_tasks": [
+        {"task_id": "T1", "persona": "<persona>", "description": "<specific task>", "expected_output": "<what to return>"}
+      ],
+      "success_criteria": {
+        "primary": "<what counts as primary success this iteration>",
+        "secondary": "<what counts as partial progress>"
       },
-      "parameter_range": {"n_min": <int>, "n_max": <int>, "seed": <int>, "circuit_class": "<string>"}
+      "fallback_strategy": "<what to do if primary approach fails — must name a different bet>",
+      "persona_assignments": {
+        "algebraist": "<specific algebraic task — must differ from geometer task>",
+        "geometer": "<specific combinatorial task — must differ from algebraist task>",
+        "skeptic": "<adversarial complement task — search for counterexample circuit>"
+      },
+      "parameter_range": {
+        "n_min": <int>,
+        "n_max": <int>,
+        "seed": <int>,
+        "circuit_class": "<monotone|ac0|formula>",
+        "skeptic_target_n": <int>,
+        "skeptic_target_size": <int>
+      }
     }
 
-    Write the JSON to search/logs/oracle_planner.jsonl as a new line.
+    Write the JSON to search/logs/oracle_planner.jsonl as a new appended line.
 ```
 
 Collect the `IterationPlan` JSON from the subagent's output before proceeding.
@@ -133,7 +163,28 @@ Collect the `IterationPlan` JSON from the subagent's output before proceeding.
 ## Step 2: Conjecture Generation (3 parallel subagents)
 
 Spawn ALL THREE in the SAME message (parallel dispatch — one message, three Task calls).
-Each prompt is self-contained and receives the IterationPlan from Step 1.
+Each prompt is fully self-contained.
+
+Before sending, substitute from IterationPlan:
+- `{k}` — iteration number
+- `{FULL_ITERATION_PLAN_JSON}` — complete IterationPlan JSON from Step 1
+- `{ALGEBRAIST_TASK}` — IterationPlan.persona_assignments.algebraist
+- `{GEOMETER_TASK}` — IterationPlan.persona_assignments.geometer
+- `{SKEPTIC_TASK}` — IterationPlan.persona_assignments.skeptic
+- `{N}` — IterationPlan.parameter_range.skeptic_target_n
+- `{SKEPTIC_SIZE}` — IterationPlan.parameter_range.skeptic_target_size
+- `{SEED_A}` — IterationPlan.parameter_range.seed
+- `{SEED_G}` — IterationPlan.parameter_range.seed + 1000
+- `{SEED_S}` — 9999
+
+**Ollama API note**: Subagents must call Ollama via the REST endpoint, not via
+`ollama run`. The correct form is:
+```bash
+curl -s http://localhost:11434/api/generate \
+  -d '{"model":"mathstral:7b","prompt":"<prompt>","stream":false}' \
+  | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['response'])"
+```
+Check Ollama is running first: `curl -s http://localhost:11434/api/tags | python3 -c "import sys,json; d=json.load(sys.stdin); print([m['name'] for m in d['models']])" 2>/dev/null || echo "OLLAMA_OFFLINE"`
 
 ### Task call A — Algebraist
 ```
@@ -146,25 +197,48 @@ Each prompt is self-contained and receives the IterationPlan from Step 1.
       .cursor/rules/oracle-agent-algebraist.mdc
 
     Your IterationPlan for this iteration:
-      {paste full IterationPlan JSON from Step 1}
+      {FULL_ITERATION_PLAN_JSON}
 
-    Your specific task: {paste IterationPlan.persona_assignments.algebraist}
+    Your specific task: {ALGEBRAIST_TASK}
 
-    Execute your role exactly as the rule specifies. Use Ollama local model
-    mathstral:7b via: ollama run mathstral:7b
+    If Ollama is available, call it via REST (not ollama run):
+      curl -s http://localhost:11434/api/generate \
+        -d '{"model":"mathstral:7b","prompt":"<your prompt>","stream":false}' \
+        | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['response'])"
+    If Ollama is offline, generate the content yourself using your own reasoning.
 
-    Return ONLY a JSON block:
+    Write the CNF spec YAML to:
+      search/specs/algebraist_iter{k}_{function}{n}.yaml
+    Write the Lean stub to:
+      theory/Conjectures/BetA/algebraist_iter{k}_{function}{n}.lean
+
+    CNF spec YAML format (exactly this schema — the Miner reads these fields):
+    ```yaml
+    circuit_class: monotone
+    target_function: parity
+    params:
+      n: <int>
+      max_gates: <int>
+    solver_config:
+      seed: {SEED_A}
+      timeout: 60
+      enable_lrat: true
+    approach: algebraic
+    proof_sketch: "<your algebraic argument — no hyphens>"
+    barrier_risk: "algebraization|safe|unknown"
+    technique_used: "<name of technique>"
+    ```
+
+    Return ONLY a JSON block (no other text):
     {
       "persona": "algebraist",
       "lean_stub": "<full Lean 4 theorem text>",
-      "cnf_spec": {...},
-      "proof_sketch": "<natural language>",
+      "cnf_spec_path": "search/specs/algebraist_iter{k}_{function}{n}.yaml",
+      "cnf_spec": {<dict matching YAML above>},
+      "proof_sketch": "<natural language — no hyphens>",
       "barrier_risk": "algebraization|safe|unknown",
       "technique_used": "<string>"
     }
-
-    Write the CNF spec to search/specs/ and the lean stub to
-    theory/Conjectures/ using the naming convention in the rule.
 ```
 
 ### Task call B — Geometer
@@ -178,26 +252,50 @@ Each prompt is self-contained and receives the IterationPlan from Step 1.
       .cursor/rules/oracle-agent-geometer.mdc
 
     Your IterationPlan for this iteration:
-      {paste full IterationPlan JSON from Step 1}
+      {FULL_ITERATION_PLAN_JSON}
 
-    Your specific task: {paste IterationPlan.persona_assignments.geometer}
+    Your specific task: {GEOMETER_TASK}
 
-    Execute your role exactly as the rule specifies. Use Ollama local model
-    mathstral:7b via: ollama run mathstral:7b
+    If Ollama is available, call it via REST (not ollama run):
+      curl -s http://localhost:11434/api/generate \
+        -d '{"model":"mathstral:7b","prompt":"<your prompt>","stream":false}' \
+        | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['response'])"
+    If Ollama is offline, generate the content yourself using your own reasoning.
 
-    Return ONLY a JSON block:
+    Write the CNF spec YAML to:
+      search/specs/geometer_iter{k}_{function}{n}.yaml
+    Write the Lean stub to:
+      theory/Conjectures/BetA/geometer_iter{k}_{function}{n}.lean
+
+    CNF spec YAML format (exactly this schema):
+    ```yaml
+    circuit_class: monotone
+    target_function: parity
+    params:
+      n: <int>
+      max_gates: <int>
+    solver_config:
+      seed: {SEED_G}
+      timeout: 60
+      enable_lrat: true
+    approach: combinatorial
+    proof_sketch: "<your combinatorial argument — no hyphens>"
+    natural_proof_risk: "high|low|unknown"
+    key_object: "<e.g. prime_implicant_set_system>"
+    technique_used: "<name of technique>"
+    ```
+
+    Return ONLY a JSON block (no other text):
     {
       "persona": "geometer",
       "lean_stub": "<full Lean 4 theorem text>",
-      "cnf_spec": {...},
-      "proof_sketch": "<natural language>",
+      "cnf_spec_path": "search/specs/geometer_iter{k}_{function}{n}.yaml",
+      "cnf_spec": {<dict matching YAML above>},
+      "proof_sketch": "<natural language — no hyphens>",
       "natural_proof_risk": "high|low|unknown",
       "key_object": "<combinatorial object>",
       "technique_used": "<string>"
     }
-
-    Write the CNF spec to search/specs/ and the lean stub to
-    theory/Conjectures/ using the naming convention in the rule.
 ```
 
 ### Task call C — Skeptic
@@ -211,83 +309,206 @@ Each prompt is self-contained and receives the IterationPlan from Step 1.
       .cursor/rules/oracle-agent-skeptic.mdc
 
     Your IterationPlan for this iteration:
-      {paste full IterationPlan JSON from Step 1}
+      {FULL_ITERATION_PLAN_JSON}
 
-    Your specific task: {paste IterationPlan.persona_assignments.skeptic}
+    Your specific task: {SKEPTIC_TASK}
 
-    Execute your role exactly as the rule specifies. Use Ollama local model
-    deepseek-r1:1.5b via: ollama run deepseek-r1:1.5b
+    If Ollama is available, call it via REST (not ollama run):
+      curl -s http://localhost:11434/api/generate \
+        -d '{"model":"deepseek-r1:1.5b","prompt":"<your prompt>","stream":false}' \
+        | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['response'])"
+    If Ollama is offline, generate the content yourself using your own reasoning.
 
-    You are adversarial. Generate a CNF spec that asks whether a circuit
-    of size SMALLER than the claimed lower bound EXISTS (not that none exists).
-    This is the complement of what the other personas generate.
+    You are adversarial. Generate a CNF spec that asks whether a circuit of size
+    SMALLER than the claimed lower bound EXISTS. This is the complement of what the
+    other personas generate. If SAT: hypothesis is falsified. If UNSAT: hypothesis survives.
 
-    Return ONLY a JSON block:
+    Write the CNF spec YAML to:
+      search/specs/skeptic_iter{k}_{function}{n}.yaml
+
+    CNF spec YAML format (exactly this schema):
+    ```yaml
+    circuit_class: monotone
+    target_function: parity
+    params:
+      n: {N}
+      max_gates: {SKEPTIC_SIZE}
+    solver_config:
+      seed: {SEED_S}
+      timeout: 60
+      enable_lrat: true
+    approach: adversarial_complement
+    proof_sketch: "Adversarial: searching for existence of size-{SKEPTIC_SIZE} monotone circuit for parity-{N}. SAT = counterexample found. UNSAT = hypothesis strengthened."
+    circuit_size_tested: {SKEPTIC_SIZE}
+    outcome: pending
+    ```
+
+    Return ONLY a JSON block (no other text):
     {
       "persona": "skeptic",
-      "cnf_spec": {...},
-      "circuit_size_tested": <int>,
+      "cnf_spec_path": "search/specs/skeptic_iter{k}_{function}{n}.yaml",
+      "cnf_spec": {<dict matching YAML above>},
+      "circuit_size_tested": {SKEPTIC_SIZE},
       "outcome": "pending"
     }
-
-    Write the CNF spec to search/specs/ using the naming convention in the rule.
 ```
 
 Wait for all three to complete before proceeding.
 
 ---
 
-## Step 3: Miner (spawn shell subagent)
+## Step 3: Miner (orchestrating agent — use Shell tool directly, NO subagent)
 
-Spawn a `shell` subagent to run Kissat on all three CNF specs.
+**Do not spawn a shell subagent here.** The shell subagent lacks the Read tool and
+cannot introspect files or discover APIs. Run this step yourself using the `Shell` tool.
 
+### 3a. Validate spec files exist
+```bash
+ls search/specs/algebraist_iter{k}_*.yaml search/specs/geometer_iter{k}_*.yaml search/specs/skeptic_iter{k}_*.yaml
 ```
-Task tool call:
-  subagent_type: shell
-  description: "ORACLE Miner - run Kissat on 3 specs"
-  prompt: |
-    Run Kissat on the following three CNF spec files produced in this iteration.
-    For each, use the existing infrastructure:
+If any file is missing, write an empty/placeholder result for that persona with
+`outcome: "ERROR"` and continue with the remaining files.
 
-    1. cd /Users/nmm/Development/SATurday
-    2. For each spec file path below, run:
-         python -m search.agents.miner \
-           --config infra/config/defaults.yaml \
-           --spec {spec_file_path}
-    
-    Spec files (from Step 2 outputs):
-      - Algebraist spec: {cnf_spec path from algebraist output}
-      - Geometer spec:   {cnf_spec path from geometer output}
-      - Skeptic spec:    {cnf_spec path from skeptic output}
+### 3b. Read n and max_gates from each spec
+Use the Read tool on each spec YAML. Extract `params.n` and `params.max_gates` for each.
 
-    For each run, capture:
-      - outcome: UNSAT | SAT | TIMEOUT | ERROR
-      - lrat_hash (if UNSAT)
-      - sat_assignment (if SAT — this is a counterexample)
-      - solve_time_s
-      - cnf_vars, cnf_clauses
+### 3c. Generate CNF and run Kissat for each persona
 
-    Append all three results as JSON lines to search/logs/miner_results.jsonl.
+Run the following Python snippet via Shell for each persona. Substitute:
+- `{N}` — params.n from spec
+- `{MAX_GATES}` — params.max_gates from spec
+- `{SEED}` — solver_config.seed from spec
+- `{PERSONA}` — algebraist | geometer | skeptic
 
-    Return a JSON array of three MinerResult objects.
+```bash
+cd /Users/nmm/Development/SATurday && python3 - <<'PYEOF'
+import sys, time, hashlib, subprocess, json, os
+from pathlib import Path
+sys.path.insert(0, '/Users/nmm/Development/SATurday')
+from search.circuits.synthesis import CircuitSynthesisEncoder
+
+n = {N}
+max_gates = {MAX_GATES}
+seed = {SEED}
+persona = "{PERSONA}"
+
+def parity(bits):
+    return sum(bits) % 2
+
+tt = [{'inputs': [(i >> j) & 1 for j in range(n)], 'output': parity([(i >> j) & 1 for j in range(n)])} for i in range(2**n)]
+
+print(f"[miner] Encoding n={n} max_gates={max_gates} seed={seed} persona={persona}")
+encoder = CircuitSynthesisEncoder()
+cnf = encoder.encode_synthesis(
+    n_inputs=n,
+    max_gates=max_gates,
+    circuit_class='monotone',
+    truth_table=tt,
+    encoding_mode='explicit'
+)
+print(f"[miner] CNF: {cnf.num_vars} vars, {len(cnf.clauses)} clauses")
+
+cnf_path = Path(f'search/specs/{persona}_iter_{n}_{max_gates}_s{seed}.cnf')
+with open(cnf_path, 'w') as f:
+    f.write(f'p cnf {cnf.num_vars} {len(cnf.clauses)}\n')
+    for clause in cnf.clauses:
+        f.write(' '.join(map(str, clause)) + ' 0\n')
+
+lrat_path = cnf_path.with_suffix('.lrat')
+kissat = Path('infra/build/kissat')
+t0 = time.time()
+result = subprocess.run(
+    [str(kissat), str(cnf_path), str(lrat_path), f'--seed={seed}'],
+    capture_output=True, text=True, timeout=120
+)
+elapsed = time.time() - t0
+exit_code = result.returncode
+
+if exit_code == 20:
+    outcome = 'UNSAT'
+    lrat_hash = None
+    if lrat_path.exists():
+        with open(lrat_path, 'rb') as f:
+            lrat_hash = hashlib.sha256(f.read()).hexdigest()
+        lrat_size = lrat_path.stat().st_size
+        print(f"[miner] UNSAT in {elapsed:.3f}s — LRAT hash={lrat_hash[:16]} size={lrat_size}b")
+    else:
+        print(f"[miner] UNSAT in {elapsed:.3f}s — no LRAT file produced")
+elif exit_code == 10:
+    outcome = 'SAT'
+    lrat_hash = None
+    print(f"[miner] SAT in {elapsed:.3f}s — COUNTEREXAMPLE FOUND")
+else:
+    outcome = 'ERROR'
+    lrat_hash = None
+    print(f"[miner] ERROR exit={exit_code} in {elapsed:.3f}s")
+
+miner_result = {
+    'iteration': {k},
+    'persona_source': persona,
+    'n': n,
+    'max_gates': max_gates,
+    'seed': seed,
+    'circuit_class': 'monotone',
+    'target_function': 'parity',
+    'outcome': outcome,
+    'lrat_hash': lrat_hash,
+    'solve_time_s': round(elapsed, 3),
+    'cnf_vars': cnf.num_vars,
+    'cnf_clauses': len(cnf.clauses),
+    'timestamp': time.time()
+}
+os.makedirs('search/logs', exist_ok=True)
+with open('search/logs/miner_results.jsonl', 'a') as f:
+    f.write(json.dumps(miner_result) + '\n')
+
+print(json.dumps(miner_result))
+PYEOF
+```
+
+Run this three times (once per persona, substituting {N}/{MAX_GATES}/{SEED}/{PERSONA}).
+Collect each MinerResult JSON.
+
+**Important**: `CNFWriter.write()` requires a `Path` object, not a `str`. Always
+write CNF files by opening the `Path` directly, as shown above, rather than calling
+`CNFWriter.write(cnf, "/some/path")`.
+
+### 3d. Disk usage check after Miner
+```bash
+df -h /Users/nmm/Development/SATurday | tail -1
+du -sh proofs/ search/logs/ search/specs/ 2>/dev/null || true
+```
+Log the output. If free space drops below 3GB, delete the three CNF files immediately:
+```bash
+rm -f search/specs/algebraist_iter{k}_*.cnf search/specs/geometer_iter{k}_*.cnf search/specs/skeptic_iter{k}_*.cnf
 ```
 
 ---
 
 ## Step 4: Aggregate (orchestrating agent — no subagent)
 
-Evaluate the three MinerResults yourself:
+Evaluate the three MinerResults collected from Step 3:
 
-- If Skeptic's result is SAT: write the witness to `search/logs/counterexamples.jsonl`,
-  set decision = INVALIDATE, skip Steps 5 and 6, go directly to Step 8.
-- If all UNSAT or TIMEOUT: rank by `(1/solve_time_s)*0.4 + (clauses/vars)*0.3`.
+- If Skeptic's result is `outcome: "SAT"`: write the witness to
+  `search/logs/counterexamples.jsonl`, set decision = INVALIDATE, skip Steps 5 and 6,
+  go directly to Step 8.
+- If all UNSAT or TIMEOUT: rank by composite score:
+  ```
+  score = (1 / solve_time_s) * 0.4 + (cnf_clauses / cnf_vars) * 0.3
+  ```
   Select the highest-scoring UNSAT result as the winner for formalization.
+  Algebraist wins tiebreaks (algebraic framing is harder to relativize).
 
 ---
 
 ## Step 5: Formalizer (spawn subagent)
 
 Spawn a `generalPurpose` subagent with the winning MinerResult.
+
+Substitute before sending:
+- `{k}` — iteration number
+- `{WINNING_MINER_RESULT_JSON}` — the full MinerResult dict from Step 4
+- `{WINNING_CONJECTURE_JSON}` — the ConjectureOutput JSON from the winning persona (Step 2)
 
 ```
 Task tool call:
@@ -300,26 +521,30 @@ Task tool call:
       .cursor/rules/oracle-agent-formalizer.mdc
 
     Winning MinerResult:
-      {paste winning MinerResult JSON}
+      {WINNING_MINER_RESULT_JSON}
 
     Conjecture output that produced this result:
-      {paste winning ConjectureOutput JSON — algebraist or geometer}
+      {WINNING_CONJECTURE_JSON}
 
     Execute your role exactly as the rule specifies:
-    1. Generate a Lean 4 theorem embedding the LRAT hash
-    2. Run: lake build <theorem_file>
-    3. If sorry present, attempt close_sorry_with_llm up to 3 times
-       using: python -m search.agents.formalizer --close-sorry <file>
-    4. Run lake build after each attempt
+    1. Write a Lean 4 theorem file embedding the LRAT hash from MinerResult.lrat_hash
+    2. Run: cd /Users/nmm/Development/SATurday/theory && lake build <theorem_module>
+    3. If sorry present, call:
+         python -m search.agents.formalizer --close-sorry <lean_file_path>
+       up to 3 times. Run lake build after each attempt.
+    4. Report final compiled/sorry status.
 
-    Return ONLY a JSON block:
+    Lean file path: theory/Conjectures/BetA/Proofs/oracle_iter{k}_{persona}_{n}Proof.lean
+    Lean module name: SATurday.Conjectures.BetA.Proofs.oracle_iter{k}_{persona}_{n}Proof
+
+    Return ONLY a JSON block (no other text):
     {
       "lean_file": "<path>",
       "compiled": <bool>,
       "has_sorry": <bool>,
       "sorry_count": <int>,
-      "axioms_used": [...],
-      "lrat_hash": "<hash>",
+      "axioms_used": ["<axiom1>", ...],
+      "lrat_hash": "<hash from MinerResult>",
       "llm_attempts": <int>
     }
 ```
@@ -329,6 +554,13 @@ Task tool call:
 ## Step 6: Critic (spawn subagent)
 
 Spawn a `generalPurpose` subagent. Pass ALL three conjecture outputs, not just the winner.
+
+Substitute before sending:
+- `{k}` — iteration number
+- `{ALGEBRAIST_JSON}` — full algebraist ConjectureOutput from Step 2
+- `{GEOMETER_JSON}` — full geometer ConjectureOutput from Step 2
+- `{SKEPTIC_JSON}` — full skeptic SkepticOutput from Step 2
+- `{FORMAL_RESULT_JSON}` — FormalResult from Step 5
 
 ```
 Task tool call:
@@ -341,26 +573,31 @@ Task tool call:
       .cursor/rules/oracle-agent-critic.mdc
 
     All three conjecture outputs from this iteration:
-      Algebraist: {paste algebraist ConjectureOutput JSON}
-      Geometer:   {paste geometer ConjectureOutput JSON}
-      Skeptic:    {paste skeptic SkepticOutput JSON}
+      Algebraist: {ALGEBRAIST_JSON}
+      Geometer:   {GEOMETER_JSON}
+      Skeptic:    {SKEPTIC_JSON}
 
     Formalization result:
-      {paste FormalResult JSON from Step 5}
+      {FORMAL_RESULT_JSON}
 
     Execute your role exactly as the rule specifies:
-    - Score all 3 approaches for relativization, natural proofs, algebraization
-    - Run V13 feedback loop if any approach is relativizing
-    - Assign overall_grade
+    - Score all 3 approaches for relativization (0.0 to 1.0), natural proofs, algebraization
+    - If any approach scores below 0.3 on relativization, run the V13 feedback loop:
+        python -m search.agents.critic --v13 --oracle-witness "<witness>" --config infra/config/defaults.yaml
+    - Assign overall_grade based on composite score across all 3 approaches
 
-    Return ONLY a JSON block:
+    Return ONLY a JSON block (no other text):
     {
-      "all_barrier_profiles": [...],
-      "winner_barrier_profile": {...},
+      "all_barrier_profiles": [
+        {"persona": "algebraist", "relativization_score": <0-1>, "natural_proof_risk": "<high|low>", "algebraization_score": <0-1>, "technique": "<string>"},
+        {"persona": "geometer",   "relativization_score": <0-1>, "natural_proof_risk": "<high|low>", "algebraization_score": <0-1>, "technique": "<string>"},
+        {"persona": "skeptic",    "relativization_score": <0-1>, "natural_proof_risk": "<high|low>", "algebraization_score": <0-1>, "technique": "<string>"}
+      ],
+      "winner_barrier_profile": {<profile of the formalized approach>},
       "best_barrier_approach": "algebraist|geometer|skeptic",
       "overall_grade": "EXCELLENT|GOOD|MODERATE|CAUTION|BLOCKED",
-      "v13_proposals": [...],
-      "recommendations": [...],
+      "v13_proposals": ["<proposal 1>", ...],
+      "recommendations": ["<recommendation for next iteration>", ...],
       "block_detected": <bool>
     }
 ```
@@ -369,41 +606,46 @@ Task tool call:
 
 ## Step 7: Reflect (orchestrating agent — no subagent)
 
-Build the ReflectionSummary yourself from all collected outputs:
+Build the ReflectionSummary yourself from all collected outputs. Read the prior entry
+from `search/logs/oracle_reflections.jsonl` (Shell: `tail -1 search/logs/oracle_reflections.jsonl`)
+to compute `progress_delta`.
 
 ```json
 {
-  "iteration": <k>,
-  "hypothesis_tested": "<from IterationPlan>",
-  "algebraist_outcome": "<UNSAT in Xs | TIMEOUT | skipped>",
-  "geometer_outcome": "<UNSAT in Xs | TIMEOUT | skipped>",
+  "iteration": {k},
+  "hypothesis_tested": "<from IterationPlan.hypothesis>",
+  "algebraist_outcome": "<UNSAT in Xs | TIMEOUT | ERROR>",
+  "geometer_outcome": "<UNSAT in Xs | TIMEOUT | ERROR>",
   "skeptic_outcome": "<no witness | SAT witness: N gates>",
   "formalization_status": "<compiled | sorry(N) | failed | skipped>",
   "barrier_grade": "<from CriticReport.overall_grade>",
-  "best_barrier_approach": "<from CriticReport>",
+  "best_barrier_approach": "<from CriticReport.best_barrier_approach>",
   "progress_delta": "<POSITIVE | NEUTRAL | NEGATIVE vs prior entry>",
-  "open_questions": [...]
+  "techniques_used": ["<algebraist technique>", "<geometer technique>"],
+  "open_questions": ["<question raised by this iteration>", ...]
 }
 ```
 
-Compare to prior entry in `search/logs/oracle_reflections.jsonl` to compute
-`progress_delta`. Append the ReflectionSummary as a new line to that file.
+Append as a new line to `search/logs/oracle_reflections.jsonl`.
 
 ---
 
 ## Step 8: Guardrail Decision (orchestrating agent — no subagent)
 
-Evaluate the decision table in order (first match wins). Maintain running counts
-across iterations in memory:
+Read the full guardrail rule for decision rationale:
+  `.cursor/rules/oracle-agent-guardrail.mdc`
+
+Evaluate the decision table in order (first match wins). Track counters in memory:
 
 | Condition | Decision |
 |---|---|
-| compiled=true AND has_sorry=false AND lrat valid AND grade in GOOD/EXCELLENT | PUBLISH |
+| compiled=true AND has_sorry=false AND lrat_hash valid AND grade in GOOD/EXCELLENT | PUBLISH |
+| compiled=true AND has_sorry=false AND lrat_hash valid AND grade=MODERATE | CONTINUE (log moderate result) |
 | skeptic_outcome contains "SAT witness" | INVALIDATE |
 | barrier_grade=BLOCKED for 3+ consecutive iterations | HITL_2 |
 | formalizer compiled=false for 3+ consecutive iterations | HITL_4 |
 | progress_delta=NEGATIVE for 5+ consecutive iterations | HITL_3 |
-| same technique 3+ consecutive iterations | SWITCH_STRATEGY |
+| same technique_used for 3+ consecutive iterations | SWITCH_STRATEGY |
 | iteration_count >= max_iterations (default 50) | HALT |
 | default | CONTINUE |
 
@@ -413,101 +655,91 @@ Then execute:
 
 **PUBLISH**
 ```bash
-python search/tools/inspect_artifacts.py --register {lrat_hash}
+cd /Users/nmm/Development/SATurday
 git add theory/Conjectures/ proofs/ search/logs/
-git commit -m "Verify: {theorem_name} n={n} lrat={lrat_hash[:8]}"
+git commit -m "Verify: {theorem_name} n={n} lrat={lrat_hash_first8}"
 ```
-Check if all success_criteria met. If yes: print summary, exit. If no: increment n,
-loop back to Step 1.
+Check if all success_criteria from IterationPlan are met. If yes: print summary, exit.
+If no: increment n by 1, loop back to Step 1.
 
-**CONTINUE** — loop back to Step 1 with updated ResearchContext.
+**CONTINUE** — loop back to Step 1 with updated ResearchContext (include this
+iteration's ReflectionSummary and the Guardrail's next_action hint).
 
-**INVALIDATE** — reduce n by 1, loop back to Step 1.
+**INVALIDATE** — reduce n by 1 in parameter_range, loop back to Step 1.
 
-**SWITCH_STRATEGY** — rotate bet (A->B->C->D->A), loop back to Step 1.
+**SWITCH_STRATEGY** — rotate bet (A->B->C->D->A), update ResearchContext, loop back to Step 1.
 
 **HALT**
 ```bash
-python search/reporting/md_reporter.py --halt \
-  --output docs/reports/halt_report_{timestamp}.md
-git add docs/reports/ search/logs/
-git commit -m "HALT: oracle loop exhausted after {k} iterations"
+cd /Users/nmm/Development/SATurday
+git add search/logs/
+git commit -m "HALT oracle loop after {k} iterations"
 ```
 
-**HITL_1 through HITL_4** — print the verbatim prompt from the relevant guardrail
-rule. Wait for human text input. Log to `search/logs/hitl_interventions.jsonl`.
-Inject into the appropriate step and continue.
+**HITL_1 through HITL_4** — print the verbatim HITL prompt from the guardrail rule.
+Wait for human text input. Log to `search/logs/hitl_interventions.jsonl`.
+Inject the human's response into the appropriate step and continue.
 
 ---
 
-## Step 9: Cleanup (spawn shell subagent — every iteration)
+## Step 9: Cleanup (orchestrating agent — use Shell tool directly, NO subagent)
 
-Always run this after the Guardrail action and before looping back to Step 1.
-Spawn a `shell` subagent so it runs independently and cannot corrupt the
-orchestrating agent's state.
+Run these commands directly via Shell tool after every Guardrail action.
+Do not spawn a shell subagent (same reason as Step 3 — lacks Read tool).
 
-```
-Task tool call:
-  subagent_type: shell
-  description: "ORACLE Cleanup - iteration {k}"
-  prompt: |
-    Run the following cleanup commands in order.
-    Working directory: /Users/nmm/Development/SATurday
+```bash
+cd /Users/nmm/Development/SATurday
 
-    # 1. Delete CNF input files from proofs/ — safe once LRAT is verified.
-    #    Never delete .lrat, .json, .log, or index.json.
-    find proofs/ -name "*.cnf" -delete
-    echo "Deleted CNF files from proofs/"
+# Delete CNF input files from search/specs/ — safe once MinerResults are logged.
+# Never delete .lrat, .yaml specs, .json, or .jsonl logs.
+find search/specs/ -name "*.cnf" -mmin +5 -delete
+echo "[cleanup] Deleted stale CNF files from search/specs/"
 
-    # 2. Delete intermediate CNF specs from this iteration only.
-    #    search/specs/ holds per-run inputs that are no longer needed
-    #    once Miner has produced its MinerResult.
-    find search/specs/ -name "*.yaml" -mmin +5 -delete
-    find search/specs/ -name "*.cnf" -mmin +5 -delete
-    echo "Deleted stale spec files from search/specs/"
+# Trim solver run logs older than 7 days.
+# Never delete oracle_reflections.jsonl, guardrail_decisions.jsonl,
+# miner_results.jsonl, counterexamples.jsonl, or hitl_interventions.jsonl.
+find search/logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || true
+find search/logs/ -name "run_*.jsonl" -mtime +7 -delete 2>/dev/null || true
+echo "[cleanup] Trimmed old logs from search/logs/"
 
-    # 3. Every 5 iterations, purge the Lean build cache.
-    #    theory/.lake can reach 5GB+. It is fully regenerable via lake build.
-    #    Only purge if iteration number is divisible by 5.
-    ITERATION={k}
-    if [ $((ITERATION % 5)) -eq 0 ]; then
-      if [ -d theory/.lake ]; then
-        rm -rf theory/.lake
-        echo "Purged theory/.lake (iteration $ITERATION)"
-      fi
-    fi
-
-    # 4. Trim solver run logs older than 7 days from search/logs/.
-    #    Keeps recent logs for debugging but prevents unbounded growth.
-    #    Never delete oracle_reflections.jsonl, guardrail_decisions.jsonl,
-    #    miner_results.jsonl, counterexamples.jsonl, or hitl_interventions.jsonl.
-    find search/logs/ -name "*.log" -mtime +7 -delete
-    find search/logs/ -name "run_*.jsonl" -mtime +7 -delete
-    echo "Trimmed old log files from search/logs/"
-
-    # 5. Report disk usage after cleanup.
-    echo "--- Disk usage after cleanup ---"
-    du -sh proofs/ search/logs/ search/specs/ theory/.lake 2>/dev/null || true
-    df -h . | tail -1
-
-    # Return a JSON summary.
-    echo '{"cleanup": "complete", "iteration": '$ITERATION'}'
+# Every 5 iterations, purge the Lean build cache (theory/.lake can reach 5GB+).
+# Only purge if iteration number is divisible by 5.
 ```
 
-Do not proceed to the next iteration until the cleanup subagent exits cleanly.
-If cleanup fails (exit code non-zero), log the error and continue anyway —
-a cleanup failure must never block the research loop.
+```python
+# In Python (run via Shell):
+import os
+k = {k}
+if k % 5 == 0:
+    lake_dir = 'theory/.lake'
+    if os.path.isdir(lake_dir):
+        import shutil
+        shutil.rmtree(lake_dir)
+        print(f"[cleanup] Purged theory/.lake at iteration {k}")
+```
+
+```bash
+# Report disk usage.
+echo "[cleanup] Disk usage after iteration {k}:"
+du -sh proofs/ search/logs/ search/specs/ theory/.lake 2>/dev/null || true
+df -h /Users/nmm/Development/SATurday | tail -1
+```
+
+If cleanup produces an error, log it and continue — cleanup failure must never
+block the research loop.
 
 ---
 
-## Loop Invariants (check every iteration)
+## Loop Invariants (check every iteration before moving to next)
 
 - [ ] Kissat runs used fixed seed from IterationPlan.parameter_range.seed
-- [ ] Every LRAT hash verified by LRAT checker before accepting
-- [ ] No cloud APIs called (zero_cost_guard.py enforces this)
-- [ ] All LLM calls used Ollama local models only
-- [ ] ReflectionSummary written to JSONL before Guardrail evaluated
-- [ ] Guardrail decision written to JSONL before acting on it
+- [ ] Every LRAT hash was computed via SHA256 of the .lrat file content
+- [ ] No cloud APIs called (zero_cost_guard: no API keys in env)
+- [ ] All LLM calls used Ollama REST endpoint at localhost:11434 only
+- [ ] ReflectionSummary written to oracle_reflections.jsonl before Guardrail evaluated
+- [ ] Guardrail decision written to guardrail_decisions.jsonl before acting on it
+- [ ] Disk usage checked after Miner; CNF files deleted if free space below 3GB
+- [ ] CNFWriter.write() was called with a Path object, not a str
 
 ---
 
@@ -519,13 +751,13 @@ a cleanup failure must never block the research loop.
 | 2a | Algebraist | `.cursor/rules/oracle-agent-algebraist.mdc` | Task generalPurpose (parallel) |
 | 2b | Geometer | `.cursor/rules/oracle-agent-geometer.mdc` | Task generalPurpose (parallel) |
 | 2c | Skeptic | `.cursor/rules/oracle-agent-skeptic.mdc` | Task generalPurpose (parallel) |
-| 3 | Miner | `.cursor/rules/oracle-agent-miner.mdc` | Task shell |
+| 3 | Miner | (inline Shell tool calls — no subagent) | Shell tool directly |
 | 4 | Reflector pass 1 | `.cursor/rules/oracle-agent-reflector.mdc` | orchestrating agent |
 | 5 | Formalizer | `.cursor/rules/oracle-agent-formalizer.mdc` | Task generalPurpose |
 | 6 | Critic | `.cursor/rules/oracle-agent-critic.mdc` | Task generalPurpose |
 | 7 | Reflector pass 2 | `.cursor/rules/oracle-agent-reflector.mdc` | orchestrating agent |
 | 8 | Guardrail | `.cursor/rules/oracle-agent-guardrail.mdc` | orchestrating agent |
-| 9 | Cleanup | (inline shell commands) | Task shell |
+| 9 | Cleanup | (inline Shell tool calls — no subagent) | Shell tool directly |
 
 ---
 
@@ -533,6 +765,8 @@ a cleanup failure must never block the research loop.
 
 Replace the memory bank files with those for the new project.
 The only project-specific coupling is:
-- `problem_statement` (from projectbrief.md)
+- `problem_statement` (from projectbrief.md or activeContext.md)
 - `oracle_type` (Kissat for SAT; swap for SMT/Groebner/other domains)
 - `formal_verifier` (Lean 4 here; swap for Coq/Isabelle)
+- `cnf_generator` (CircuitSynthesisEncoder here; swap for domain encoder)
+- `kissat_binary` (`infra/build/kissat` here; update path if different)
