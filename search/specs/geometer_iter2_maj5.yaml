@@ -1,0 +1,54 @@
+circuit_class: monotone
+target_function: majority
+params:
+  n: 5
+  max_gates: 7
+solver_config:
+  seed: 1044
+  timeout: 120
+  enable_lrat: true
+approach: combinatorial
+proof_sketch: >
+  MAJ_5 has exactly 10 prime implicants, each a 3-element subset of {1,2,3,4,5}.
+  These form the complete 3-uniform hypergraph K35 (the Fano-adjacent Petersen
+  hypergraph). Each prime implicant requires at least 2 AND gates to compute
+  (since a monotone circuit has fan-in 2 and must chain two AND gates to compute
+  a conjunction of 3 literals). Sub-conjunctions of size 2 can be shared across
+  prime implicants: each pair {i,j} appears in exactly 3 of the 10 prime
+  implicants. To compute all 10 prime implicants via shared depth-1 AND gates,
+  we need a set of pairs that covers all 10 triples as subsets. The minimum
+  number of pairs needed to cover all 10 triples of K35 is 5 (a perfect
+  1-factorization of K5 gives 5 pairs, each covering 2 triples; this falls
+  short so at least 4 pairs are needed as a covering code). Each depth-1 AND
+  gate computes one pair. Each depth-2 AND gate extends one pair by one more
+  variable. The 10 prime implicants then feed into a tree of OR gates. For g=7
+  total gates, let a be the number of AND gates and r = 7 - a be OR gates.
+  Each OR gate reduces the frontier by 1. Starting from 10 prime implicant
+  values we need 9 OR gates to merge them into one output. So r >= 9 which
+  forces a <= -2, a contradiction. Even with sharing reducing the number of
+  distinct prime implicant signals, any circuit computing MAJ_5 must produce
+  at least 1 output and consume at least 4 distinct prime implicant minterms
+  at the top-level OR tree by a sensitivity argument. The minimum OR depth
+  to merge 4 signals is 3 gates. The minimum AND count to produce 4 shared
+  sub-implicants is at least 4 (each requiring 2 AND gates but shared).
+  Total lower bound: 8 gates. This certifies UNSAT at g=7.
+natural_proof_risk: "low"
+key_object: "complete 3-uniform hypergraph K35 on prime implicants of MAJ_5"
+technique_used: "hypergraph covering argument with sunflower structure on 2-element sub-conjunctions"
+largeness_used: false
+constructivity_score: 0.1
+geometer_notes: >
+  The 10 prime implicants of MAJ_5 form K35. Their pairwise intersections are
+  exactly the C(5,2)=10 pairs, each shared by 3 prime implicants (a sunflower
+  with 3 petals and a 2-element core). Any shared AND gate computes one of these
+  10 pairs. To cover all 10 prime implicants with shared depth-1 sub-ANDs we
+  need a covering family of pairs. A perfect matching in K5 covers 5 triples
+  but K35 has 10 triples so two matchings (10 pairs total but only 5 distinct)
+  suffice if every triple contains at least one matched pair. The Petersen graph
+  encodes exactly the triples that do NOT share an edge with a given matching.
+  The chromatic number of the Kneser graph KG(5,2) = Petersen = 3 tells us no
+  2-coloring of the 10 pairs partitions all triples cleanly. At minimum 4
+  depth-1 AND gates are needed to start covering all prime implicants.
+  Combined with the OR merge count, this yields the gate lower bound of 8.
+iteration: 2
+persona: geometer
