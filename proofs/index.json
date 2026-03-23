@@ -1,0 +1,1001 @@
+{
+  "f24a7844858f47175b601a529169a85958c81bd4128607b5ac0aa7f1068016a9": {
+    "artifact_hash": "f24a7844858f47175b601a529169a85958c81bd4128607b5ac0aa7f1068016a9",
+    "artifact_type": "cnf",
+    "file_path": "/Users/nmm/Development/SATurday/examples/mini.cnf",
+    "timestamp": "2026-01-09 16:20:02",
+    "tool_name": "user",
+    "tool_version": "1.0.0",
+    "parent_hashes": [],
+    "properties": {},
+    "verified": true
+  },
+  "31dff267943b90e4ca9fae48f791798316301891c145a15c4a4383180c80e51b": {
+    "artifact_hash": "31dff267943b90e4ca9fae48f791798316301891c145a15c4a4383180c80e51b",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/382dd167cdb833c99c7e8ddfe8159aac7d7173cf5f981a336196b307f3a64819.lrat",
+    "timestamp": "2026-01-10 14:30:15",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "382dd167cdb833c99c7e8ddfe8159aac7d7173cf5f981a336196b307f3a64819"
+    ],
+    "properties": {
+      "seed": 42,
+      "status": "UNSAT",
+      "time_seconds": 0.007801055908203125
+    },
+    "verified": true
+  },
+  "7c1bec66c629cacd76e43ba5d21b3d6cd59f28ccff44889e6f16b0aae98004a9": {
+    "artifact_hash": "7c1bec66c629cacd76e43ba5d21b3d6cd59f28ccff44889e6f16b0aae98004a9",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/46e4bd59256a289b5a359f46a777c4dd5b6839baee75bfd5247dddc7f2c543a9.lrat",
+    "timestamp": "2026-01-27 09:19:25",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "46e4bd59256a289b5a359f46a777c4dd5b6839baee75bfd5247dddc7f2c543a9"
+    ],
+    "properties": {
+      "seed": 45,
+      "status": "UNSAT",
+      "time_seconds": 0.006367921829223633
+    },
+    "verified": true
+  },
+  "8ec6b4e30248900658a6aea6b4321ca4474986203ca95b794a710cedf9bfd437": {
+    "artifact_hash": "8ec6b4e30248900658a6aea6b4321ca4474986203ca95b794a710cedf9bfd437",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/46e4bd59256a289b5a359f46a777c4dd5b6839baee75bfd5247dddc7f2c543a9.lrat",
+    "timestamp": "2026-01-27 09:19:25",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "46e4bd59256a289b5a359f46a777c4dd5b6839baee75bfd5247dddc7f2c543a9"
+    ],
+    "properties": {
+      "seed": 46,
+      "status": "UNSAT",
+      "time_seconds": 0.009234905242919922
+    },
+    "verified": true
+  },
+  "56a5205a8635d5007bbd11fb3c96ad24ea2ff9b21e44a834aa1ea811a7116c2c": {
+    "artifact_hash": "56a5205a8635d5007bbd11fb3c96ad24ea2ff9b21e44a834aa1ea811a7116c2c",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/46e4bd59256a289b5a359f46a777c4dd5b6839baee75bfd5247dddc7f2c543a9.lrat",
+    "timestamp": "2026-01-27 09:19:26",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "46e4bd59256a289b5a359f46a777c4dd5b6839baee75bfd5247dddc7f2c543a9"
+    ],
+    "properties": {
+      "seed": 47,
+      "status": "UNSAT",
+      "time_seconds": 0.005827188491821289
+    },
+    "verified": true
+  },
+  "8f7931e0539f4193dd4f704e88a584982430f78cf29c748feb8723f6d3153098": {
+    "artifact_hash": "8f7931e0539f4193dd4f704e88a584982430f78cf29c748feb8723f6d3153098",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/53aa50fca843f8c4f1b80ec69ed655b96c15adfdf6a7c254386073e3f76dd64c.lrat",
+    "timestamp": "2026-01-27 09:19:26",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "53aa50fca843f8c4f1b80ec69ed655b96c15adfdf6a7c254386073e3f76dd64c"
+    ],
+    "properties": {
+      "seed": 48,
+      "status": "UNSAT",
+      "time_seconds": 0.003882169723510742
+    },
+    "verified": true
+  },
+  "e8182f4f921e8789299be8b3080ab4a8948d5123b92a5c8d95e88deef248cbe0": {
+    "artifact_hash": "e8182f4f921e8789299be8b3080ab4a8948d5123b92a5c8d95e88deef248cbe0",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/051a089e22bfc8b56b39d02a483887129c00d73c530b1ea326baa96b6f1a2362.lrat",
+    "timestamp": "2026-03-03 20:56:03",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "051a089e22bfc8b56b39d02a483887129c00d73c530b1ea326baa96b6f1a2362"
+    ],
+    "properties": {
+      "seed": 43,
+      "status": "UNSAT",
+      "time_seconds": 0.0029838085174560547
+    },
+    "verified": true
+  },
+  "00599e8095b46f25e83b5a02b1bbf4881831f4803dc261d1de1e702320a3fe60": {
+    "artifact_hash": "00599e8095b46f25e83b5a02b1bbf4881831f4803dc261d1de1e702320a3fe60",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/af51483e11080d8df3b460cde7b1bf46ed43819d321cf5fd11feccd06a9528f1.lrat",
+    "timestamp": "2026-03-03 20:56:03",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "af51483e11080d8df3b460cde7b1bf46ed43819d321cf5fd11feccd06a9528f1"
+    ],
+    "properties": {
+      "seed": 44,
+      "status": "UNSAT",
+      "time_seconds": 0.0031440258026123047
+    },
+    "verified": true
+  },
+  "e71178cbf4962ed77b99db659516635992677b7c8a4e3646a4558efebd711637": {
+    "artifact_hash": "e71178cbf4962ed77b99db659516635992677b7c8a4e3646a4558efebd711637",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/1c24e5b927276ef7d77154a236f7fa69a415b4db5d8eaa1bf012ce746c32742e.lrat",
+    "timestamp": "2026-03-03 21:03:34",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "1c24e5b927276ef7d77154a236f7fa69a415b4db5d8eaa1bf012ce746c32742e"
+    ],
+    "properties": {
+      "seed": 42,
+      "status": "UNSAT",
+      "time_seconds": 0.0041179656982421875
+    },
+    "verified": true
+  },
+  "aaee96f7f13434f230fe0b863dae5bc52f16f4926bdadec90a941aad5511e16c": {
+    "artifact_hash": "aaee96f7f13434f230fe0b863dae5bc52f16f4926bdadec90a941aad5511e16c",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f.lrat.gz",
+    "timestamp": "2026-03-04 08:02:20",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f"
+    ],
+    "properties": {
+      "seed": 44,
+      "status": "UNSAT",
+      "time_seconds": 0.022665023803710938
+    },
+    "verified": true
+  },
+  "dcd39877102d341f9dd83bdcd51dd7b8869b5c45464d8bcd9ba9bbcb43bff5e0": {
+    "artifact_hash": "dcd39877102d341f9dd83bdcd51dd7b8869b5c45464d8bcd9ba9bbcb43bff5e0",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f.lrat.gz",
+    "timestamp": "2026-03-04 08:02:20",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f"
+    ],
+    "properties": {
+      "seed": 45,
+      "status": "UNSAT",
+      "time_seconds": 0.020388126373291016
+    },
+    "verified": true
+  },
+  "deb2a0b4361c1171326e481cb368e7546433b79058f8a3f5005dd64e996fc3ff": {
+    "artifact_hash": "deb2a0b4361c1171326e481cb368e7546433b79058f8a3f5005dd64e996fc3ff",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/5e8f9ab58058aac2d7b6d8f7e6bcefa61e99ac02794c0bbbca4a634fa87a7124.lrat",
+    "timestamp": "2026-03-04 08:02:20",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "5e8f9ab58058aac2d7b6d8f7e6bcefa61e99ac02794c0bbbca4a634fa87a7124"
+    ],
+    "properties": {
+      "seed": 46,
+      "status": "UNSAT",
+      "time_seconds": 0.0054929256439208984
+    },
+    "verified": true
+  },
+  "66def872385214b19d51fdd084a59173b893ea0f85cac145bec0a8b90a9d0cc5": {
+    "artifact_hash": "66def872385214b19d51fdd084a59173b893ea0f85cac145bec0a8b90a9d0cc5",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/ca6118a09d3472926ce79729effb25f3907d458de0571619f6149e46c28850bf.lrat.gz",
+    "timestamp": "2026-03-04 08:02:36",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "c60190f9fb15a820f13e7c41a7128ebb5dda6c0b495d8a10fda4a242c4ecc0de"
+    ],
+    "properties": {
+      "seed": 50,
+      "status": "UNSAT",
+      "time_seconds": 0.03661704063415527
+    },
+    "verified": true
+  },
+  "a8b70e585eceafd95f749e40f792240c481ae18693d943ea94d70a1f774ae59b": {
+    "artifact_hash": "a8b70e585eceafd95f749e40f792240c481ae18693d943ea94d70a1f774ae59b",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae.lrat.gz",
+    "timestamp": "2026-03-04 08:02:37",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae"
+    ],
+    "properties": {
+      "seed": 54,
+      "status": "UNSAT",
+      "time_seconds": 0.03374624252319336
+    },
+    "verified": true
+  },
+  "21ecc790bb1eea532ff3699d6d95a00f0b5b4ff2bd538cc488db4a83f818b149": {
+    "artifact_hash": "21ecc790bb1eea532ff3699d6d95a00f0b5b4ff2bd538cc488db4a83f818b149",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae.lrat.gz",
+    "timestamp": "2026-03-04 08:02:37",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae"
+    ],
+    "properties": {
+      "seed": 55,
+      "status": "UNSAT",
+      "time_seconds": 0.022291898727416992
+    },
+    "verified": true
+  },
+  "3a7928c82d88e6a82fd31bdf8fe1fa6321c0cbc98513389fbb77a9ea93b50f85": {
+    "artifact_hash": "3a7928c82d88e6a82fd31bdf8fe1fa6321c0cbc98513389fbb77a9ea93b50f85",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f.lrat.gz",
+    "timestamp": "2026-03-04 08:02:47",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f"
+    ],
+    "properties": {
+      "seed": 64,
+      "status": "UNSAT",
+      "time_seconds": 0.06162905693054199
+    },
+    "verified": true
+  },
+  "8f174e1abfa40444d6d92231682f6bae2dd26dc31a1d90e4db7090ea04e9e48f": {
+    "artifact_hash": "8f174e1abfa40444d6d92231682f6bae2dd26dc31a1d90e4db7090ea04e9e48f",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f.lrat.gz",
+    "timestamp": "2026-03-04 08:02:47",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f"
+    ],
+    "properties": {
+      "seed": 65,
+      "status": "UNSAT",
+      "time_seconds": 0.02411174774169922
+    },
+    "verified": true
+  },
+  "d8bc42af4ec1bc5bacefa83b3fc3a8ed6b5d44d70a04fa81502dc9cace26eb8b": {
+    "artifact_hash": "d8bc42af4ec1bc5bacefa83b3fc3a8ed6b5d44d70a04fa81502dc9cace26eb8b",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae.lrat.gz",
+    "timestamp": "2026-03-04 08:03:02",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae"
+    ],
+    "properties": {
+      "seed": 74,
+      "status": "UNSAT",
+      "time_seconds": 0.019862890243530273
+    },
+    "verified": true
+  },
+  "d52f209f3af079eed88f7bde72e403a09e63d7f848a84701e3131446f44be139": {
+    "artifact_hash": "d52f209f3af079eed88f7bde72e403a09e63d7f848a84701e3131446f44be139",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae.lrat.gz",
+    "timestamp": "2026-03-04 08:03:02",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae"
+    ],
+    "properties": {
+      "seed": 75,
+      "status": "UNSAT",
+      "time_seconds": 0.021243810653686523
+    },
+    "verified": true
+  },
+  "666e6c7cbf2c9a1bbbbcbb464fbbe6bc236e6906f7cf465a84545caa55c61556": {
+    "artifact_hash": "666e6c7cbf2c9a1bbbbcbb464fbbe6bc236e6906f7cf465a84545caa55c61556",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f.lrat.gz",
+    "timestamp": "2026-03-04 08:03:19",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f"
+    ],
+    "properties": {
+      "seed": 84,
+      "status": "UNSAT",
+      "time_seconds": 0.032282114028930664
+    },
+    "verified": true
+  },
+  "d41309cb7573179f82d864608f8efd578beb48b490b80c57f6f8d344470943af": {
+    "artifact_hash": "d41309cb7573179f82d864608f8efd578beb48b490b80c57f6f8d344470943af",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f.lrat.gz",
+    "timestamp": "2026-03-04 08:03:19",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "df29c5b73f74bdc17f897406587964f0ef0c16cadf2053273f2bb54bc8da8d5f"
+    ],
+    "properties": {
+      "seed": 85,
+      "status": "UNSAT",
+      "time_seconds": 0.04207897186279297
+    },
+    "verified": true
+  },
+  "2e32ff12f2091fbc69f3d9a46a7285da55c5863e832fd5ae2dbb52acdc2be184": {
+    "artifact_hash": "2e32ff12f2091fbc69f3d9a46a7285da55c5863e832fd5ae2dbb52acdc2be184",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae.lrat.gz",
+    "timestamp": "2026-03-04 08:03:39",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae"
+    ],
+    "properties": {
+      "seed": 94,
+      "status": "UNSAT",
+      "time_seconds": 0.01869797706604004
+    },
+    "verified": true
+  },
+  "6a9d2a4aced4320d822c9f3cc4d39eb6b09a706850f5be9f8410ce9893149bf1": {
+    "artifact_hash": "6a9d2a4aced4320d822c9f3cc4d39eb6b09a706850f5be9f8410ce9893149bf1",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae.lrat.gz",
+    "timestamp": "2026-03-04 08:03:39",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "02b579b8a11c64e3c5b26a9f2cec8c0a1df257cb545042e4fa1f67483de071ae"
+    ],
+    "properties": {
+      "seed": 95,
+      "status": "UNSAT",
+      "time_seconds": 0.02328014373779297
+    },
+    "verified": true
+  },
+  "c852ba6bc6827dc2e3bf91d2da00b5898a4b5f73fbef89b0d886c1e4fa9e1866": {
+    "artifact_hash": "c852ba6bc6827dc2e3bf91d2da00b5898a4b5f73fbef89b0d886c1e4fa9e1866",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/3a8880b0d3e32b6929869540387638f2e4a06401ced50881507674f5a64026c6.lrat",
+    "timestamp": "2026-03-04 09:19:24",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "3a8880b0d3e32b6929869540387638f2e4a06401ced50881507674f5a64026c6"
+    ],
+    "properties": {
+      "seed": 42,
+      "status": "UNSAT",
+      "time_seconds": 0.0031080245971679688
+    },
+    "verified": true
+  },
+  "ba7b21f5fdb7a938b85e661e1e77299cfacb89aa5f28e35b25338dab55f5e703": {
+    "artifact_hash": "ba7b21f5fdb7a938b85e661e1e77299cfacb89aa5f28e35b25338dab55f5e703",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/9f4f9a67f9e54d0972c374816e419b09d71566ee1bcd645112020c5a0ffdbd00.lrat",
+    "timestamp": "2026-03-04 09:19:24",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "9f4f9a67f9e54d0972c374816e419b09d71566ee1bcd645112020c5a0ffdbd00"
+    ],
+    "properties": {
+      "seed": 44,
+      "status": "UNSAT",
+      "time_seconds": 0.0033159255981445312
+    },
+    "verified": true
+  },
+  "db72af95e6925f646e2179fd72b825f375031629517c09fbc91b154ab2583845": {
+    "artifact_hash": "db72af95e6925f646e2179fd72b825f375031629517c09fbc91b154ab2583845",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/305f3a48d689a3caf52ebe8ec7ea5f522d7191f36cad9f15e52226d7171acbf2.lrat",
+    "timestamp": "2026-03-04 09:19:24",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "305f3a48d689a3caf52ebe8ec7ea5f522d7191f36cad9f15e52226d7171acbf2"
+    ],
+    "properties": {
+      "seed": 46,
+      "status": "UNSAT",
+      "time_seconds": 0.0034379959106445312
+    },
+    "verified": true
+  },
+  "943004689eaf8b11c533710cd18ddf8fef77a379138eac679c5c08a8dd8626de": {
+    "artifact_hash": "943004689eaf8b11c533710cd18ddf8fef77a379138eac679c5c08a8dd8626de",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/64b5d79bd17ef751ee489b0f6431a77c1b774ad8d364ce6b168192923ea0f14f.lrat",
+    "timestamp": "2026-03-04 09:19:24",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "64b5d79bd17ef751ee489b0f6431a77c1b774ad8d364ce6b168192923ea0f14f"
+    ],
+    "properties": {
+      "seed": 48,
+      "status": "UNSAT",
+      "time_seconds": 0.0049631595611572266
+    },
+    "verified": true
+  },
+  "0eec983571d38f02a91efc1e2033e621cf480003807a622dd2a16362bd8bec48": {
+    "artifact_hash": "0eec983571d38f02a91efc1e2033e621cf480003807a622dd2a16362bd8bec48",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/bae58740e149b19e93c4a4140a8f882cf4ed865719fcfd221cd69d922111f97d.lrat.gz",
+    "timestamp": "2026-03-04 09:19:24",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "bae58740e149b19e93c4a4140a8f882cf4ed865719fcfd221cd69d922111f97d"
+    ],
+    "properties": {
+      "seed": 50,
+      "status": "UNSAT",
+      "time_seconds": 0.006882190704345703
+    },
+    "verified": true
+  },
+  "15056d26a166871b2b8dacdac4e9ce7099cf536c6d0597f7cb9550c00d37f149": {
+    "artifact_hash": "15056d26a166871b2b8dacdac4e9ce7099cf536c6d0597f7cb9550c00d37f149",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/6eb02949052c1fd4a7c52f4e0282ad7434fc00edcb5f1495aee420f44454867d.lrat",
+    "timestamp": "2026-03-04 09:19:24",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "6eb02949052c1fd4a7c52f4e0282ad7434fc00edcb5f1495aee420f44454867d"
+    ],
+    "properties": {
+      "seed": 54,
+      "status": "UNSAT",
+      "time_seconds": 0.009984970092773438
+    },
+    "verified": true
+  },
+  "871b5578151446ba3bf0637fb4a7c52c2af96076f83675924ae0c078327d1c8c": {
+    "artifact_hash": "871b5578151446ba3bf0637fb4a7c52c2af96076f83675924ae0c078327d1c8c",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/6eb02949052c1fd4a7c52f4e0282ad7434fc00edcb5f1495aee420f44454867d.lrat",
+    "timestamp": "2026-03-04 09:19:25",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "6eb02949052c1fd4a7c52f4e0282ad7434fc00edcb5f1495aee420f44454867d"
+    ],
+    "properties": {
+      "seed": 55,
+      "status": "UNSAT",
+      "time_seconds": 0.0058019161224365234
+    },
+    "verified": true
+  },
+  "d04a6bf5bcdccc4f4074f051c167ce51b3a590dfba78fb7c24e7bc2fb547a39c": {
+    "artifact_hash": "d04a6bf5bcdccc4f4074f051c167ce51b3a590dfba78fb7c24e7bc2fb547a39c",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/6871c09e98c7288a4c465b1c44efa205d2efe63cac28baa1c35e6eb6e8bae58c.lrat.gz",
+    "timestamp": "2026-03-04 09:19:25",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "6871c09e98c7288a4c465b1c44efa205d2efe63cac28baa1c35e6eb6e8bae58c"
+    ],
+    "properties": {
+      "seed": 58,
+      "status": "UNSAT",
+      "time_seconds": 0.09390997886657715
+    },
+    "verified": true
+  },
+  "12dfe1312e2da508d4b6e6529d4996599120ac69d3550a0945d32727c238b507": {
+    "artifact_hash": "12dfe1312e2da508d4b6e6529d4996599120ac69d3550a0945d32727c238b507",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/6871c09e98c7288a4c465b1c44efa205d2efe63cac28baa1c35e6eb6e8bae58c.lrat.gz",
+    "timestamp": "2026-03-04 09:19:25",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "6871c09e98c7288a4c465b1c44efa205d2efe63cac28baa1c35e6eb6e8bae58c"
+    ],
+    "properties": {
+      "seed": 59,
+      "status": "UNSAT",
+      "time_seconds": 0.1015622615814209
+    },
+    "verified": true
+  },
+  "2a95bc6c103cf34eae0633adb0efa0b489b76393cc91b3d8566c8eb5ea9f0a96": {
+    "artifact_hash": "2a95bc6c103cf34eae0633adb0efa0b489b76393cc91b3d8566c8eb5ea9f0a96",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/c5227d6d80310c26f88b6c68cc67a6746a100f609288bca44c73479ed201ec34.lrat.gz",
+    "timestamp": "2026-03-04 09:19:25",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "c5227d6d80310c26f88b6c68cc67a6746a100f609288bca44c73479ed201ec34"
+    ],
+    "properties": {
+      "seed": 60,
+      "status": "UNSAT",
+      "time_seconds": 0.006738901138305664
+    },
+    "verified": true
+  },
+  "9c5d3e5047d66bca71516a537c87cde1df367b434b41834a56be5706f6030149": {
+    "artifact_hash": "9c5d3e5047d66bca71516a537c87cde1df367b434b41834a56be5706f6030149",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/6eb02949052c1fd4a7c52f4e0282ad7434fc00edcb5f1495aee420f44454867d.lrat",
+    "timestamp": "2026-03-04 09:19:25",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "6eb02949052c1fd4a7c52f4e0282ad7434fc00edcb5f1495aee420f44454867d"
+    ],
+    "properties": {
+      "seed": 64,
+      "status": "UNSAT",
+      "time_seconds": 0.009034156799316406
+    },
+    "verified": true
+  },
+  "84a711b90d3581b6e4f077e7fc70f75796b71077546d2071e8b01b4eaa040294": {
+    "artifact_hash": "84a711b90d3581b6e4f077e7fc70f75796b71077546d2071e8b01b4eaa040294",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/6eb02949052c1fd4a7c52f4e0282ad7434fc00edcb5f1495aee420f44454867d.lrat",
+    "timestamp": "2026-03-04 09:19:25",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "6eb02949052c1fd4a7c52f4e0282ad7434fc00edcb5f1495aee420f44454867d"
+    ],
+    "properties": {
+      "seed": 65,
+      "status": "UNSAT",
+      "time_seconds": 0.009483814239501953
+    },
+    "verified": true
+  },
+  "aedadbc3799020dc1173984f06246dc45abd2e292071d17375c36b1344c7217d": {
+    "artifact_hash": "aedadbc3799020dc1173984f06246dc45abd2e292071d17375c36b1344c7217d",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/6871c09e98c7288a4c465b1c44efa205d2efe63cac28baa1c35e6eb6e8bae58c.lrat.gz",
+    "timestamp": "2026-03-04 09:19:26",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "6871c09e98c7288a4c465b1c44efa205d2efe63cac28baa1c35e6eb6e8bae58c"
+    ],
+    "properties": {
+      "seed": 68,
+      "status": "UNSAT",
+      "time_seconds": 0.0773172378540039
+    },
+    "verified": true
+  },
+  "c5c076cc548f2f8fea0386cae57d0ddeab04db58990e64e89f24307f29a454c1": {
+    "artifact_hash": "c5c076cc548f2f8fea0386cae57d0ddeab04db58990e64e89f24307f29a454c1",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/6871c09e98c7288a4c465b1c44efa205d2efe63cac28baa1c35e6eb6e8bae58c.lrat.gz",
+    "timestamp": "2026-03-04 09:19:26",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "6871c09e98c7288a4c465b1c44efa205d2efe63cac28baa1c35e6eb6e8bae58c"
+    ],
+    "properties": {
+      "seed": 69,
+      "status": "UNSAT",
+      "time_seconds": 0.14431309700012207
+    },
+    "verified": true
+  },
+  "f079eefab59e91e7ab4240cd80887598e8166dec5852f3c69f4cd5fa2eaf25b6": {
+    "artifact_hash": "f079eefab59e91e7ab4240cd80887598e8166dec5852f3c69f4cd5fa2eaf25b6",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/645b006dc631d867548053d88cdf9e3f4d1be579016b509a4f104bb539c18f5a.lrat",
+    "timestamp": "2026-03-06 14:31:16",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "645b006dc631d867548053d88cdf9e3f4d1be579016b509a4f104bb539c18f5a"
+    ],
+    "properties": {
+      "seed": 53,
+      "status": "UNSAT",
+      "time_seconds": 0.031507015228271484
+    },
+    "verified": true
+  },
+  "4d96b748badc2013cea306d3ba75084f0809379ca9496aa9c4985b0b40c6165c": {
+    "artifact_hash": "4d96b748badc2013cea306d3ba75084f0809379ca9496aa9c4985b0b40c6165c",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/000e987b4781258d56c4359ef99ef7e774cc7d603fb1dac4082945f1542afcbf.lrat",
+    "timestamp": "2026-03-06 14:31:16",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "000e987b4781258d56c4359ef99ef7e774cc7d603fb1dac4082945f1542afcbf"
+    ],
+    "properties": {
+      "seed": 56,
+      "status": "UNSAT",
+      "time_seconds": 0.004845857620239258
+    },
+    "verified": true
+  },
+  "53dcd049722cf8978880c647e94bbeda65c703b09a304fa5034c4fe355254f8e": {
+    "artifact_hash": "53dcd049722cf8978880c647e94bbeda65c703b09a304fa5034c4fe355254f8e",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/92b9a09f40422a0960216641ec046268e3eb8c2a86d8e14669997979e2463ef6.lrat.gz",
+    "timestamp": "2026-03-06 14:31:16",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "92b9a09f40422a0960216641ec046268e3eb8c2a86d8e14669997979e2463ef6"
+    ],
+    "properties": {
+      "seed": 59,
+      "status": "UNSAT",
+      "time_seconds": 0.019768953323364258
+    },
+    "verified": true
+  },
+  "94666f857e7f85d6de186479790f0e7721eab42e59d62dd999bd9442121b9fc5": {
+    "artifact_hash": "94666f857e7f85d6de186479790f0e7721eab42e59d62dd999bd9442121b9fc5",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/4438653a5346e41f14f3e39b4580f7b1f18988e766238a174b48362b4e7bd310.lrat.gz",
+    "timestamp": "2026-03-06 14:31:16",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "eeb166d3841e68bd972cf689f631804470f11d72ca82c8893ce2df5e88f4c65d"
+    ],
+    "properties": {
+      "seed": 62,
+      "status": "UNSAT",
+      "time_seconds": 0.0191648006439209
+    },
+    "verified": true
+  },
+  "dff0b31a9c57cfc6c5044e72cd3811962bfd2008e2b23239abd731a07e827627": {
+    "artifact_hash": "dff0b31a9c57cfc6c5044e72cd3811962bfd2008e2b23239abd731a07e827627",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/d05040a388ec0f928109f9bd5c0372099962ab79d79a25ca6a37e7082cb3d8b7.lrat.gz",
+    "timestamp": "2026-03-06 14:38:17",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "d05040a388ec0f928109f9bd5c0372099962ab79d79a25ca6a37e7082cb3d8b7"
+    ],
+    "properties": {
+      "seed": 42,
+      "status": "UNSAT",
+      "time_seconds": 0.02036881446838379
+    },
+    "verified": true
+  },
+  "59ce55a4e08b928f3b1f60e8a6f96af11bc9d5df5f9a31ab15141ece9ac784c5": {
+    "artifact_hash": "59ce55a4e08b928f3b1f60e8a6f96af11bc9d5df5f9a31ab15141ece9ac784c5",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/42c8f8a14224158849f1f12038adb3058e35cbaf1fa00f7f9b6d33df076d1dc5.lrat.gz",
+    "timestamp": "2026-03-06 14:38:19",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "4aa2c732e85a1d2ebbea2f48379086daf69cef1552038e3535eb3d99d24b0af8"
+    ],
+    "properties": {
+      "seed": 45,
+      "status": "UNSAT",
+      "time_seconds": 0.06633377075195312
+    },
+    "verified": true
+  },
+  "44d85e4be8a7bc914b45196545c502ed6b3981398ff5389c06bcb3cace03ed3f": {
+    "artifact_hash": "44d85e4be8a7bc914b45196545c502ed6b3981398ff5389c06bcb3cace03ed3f",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/42c8f8a14224158849f1f12038adb3058e35cbaf1fa00f7f9b6d33df076d1dc5.lrat.gz",
+    "timestamp": "2026-03-06 14:38:20",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "e55f641457916a4a6bfe26d30c202c998c312cbfc1429ad12882bbc04a7d2fa7"
+    ],
+    "properties": {
+      "seed": 46,
+      "status": "UNSAT",
+      "time_seconds": 0.06470584869384766
+    },
+    "verified": true
+  },
+  "5bccf98602c79de59dd15c432b2ab06a9ac0751bfd3f84631ad5e31583c1c123": {
+    "artifact_hash": "5bccf98602c79de59dd15c432b2ab06a9ac0751bfd3f84631ad5e31583c1c123",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/42c8f8a14224158849f1f12038adb3058e35cbaf1fa00f7f9b6d33df076d1dc5.lrat.gz",
+    "timestamp": "2026-03-06 14:38:22",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "a14134f301f1047c331ed107f9b0a47313ed06f238cf0c81f4f68e72aa399417"
+    ],
+    "properties": {
+      "seed": 47,
+      "status": "UNSAT",
+      "time_seconds": 0.06585001945495605
+    },
+    "verified": true
+  },
+  "807de145dcc716d9e92e3007e7bf2ae9a0c2a0935ab61c25d94dbf39bc77c44d": {
+    "artifact_hash": "807de145dcc716d9e92e3007e7bf2ae9a0c2a0935ab61c25d94dbf39bc77c44d",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/c6b5ed3019b5ef2fe5c96054ebf7a0c547ddf808607e3aa6d3f92a80a91ccd0e.lrat.gz",
+    "timestamp": "2026-03-17 16:47:42",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "2e1e4a32a311605e9450e3526e8eac42b885963b4ce7b9c3f510fcc4fc76753e"
+    ],
+    "properties": {
+      "seed": 42,
+      "status": "UNSAT",
+      "time_seconds": 20.088601112365723
+    },
+    "verified": true
+  },
+  "d996c15f0075994d300f8f49a756bbb6e23f261358e3ea512c748f0b4bf5af81": {
+    "artifact_hash": "d996c15f0075994d300f8f49a756bbb6e23f261358e3ea512c748f0b4bf5af81",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/c6b5ed3019b5ef2fe5c96054ebf7a0c547ddf808607e3aa6d3f92a80a91ccd0e.lrat.gz",
+    "timestamp": "2026-03-17 16:48:00",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "1e1a49ba2092543efaa7c1c413272f1dfd32298115e5aac19cbb37344f4e1b4f"
+    ],
+    "properties": {
+      "seed": 43,
+      "status": "UNSAT",
+      "time_seconds": 15.136334896087646
+    },
+    "verified": true
+  },
+  "c161807c8c2221ae3e1f38f47bc679805b9f301b636b4d016a0b1d157ddbbfce": {
+    "artifact_hash": "c161807c8c2221ae3e1f38f47bc679805b9f301b636b4d016a0b1d157ddbbfce",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/c6b5ed3019b5ef2fe5c96054ebf7a0c547ddf808607e3aa6d3f92a80a91ccd0e.lrat.gz",
+    "timestamp": "2026-03-17 16:48:25",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "6821e983b9a08144e705b1d6c2cb47bf152152accd81e4fb7f607a415258e763"
+    ],
+    "properties": {
+      "seed": 44,
+      "status": "UNSAT",
+      "time_seconds": 20.397284746170044
+    },
+    "verified": true
+  },
+  "2c149c57374a63954d3bb0a4d39c61bf37ba178da194b6a0a117e7878b812423": {
+    "artifact_hash": "2c149c57374a63954d3bb0a4d39c61bf37ba178da194b6a0a117e7878b812423",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/0ad78d992d93ad55837341f4b6ed7746c7ecaa137a33a72165cf5ef72a43f681.lrat.gz",
+    "timestamp": "2026-03-17 16:52:23",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "d0615e75b3e339aeed850ba1ae7eab15aed5eca4cd6fc2686007165bf29beba1"
+    ],
+    "properties": {
+      "seed": 45,
+      "status": "UNSAT",
+      "time_seconds": 25.397137880325317
+    },
+    "verified": true
+  },
+  "18f00494d0183c91812a43a01c4a0553ceb9e354314e4b6c18e342967a38bbd8": {
+    "artifact_hash": "18f00494d0183c91812a43a01c4a0553ceb9e354314e4b6c18e342967a38bbd8",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/0ad78d992d93ad55837341f4b6ed7746c7ecaa137a33a72165cf5ef72a43f681.lrat.gz",
+    "timestamp": "2026-03-17 16:54:35",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "e4414b53e7861627cb644e4f2970ce4efa89b013d567cc011a32315633c19aed"
+    ],
+    "properties": {
+      "seed": 46,
+      "status": "UNSAT",
+      "time_seconds": 10.41712737083435
+    },
+    "verified": true
+  },
+  "cdd53026091884858bdf07d4ed17e6d74f543e7904a519e8da822a37c082b8d5": {
+    "artifact_hash": "cdd53026091884858bdf07d4ed17e6d74f543e7904a519e8da822a37c082b8d5",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/c6b5ed3019b5ef2fe5c96054ebf7a0c547ddf808607e3aa6d3f92a80a91ccd0e.lrat.gz",
+    "timestamp": "2026-03-17 16:58:48",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "05fe22124a3bb13f2519940dbab61c33f8e982863150e7670e7283ec773a4356"
+    ],
+    "properties": {
+      "seed": 42,
+      "status": "UNSAT",
+      "time_seconds": 24.7396240234375
+    },
+    "verified": true
+  },
+  "a2fe831f6c571f78e22d8ebd5ec2bb2f1352b0563c778be6744e5c9dab0b7924": {
+    "artifact_hash": "a2fe831f6c571f78e22d8ebd5ec2bb2f1352b0563c778be6744e5c9dab0b7924",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/0ad78d992d93ad55837341f4b6ed7746c7ecaa137a33a72165cf5ef72a43f681.lrat.gz",
+    "timestamp": "2026-03-17 16:58:56",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "398fbab00b6ffeba0a42fb1123a1e6dd1da3422ae0ad8e54374bef6cda337a5f"
+    ],
+    "properties": {
+      "seed": 47,
+      "status": "UNSAT",
+      "time_seconds": 29.865722179412842
+    },
+    "verified": true
+  },
+  "ee069555b9bdb6ec4c3b074b3b701b09f788f9f35e095c4d8208f73abf9356c0": {
+    "artifact_hash": "ee069555b9bdb6ec4c3b074b3b701b09f788f9f35e095c4d8208f73abf9356c0",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/c6b5ed3019b5ef2fe5c96054ebf7a0c547ddf808607e3aa6d3f92a80a91ccd0e.lrat.gz",
+    "timestamp": "2026-03-17 16:59:12",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "134680d406d9fff294df9b29e297ca097477f7705947657927135822727979da"
+    ],
+    "properties": {
+      "seed": 43,
+      "status": "UNSAT",
+      "time_seconds": 20.260119199752808
+    },
+    "verified": true
+  },
+  "8ca1ff63ecaebb7aa8d2314f26be401757bbcf59a150d846af5de8de5a24c658": {
+    "artifact_hash": "8ca1ff63ecaebb7aa8d2314f26be401757bbcf59a150d846af5de8de5a24c658",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/c6b5ed3019b5ef2fe5c96054ebf7a0c547ddf808607e3aa6d3f92a80a91ccd0e.lrat.gz",
+    "timestamp": "2026-03-17 16:59:48",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "dab6e6b69260b2510784d9c1b1e3f7ae29d156822a624b0e590903a54ca9d2df"
+    ],
+    "properties": {
+      "seed": 44,
+      "status": "UNSAT",
+      "time_seconds": 31.497947931289673
+    },
+    "verified": true
+  },
+  "8556ff71d75c989e853cd5cdf272568b486a8a125ff39f90843b776aaa0bd47b": {
+    "artifact_hash": "8556ff71d75c989e853cd5cdf272568b486a8a125ff39f90843b776aaa0bd47b",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/0ad78d992d93ad55837341f4b6ed7746c7ecaa137a33a72165cf5ef72a43f681.lrat.gz",
+    "timestamp": "2026-03-17 17:05:38",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "65b66b4b76345ed30409b5207ededd2041f02b7024bbfa831684d446d86310ed"
+    ],
+    "properties": {
+      "seed": 45,
+      "status": "UNSAT",
+      "time_seconds": 19.42778182029724
+    },
+    "verified": true
+  },
+  "c7fb72a1e1edf9e1eceb3aed7824d52e233a073708bc5e80b7e01c59855534e5": {
+    "artifact_hash": "c7fb72a1e1edf9e1eceb3aed7824d52e233a073708bc5e80b7e01c59855534e5",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/0ad78d992d93ad55837341f4b6ed7746c7ecaa137a33a72165cf5ef72a43f681.lrat.gz",
+    "timestamp": "2026-03-17 17:08:44",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "a35a81187a89051adaffb42da9175946ad2d98c764655148040183355ef4a423"
+    ],
+    "properties": {
+      "seed": 46,
+      "status": "UNSAT",
+      "time_seconds": 14.228316068649292
+    },
+    "verified": true
+  },
+  "14153474cd8de9b6c2e6d5562ea8c78e1ab591e5f005f00b10126780b30ae98f": {
+    "artifact_hash": "14153474cd8de9b6c2e6d5562ea8c78e1ab591e5f005f00b10126780b30ae98f",
+    "artifact_type": "lrat",
+    "file_path": "/Users/nmm/Development/SATurday/proofs/0ad78d992d93ad55837341f4b6ed7746c7ecaa137a33a72165cf5ef72a43f681.lrat.gz",
+    "timestamp": "2026-03-17 17:11:48",
+    "tool_name": "kissat",
+    "tool_version": "3.1.1",
+    "parent_hashes": [
+      "2c456fb79c0b6d60727a14bf377339a11a282ee7ede48c20b35c531813c80fbc"
+    ],
+    "properties": {
+      "seed": 47,
+      "status": "UNSAT",
+      "time_seconds": 11.225044965744019
+    },
+    "verified": true
+  },
+  "8c63d4a9f8555f4e04166e262c618ac911588c0c107bc48b78db6ec902463651": {
+    "artifact_type": "lrat",
+    "circuit_class": "monotone",
+    "target_function": "majority",
+    "n": 4,
+    "max_gates": 6,
+    "outcome": "UNSAT",
+    "persona_source": "algebraist",
+    "path": "proofs/iter1_algebraist_maj4_n4_g6.lrat.gz",
+    "iteration": 1,
+    "timestamp": 1774293114.473435
+  },
+  "28b63afb72e439cdcead8b932aa9c31d10cbd7f05ca208d48696c2702736d339": {
+    "artifact_type": "lrat",
+    "circuit_class": "monotone",
+    "target_function": "majority",
+    "n": 4,
+    "max_gates": 6,
+    "outcome": "UNSAT",
+    "persona_source": "geometer",
+    "path": "proofs/iter1_geometer_maj4_n4_g6.lrat.gz",
+    "iteration": 1,
+    "timestamp": 1774293114.676367
+  },
+  "b2b8f30b2ad23f3ab6f969ccb61584b9549d87538b3f0c119e1d965e0b5d825b": {
+    "artifact_type": "lrat",
+    "circuit_class": "monotone",
+    "target_function": "majority",
+    "n": 4,
+    "max_gates": 6,
+    "outcome": "UNSAT",
+    "persona_source": "skeptic",
+    "path": "proofs/iter1_skeptic_maj4_n4_g6.lrat.gz",
+    "iteration": 1,
+    "timestamp": 1774293114.902348
+  }
+}

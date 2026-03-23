@@ -1,0 +1,13 @@
+circuit_class: monotone
+target_function: majority
+params:
+  n: 4
+  max_gates: 6
+solver_config:
+  seed: 9998
+  timeout: 60
+  enable_lrat: true
+approach: adversarial_complement
+proof_sketch: "Adversarial: searching for existence of size 6 monotone AND/OR circuit for MAJ_4. SAT = counterexample found (hypothesis falsified). UNSAT = lower bound at size 6 confirmed (hypothesis survives adversarial test)."
+circuit_size_tested: 6
+outcome: pending
