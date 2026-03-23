@@ -1,0 +1,64 @@
+circuit_class: monotone
+target_function: parity
+params:
+  n: 6
+  max_gates: 12
+solver_config:
+  seed: 42
+  timeout: 60
+  enable_lrat: true
+approach: algebraic
+proof_sketch: >
+  Represent parity_6 as a multilinear polynomial over GF(2).
+  By the unique multilinear representation theorem over GF(2), parity_6(x1,...,x6)
+  equals the sum over all odd-cardinality subsets S of {1,...,6} of the monomial
+  product_{i in S} x_i, taken mod 2. This polynomial has degree exactly 6 and
+  contains C(6,1) + C(6,3) + C(6,5) = 6 + 20 + 6 = 32 nonzero monomials.
+
+  Razborov approximation method applied to monotone circuits: assign to each gate g
+  a polynomial p_g over the reals in {0,1}^6. For input gates x_i set p_{x_i} = x_i.
+  For an AND gate with inputs g1, g2 define the approximation A(g) = p_{g1} * p_{g2},
+  and for an OR gate define A(g) = p_{g1} + p_{g2} - p_{g1} * p_{g2}.
+  Each monotone gate operation increases polynomial degree by at most a factor of 2
+  (AND doubles degree, OR adds degrees). A circuit of size s and depth d produces
+  an approximating polynomial of degree at most 2^d.
+
+  Critical degree lower bound: the unique multilinear polynomial representing parity_6
+  over GF(2) has degree 6. Any real polynomial that agrees with parity_6 on all
+  2^6 = 64 inputs must contain the top-degree monomial x1*x2*x3*x4*x5*x6 with
+  nonzero coefficient (by Fourier analysis: the top Fourier coefficient of parity_6
+  is hat{f}({1,...,6}) = (-1)^0 / 2^6 != 0 when lifted to {-1,+1}^6). Therefore
+  any polynomial representation of parity_6 has degree >= 6.
+
+  For a monotone circuit of size s = 12 to compute parity_6, the AND gates must
+  collectively generate degree-6 monomials. Each AND gate takes two subexpressions
+  and multiplies their degrees. Starting from degree-1 input literals, reaching
+  degree 6 requires a chain of AND gates of length at least log2(6) > 2, meaning
+  at least ceil(log2(6)) = 3 levels of AND gates each doubling degree.
+
+  More precisely: let the circuit have s AND gates and s OR gates (total 2s <= 24
+  gates in the worst case, but we are given s = 12 total gates). The number of
+  distinct degree-6 monomials a monotone circuit of size 12 can represent is
+  bounded by the number of AND gate chains of length 6, which is at most 12^1 * C(6,6)
+  paths through the circuit. By the Razborov approximation lemma, if we restrict to
+  a random subset R of variables of size exactly 3 (chosen uniformly from C(6,3) = 20
+  choices), the restriction parity_6|_R has correlation 1 with the parity of R,
+  but any monotone circuit of size 12 with restricted gates has expected approximation
+  error at least (1/2) * (1 - 12 * (3/6)^3) = (1/2) * (1 - 12 * (1/8)) = (1/2) * (1/2)
+  = 1/4 > 0, yielding a contradiction since parity_6 must be computed exactly.
+
+  Conclusion: no monotone circuit of size <= 12 computes parity_6. The SAT encoding
+  asks whether variables encoding gate connections and truth table rows can be
+  simultaneously satisfied, and UNSAT certifies the lower bound.
+barrier_risk: "algebraization"
+technique_used: "razborov_approximation_gf2"
+notes: >
+  Barrier note: this argument does relativize (it works relative to any oracle) and
+  does use polynomial degree, so it sits within the algebraization barrier.
+  To escape: one must use a non-algebraizing property of parity, such as its
+  sensitivity or its specific combinatorial structure not captured by degree alone.
+  The SAT-based certificate is not subject to the algebraization barrier because
+  LRAT proof is a combinatorial object, not a polynomial identity.
+iteration: 0
+generated_by: "algebraist_subagent"
+model: "mathstral:7b"
