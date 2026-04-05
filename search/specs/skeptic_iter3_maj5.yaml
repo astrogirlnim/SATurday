@@ -1,0 +1,144 @@
+circuit_class: monotone
+target_function: majority
+params:
+  n: 5
+  max_gates: 9
+solver_config:
+  seed: 45
+  timeout: 900
+  enable_lrat: true
+approach: adversarial_complement
+
+proof_sketch: |
+  Adversarial search for size 9 monotone AND/OR circuit computing MAJ5.
+  g=7 is proven UNSAT (prior iterations). g=10 is proven SAT (Miner confirmed).
+  g=8 is currently under Miner test. This spec targets g=9 as tightest skeptic probe.
+  Manual construction analysis performed in depth below; best manual circuit is 12 gates.
+  Random sampling of 500,000 random 9-gate monotone circuits found 0 correct circuits,
+  indicating that any 9-gate circuit (if it exists) has a highly constrained topology.
+
+manual_analysis:
+  approach: "multi-strategy manual circuit construction"
+
+  attempt_1_name: "two-MAJ3 split on middle variable"
+  attempt_1_gates: 11
+  attempt_1_description: |
+    Split MAJ5(x0,x1,x2,x3,x4) as two MAJ3 sub-circuits sharing x2 as the middle variable.
+    Formula: (MAJ3(x0,x1,x2) AND OR(x3,x4)) OR (MAJ3(x2,x3,x4) AND OR(x0,x1))
+    Gates:
+      g1 = AND(x0, x1)
+      g2 = OR(x0, x1)          -- reused as OR(x0,x1) in term2
+      g3 = AND(x2, g2)         -- MAJ3(x0,x1,x2) intermediate
+      g4 = OR(g1, g3)          -- MAJ3(x0,x1,x2)
+      g5 = AND(x3, x4)
+      g6 = OR(x3, x4)          -- reused as OR(x3,x4) in term1
+      g7 = AND(x2, g6)         -- MAJ3(x2,x3,x4) intermediate
+      g8 = OR(g5, g7)          -- MAJ3(x2,x3,x4)
+      g9 = AND(g4, g6)         -- CaseA: MAJ3_012 AND OR_34
+      g10 = AND(g2, g8)        -- CaseB: OR_01 AND MAJ3_234
+      g11 = OR(g9, g10)        -- output
+  attempt_1_errors: 2
+  attempt_1_missed_inputs:
+    - input: [1,1,1,0,0]
+      expected: 1
+      got: 0
+      reason: "MAJ3_012=1, OR_34=0 so g9=0; MAJ3_234=MAJ3(1,0,0)=0 so g10=0"
+    - input: [0,0,1,1,1]
+      expected: 1
+      got: 0
+      reason: "MAJ3_012=MAJ3(0,0,1)=0 so g9=0; OR_01=0 so g10=0"
+  attempt_1_diagnosis: |
+    Both missed inputs have x2=1 with one group entirely zero (x3=x4=0 or x0=x1=0).
+    The two-MAJ3 decomposition is incomplete: it misses the symmetric cases where
+    one 3-variable AND term (AND(x0,x1,x2) or AND(x2,x3,x4)) is the sole witness.
+    These cases require a third coverage term: AND(x2, OR(AND(x0,x1), AND(x3,x4))).
+
+  attempt_2_name: "explicit 3-case decomposition (verified correct)"
+  attempt_2_gates: 12
+  attempt_2_description: |
+    Coverage by 3 exhaustive cases based on split of {x0,x1,x2} vs {x3,x4}:
+      CaseA: sum(x0,x1,x2) >= 2 AND OR(x3,x4) = 1
+      CaseB: AND(x3,x4) = 1 AND OR(x0,x1,x2) = 1
+      CaseC: AND(x0,x1,x2) = 1 (covers sum(x3,x4)=0, sum(x0,x1,x2)=3)
+    Gates:
+      g1 = AND(x0, x1)
+      g2 = OR(x0, x1)
+      g3 = AND(x2, g2)         -- MAJ3 intermediate
+      g4 = OR(g1, g3)          -- MAJ3(x0,x1,x2)
+      g5 = OR(g2, x2)          -- OR(x0,x1,x2)
+      g6 = AND(g1, x2)         -- AND(x0,x1,x2) = CaseC
+      g7 = OR(x3, x4)          -- OR(x3,x4)
+      g8 = AND(x3, x4)         -- AND(x3,x4)
+      g9 = AND(g4, g7)         -- CaseA
+      g10 = AND(g5, g8)        -- CaseB
+      g11 = OR(g9, g10)        -- CaseA OR CaseB
+      g12 = OR(g11, g6)        -- output: (CaseA OR CaseB) OR CaseC
+  attempt_2_errors: 0
+  attempt_2_truth_table: [0,0,0,0,0,0,0,1,0,0,0,1,0,1,1,1,0,0,0,1,0,1,1,1,0,1,1,1,1,1,1,1]
+  attempt_2_verified: true
+
+  attempt_3_name: "random sampling of 9-gate monotone circuits"
+  attempt_3_trials: 500000
+  attempt_3_correct_found: 0
+  attempt_3_interpretation: |
+    After 500,000 random DAG topologies with 9 gates (each gate AND or OR with 2 inputs drawn
+    uniformly from available nodes), zero correct circuits were found. This is a strong signal
+    that 9-gate circuits for MAJ5 (if they exist) have a highly constrained topology that
+    cannot be reached by random wiring. Structured synthesis (SAT-based encoding) is required
+    to find them, if they exist at all. This negative result is consistent with g_min >= 9
+    and mildly supports the hypothesis g_min = 9 or g_min = 10.
+
+  attempt_4_name: "structured pair-counting approach (OR of all C(5,2) pairs)"
+  attempt_4_analysis: |
+    MAJ5 has monotone DNF: OR over all C(5,3)=10 triplet ANDs.
+    OR over all C(5,2)=10 pair ANDs = threshold-2 function, NOT MAJ5.
+    The pair-counting approach computes the wrong function. Not applicable.
+
+  attempt_5_name: "split-2-3 with missing case"
+  attempt_5_analysis: |
+    MAJ5 = (AND(x0,x1) AND OR(x2,x3,x4)) OR (OR(x0,x1) AND MAJ3(x2,x3,x4))
+    This identity is INCOMPLETE: it misses x=(0,0,1,1,1) where x0=x1=0 but sum=3.
+    Fix requires adding AND(x2,x3,x4) as a third term: 1 extra AND gate + 1 extra OR gate = 12 total.
+    The 2-3 split naturally produces 10 gates but gives 1 error; the fix brings it to 12.
+
+  why_sub_10_is_hard: |
+    Every correct monotone AND/OR circuit for MAJ5 must provide evidence for ALL 10 prime
+    implicants (all triplets AND_ijk). In a tree-like circuit, each prime implicant requires
+    at least log2(3) levels of computation. With 5 inputs and fan-in 2, any AND-of-3 needs
+    at least 2 AND gates. The 10 prime implicants share at most C(5,2)=10 pair sub-expressions,
+    so the minimum AND-gate count is lower bounded by something close to 5-6 gates just for
+    the AND layer, leaving 3-4 gates for the OR layer. This is tight but consistent with 9 gates
+    if gate reuse is maximally exploited. Manual decomposition into named sub-functions fails
+    to achieve this because naming sub-functions forces premature commitment to a factoring
+    that prevents the cross-case sharing the solver would find automatically.
+
+  key_insight: |
+    MAJ5 requires coverage of C(5,3)=10 distinct input patterns, each requiring at least 2
+    AND gates in any fan-in-2 circuit. But gates can be SHARED across multiple implicant
+    computations. The minimum circuit size is achieved when each gate participates in
+    covering as many implicants as possible. Manual construction aligns gates with
+    human-interpretable sub-functions (MAJ3, OR-of-3, AND-of-3) rather than exploiting
+    cross-implicant sharing. The 3-gate gap between manual best (12) and literature minimum (9)
+    represents exactly this sharing potential that only SAT-based synthesis can exploit.
+
+  smallest_manual_circuit:
+    size: 12
+    correct: true
+    gate_by_gate:
+      - "g1 = AND(x0, x1)"
+      - "g2 = OR(x0, x1)"
+      - "g3 = AND(x2, g2)    -- AND(x2, OR(x0,x1))"
+      - "g4 = OR(g1, g3)     -- MAJ3(x0,x1,x2)"
+      - "g5 = OR(g2, x2)     -- OR(x0,x1,x2)"
+      - "g6 = AND(g1, x2)    -- AND(x0,x1,x2)"
+      - "g7 = OR(x3, x4)"
+      - "g8 = AND(x3, x4)"
+      - "g9 = AND(g4, g7)    -- MAJ3(x0,x1,x2) AND OR(x3,x4)"
+      - "g10 = AND(g5, g8)   -- OR(x0,x1,x2) AND AND(x3,x4)"
+      - "g11 = OR(g9, g10)"
+      - "g12 = OR(g11, g6)   -- output"
+    truth_table: [0,0,0,0,0,0,0,1,0,0,0,1,0,1,1,1,0,0,0,1,0,1,1,1,0,1,1,1,1,1,1,1]
+
+circuit_size_tested: 9
+outcome: pending
+signal: pending

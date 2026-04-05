@@ -1033,5 +1033,19 @@
     "path": "proofs/iter2_skeptic_maj5_n5_g7.lrat.gz",
     "iteration": 2,
     "timestamp": 1774296116.097625
+  },
+  "ba0fc68b8c957ba13e50e46642822ea3bdf9db8766e198781376e26fddb3485a": {
+    "artifact_type": "lrat",
+    "circuit_class": "monotone",
+    "target_function": "majority",
+    "n": 5,
+    "max_gates": 8,
+    "outcome": "UNSAT",
+    "persona_source": "skeptic",
+    "path": "proofs/iter3_skeptic_maj5_n5_g8.lrat.gz",
+    "iteration": 3,
+    "solve_time_s": 478.323,
+    "note": "MAJ_5 g=8 UNSAT confirmed. Minimum is 9 or 10.",
+    "timestamp": 1775427029.834156
   }
 }
