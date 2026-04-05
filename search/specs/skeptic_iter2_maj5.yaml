@@ -1,0 +1,13 @@
+circuit_class: monotone
+target_function: majority
+params:
+  n: 5
+  max_gates: 7
+solver_config:
+  seed: 9999
+  timeout: 120
+  enable_lrat: true
+approach: adversarial_complement
+proof_sketch: "Adversarial search for size 7 monotone AND/OR circuit computing MAJ_5."
+circuit_size_tested: 7
+outcome: pending
