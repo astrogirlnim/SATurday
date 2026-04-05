@@ -997,5 +997,41 @@
     "path": "proofs/iter1_skeptic_maj4_n4_g6.lrat.gz",
     "iteration": 1,
     "timestamp": 1774293114.902348
+  },
+  "12ce4915e680133fce0f57852eea1cfd1ae0ce22864d2836f9c00b01d8bfd445": {
+    "artifact_type": "lrat",
+    "circuit_class": "monotone",
+    "target_function": "majority",
+    "n": 5,
+    "max_gates": 7,
+    "outcome": "UNSAT",
+    "persona_source": "algebraist",
+    "path": "proofs/iter2_algebraist_maj5_n5_g7.lrat.gz",
+    "iteration": 2,
+    "timestamp": 1774296112.6000159
+  },
+  "2d240bc07273386ee36df811bc993393ebfe94e20cdceccfa57f21bfb029c12a": {
+    "artifact_type": "lrat",
+    "circuit_class": "monotone",
+    "target_function": "majority",
+    "n": 5,
+    "max_gates": 7,
+    "outcome": "UNSAT",
+    "persona_source": "geometer",
+    "path": "proofs/iter2_geometer_maj5_n5_g7.lrat.gz",
+    "iteration": 2,
+    "timestamp": 1774296114.209365
+  },
+  "e17e33ab0b74313d6a9141e36c73385d1872ad8d9fee5a8dbf30db06ae606797": {
+    "artifact_type": "lrat",
+    "circuit_class": "monotone",
+    "target_function": "majority",
+    "n": 5,
+    "max_gates": 7,
+    "outcome": "UNSAT",
+    "persona_source": "skeptic",
+    "path": "proofs/iter2_skeptic_maj5_n5_g7.lrat.gz",
+    "iteration": 2,
+    "timestamp": 1774296116.097625
   }
 }
