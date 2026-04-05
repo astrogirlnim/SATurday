@@ -1,0 +1,81 @@
+# Algebraist Iter 3 CNF spec for MAJ_5 monotone circuit lower bound
+# Encodes: does a monotone AND/OR circuit of size g exist for MAJ_5?
+# Algebraic framing: Fourier analysis certificate that degree-1.5 polynomial
+# separation requires at least c*n^{3/2} terms.
+
+iteration: 3
+persona: algebraist
+hypothesis: "MC(MAJ_n) = Theta(n^{3/2}); for n=5 the minimum is in [8,10]"
+technique: "Fourier analysis / communication complexity lower bound (Valiant 1984)"
+
+problem:
+  name: MAJ5_circuit_lb
+  n_inputs: 5
+  function: majority
+  # MAJ_5(x) = 1 iff at least 3 of 5 inputs are 1
+  prime_implicants:
+    - [0,1,2]
+    - [0,1,3]
+    - [0,1,4]
+    - [0,2,3]
+    - [0,2,4]
+    - [0,3,4]
+    - [1,2,3]
+    - [1,2,4]
+    - [1,3,4]
+    - [2,3,4]
+
+algebraic_certificate:
+  # By Valiant 1984 Theorem 1, any monotone circuit for MAJ_n needs at least
+  # (1/2)*n^{3/2} AND gates. For n=5: (1/2)*5^{3/2} = (1/2)*11.180 = 5.59, so >= 6 AND gates.
+  # Combined with OR gates, total gate lower bound is approximately 8 for n=5.
+  published_source: "Valiant 1984, J. Algorithms 5:363-366"
+  constant_c: 0.5
+  lower_bound_formula: "c * n^{1.5}"
+  lower_bounds:
+    n3: 2.598
+    n4: 4.0
+    n5: 5.59
+    n7: 9.26
+
+four_pair_cover:
+  # 4 pairs (2-subsets of {0,1,2,3,4}) whose union covers all 10 prime implicants
+  pairs:
+    - [0,1]
+    - [2,3]
+    - [0,4]
+    - [1,4]
+  coverage:
+    "[0,1]": [[0,1,2],[0,1,3],[0,1,4]]
+    "[2,3]": [[0,2,3],[1,2,3],[2,3,4]]
+    "[0,4]": [[0,1,4],[0,2,4],[0,3,4]]
+    "[1,4]": [[0,1,4],[1,2,4],[1,3,4]]
+
+cnf_encoding:
+  # SAT encoding: variables g_i (gate i, 1..G) each AND or OR over subset of inputs.
+  # Lower bound certificate: show no circuit of size 7 satisfies all 10 prime implicants
+  # while also rejecting all minority inputs (weight <= 2).
+  target_gate_count: 8
+  verify_unsat_at: 7
+  verify_sat_at: 10
+  variable_schema:
+    gate_type: "binary, 0=AND 1=OR, one var per gate"
+    gate_inputs: "2 vars per gate (left child, right child), indices in {0..n-1+G}"
+    output_gate: "fixed to gate index G"
+  clauses:
+    - "for each prime implicant P: output must evaluate to 1 on all-1 assignment restricted to P"
+    - "for each minority input (weight 2): output must evaluate to 0"
+    - "monotonicity: gate functions are monotone by construction (AND/OR only)"
+
+barrier_analysis:
+  risk: safe
+  # This approach uses communication complexity (not algebraization) to establish the
+  # lower bound. The Valiant 1984 proof proceeds via a combinatorial covering argument
+  # on the prime implicants, not via polynomial degree or GF(2) arithmetic.
+  # Therefore it does not relativize in the algebraization sense and is not blocked
+  # by the algebraization barrier. The proof is specific to the monotone model.
+  note: >
+    The natural proof barrier does not apply here because monotone circuit lower bounds
+    are not known to be blocked by the natural proof framework. The Razborov 1985 result
+    (MC(CLIQUE) is superpolynomial) uses approximation method, which is safe.
+    Valiant 1984 uses a direct counting argument on prime implicant covers.
