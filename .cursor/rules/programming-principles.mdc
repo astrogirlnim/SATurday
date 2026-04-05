@@ -1,0 +1,38 @@
+---
+description: Core software design principles (KISS, DRY, YAGNI, SOLID, etc.) for all code and reviews
+alwaysApply: true
+---
+
+# Programming Principles (Always Apply)
+
+Use these as a checklist when designing, implementing, and refactoring. Prefer clarity and maintainability over cleverness.
+
+## Simplicity and scope
+
+- **KISS (Keep It Simple)**: Choose the smallest design that meets real requirements. Avoid unnecessary layers, indirection, and frameworks for hypothetical futures.
+- **YAGNI (You Are Not Gonna Need It)**: Do not build features, abstractions, or configurability until there is a concrete need. Speculative generalization is debt.
+- **Principle of least astonishment (POLA)**: Names, APIs, and behavior should match what readers expect from domain language and platform conventions. Surprising behavior needs a strong reason and documentation.
+
+## Structure and reuse
+
+- **DRY (Do Not Repeat Yourself)**: Factor out duplication of *meaning* (rules, invariants, policies), not every syntactic repeat. Two similar-looking lines that mean different things should stay separate.
+- **Separation of concerns**: Each module owns one coherent responsibility. Keep I/O, domain logic, and presentation boundaries explicit.
+- **Composition over inheritance**: Prefer small collaborators and interfaces over deep class hierarchies unless inheritance clearly models an "is a" domain relation.
+
+## SOLID (object-oriented and modular design)
+
+- **S**ingle responsibility: One reason to change per unit (type, module, function).
+- **O**pen/closed: Extend behavior via new code (implementations, strategies) rather than editing stable core logic everywhere.
+- **L**iskov substitution: Subtypes honor contracts of supertypes; callers must not need special cases.
+- **I**nterface segregation: Small, focused interfaces instead of one wide "kitchen sink" API.
+- **D**ependency inversion: Depend on abstractions and stable contracts; inject or pass dependencies rather than hard-wiring concrete details in high-level code.
+
+## Quality and safety
+
+- **Fail fast**: Detect invalid state and errors at boundaries; avoid silent failure and vague defaults that hide bugs.
+- **Avoid premature optimization**: Measure first; optimize hot paths with evidence. Readability and correctness come first unless profiling says otherwise.
+- **Explicit over implicit**: Magic, global mutable state, and hidden side effects make code hard to reason about; prefer clear data flow and documented invariants.
+
+## When principles conflict
+
+Favor **correctness and clarity** first, then **minimal surface area**, then **performance** where measured. Document non-obvious tradeoffs briefly in code comments only when the code cannot speak for itself.
