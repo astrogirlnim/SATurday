@@ -109,6 +109,45 @@ When the user says "go with <name>", proceed to Step 3.
 
 ## Step 3: Commit (orchestrator — no subagent)
 
+Derive a slug from the approach name (lowercase, spaces to underscores, no special chars).
+Example: "Geometric Complexity Theory" -> `geometric_complexity_theory`.
+
+Create the approach folder and scaffold:
+```bash
+SLUG="<slug>"
+BASE="/Users/nmm/Development/SATurday/research/$SLUG"
+mkdir -p "$BASE/lean" "$BASE/sat" "$BASE/logs" "$BASE/notes"
+
+# README with approach summary from the debate
+cat > "$BASE/README.md" <<DOC
+# <Approach Name>
+
+## One-line description
+<from Proposer>
+
+## Barrier evasion claimed
+Relativization: <verdict and mechanism>
+Natural proofs:  <verdict and mechanism>
+Algebraization:  <verdict and mechanism>
+
+## First Lean target
+<first_lean_target from Proposer>
+
+## Status
+Active. Session started: <date>.
+DOC
+```
+
+Folder layout:
+```
+research/<slug>/
+  README.md          approach summary and barrier verdicts
+  lean/              Lean 4 source files for this approach
+  sat/               CNF files and LRAT certificates
+  logs/              JSONL logs specific to this approach
+  notes/             freeform scratch notes from debate
+```
+
 Record the chosen approach:
 ```bash
 python3 -c "
@@ -116,6 +155,8 @@ import json, time
 entry = {
   'timestamp': int(time.time()),
   'chosen_approach': '<name from user>',
+  'slug': '$SLUG',
+  'folder': 'research/$SLUG',
   'barrier_evasion_claimed': '<from debate summary>',
   'first_lean_target': '<from Proposer output>'
 }
@@ -126,6 +167,7 @@ print(json.dumps(entry))
 Print:
 ```
 Approach locked: <name>
+Folder created:  research/<slug>/
 First Lean target: <target>
 Routing to proof-sprint / ORACLE as appropriate.
 ```
@@ -255,3 +297,9 @@ The loop always stops for human review before the final commit.
 
 **N4 — One approach at a time.** Do not pursue multiple directions in parallel.
 Finish or abandon the current approach before starting a new one.
+
+**N5 — One folder per approach.** Every approach that passes Step 3 gets a
+`research/<slug>/` folder. All Lean files, SAT certificates, logs, and notes
+for that approach live there — never in the top-level `theory/` or `proofs/`
+directories. This keeps approaches isolated and makes it unambiguous which
+evidence belongs to which mathematical direction.
