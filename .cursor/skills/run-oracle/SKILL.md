@@ -77,14 +77,14 @@ Read these files directly using the Read tool before spawning anything:
 - `memory_bank/mmemory_bank_activeContext.md` (primary — always present)
 - `memory_bank/mmemory_bank_progress.md`
 - `memory_bank/mmemory_bank_systemPatterns.md`
-- `memory_bank/memory_bank_projectbrief.md` (may be missing — fall back to activeContext)
+- `memory_bank/mmemory_bank_projectbrief.md` (may be missing — fall back to activeContext)
 - `docs/brainlift/saturday-dev-checklist-v2.md`
 - `infra/config/defaults.yaml`
 - `search/logs/oracle_reflections.jsonl` (last entry if exists — use `tail -1` via Shell)
 - `search/logs/guardrail_decisions.jsonl` (last entry if exists)
 - `proofs/index.json`
 
-**Fallback rule**: If `memory_bank_projectbrief.md` is missing or empty, derive the
+**Fallback rule**: If `mmemory_bank_projectbrief.md` is missing or empty, derive the
 `problem_statement` from `mmemory_bank_activeContext.md` — it contains the current
 research focus and bet descriptions.
 
