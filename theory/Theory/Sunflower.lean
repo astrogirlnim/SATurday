@@ -126,12 +126,42 @@ structure AndGateSupport where
   Extract the AND-gate support family from a monotone circuit.
   Each AND gate contributes one set to the family.
 
-  LOG: andGateSupportFamily placeholder
+  For each AND gate i, we collect the direct input variable indices it reads
+  from its left and right InputSource fields.  Gate-to-gate wires (.prevGate)
+  contribute nothing here; only .inputVar wires carry variable indices.
+  This direct support (not transitive closure) is sufficient for the sunflower
+  cardinality argument.
+
+  LOG: andGateSupportFamily implementation
 -/
 noncomputable def andGateSupportFamily (C : Circuit) : Finset (Finset ℕ) :=
-  -- Placeholder: in a full formalization this would recurse over C.gates
-  -- and collect the input-index sets.
-  Finset.empty
+  -- Map each AND gate to the set of input-variable indices it directly reads.
+  Finset.image
+    (fun i : Fin C.num_gates =>
+      -- Collect variable indices from the left input.
+      let leftVars : Finset ℕ :=
+        match (C.gates i).leftInput with
+        | .inputVar v  => {v.val}
+        | .prevGate _ _ => ∅
+      -- Collect variable indices from the right input.
+      let rightVars : Finset ℕ :=
+        match (C.gates i).rightInput with
+        | .inputVar v  => {v.val}
+        | .prevGate _ _ => ∅
+      leftVars ∪ rightVars)
+    (Finset.univ.filter (fun i => (C.gates i).gateType = GateType.andGate))
+
+/-- The AND-gate support family has cardinality at most the circuit size.
+    Proof chain: image ≤ filter ≤ univ = num_gates = size.
+    LOG: andGateFamilySizeLeCircuitSize proof -/
+lemma andGateFamilySizeLeCircuitSize (C : Circuit) :
+    (andGateSupportFamily C).card ≤ C.size := by
+  simp only [andGateSupportFamily, Circuit.size]
+  calc (Finset.image _ (Finset.univ.filter (fun i => (C.gates i).gateType = GateType.andGate))).card
+      ≤ (Finset.univ.filter (fun i => (C.gates i).gateType = GateType.andGate)).card :=
+          Finset.card_image_le
+    _ ≤ Finset.univ.card := Finset.card_filter_le _ _
+    _ = C.num_gates := by simp [Finset.card_univ]
 
 /-! ## Razborov's Lower Bound Argument (Scaffold) -/
 
