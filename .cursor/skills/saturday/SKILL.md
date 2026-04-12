@@ -48,6 +48,53 @@ flowchart TD
 
 ---
 
+## Strategic Advisory (orchestrator — print once at session start, do not block)
+
+Before loading context, print this advisory verbatim. It is a permanent reminder,
+not a gate. The loop continues regardless.
+
+```
+------------------------------------------------------------
+STRATEGIC ADVISORY
+------------------------------------------------------------
+Current research target: monotone_parity_exponential_lower_bound_v12
+  (Razborov 1985: monotone circuits computing parity require exponential size)
+
+FORMALIZATION STATUS: Not formalized in any proof assistant (Lean, Coq, Isabelle).
+Completing V12 would be the first machine-checked proof of this result.
+This is a genuine contribution to the formal math community.
+
+BARRIER STATUS FOR P vs NP:
+  Relativization:   BLOCKED. Monotone lower bounds relativize. The result holds
+                    in oracle models, so it cannot separate P from NP (BGS 1975).
+  Natural proofs:   BLOCKED. Razborov's approximation method is itself a natural
+                    proof (Razborov-Rudich 1997). It cannot extend to general
+                    circuits without disproving one-way functions.
+  Algebraization:   BLOCKED. The argument algebrizes (AW 2008).
+
+IMPLICATION: V12, once fully proved with no sorry, does NOT constitute evidence
+that P != NP. General circuits can compute parity in O(n) gates (XOR). The
+monotone model is strictly weaker than the unrestricted model.
+
+TO PURSUE P vs NP DIRECTLY: Run the new-math skill.
+  .cursor/skills/new-math/SKILL.md
+  This skill proposes non-relativizing, non-naturalizing research directions
+  and evaluates them against known barriers.
+
+Recent barrier-evading attempts in the literature (unverified, 2025):
+  arxiv:2510.08814  Quantale weakness + geometric complexity (Mulmuley direction)
+  arxiv:2508.13200  Intrinsic barrier framework (topological approach)
+------------------------------------------------------------
+```
+
+Log this advisory to `search/logs/strategic_advisory.jsonl` (append, one line per session):
+```json
+{"session": <N>, "target": "V12", "barrier_status": "all_three_blocked",
+ "formalization_value": "first_in_any_prover", "timestamp": <unix>}
+```
+
+---
+
 ## Step 0: Load Context (orchestrator — no subagent)
 
 Read these files directly before spawning anything:
@@ -302,3 +349,6 @@ Victory condition (triggers exit):
 | No frontier, need SAT data | `.cursor/skills/run-oracle/SKILL.md` |
 | Both available | proof-sprint first |
 | User says "run saturday" | this file |
+| Current chain barrier-blocked for P vs NP | `.cursor/skills/new-math/SKILL.md` |
+| User says "new math" or "new direction" | `.cursor/skills/new-math/SKILL.md` |
+| V12 complete, need a new research target | `.cursor/skills/new-math/SKILL.md` |
