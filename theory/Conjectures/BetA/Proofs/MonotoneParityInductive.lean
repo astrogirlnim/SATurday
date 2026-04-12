@@ -90,6 +90,79 @@ def parity_8_lrat_proof : CircuitLowerBoundProof := {
   circuit_class := "monotone"
 }
 
+/-- LRAT proof records for n=9..16 (iter6, minimal max_gates for 2^(n/4) bound). -/
+def parity_9_lrat_proof : CircuitLowerBoundProof := {
+  n := 9,
+  max_gates := 3,
+  lrat_hash := "687dd23407664a6325570358058a6efb72e2a4c6a71b6afef18860162a883ec0",
+  cnf_hash  := "619bf357f93bc335208c7226b7b671b89f0231df097f64a63a4054f9ab881a74",
+  function_name := "parity_9",
+  circuit_class := "monotone"
+}
+
+def parity_10_lrat_proof : CircuitLowerBoundProof := {
+  n := 10,
+  max_gates := 3,
+  lrat_hash := "21ac0e5f3c1eed311637f8daa2838a8e183d2c573ff0b47601a3965ec96eee51",
+  cnf_hash  := "9a5d1c5973ff46de8200221cb0a329ee25b37bf92102c5c34351ebc0ec2c4952",
+  function_name := "parity_10",
+  circuit_class := "monotone"
+}
+
+def parity_11_lrat_proof : CircuitLowerBoundProof := {
+  n := 11,
+  max_gates := 3,
+  lrat_hash := "50869c04052a482ad1ef943dfc4a944c09f9cd84f6b125d9a482b351c9038690",
+  cnf_hash  := "a19c10eed18970aa8acd2c45149cc9a63f185941c4d578ec7895da8c07beb3dc",
+  function_name := "parity_11",
+  circuit_class := "monotone"
+}
+
+def parity_12_lrat_proof : CircuitLowerBoundProof := {
+  n := 12,
+  max_gates := 7,
+  lrat_hash := "ae0ed31883df3cacb3318254240233a156e4b5fc9b0df47bc98c3dabff33c7cf",
+  cnf_hash  := "9cf11d34c7476e7dedd25579291dfa0c194893c36546417757a16ca107824c0c",
+  function_name := "parity_12",
+  circuit_class := "monotone"
+}
+
+def parity_13_lrat_proof : CircuitLowerBoundProof := {
+  n := 13,
+  max_gates := 7,
+  lrat_hash := "ce2a55158ad1d1238b3d1709f90375d8a3d865a550d6864db0aed6e4a2ad7b26",
+  cnf_hash  := "bed2cdca97c0d712ae895de3eebc72538353f70c0557052eb36230636a076ae5",
+  function_name := "parity_13",
+  circuit_class := "monotone"
+}
+
+def parity_14_lrat_proof : CircuitLowerBoundProof := {
+  n := 14,
+  max_gates := 7,
+  lrat_hash := "b416fd4b0e4acb3cc3bcf18cbe5187bf902d73bc4a32ff7d0bfc7204c6d12f2e",
+  cnf_hash  := "988670a08348fd00ad988b5b3e28ffcfcabce0359b0a67bfc0ce84414d3801be",
+  function_name := "parity_14",
+  circuit_class := "monotone"
+}
+
+def parity_15_lrat_proof : CircuitLowerBoundProof := {
+  n := 15,
+  max_gates := 7,
+  lrat_hash := "d93d0b1fb86861516dd9d1c993bd2a12cfec79b481953e2204f8aa176111b91d",
+  cnf_hash  := "1b2d5ca55458cc68f4ec105f0246e1847b8f0ef116cab8064255843e9b2b387b",
+  function_name := "parity_15",
+  circuit_class := "monotone"
+}
+
+def parity_16_lrat_proof : CircuitLowerBoundProof := {
+  n := 16,
+  max_gates := 15,
+  lrat_hash := "bfbd91d89e997d96eab1ec19bc751fb4622f38a70bb4f14256d6ed348cfd7773",
+  cnf_hash  := "3ca96353557ae63aeb53c6a151fa946d2fb96791553b81716fd4c353bbda9d4b",
+  function_name := "parity_16",
+  circuit_class := "monotone"
+}
+
 /-! ## Base Cases via lrat_implies_lower_bound -/
 
 /-- Lower bound for n=5: no monotone circuit with <= 32 gates computes parity on 5 inputs.
@@ -164,6 +237,150 @@ theorem monotone_parity_8_lower_bound :
   have h_le : C.size ≤ 32 := Nat.not_lt.mp h_not_gt
   exact h_lrat C (parity C.num_inputs) h_inputs h_le h_computes
 
+/-- Lower bound for n=9: no monotone circuit with <= 3 gates computes parity on 9 inputs.
+    Certified by LRAT proof 687dd234... (seed=43, max_gates=3, iter6). -/
+theorem monotone_parity_9_lower_bound :
+  ∀ (C : Circuit),
+    C.num_inputs = 9 →
+    isMonotone C = true →
+    C.computes (parity C.num_inputs) →
+    C.size > 3 := by
+  intro C h_inputs h_monotone h_computes
+  have h_lrat : ∀ (D : Circuit) (f : (Fin D.num_inputs → Bool) → Bool),
+      D.num_inputs = parity_9_lrat_proof.n →
+      D.size ≤ parity_9_lrat_proof.max_gates → ¬(D.computes f) :=
+    lrat_implies_lower_bound parity_9_lrat_proof
+  simp only [parity_9_lrat_proof] at h_lrat
+  by_contra h_not_gt
+  have h_le : C.size ≤ 3 := Nat.not_lt.mp h_not_gt
+  exact h_lrat C (parity C.num_inputs) h_inputs h_le h_computes
+
+/-- Lower bound for n=10: no monotone circuit with <= 3 gates computes parity on 10 inputs.
+    Certified by LRAT proof 21ac0e5f... (seed=43, max_gates=3, iter6). -/
+theorem monotone_parity_10_lower_bound :
+  ∀ (C : Circuit),
+    C.num_inputs = 10 →
+    isMonotone C = true →
+    C.computes (parity C.num_inputs) →
+    C.size > 3 := by
+  intro C h_inputs h_monotone h_computes
+  have h_lrat : ∀ (D : Circuit) (f : (Fin D.num_inputs → Bool) → Bool),
+      D.num_inputs = parity_10_lrat_proof.n →
+      D.size ≤ parity_10_lrat_proof.max_gates → ¬(D.computes f) :=
+    lrat_implies_lower_bound parity_10_lrat_proof
+  simp only [parity_10_lrat_proof] at h_lrat
+  by_contra h_not_gt
+  have h_le : C.size ≤ 3 := Nat.not_lt.mp h_not_gt
+  exact h_lrat C (parity C.num_inputs) h_inputs h_le h_computes
+
+/-- Lower bound for n=11: no monotone circuit with <= 3 gates computes parity on 11 inputs.
+    Certified by LRAT proof 50869c04... (seed=43, max_gates=3, iter6). -/
+theorem monotone_parity_11_lower_bound :
+  ∀ (C : Circuit),
+    C.num_inputs = 11 →
+    isMonotone C = true →
+    C.computes (parity C.num_inputs) →
+    C.size > 3 := by
+  intro C h_inputs h_monotone h_computes
+  have h_lrat : ∀ (D : Circuit) (f : (Fin D.num_inputs → Bool) → Bool),
+      D.num_inputs = parity_11_lrat_proof.n →
+      D.size ≤ parity_11_lrat_proof.max_gates → ¬(D.computes f) :=
+    lrat_implies_lower_bound parity_11_lrat_proof
+  simp only [parity_11_lrat_proof] at h_lrat
+  by_contra h_not_gt
+  have h_le : C.size ≤ 3 := Nat.not_lt.mp h_not_gt
+  exact h_lrat C (parity C.num_inputs) h_inputs h_le h_computes
+
+/-- Lower bound for n=12: no monotone circuit with <= 7 gates computes parity on 12 inputs.
+    Certified by LRAT proof ae0ed318... (seed=43, max_gates=7, iter6). -/
+theorem monotone_parity_12_lower_bound :
+  ∀ (C : Circuit),
+    C.num_inputs = 12 →
+    isMonotone C = true →
+    C.computes (parity C.num_inputs) →
+    C.size > 7 := by
+  intro C h_inputs h_monotone h_computes
+  have h_lrat : ∀ (D : Circuit) (f : (Fin D.num_inputs → Bool) → Bool),
+      D.num_inputs = parity_12_lrat_proof.n →
+      D.size ≤ parity_12_lrat_proof.max_gates → ¬(D.computes f) :=
+    lrat_implies_lower_bound parity_12_lrat_proof
+  simp only [parity_12_lrat_proof] at h_lrat
+  by_contra h_not_gt
+  have h_le : C.size ≤ 7 := Nat.not_lt.mp h_not_gt
+  exact h_lrat C (parity C.num_inputs) h_inputs h_le h_computes
+
+/-- Lower bound for n=13: no monotone circuit with <= 7 gates computes parity on 13 inputs.
+    Certified by LRAT proof ce2a5515... (seed=43, max_gates=7, iter6). -/
+theorem monotone_parity_13_lower_bound :
+  ∀ (C : Circuit),
+    C.num_inputs = 13 →
+    isMonotone C = true →
+    C.computes (parity C.num_inputs) →
+    C.size > 7 := by
+  intro C h_inputs h_monotone h_computes
+  have h_lrat : ∀ (D : Circuit) (f : (Fin D.num_inputs → Bool) → Bool),
+      D.num_inputs = parity_13_lrat_proof.n →
+      D.size ≤ parity_13_lrat_proof.max_gates → ¬(D.computes f) :=
+    lrat_implies_lower_bound parity_13_lrat_proof
+  simp only [parity_13_lrat_proof] at h_lrat
+  by_contra h_not_gt
+  have h_le : C.size ≤ 7 := Nat.not_lt.mp h_not_gt
+  exact h_lrat C (parity C.num_inputs) h_inputs h_le h_computes
+
+/-- Lower bound for n=14: no monotone circuit with <= 7 gates computes parity on 14 inputs.
+    Certified by LRAT proof b416fd4b... (seed=43, max_gates=7, iter6). -/
+theorem monotone_parity_14_lower_bound :
+  ∀ (C : Circuit),
+    C.num_inputs = 14 →
+    isMonotone C = true →
+    C.computes (parity C.num_inputs) →
+    C.size > 7 := by
+  intro C h_inputs h_monotone h_computes
+  have h_lrat : ∀ (D : Circuit) (f : (Fin D.num_inputs → Bool) → Bool),
+      D.num_inputs = parity_14_lrat_proof.n →
+      D.size ≤ parity_14_lrat_proof.max_gates → ¬(D.computes f) :=
+    lrat_implies_lower_bound parity_14_lrat_proof
+  simp only [parity_14_lrat_proof] at h_lrat
+  by_contra h_not_gt
+  have h_le : C.size ≤ 7 := Nat.not_lt.mp h_not_gt
+  exact h_lrat C (parity C.num_inputs) h_inputs h_le h_computes
+
+/-- Lower bound for n=15: no monotone circuit with <= 7 gates computes parity on 15 inputs.
+    Certified by LRAT proof d93d0b1f... (seed=43, max_gates=7, iter6). -/
+theorem monotone_parity_15_lower_bound :
+  ∀ (C : Circuit),
+    C.num_inputs = 15 →
+    isMonotone C = true →
+    C.computes (parity C.num_inputs) →
+    C.size > 7 := by
+  intro C h_inputs h_monotone h_computes
+  have h_lrat : ∀ (D : Circuit) (f : (Fin D.num_inputs → Bool) → Bool),
+      D.num_inputs = parity_15_lrat_proof.n →
+      D.size ≤ parity_15_lrat_proof.max_gates → ¬(D.computes f) :=
+    lrat_implies_lower_bound parity_15_lrat_proof
+  simp only [parity_15_lrat_proof] at h_lrat
+  by_contra h_not_gt
+  have h_le : C.size ≤ 7 := Nat.not_lt.mp h_not_gt
+  exact h_lrat C (parity C.num_inputs) h_inputs h_le h_computes
+
+/-- Lower bound for n=16: no monotone circuit with <= 15 gates computes parity on 16 inputs.
+    Certified by LRAT proof bfbd91d8... (seed=43, max_gates=15, iter6). -/
+theorem monotone_parity_16_lower_bound :
+  ∀ (C : Circuit),
+    C.num_inputs = 16 →
+    isMonotone C = true →
+    C.computes (parity C.num_inputs) →
+    C.size > 15 := by
+  intro C h_inputs h_monotone h_computes
+  have h_lrat : ∀ (D : Circuit) (f : (Fin D.num_inputs → Bool) → Bool),
+      D.num_inputs = parity_16_lrat_proof.n →
+      D.size ≤ parity_16_lrat_proof.max_gates → ¬(D.computes f) :=
+    lrat_implies_lower_bound parity_16_lrat_proof
+  simp only [parity_16_lrat_proof] at h_lrat
+  by_contra h_not_gt
+  have h_le : C.size ≤ 15 := Nat.not_lt.mp h_not_gt
+  exact h_lrat C (parity C.num_inputs) h_inputs h_le h_computes
+
 /-! ## Parameterized Theorem (V12 Primary Goal) -/
 
 /--
@@ -199,13 +416,13 @@ theorem monotone_parity_exponential_lower_bound_v12 (n : ℕ) (hn : 2 ≤ n) :
   --   to get C.size > k, then norm_num evaluates 2^(n/4) to a small constant and
   --   omega closes the linear arithmetic goal.
   --   For n ≥ 9: Razborov sunflower argument is still open; leave sorry.
-  by_cases h9 : 9 ≤ n
-  · -- n ≥ 9: sunflower decomposition required; not yet formalized
-    -- LOG: n ≥ 9 branch: sorry for Razborov inductive step
+  by_cases h17 : 17 ≤ n
+  · -- n ≥ 17: sunflower decomposition required; not yet formalized
+    -- LOG: n ≥ 17 branch: sorry for Razborov inductive step (pushed from n>=9 in iter6)
     sorry
-  · -- n ≤ 8: dispatch to LRAT-certified base case theorems
-    -- LOG: n ≤ 8 branch: using interval_cases with bounds hn : 2 ≤ n and hn_lt : n < 9
-    have hn_lt : n < 9 := Nat.lt_of_not_le h9
+  · -- n ≤ 16: dispatch to LRAT-certified base case theorems (n=2..8 from sessions 1-2, n=9..16 from iter6)
+    -- LOG: n ≤ 16 branch: using interval_cases with bounds hn : 2 ≤ n and hn_lt : n < 17
+    have hn_lt : n < 17 := Nat.lt_of_not_le h17
     interval_cases n
     -- n = 2: monotone_parity_2_lower_bound gives C.size > 4; 2^(2/4)=1 ≤ C.size
     · have h := monotone_parity_2_lower_bound C h_inputs h_monotone h_computes
@@ -227,6 +444,30 @@ theorem monotone_parity_exponential_lower_bound_v12 (n : ℕ) (hn : 2 ≤ n) :
       norm_num; omega
     -- n = 8: monotone_parity_8_lower_bound gives C.size > 32; 2^(8/4)=4 ≤ C.size
     · have h := monotone_parity_8_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 9: monotone_parity_9_lower_bound gives C.size > 3; 2^(9/4)=4 ≤ C.size
+    · have h := monotone_parity_9_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 10: monotone_parity_10_lower_bound gives C.size > 3; 2^(10/4)=4 ≤ C.size
+    · have h := monotone_parity_10_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 11: monotone_parity_11_lower_bound gives C.size > 3; 2^(11/4)=4 ≤ C.size
+    · have h := monotone_parity_11_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 12: monotone_parity_12_lower_bound gives C.size > 7; 2^(12/4)=8 ≤ C.size
+    · have h := monotone_parity_12_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 13: monotone_parity_13_lower_bound gives C.size > 7; 2^(13/4)=8 ≤ C.size
+    · have h := monotone_parity_13_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 14: monotone_parity_14_lower_bound gives C.size > 7; 2^(14/4)=8 ≤ C.size
+    · have h := monotone_parity_14_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 15: monotone_parity_15_lower_bound gives C.size > 7; 2^(15/4)=8 ≤ C.size
+    · have h := monotone_parity_15_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 16: monotone_parity_16_lower_bound gives C.size > 15; 2^(16/4)=16 ≤ C.size
+    · have h := monotone_parity_16_lower_bound C h_inputs h_monotone h_computes
       norm_num; omega
 
 /-! ## V12 Roadmap Comments -/
