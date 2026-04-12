@@ -3,6 +3,7 @@ import Mathlib.Data.Fin.Basic
 import Mathlib.Data.Finset.Basic
 import Mathlib.Tactic
 import Theory.Circuits
+import Theory.Sunflower
 import Tactics.CircuitTactics
 import Tactics.EncodingTactics
 import Conjectures.BetA.Common
