@@ -49,6 +49,10 @@ Traditional proof assistants are reactive - they wait for human tactics. SATurda
 This creates a virtuous cycle: conjecture → test → formalize → critique → refine.
 
 ### Bet-Driven Strategy
+For multi day pushes, the optional ORACLE loop (nine roles, see `mmemory_bank_activeContext.md`)
+sequences planner output, parallel conjecture personas, Kissat mining, Lean anchoring, critic,
+and guardrail continuation on top of the same four bets.
+
 Rather than attacking P vs NP head-on, SATurday pursues four parallel "bets" that each have intrinsic value:
 - **Circuit Lower Bounds**: Even restricted results (monotone, AC⁰) are publishable and build theory
 - **Algorithm Synthesis**: Proved time bounds for promise problems advance algorithm design

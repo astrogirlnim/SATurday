@@ -2,6 +2,14 @@
 
 ## High-Level Architecture
 
+### ORACLE loop (Phase 6)
+For bet A circuit questions, a nine role ORACLE loop can drive hypotheses, three way
+conjecture personas, Miner runs, Lean formalization, barrier critique, guardrail
+continuation, and JSONL logs under `search/logs/` (`oracle_planner.jsonl`,
+`oracle_reflections.jsonl`, `guardrail_decisions.jsonl`, `miner_results.jsonl`).
+Specification: `.cursor/skills/run-oracle/SKILL.md`. The five agent supervisor remains
+the default batch pipeline; ORACLE is the deep dive mode.
+
 ### Agent Supervisor Pattern
 **Core Design**: A central supervisor (`search/agents/supervisor.py`) orchestrates agent execution via YAML plans:
 - Loads plan specifying task sequence, seeds, size ranges

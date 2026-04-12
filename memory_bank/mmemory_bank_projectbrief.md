@@ -6,12 +6,17 @@ Automated, zero-cost research system that explores complexity theory (P vs NP) t
 
 ## What We're Building
 
-**5-Agent Research Loop:**
+**Primary pipeline (five agents):**
 1. **Planner** - Task decomposition and scheduling
 2. **Conjecturer** - Generate Lean stubs and CNF specifications
 3. **Miner** - SAT solver integration with LRAT proof extraction
 4. **Formalizer** - Lean theorem generation with proof scaffolding
 5. **Critic** - Barrier-aware analysis
+
+**ORACLE research loop (Phase 6, optional layered loop):** Nine coordinated roles
+(Planner, Algebraist, Geometer, Skeptic, Miner, Reflector, Formalizer, Critic, Guardrail)
+documented in `.cursor/skills/run-oracle/SKILL.md` and `mmemory_bank_activeContext.md`.
+They sit on top of the same encoders, Kissat, LRAT store, and Lean project.
 
 **Research Bets:**
 - **Bet A**: Restricted-Circuit Lower Bounds (monotone, AC0, formula)

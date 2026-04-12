@@ -1,12 +1,16 @@
 # Progress Tracking: What Works, What's Left, What's Blocked
 
-## Overall Status: 94% Complete (Phase 1: 100%, Phase 2: 100%, Phase 3: 100%, Phase 4: 25% - Bet A Complete)
+## Overall Status: Phase 1 through 3 complete; Phase 4 multi bet operational; Phase 5 items V7 through V14 partial; Phase 6 ORACLE active
 
-**Phase**: Research Bets & Verification (Phase 4) - IN PROGRESS
+**Phase**: Research Bets, formal milestones (Phase 4 and 5), ORACLE deep loop (Phase 6)
 **Started**: January 9, 2026  
 **MVP Baseline Complete**: January 27, 2026 (Bet A Stage 1)
-**Target Full MVP**: February 2026 (formalization + documentation)
-**Last Updated**: January 27, 2026 (after Phase 4 R6 completion)
+**Last Updated**: 2026-04-12 (memory bank reconciled with Session 8 and 9; stale January only headers removed above)
+
+**Reconciliation note (2026-04-12):** Earlier sections below still carry January 2026 line counts in places; treat
+`mmemory_bank_activeContext.md` as the live cursor for ORACLE iterations and AC0 work. Bet C and Bet D stage 1
+pipelines are complete (see active context). Kissat and agents are operational; ignore any legacy "Kissat not
+compiled" bullets if they remain deep in this file until next full rewrite.
 
 ## Phase-by-Phase Breakdown
 
@@ -370,17 +374,22 @@
 - [ ] Formal proved polynomial runtime bound (sorry stubs only; requires Phase 5 effort)
 - **Status**: Stage 1 infrastructure complete; formal proofs pending
 
-#### R8. Hardness-vs-Randomness (Bet C) - NOT STARTED
-- [ ] Correlation tests
-- [ ] Formalize implications in Lean
-- **Acceptance**: Checked implication for bounded sizes
-- **Status**: Not started
+#### R8. Hardness-vs-Randomness (Bet C) - STAGE 1 COMPLETE (March 2026)
+- [x] Correlation and related templates; 60 task batch verified
+- [ ] Formalize implications in Lean (still open)
+- **Acceptance**: Pipeline checked for bounded sizes
+- **Status**: Stage 1 operational per active context; formal proofs deferred
 
-#### R9. Barrier-Aware Reductions (Bet D) - NOT STARTED
-- [ ] Non-relativizing encodings
-- [ ] Diagnostics
-- **Acceptance**: Documented reduction with partial proof
-- **Status**: Not started
+#### R9. Barrier-Aware Reductions (Bet D) - STAGE 1 COMPLETE (March 2026)
+- [x] Three reduction schemas; 30 task batch verified
+- [ ] Deeper Lean documentation of reductions (open)
+- **Acceptance**: Documented reduction encodings with barrier tags in critic path
+- **Status**: Stage 1 operational per active context
+
+#### Phase 6 ORACLE (April 2026) - IN PROGRESS
+- [x] Iterations 0 through 4: monotone and AC0 parity 4 milestones
+- [x] Iteration 5: AC0 parity 5 depth 2 UNSAT at gate budgets 8, 16, 32 with LRAT in `proofs/`
+- [ ] Iteration 6 plus: depth transition for parity 5; `(n, depth)` empirical grid
 
 **Phase 4 Achievements (R6, R7 Stage 1)**:
 - Circuit synthesis encoding: "Does circuit exist?" problem correctly formulated
@@ -558,16 +567,11 @@
 
 ## What's Not Working / Needs Attention
 
-### Incomplete Items
-1. **F3 SAT Toolchain**: Kissat not yet compiled
-   - **Action**: Research Kissat ARM64 build
-   - **Priority**: High (blocks Phase 2)
-2. **F4 Agent Supervisor**: Stub agents not created
-   - **Action**: Implement AgentBase interface
-   - **Priority**: High (completes Phase 1)
-3. **Python Environment**: venv not yet created
-   - **Action**: Run `make setup` (requires pyproject.toml)
-   - **Priority**: Medium (needed for Phase 2)
+### Incomplete Items (historical list superseded 2026-04-12)
+The following were true in early January 2026 and are **resolved** in the current tree:
+Kissat is built, supervisor agents are implemented, Python venv is standard via `make setup`.
+Current open work is listed in `mmemory_bank_activeContext.md` (V12 induction, V14 LRAT hashes,
+ORACLE iter 6 depth table, optional streaming majority encoder).
 
 ### Technical Debt
 1. **Makefile Warnings**: Several targets warn about missing directories (expected at this stage)

@@ -1,5 +1,8 @@
 # Technical Context: Technologies and Development Setup
 
+**Memory bank review:** 2026-04-12. Core filenames use the `mmemory_bank_*.md` prefix
+under `memory_bank/`.
+
 ## Hardware Platform
 **Target**: MacBook Pro with M4 chip (ARM64 architecture)
 - **RAM**: Minimum 16GB, recommended 32GB+ for larger models
