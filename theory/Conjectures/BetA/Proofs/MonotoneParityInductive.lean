@@ -54,8 +54,8 @@ open SATurday.Circuits
 def parity_5_lrat_proof : CircuitLowerBoundProof := {
   n := 5,
   max_gates := 5,
-  lrat_hash := "645b006dc631d867548053d88cdf9e3f4d1be579016b509a4f104bb539c18f5a",
-  cnf_hash := "645b006dc631d867548053d88cdf9e3f4d1be579016b509a4f104bb539c18f5a",
+  lrat_hash := "f079eefab59e91e7ab4240cd80887598e8166dec5852f3c69f4cd5fa2eaf25b6",
+  cnf_hash := "f079eefab59e91e7ab4240cd80887598e8166dec5852f3c69f4cd5fa2eaf25b6",
   function_name := "parity_5",
   circuit_class := "monotone"
 }
@@ -63,8 +63,8 @@ def parity_5_lrat_proof : CircuitLowerBoundProof := {
 def parity_6_lrat_proof : CircuitLowerBoundProof := {
   n := 6,
   max_gates := 6,
-  lrat_hash := "000e987b4781258d56c4359ef99ef7e774cc7d603fb1dac4082945f1542afcbf",
-  cnf_hash := "000e987b4781258d56c4359ef99ef7e774cc7d603fb1dac4082945f1542afcbf",
+  lrat_hash := "4d96b748badc2013cea306d3ba75084f0809379ca9496aa9c4985b0b40c6165c",
+  cnf_hash := "4d96b748badc2013cea306d3ba75084f0809379ca9496aa9c4985b0b40c6165c",
   function_name := "parity_6",
   circuit_class := "monotone"
 }
@@ -72,8 +72,8 @@ def parity_6_lrat_proof : CircuitLowerBoundProof := {
 def parity_7_lrat_proof : CircuitLowerBoundProof := {
   n := 7,
   max_gates := 7,
-  lrat_hash := "92b9a09f40422a0960216641ec046268e3eb8c2a86d8e14669997979e2463ef6",
-  cnf_hash := "92b9a09f40422a0960216641ec046268e3eb8c2a86d8e14669997979e2463ef6",
+  lrat_hash := "9155e03076003088114d87309b0bfda908c5c00458229f6b4a7aebb55795bd4f",
+  cnf_hash := "9155e03076003088114d87309b0bfda908c5c00458229f6b4a7aebb55795bd4f",
   function_name := "parity_7",
   circuit_class := "monotone"
 }
@@ -81,8 +81,8 @@ def parity_7_lrat_proof : CircuitLowerBoundProof := {
 def parity_8_lrat_proof : CircuitLowerBoundProof := {
   n := 8,
   max_gates := 8,
-  lrat_hash := "4438653a5346e41f14f3e39b4580f7b1f18988e766238a174b48362b4e7bd310",
-  cnf_hash := "4438653a5346e41f14f3e39b4580f7b1f18988e766238a174b48362b4e7bd310",
+  lrat_hash := "94666f857e7f85d6de186479790f0e7721eab42e59d62dd999bd9442121b9fc5",
+  cnf_hash := "94666f857e7f85d6de186479790f0e7721eab42e59d62dd999bd9442121b9fc5",
   function_name := "parity_8",
   circuit_class := "monotone"
 }
