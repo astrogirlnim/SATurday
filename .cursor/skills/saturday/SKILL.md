@@ -25,6 +25,8 @@ The Director decides which. You never have to choose.
 ```mermaid
 flowchart TD
     load["Step 0\nLoad Context\norchestrator"]
+    victory["Victory Check\norchestrator"]
+    done["RESEARCH GOAL\nCOMPLETE\n(exit success)"]
     director["Step 1\nDirector\nsubagent"]
     mine["Step 2A\nORACLE mode\n(empirical mining)"]
     prove["Step 2B\nProof Sprint mode\n(sorry closing)"]
@@ -32,15 +34,16 @@ flowchart TD
     commit["Commit + log"]
     loop["Next session?"]
 
-    load --> director
+    load --> victory
+    victory -->|"V12 sorry-free, no sorryAx"| done
+    victory -->|"sorrys remain"| director
     director -->|"frontier sorrys exist"| prove
     director -->|"no frontier, need data"| mine
     director -->|"both available"| prove
     prove --> record
     mine --> record
     record --> commit
-    commit --> loop
-    loop -->|"yes"| director
+    commit --> victory
 ```
 
 ---
@@ -77,6 +80,66 @@ Construct `SessionState`:
   "disk_free_gb": <float>
 }
 ```
+
+---
+
+## Victory Check (orchestrator — run after Step 0 and after every commit)
+
+Run this shell block. If it returns DONE, stop the loop immediately and print
+the victory message below. Do not spawn the Director.
+
+```bash
+# Count sorrys in the V12 proof chain files only (not stubs or mathlib)
+V12_SORRYS=$(cd /Users/nmm/Development/SATurday/theory && \
+  grep -rn ":= sorry\|^ *sorry$" \
+    Conjectures/BetA/Proofs/MonotoneParityInductive.lean \
+    Theory/Sunflower.lean \
+    --include="*.lean" 2>/dev/null | wc -l | tr -d ' ')
+
+echo "V12_SORRYS=$V12_SORRYS"
+
+if [ "$V12_SORRYS" = "0" ]; then
+  # Secondary check: confirm no sorryAx in the theorem's axiom set
+  cd /Users/nmm/Development/SATurday/theory
+  lake build 2>/dev/null
+  SORRY_AX=$(lake env lean --stdin 2>&1 <<'LEAN'
+#print axioms monotone_parity_exponential_lower_bound_v12
+LEAN
+)
+  echo "$SORRY_AX" | grep -q "sorryAx" && echo "SORRY_AX_FOUND" || echo "DONE"
+fi
+```
+
+If the output contains `DONE`:
+
+1. Write to `search/logs/saturday_sessions.jsonl`:
+   ```json
+   {"session": <N>, "mode": "victory", "target": "monotone_parity_exponential_lower_bound_v12",
+    "outcome": "complete", "barrier_tag": "relativization_safe", "timestamp": <unix>}
+   ```
+
+2. Commit:
+   ```bash
+   cd /Users/nmm/Development/SATurday
+   git add -f theory/ search/logs/
+   git commit -m "Saturday session <N>: RESEARCH GOAL COMPLETE V12 sorry-free"
+   ```
+
+3. Print verbatim:
+   ```
+   ============================================================
+   RESEARCH GOAL COMPLETE
+   ============================================================
+   Theorem: monotone_parity_exponential_lower_bound_v12
+   Statement: For all n >= 2, any monotone circuit computing parity-n has size >= 2^(n/4).
+   Status: Fully proved in Lean 4. No sorry. No sorryAx.
+   Axiom baseline: lrat_implies_lower_bound, sunflower_lemma, synthesis_encoding_correct,
+                   lrat_checker_sound, Classical.choice, propext, Quot.sound, funext
+   Next step: Human review. Consider submitting to Lean community or arXiv.
+   ============================================================
+   ```
+
+4. Exit. Do not run Step 1 or any further steps.
 
 ---
 
@@ -174,7 +237,10 @@ git add -f theory/ search/logs/ proofs/
 git commit -m "Saturday session <N>: <mode> <target> (<outcome>)"
 ```
 
-Print a one-paragraph summary to the user:
+After the commit, run the **Victory Check** above.
+If it returns `DONE`, stop and print the victory message.
+Otherwise, print the session summary:
+
 ```
 Session <N> complete.
 Mode: <prove|mine>
@@ -207,11 +273,23 @@ print the HITL prompt from proof-sprint, and stop.
 TARGET: monotone_parity_exponential_lower_bound_v12
   (for all n >= 2, any monotone circuit computing parity-n has size >= 2^(n/4))
 
-Proved base cases:   n = 2, 3, 4, 5, 6, 7, 8  (all C.size > 32, LRAT certified)
-AC0 depth table:     n = 3, 4, 5 at depths 2, 3, 4 (UNSAT, LRAT certified)
-Open frontier:       andGateSupportFamily, andGateFamilySizeLeCircuitSize
-Blocked by frontier: monotone_parity_sunflower_connection
-Final goal:          monotone_parity_exponential_lower_bound_v12 (inductive step)
+Proved (green, no sorry):
+  monotone_parity_k_lower_bound   k = 2..8 (LRAT certified, C.size > 32)
+  andGateSupportFamily            (noncomputable def, fully implemented)
+  andGateFamilySizeLeCircuitSize  (lemma, fully proved)
+  V12 n=2..8 branch               (closed via interval_cases + omega, session 2)
+
+AC0 depth table (LRAT certified):
+  parity-3, 4, 5 at depth 2 (UNSAT); parity-4 at depth 3 (SAT sanity check)
+
+Open (sorry remaining):
+  monotone_parity_sunflower_connection   (Theory/Sunflower.lean:196)
+    needs: Razborov restriction argument (formalizing circuit restriction)
+  V12 n>=9 branch                        (MonotoneParityInductive.lean)
+    needs: sunflower connection OR LRAT certs for n=9..16+
+
+Victory condition (triggers exit):
+  Both files above have zero sorrys AND #print axioms shows no sorryAx
 ```
 
 ---

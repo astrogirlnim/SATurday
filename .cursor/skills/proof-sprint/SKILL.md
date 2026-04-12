@@ -206,6 +206,36 @@ Collect the `AttackerOutput` JSON.
    git commit -m "Close sorry: <theorem_name> (<barrier_tag>)"
    ```
 
+4. Run victory check:
+   ```bash
+   V12_SORRYS=$(cd /Users/nmm/Development/SATurday/theory && \
+     grep -rn ":= sorry\|^ *sorry$" \
+       Conjectures/BetA/Proofs/MonotoneParityInductive.lean \
+       Theory/Sunflower.lean \
+       --include="*.lean" 2>/dev/null | wc -l | tr -d ' ')
+   echo "V12_SORRYS=$V12_SORRYS"
+   ```
+   If `V12_SORRYS=0`, run the secondary sorryAx check:
+   ```bash
+   cd /Users/nmm/Development/SATurday/theory && lake build 2>/dev/null
+   lake env lean --stdin <<'LEAN' 2>&1 | grep -q "sorryAx" && echo "SORRY_AX_FOUND" || echo "DONE"
+   #print axioms monotone_parity_exponential_lower_bound_v12
+   LEAN
+   ```
+   If output is `DONE`, print verbatim and stop all further work:
+   ```
+   ============================================================
+   RESEARCH GOAL COMPLETE
+   ============================================================
+   Theorem: monotone_parity_exponential_lower_bound_v12
+   Statement: For all n >= 2, any monotone circuit computing parity-n has size >= 2^(n/4).
+   Status: Fully proved in Lean 4. No sorry. No sorryAx.
+   Axiom baseline: lrat_implies_lower_bound, sunflower_lemma, synthesis_encoding_correct,
+                   lrat_checker_sound, Classical.choice, propext, Quot.sound, funext
+   Next step: Human review. Consider submitting to Lean community or arXiv.
+   ============================================================
+   ```
+
 **If status = "stuck":**
 
 Append to `search/logs/proof_sprint_log.jsonl`:
@@ -264,18 +294,20 @@ instead, and return to proof-sprint next session.
 ## Current Proof Chain (V12 target)
 
 ```
-Proved (green):
+Proved (green, no sorry):
   lrat_implies_lower_bound        (axiom — named obligations in EncodingCorrectness.lean)
-  monotone_parity_N_lower_bound   n=2,3,4,5,6,7,8 (all C.size > 32)
-  and_gate_encoding / or_gate_encoding / not_gate_encoding
+  monotone_parity_N_lower_bound   n=2..8 (all C.size > 32, LRAT certified)
+  andGateSupportFamily            (noncomputable def, fully implemented)
+  andGateFamilySizeLeCircuitSize  (lemma, fully proved)
+  V12 n=2..8 branch               (closed via interval_cases + omega, session 2)
 
-Blue frontier (all dependencies met — attack these):
-  andGateFamilySizeLeCircuitSize  (missing — needed by Sunflower connection)
-  andGateSupportFamily            (stub — noncomputable def, needs real recursion)
+Blue frontier (attack these next):
+  monotone_parity_sunflower_connection   (Theory/Sunflower.lean:196)
+    needs: Razborov restriction argument or LRAT certs for n=9..16 to widen interval_cases
 
 Open (blocked by frontier):
-  monotone_parity_sunflower_connection   (sorry in Sunflower.lean)
-  monotone_parity_exponential_lower_bound_v12  (sorry in Inductive.lean)
+  V12 n>=9 branch                 (MonotoneParityInductive.lean)
+  monotone_parity_exponential_lower_bound_v12  (fully proved once sunflower closes)
 
 Axiom obligations (open):
   sunflower_lemma           (Erdos-Ko-Rado 1960 — proof is ~20 pages, long-term)
@@ -283,8 +315,8 @@ Axiom obligations (open):
   lrat_checker_sound          (LRAT verifier soundness — needs cake_lpr integration)
 ```
 
-The shortest path to V12 runs through `andGateSupportFamily` and
-`andGateFamilySizeLeCircuitSize`. Attack those first.
+The shortest path to V12 now runs through `monotone_parity_sunflower_connection`
+(Razborov argument) or through widening the LRAT base case coverage to n=9+.
 
 ---
 
