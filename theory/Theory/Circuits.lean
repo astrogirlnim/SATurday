@@ -217,9 +217,14 @@ axiom lrat_implies_lower_bound (proof : CircuitLowerBoundProof) :
 
 /-! ## Parity Function -/
 
+/-- Helper: XOR of inputs indexed 0..k-1. -/
+def parityAux (n : ℕ) (inputs : Fin n → Bool) : ℕ → Bool
+  | 0 => false
+  | k + 1 => if h : k < n then (parityAux n inputs k) ^^ inputs ⟨k, h⟩ else parityAux n inputs k
+
 /-- The parity function on n Boolean inputs: XOR of all inputs. -/
 def parity (n : ℕ) (inputs : Fin n → Bool) : Bool :=
-  Finset.univ.fold (· ^^ ·) false (fun i => inputs i)
+  parityAux n inputs n
 
 /-! ## V12: Parameterized Lower Bound Statement -/
 
@@ -243,7 +248,7 @@ theorem monotone_parity_exponential_lower_bound (n : ℕ) (hn : 2 ≤ n) :
     ∀ (C : Circuit),
       C.num_inputs = n →
       isMonotone C = true →
-      C.computes (parity n) →
+      C.computes (parity C.num_inputs) →
       2^(n / 4) ≤ C.size := by
   sorry  -- V12: Inductive proof pending; base cases n=2,3,4 verified in BetA/Proofs/
 
@@ -255,7 +260,7 @@ theorem monotone_parity_base_cases (n : ℕ) (hn2 : n = 2 ∨ n = 3 ∨ n = 4) :
     ∀ (C : Circuit),
       C.num_inputs = n →
       isMonotone C = true →
-      C.computes (parity n) →
+      C.computes (parity C.num_inputs) →
       2^(n / 4) ≤ C.size := by
   rcases hn2 with rfl | rfl | rfl
   -- n = 2: 2^(2/4) = 2^0 = 1 <= C.size; we know C.size > 4
