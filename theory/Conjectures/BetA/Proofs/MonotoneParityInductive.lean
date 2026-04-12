@@ -191,19 +191,43 @@ theorem monotone_parity_exponential_lower_bound_v12 (n : ℕ) (hn : 2 ≤ n) :
       C.computes (parity C.num_inputs) →
       2^(n / 4) ≤ C.size := by
   intro C h_inputs h_monotone h_computes
-  -- LOG: V12 parameterized lower bound; base cases wire to verified theorems
-  -- The inductive step (n >= 5) requires Razborov's sunflower argument, which
-  -- is formalized in Sunflower.lean (Item 3).  The base cases (n=2,3,4) could
-  -- be dispatched by rewriting h_inputs and calling the individual theorems,
-  -- but interval_cases requires an explicit upper bound on n, which is not
-  -- available here (Error C: removed).
-  -- Until Sunflower.lean provides the inductive step, the whole theorem carries
-  -- a sorry that is structurally honest about the remaining open goal.
-  sorry
-  -- TODO V12: Replace sorry with:
-  --   1. Base case dispatch: n=2 -> monotone_parity_2_lower_bound, etc.
-  --      (rewrite h_computes using h_inputs first so parity C.num_inputs = parity n)
-  --   2. Inductive step: sunflower decomposition for n >= 5 (see Sunflower.lean)
+  -- LOG: V12 parameterized lower bound - case split on n ≤ 8 vs n ≥ 9
+  -- Attempt 1: interval_cases for n=2..8, sorry for n≥9 (sunflower argument)
+  --
+  -- Proof sketch:
+  --   For n in {2,3,4,5,6,7,8}: apply matching LRAT-certified lower bound theorem
+  --   to get C.size > k, then norm_num evaluates 2^(n/4) to a small constant and
+  --   omega closes the linear arithmetic goal.
+  --   For n ≥ 9: Razborov sunflower argument is still open; leave sorry.
+  by_cases h9 : 9 ≤ n
+  · -- n ≥ 9: sunflower decomposition required; not yet formalized
+    -- LOG: n ≥ 9 branch: sorry for Razborov inductive step
+    sorry
+  · -- n ≤ 8: dispatch to LRAT-certified base case theorems
+    -- LOG: n ≤ 8 branch: using interval_cases with bounds hn : 2 ≤ n and hn_lt : n < 9
+    have hn_lt : n < 9 := Nat.lt_of_not_le h9
+    interval_cases n
+    -- n = 2: monotone_parity_2_lower_bound gives C.size > 4; 2^(2/4)=1 ≤ C.size
+    · have h := monotone_parity_2_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 3: monotone_parity_3_lower_bound gives C.size > 6; 2^(3/4)=1 ≤ C.size
+    · have h := monotone_parity_3_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 4: monotone_parity_4_lower_bound gives C.size > 8; 2^(4/4)=2 ≤ C.size
+    · have h := monotone_parity_4_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 5: monotone_parity_5_lower_bound gives C.size > 32; 2^(5/4)=2 ≤ C.size
+    · have h := monotone_parity_5_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 6: monotone_parity_6_lower_bound gives C.size > 32; 2^(6/4)=2 ≤ C.size
+    · have h := monotone_parity_6_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 7: monotone_parity_7_lower_bound gives C.size > 32; 2^(7/4)=2 ≤ C.size
+    · have h := monotone_parity_7_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
+    -- n = 8: monotone_parity_8_lower_bound gives C.size > 32; 2^(8/4)=4 ≤ C.size
+    · have h := monotone_parity_8_lower_bound C h_inputs h_monotone h_computes
+      norm_num; omega
 
 /-! ## V12 Roadmap Comments -/
 

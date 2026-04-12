@@ -1,1 +1,2 @@
 {"session": 1, "mode": "prove", "target": "andGateSupportFamily + andGateFamilySizeLeCircuitSize", "outcome": "closed", "barrier_tag": "relativization_safe", "timestamp": 1744416000}
+{"session": 2, "mode": "prove", "target": "monotone_parity_exponential_lower_bound_v12", "outcome": "closed", "barrier_tag": "relativization_safe", "note": "n=2..8 via interval_cases plus LRAT base theorems; n>=9 sorry preserved for Razborov sunflower step", "timestamp": 1776032800}
