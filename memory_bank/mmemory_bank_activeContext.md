@@ -234,7 +234,7 @@ Inspect search/logs/v13_loop_iterations.jsonl for non-relativizing proposals.
 
 ## Git Commits (Sessions 5-9)
 
-- 6359c6c: ORACLE iter5 AC0 parity5 depth2 UNSAT g8 g16 g32 LRAT plus memory bank refresh
+- Session 9 bundle (git tip after iter5): ORACLE iter5 AC0 parity5 depth2 UNSAT g8 g16 g32 LRAT plus memory bank refresh
 - c2e00eb: feat(iter4): implement AC0 depth encoder and prove parity-4 lower bound
 - 06c2803: Implement V11 (mathstral:7b), V12 scaffold, V13 active loop, V14 sorry closure
 - 30427d0: Session 6 review: update memory bank, write stage1 synopsis, extend checklist with V11-V14
