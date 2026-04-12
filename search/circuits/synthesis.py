@@ -35,7 +35,14 @@ class TruthRow:
 class VariableManager:
     """Manages CNF variable allocation for circuit synthesis encoding."""
     
-    def __init__(self, n_inputs: int, max_gates: int, n_rows: int, symbolic_mode: bool = False):
+    def __init__(
+        self,
+        n_inputs: int,
+        max_gates: int,
+        n_rows: int,
+        symbolic_mode: bool = False,
+        ac0_max_depth: Optional[int] = None,
+    ):
         """
         Initialize variable manager.
         
@@ -44,16 +51,24 @@ class VariableManager:
             max_gates: Maximum number of gates
             n_rows: Number of truth table rows (0 for symbolic mode)
             symbolic_mode: If True, use symbolic encoding (no per-row variables)
+            ac0_max_depth: If set, allocate depth-layer variables for AC0 encoding.
+                           Depth d means gates can be at layers 1..d (inputs are layer 0).
         """
         self.n_inputs = n_inputs
         self.max_gates = max_gates
         self.n_rows = n_rows
         self.symbolic_mode = symbolic_mode
+        self.ac0_max_depth = ac0_max_depth
         self.next_var = 1
         
         # Variable maps
         self.gate_is_and: Dict[int, int] = {}    # gate_id -> var for "gate is AND"
         self.gate_is_or: Dict[int, int] = {}     # gate_id -> var for "gate is OR"
+        # AC0 extension: NOT gate type variable (fan-in 1)
+        self.gate_is_not: Dict[int, int] = {}    # gate_id -> var for "gate is NOT" (AC0 only)
+        # AC0 extension: depth layer variables (unary encoding)
+        # gate_in_layer[(g, d)] = var meaning "gate g is at depth d" (1-indexed, inputs at depth 0)
+        self.gate_in_layer: Dict[Tuple[int, int], int] = {}
         self.input_select: Dict[Tuple[int, int, int], int] = {}  # (gate, input_idx, source) -> var
         self.gate_value: Dict[Tuple[int, int], int] = {}  # (gate, row) -> var (explicit mode only)
         self.left_val_vars: Dict[Tuple[int, int], int] = {}  # (gate, row) -> var (explicit mode only)
@@ -65,6 +80,8 @@ class VariableManager:
         self.gate_output_vars: Dict[int, int] = {}  # gate_idx -> var (symbolic mode)
         
         mode_str = "symbolic" if symbolic_mode else f"explicit ({n_rows} rows)"
+        if ac0_max_depth is not None:
+            mode_str += f", ac0_depth<={ac0_max_depth}"
         print(f"[VariableManager] Allocating variables for {n_inputs} inputs, {max_gates} gates, mode={mode_str}")
         
         # Allocate all variables upfront
@@ -74,14 +91,35 @@ class VariableManager:
     
     def _allocate_variables(self):
         """Allocate all CNF variables."""
-        # Gate type variables (per gate: AND or OR)
+        # Gate type variables (per gate: AND or OR, plus NOT for AC0)
         for g in range(self.max_gates):
             self.gate_is_and[g] = self.next_var
             self.next_var += 1
             self.gate_is_or[g] = self.next_var
             self.next_var += 1
-        
-        print(f"[VariableManager] Gate type vars: {self.max_gates * 2} vars")
+
+        n_type_vars = self.max_gates * 2
+
+        # AC0 extension: NOT gate type variable (one per gate)
+        if self.ac0_max_depth is not None:
+            for g in range(self.max_gates):
+                self.gate_is_not[g] = self.next_var
+                self.next_var += 1
+            n_type_vars += self.max_gates
+            print(f"[VariableManager] Gate type vars (AND/OR/NOT): {n_type_vars} vars")
+
+            # Depth layer variables: gate_in_layer[(g, d)] for d in 1..ac0_max_depth
+            # gate_in_layer[(g, d)] is True iff gate g is assigned to depth layer d.
+            # Inputs are implicitly at depth 0.
+            n_depth_vars = 0
+            for g in range(self.max_gates):
+                for d in range(1, self.ac0_max_depth + 1):
+                    self.gate_in_layer[(g, d)] = self.next_var
+                    self.next_var += 1
+                    n_depth_vars += 1
+            print(f"[VariableManager] Depth layer vars (gates x depths): {n_depth_vars} vars")
+        else:
+            print(f"[VariableManager] Gate type vars: {n_type_vars} vars")
         
         # Input selection variables (per gate, per input position, per possible source)
         for g in range(self.max_gates):
@@ -178,6 +216,7 @@ class CircuitSynthesisEncoder:
         truth_table: List[Dict],
         encoding_mode: str = "explicit",
         target_function: Optional[str] = None,
+        max_depth: Optional[int] = None,
     ) -> CNFProblem:
         """
         Encode circuit synthesis problem as CNF.
@@ -192,12 +231,23 @@ class CircuitSynthesisEncoder:
                 "symbolic"   - streaming truth table: 2^n rows generated on-the-fly (V4)
                 "algebraic"  - O(k^2 + n) XOR-chain encoding, no truth table rows (V4b)
             target_function: Function name for symbolic/algebraic mode ("parity", etc.)
+            max_depth: For AC0 circuits, enforce depth <= max_depth. If None and
+                       circuit_class="ac0", defaults to 2. Pass explicitly to override.
 
         Returns:
             CNFProblem encoding the synthesis question
         """
+        # Resolve AC0 depth: default to 2 if not specified
+        if circuit_class == "ac0" and max_depth is None:
+            max_depth = 2
+            print(f"[CircuitSynthesisEncoder] AC0: defaulting to max_depth=2")
+
         print(f"[CircuitSynthesisEncoder] Encoding {circuit_class} synthesis:")
-        print(f"  n_inputs={n_inputs}, max_gates={max_gates}, mode={encoding_mode}")
+        print(f"  n_inputs={n_inputs}, max_gates={max_gates}, mode={encoding_mode}", end="")
+        if max_depth is not None:
+            print(f", max_depth={max_depth}")
+        else:
+            print()
 
         # "algebraic" mode uses symbolic variable manager but routes to
         # _encode_algebraic_parity instead of _encode_streaming_parity.
@@ -218,8 +268,13 @@ class CircuitSynthesisEncoder:
             else:
                 raise ValueError("Explicit mode requires truth_table")
         
-        # Create variable manager
-        vars = VariableManager(n_inputs, max_gates, len(truth_rows), symbolic_mode=symbolic_mode)
+        # Create variable manager — pass ac0_max_depth only for AC0 circuits
+        ac0_depth_for_vm = max_depth if circuit_class == "ac0" else None
+        vars = VariableManager(
+            n_inputs, max_gates, len(truth_rows),
+            symbolic_mode=symbolic_mode,
+            ac0_max_depth=ac0_depth_for_vm,
+        )
         
         # Generate clauses
         clauses: List[List[int]] = []
@@ -295,33 +350,47 @@ class CircuitSynthesisEncoder:
     def _encode_structure_constraints(self, vars: VariableManager) -> List[List[int]]:
         """
         Encode structural constraints for circuit.
-        
+
+        For monotone circuits: each gate is AND or OR (binary, fan-in 2).
+        For AC0 circuits: each gate is AND, OR, or NOT.
+          - AND/OR gates have fan-in 2 (both input positions used).
+          - NOT gates have fan-in 1 (only input_pos=0 used; input_pos=1 is unconstrained).
+
         Returns:
             List of clauses
         """
         clauses = []
-        
+        ac0_mode = vars.ac0_max_depth is not None
+
         for g in range(vars.max_gates):
-            # 1. Each gate has exactly one type (AND or OR)
-            # At least one type
-            clauses.append([vars.gate_is_and[g], vars.gate_is_or[g]])
-            
-            # At most one type (not both)
-            clauses.append([-vars.gate_is_and[g], -vars.gate_is_or[g]])
-            
-            # 2. Each gate input selects exactly one source
-            num_sources = vars.n_inputs + g  # Can use inputs 0..n-1 and gates 0..g-1
-            
+            if ac0_mode:
+                # Exactly one of {AND, OR, NOT} is true
+                and_v = vars.gate_is_and[g]
+                or_v  = vars.gate_is_or[g]
+                not_v = vars.gate_is_not[g]
+                # At least one
+                clauses.append([and_v, or_v, not_v])
+                # At most one (pairwise)
+                clauses.append([-and_v, -or_v])
+                clauses.append([-and_v, -not_v])
+                clauses.append([-or_v,  -not_v])
+            else:
+                # Monotone: exactly one of {AND, OR}
+                clauses.append([vars.gate_is_and[g], vars.gate_is_or[g]])
+                clauses.append([-vars.gate_is_and[g], -vars.gate_is_or[g]])
+
+            # Each gate input selects exactly one source
+            # Sources: inputs 0..n-1 and earlier gates 0..g-1
+            num_sources = vars.n_inputs + g
+
             for input_pos in [0, 1]:
                 # At least one source
                 clause = []
                 for source in range(num_sources):
                     clause.append(vars.input_select[(g, input_pos, source)])
                 clauses.append(clause)
-                
+
                 # At most one source (pairwise exclusion)
-                # OPTIMIZATION: Only add if num_sources is small
-                # For large num_sources, this creates O(n²) clauses
                 if num_sources <= 20:
                     for i in range(num_sources):
                         for j in range(i + 1, num_sources):
@@ -330,12 +399,10 @@ class CircuitSynthesisEncoder:
                                 -vars.input_select[(g, input_pos, j)],
                             ])
                 else:
-                    # Use sequential counter encoding for at-most-one
-                    # This uses O(n) clauses instead of O(n²)
                     clauses.extend(self._encode_at_most_one_sequential(
                         [vars.input_select[(g, input_pos, src)] for src in range(num_sources)]
                     ))
-        
+
         return clauses
     
     def _encode_at_most_one_sequential(self, variables: List[int]) -> List[List[int]]:
@@ -387,20 +454,106 @@ class CircuitSynthesisEncoder:
     
     def _encode_ac0_constraints(self, vars: VariableManager, n_inputs: int, max_gates: int) -> List[List[int]]:
         """
-        Encode AC0 constraints: constant depth, unbounded fan-in.
-        
-        For AC0, we allow NOT gates anywhere (not just inputs).
-        We enforce depth constraints separately (would need depth tracking variables).
-        For now, we just allow all three gate types.
-        
+        Encode AC0 constraints: constant depth with AND/OR/NOT gates.
+
+        AC0 circuits have:
+          - AND, OR gates (binary fan-in 2) and NOT gates (unary fan-in 1)
+          - Depth at most max_depth (stored in vars.ac0_max_depth)
+
+        Depth encoding (unary layer assignment):
+          - Each gate g is assigned to exactly one layer d in {1, ..., max_depth}.
+          - Inputs are at layer 0 (implicit, no variables needed).
+          - gate_in_layer[(g, d)] = True iff gate g is at depth d.
+          - A gate at depth d can only take inputs from:
+              * Original inputs (depth 0), OR
+              * Gates at depth d-1.
+          - This encodes the depth constraint: if gate g is at layer d, then every
+            source gate h that feeds into g must be at layer d-1 or less.
+            We enforce this as: if gate_in_layer[g, d] and NOT gate_in_layer[h, <d],
+            then input_select[g, pos, n_inputs+h] must be False.
+            Equivalently: gate_in_layer[g, d] AND input_select[g, pos, n+h]
+            implies gate_in_layer[h, d-1] (h's layer is at most d-1).
+
+        NOT gate fan-in constraint:
+          - NOT gates must have identical left and right inputs (fan-in 1 encoded as
+            both input positions selecting the same source, with input_pos=1 forced
+            to equal input_pos=0). We encode this by adding implications:
+            if gate_is_not[g] then input_select[g,0,src] <-> input_select[g,1,src]
+            for all src. This ensures NOT gates effectively use only one input.
+
         Returns:
-            List of clauses
+            List of clauses enforcing depth and NOT fan-in constraints.
         """
-        # AC0 allows AND, OR, and NOT gates
-        # Depth constraints would require additional depth tracking variables
-        # For MVP: just allow all gate types (depth enforcement TODO)
-        print(f"[CircuitSynthesisEncoder] AC0: Allowing NOT gates (depth tracking TODO)")
-        return []
+        clauses = []
+        d_max = vars.ac0_max_depth
+        print(f"[CircuitSynthesisEncoder] AC0: encoding depth<={d_max}, AND/OR/NOT gates")
+
+        # ------------------------------------------------------------------ #
+        # 1. Each gate is assigned to exactly one depth layer in {1, ..., d_max}
+        # ------------------------------------------------------------------ #
+        for g in range(max_gates):
+            layer_vars = [vars.gate_in_layer[(g, d)] for d in range(1, d_max + 1)]
+            # At least one layer
+            clauses.append(layer_vars[:])
+            # At most one layer (pairwise)
+            for i in range(len(layer_vars)):
+                for j in range(i + 1, len(layer_vars)):
+                    clauses.append([-layer_vars[i], -layer_vars[j]])
+
+        print(f"[CircuitSynthesisEncoder] AC0: depth assignment clauses added for {max_gates} gates x {d_max} layers")
+
+        # ------------------------------------------------------------------ #
+        # 2. Depth ordering constraint:
+        #    If gate g is at layer d, any gate source h feeding into g must be
+        #    at layer < d (i.e., at most layer d-1).
+        #    Encoding: gate_in_layer[g, d] AND input_select[g, pos, n_inputs+h]
+        #              => OR_{d2=1}^{d-1} gate_in_layer[h, d2]
+        #    As a clause: NOT gate_in_layer[g, d] OR NOT input_select[g, pos, n+h]
+        #                 OR gate_in_layer[h, 1] OR ... OR gate_in_layer[h, d-1]
+        #
+        #    Special case d=1: gate at depth 1 can only use original inputs (depth 0).
+        #    So: gate_in_layer[g, 1] AND input_select[g, pos, n_inputs+h] is UNSAT
+        #    for any gate source h. Clause: NOT gate_in_layer[g,1] OR NOT input_select[g,pos,n+h]
+        # ------------------------------------------------------------------ #
+        for g in range(max_gates):
+            for d in range(1, d_max + 1):
+                layer_gd = vars.gate_in_layer[(g, d)]
+                for input_pos in [0, 1]:
+                    # Gate sources are circuit gates 0..g-1
+                    for h in range(g):
+                        src_idx = n_inputs + h  # source index for gate h in input_select
+                        sel_var = vars.input_select[(g, input_pos, src_idx)]
+                        if d == 1:
+                            # Layer 1 gates cannot use other gate outputs as inputs
+                            clauses.append([-layer_gd, -sel_var])
+                        else:
+                            # Gate h must be at layer < d, i.e., in {1, ..., d-1}
+                            earlier_layers = [vars.gate_in_layer[(h, d2)] for d2 in range(1, d)]
+                            clauses.append([-layer_gd, -sel_var] + earlier_layers)
+
+        print(f"[CircuitSynthesisEncoder] AC0: depth ordering clauses added")
+
+        # ------------------------------------------------------------------ #
+        # 3. NOT gate fan-in=1 constraint:
+        #    NOT gates must use the same source for both input positions.
+        #    Encoding: if gate_is_not[g] then for every src,
+        #              input_select[g, 0, src] <-> input_select[g, 1, src]
+        #    Clause form:
+        #      NOT gate_is_not[g] OR NOT input_select[g,0,src] OR input_select[g,1,src]
+        #      NOT gate_is_not[g] OR input_select[g,0,src] OR NOT input_select[g,1,src]
+        # ------------------------------------------------------------------ #
+        for g in range(max_gates):
+            not_v = vars.gate_is_not[g]
+            num_sources = n_inputs + g
+            for src in range(num_sources):
+                sel0 = vars.input_select[(g, 0, src)]
+                sel1 = vars.input_select[(g, 1, src)]
+                clauses.append([-not_v, -sel0, sel1])
+                clauses.append([-not_v, sel0, -sel1])
+
+        print(f"[CircuitSynthesisEncoder] AC0: NOT fan-in=1 clauses added")
+        print(f"[CircuitSynthesisEncoder] AC0 total constraints: {len(clauses)} clauses")
+        return clauses
     
     def _encode_formula_constraints(self, vars: VariableManager) -> List[List[int]]:
         """
@@ -497,19 +650,30 @@ class CircuitSynthesisEncoder:
                 # Encode: gate_value[g][row] = gate_type(left_val, right_val)
                 gate_val = vars.gate_value[(gate_idx, row_idx)]
                 
-                # AND semantics: (¬gate_is_and ∨ (gate_val ↔ (left_val ∧ right_val)))
+                # AND semantics: (NOT gate_is_and OR (gate_val <-> (left_val AND right_val)))
                 clauses.extend([
                     [-vars.gate_is_and[g], -gate_val, left_val],
                     [-vars.gate_is_and[g], -gate_val, right_val],
                     [-vars.gate_is_and[g], -left_val, -right_val, gate_val],
                 ])
                 
-                # OR semantics: (¬gate_is_or ∨ (gate_val ↔ (left_val ∨ right_val)))
+                # OR semantics: (NOT gate_is_or OR (gate_val <-> (left_val OR right_val)))
                 clauses.extend([
                     [-vars.gate_is_or[g], -gate_val, left_val, right_val],
                     [-vars.gate_is_or[g], -left_val, gate_val],
                     [-vars.gate_is_or[g], -right_val, gate_val],
                 ])
+
+                # NOT semantics (AC0 only): gate_val = NOT left_val
+                # (NOT gate_is_not OR (gate_val <-> NOT left_val))
+                # Clauses: (NOT gate_is_not OR NOT gate_val OR NOT left_val)
+                #          (NOT gate_is_not OR gate_val OR left_val)
+                if vars.ac0_max_depth is not None and g in vars.gate_is_not:
+                    not_v = vars.gate_is_not[g]
+                    clauses.extend([
+                        [-not_v, -gate_val, -left_val],
+                        [-not_v,  gate_val,  left_val],
+                    ])
             
             # 3. Output gate must match target function
             output_gate_idx = vars.n_inputs + vars.max_gates - 1  # Last gate

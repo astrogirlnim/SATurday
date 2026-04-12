@@ -1047,5 +1047,27 @@
     "solve_time_s": 478.323,
     "note": "MAJ_5 g=8 UNSAT confirmed. Minimum is 9 or 10.",
     "timestamp": 1775427029.834156
+  },
+  "6fc7cf14318d34fa6b38e72bd625adbbb74dda91e559b9610fdafd56d4fe0cbf": {
+    "function": "parity",
+    "n": 4,
+    "circuit_class": "ac0",
+    "max_depth": 2,
+    "max_gates": 8,
+    "result": "UNSAT",
+    "iteration": 4,
+    "lrat_path": "tmp/par4_d2_g8.lrat",
+    "timestamp": "2026-04-12T17:12:37.629723Z"
+  },
+  "13c8870ab68d3a9145c571a9975d3fe7c26c97f5eb0a79f6c7d0a48c665e187f": {
+    "function": "parity",
+    "n": 4,
+    "circuit_class": "ac0",
+    "max_depth": 2,
+    "max_gates": 16,
+    "result": "UNSAT",
+    "iteration": 4,
+    "lrat_path": "tmp/par4_d2_g16.lrat",
+    "timestamp": "2026-04-12T17:12:37.629726Z"
   }
 }
