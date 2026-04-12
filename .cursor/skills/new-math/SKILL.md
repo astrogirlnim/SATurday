@@ -16,26 +16,73 @@ proof and mining infrastructure.
 
 ## The Loop
 
-```mermaid
-flowchart TD
-    propose["Step 1\nProposer subagent\nlists 3 approaches"]
-    discuss["Step 2\nDebate\nuser argues, subagent defends"]
-    choose["Step 3\nUser picks\n(HITL - you have final say)"]
-    solve["Step 4\nPursue\nroutes to proof-sprint or ORACLE"]
-    validate["Step 5\nBarrier Validator subagent\ndid we evade all three barriers?"]
-    victory["Step 6\nVictory check\nP != NP separated?"]
-    done["DONE\nP != NP proved in Lean"]
-
-    propose --> discuss
-    discuss -->|"user pushes back"| propose
-    discuss -->|"user picks"| choose
-    choose --> solve
-    solve --> validate
-    validate -->|"barrier still blocks"| discuss
-    validate -->|"barriers evaded"| victory
-    victory -->|"sorry-free, no sorryAx"| done
-    victory -->|"not yet"| solve
 ```
+  Step 0   Literature Search   (orchestrator)
+     |      WebSearch: current barrier-evading approaches
+     v
+  Step 1   Proposer   (subagent)
+     |      proposes 3 approaches grounded in literature
+     v
+  Step 2   Debate   (HITL loop)
+     |  ^   user argues, subagent defends
+     |  |   repeat until user says "go with X"
+     v  |
+  Step 3   Commit   (orchestrator)
+     |      create research/<slug>/, lock approach
+     v
+  Step 4   Pursue   (proof-sprint or ORACLE)
+     |      close theorems or generate LRAT evidence
+     v
+  Step 5   Barrier Validator   (subagent)
+     |  |   WebSearch: recent critiques of this technique
+     |  +-- BARRIER_BLOCKED --> back to Step 2
+     v
+  Step 6   Victory Check   (orchestrator + HITL)
+     |  |
+     |  +-- not yet --> back to Step 4
+     v
+  DONE: P != NP proved, human confirmed
+```
+
+---
+
+## Step 0: Literature Search (orchestrator — no subagent)
+
+Run these four web searches using the WebSearch tool. Collect the results into
+a `LiteratureContext` block that is passed verbatim to the Proposer in Step 1.
+
+```
+Search 1: "P vs NP barrier evading proof techniques 2025 2026"
+Search 2: "non-relativizing non-naturalizing circuit complexity lower bound recent"
+Search 3: "geometric complexity theory Mulmuley progress 2024 2025"
+Search 4: "proof complexity circuit lower bound separation 2024 2025"
+```
+
+From the results, extract and summarize:
+- Any named approaches published or discussed in the last two years
+- Any approaches explicitly shown to fail (to avoid proposing dead ends)
+- Any arxiv papers with plausible barrier-evasion claims (note: unverified)
+
+Format as:
+
+```
+LITERATURE CONTEXT (for Proposer)
+
+Recent active directions:
+  <direction name>: <one-sentence summary> (source: <paper or author>)
+  ...
+
+Recently refuted or critiqued directions:
+  <direction>: <why it failed> (source: <paper or author>)
+  ...
+
+Unverified but notable recent claims:
+  <arxiv id or title>: <one-sentence claim>
+  ...
+```
+
+If all searches return no useful results, write: "LITERATURE_SPARSE: proceed
+with prior knowledge only."
 
 ---
 
@@ -56,14 +103,20 @@ You are a research mathematician proposing approaches to separate P from NP.
 The current approach (Razborov monotone lower bounds) is blocked by all three
 barriers: relativization, natural proofs, and algebraization.
 
+Literature gathered this session:
+  {LITERATURE_CONTEXT}
+
+Use the literature to ground your proposals in real, current research directions.
+Do not repeat approaches already shown to fail in the literature context.
+
 Propose exactly 3 distinct approaches. For each:
 1. Name and one-sentence description (no hyphens).
 2. Which barriers it evades and the mechanism (one sentence each).
 3. Which barriers it does NOT evade and why (be honest).
 4. The single first theorem to prove in Lean 4 if this approach were pursued.
 5. Estimated difficulty: months, years, or decade.
+6. Key paper or author (required; use literature context or prior knowledge).
 
-Be concrete. Cite a named paper, author, or research program for each.
 Do not propose: diagonalization, monotone lower bounds, time hierarchy variations.
 
 You will argue for these proposals against the user. Do not immediately concede
@@ -117,6 +170,20 @@ Create the approach folder and scaffold:
 SLUG="<slug>"
 BASE="/Users/nmm/Development/SATurday/research/$SLUG"
 mkdir -p "$BASE/lean" "$BASE/sat" "$BASE/logs" "$BASE/notes"
+
+# Seed the literature notes file with what was found in Step 0
+cat > "$BASE/notes/literature.md" <<DOC
+# Literature Notes: <Approach Name>
+
+## Step 0 search results
+<paste LITERATURE_CONTEXT here>
+
+## Step 5 search results
+(populated when Barrier Validator runs)
+
+## Step 6 search results
+(populated when Victory Check runs)
+DOC
 
 # README with approach summary from the debate
 cat > "$BASE/README.md" <<DOC
@@ -186,9 +253,29 @@ Follow whichever skill was routed to in Step 3. Return the outcome
 
 ---
 
-## Step 5: Barrier Validator (spawn subagent)
+## Step 5: Barrier Validator (orchestrator + subagent)
 
-After each closed result, spawn one subagent to confirm barrier evasion.
+**5a. Literature check (orchestrator — no subagent)**
+
+Before spawning the Validator, run two targeted searches on the specific
+technique that was just pursued:
+
+```
+Search 1: "<approach name> barrier relativization natural proof complexity theory"
+Search 2: "<approach name> P vs NP refutation or confirmation 2024 2025 2026"
+```
+
+Summarize findings into a `ValidationLiterature` block:
+- Any papers that have formally analyzed this technique against the barriers
+- Any known refutations of barrier-evasion claims for this technique
+- Any endorsements from recognized complexity theorists
+
+If the search finds a published refutation of the barrier-evasion claim,
+skip the subagent and go directly to BARRIER_BLOCKED with the citation.
+
+**5b. Barrier Validator (spawn subagent)**
+
+Pass the theorem, proof summary, and ValidationLiterature to the subagent.
 
 **Subagent prompt:**
 ```
@@ -198,6 +285,11 @@ following result:
   Theorem: <theorem name and statement>
   Proof technique: <summary of approach>
   Barrier evasion claimed: <from Step 3 record>
+  Literature on this technique: {VALIDATION_LITERATURE}
+
+Use the literature to inform your verdicts. If a published paper has already
+shown this technique to be relativizing or to constitute a natural proof, cite
+it and rule BARRIER_BLOCKED immediately.
 
 Apply each barrier test:
 
@@ -224,6 +316,19 @@ If verdict is BARRIER_CLEAR: proceed to Step 6.
 ---
 
 ## Step 6: Victory Check (orchestrator — no subagent)
+
+**6a. Final literature check**
+
+Run one search before presenting the result to the user:
+
+```
+Search: "<theorem name> OR <approach name> P vs NP proof 2025 2026"
+```
+
+If any result indicates the claimed separation is already known to be flawed,
+append that finding to the HITL prompt so the user can weigh it.
+
+**6b. Lean and sorryAx checks**
 
 A result only counts as separating P from NP if ALL of the following hold:
 
@@ -297,6 +402,13 @@ The loop always stops for human review before the final commit.
 
 **N4 — One approach at a time.** Do not pursue multiple directions in parallel.
 Finish or abandon the current approach before starting a new one.
+
+**N6 — Literature search at every proposal and validation boundary.** Step 0
+searches before any subagent is spawned. Step 5a searches before the Barrier
+Validator runs. Step 6a searches before the Victory HITL prompt. A known
+refutation in the literature short-circuits the subagent and returns
+BARRIER_BLOCKED immediately with a citation. Save all search summaries to
+`research/<slug>/notes/literature.md` for the permanent record.
 
 **N5 — One folder per approach.** Every approach that passes Step 3 gets a
 `research/<slug>/` folder. All Lean files, SAT certificates, logs, and notes
