@@ -761,6 +761,16 @@ block the research loop.
 
 ---
 
+## Companion Skill: proof-sprint
+
+When the blocking gap is a Lean formalization rather than a SAT certificate (i.e., a
+sorry exists whose dependencies are all closed but which requires Lean tactic proof
+engineering), use `.cursor/skills/proof-sprint/SKILL.md` instead of this skill.
+ORACLE feeds proof-sprint by generating LRAT-backed anchor theorems; proof-sprint
+escalates back to ORACLE when a sorry is best closed via a new SAT certificate.
+
+---
+
 ## Adapting to a Different Math Problem
 
 Replace the memory bank files with those for the new project.
