@@ -1,0 +1,14 @@
+{
+  "input_cnf": "/Users/nmm/Development/SATurday/proofs/llm_a_monotone_n3_s99000.cnf",
+  "input_hash": "1c24e5b927276ef7d77154a236f7fa69a415b4db5d8eaa1bf012ce746c32742e",
+  "num_variables": 164,
+  "num_clauses": 884,
+  "seed": 42,
+  "status": "UNSAT",
+  "exit_code": 20,
+  "time_seconds": 0.0041179656982421875,
+  "kissat_version": "3.1.1",
+  "lrat_proof": "/Users/nmm/Development/SATurday/proofs/1c24e5b927276ef7d77154a236f7fa69a415b4db5d8eaa1bf012ce746c32742e.lrat",
+  "solver_log": "/Users/nmm/Development/SATurday/proofs/1c24e5b927276ef7d77154a236f7fa69a415b4db5d8eaa1bf012ce746c32742e.log",
+  "timestamp": "2026-03-03 21:03:34"
+}

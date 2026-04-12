@@ -1,0 +1,14 @@
+{
+  "input_cnf": "/Users/nmm/Development/SATurday/proofs/bet_c_nw_parity_n2_s30051.cnf",
+  "input_hash": "d6044ada5025b8aeb0ef8023f09b286f7567e534433478c6a0f55401da581eb3",
+  "num_variables": 92,
+  "num_clauses": 388,
+  "seed": 93,
+  "status": "UNSAT",
+  "exit_code": 20,
+  "time_seconds": 0.0024871826171875,
+  "kissat_version": "3.1.1",
+  "lrat_proof": "/Users/nmm/Development/SATurday/proofs/d6044ada5025b8aeb0ef8023f09b286f7567e534433478c6a0f55401da581eb3.lrat",
+  "solver_log": "/Users/nmm/Development/SATurday/proofs/d6044ada5025b8aeb0ef8023f09b286f7567e534433478c6a0f55401da581eb3.log",
+  "timestamp": "2026-03-04 08:33:43"
+}

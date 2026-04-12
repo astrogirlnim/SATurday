@@ -1,0 +1,14 @@
+{
+  "input_cnf": "/Users/nmm/Development/SATurday/proofs/bet_b_graph_reach_n2_s20002.cnf",
+  "input_hash": "af51483e11080d8df3b460cde7b1bf46ed43819d321cf5fd11feccd06a9528f1",
+  "num_variables": 92,
+  "num_clauses": 388,
+  "seed": 44,
+  "status": "UNSAT",
+  "exit_code": 20,
+  "time_seconds": 0.0031440258026123047,
+  "kissat_version": "3.1.1",
+  "lrat_proof": "/Users/nmm/Development/SATurday/proofs/af51483e11080d8df3b460cde7b1bf46ed43819d321cf5fd11feccd06a9528f1.lrat",
+  "solver_log": "/Users/nmm/Development/SATurday/proofs/af51483e11080d8df3b460cde7b1bf46ed43819d321cf5fd11feccd06a9528f1.log",
+  "timestamp": "2026-03-03 20:56:03"
+}

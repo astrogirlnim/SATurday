@@ -1,0 +1,14 @@
+{
+  "input_cnf": "/Users/nmm/Development/SATurday/proofs/non_relativizing_reduction_n2_s40001.cnf",
+  "input_hash": "3a8880b0d3e32b6929869540387638f2e4a06401ced50881507674f5a64026c6",
+  "num_variables": 92,
+  "num_clauses": 388,
+  "seed": 43,
+  "status": "UNSAT",
+  "exit_code": 20,
+  "time_seconds": 0.002855062484741211,
+  "kissat_version": "3.1.1",
+  "lrat_proof": "/Users/nmm/Development/SATurday/proofs/3a8880b0d3e32b6929869540387638f2e4a06401ced50881507674f5a64026c6.lrat",
+  "solver_log": "/Users/nmm/Development/SATurday/proofs/3a8880b0d3e32b6929869540387638f2e4a06401ced50881507674f5a64026c6.log",
+  "timestamp": "2026-03-04 09:19:24"
+}

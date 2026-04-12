@@ -1,0 +1,14 @@
+{
+  "input_cnf": "/Users/nmm/Development/SATurday/proofs/bet_b_sorting_n2_s20000.cnf",
+  "input_hash": "3b136c07f6ab06de636310b7aea5e34d6462f3ca4f5e0b759a01508adf1b0064",
+  "num_variables": 64,
+  "num_clauses": 222,
+  "seed": 42,
+  "status": "SAT",
+  "exit_code": 10,
+  "time_seconds": 0.007843971252441406,
+  "kissat_version": "3.1.1",
+  "lrat_proof": "/Users/nmm/Development/SATurday/proofs/3b136c07f6ab06de636310b7aea5e34d6462f3ca4f5e0b759a01508adf1b0064.lrat",
+  "solver_log": "/Users/nmm/Development/SATurday/proofs/3b136c07f6ab06de636310b7aea5e34d6462f3ca4f5e0b759a01508adf1b0064.log",
+  "timestamp": "2026-03-03 20:56:03"
+}

@@ -1,0 +1,14 @@
+{
+  "input_cnf": "proofs/monotone_parity_n5_s53.cnf",
+  "input_hash": "645b006dc631d867548053d88cdf9e3f4d1be579016b509a4f104bb539c18f5a",
+  "num_variables": 720,
+  "num_clauses": 5872,
+  "seed": 53,
+  "status": "UNSAT",
+  "exit_code": 20,
+  "time_seconds": 0.031507015228271484,
+  "kissat_version": "3.1.1",
+  "lrat_proof": "/Users/nmm/Development/SATurday/proofs/645b006dc631d867548053d88cdf9e3f4d1be579016b509a4f104bb539c18f5a.lrat",
+  "solver_log": "/Users/nmm/Development/SATurday/proofs/645b006dc631d867548053d88cdf9e3f4d1be579016b509a4f104bb539c18f5a.log",
+  "timestamp": "2026-03-06 14:31:16"
+}

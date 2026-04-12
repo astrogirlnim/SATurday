@@ -1,0 +1,14 @@
+{
+  "input_cnf": "/Users/nmm/Development/SATurday/proofs/algebraization_reduction_n2_s40021.cnf",
+  "input_hash": "18ec791eb2201bc53888126b22a930ea530ea0e09496689aa5218caa542dcb32",
+  "num_variables": 92,
+  "num_clauses": 388,
+  "seed": 63,
+  "status": "UNSAT",
+  "exit_code": 20,
+  "time_seconds": 0.0030660629272460938,
+  "kissat_version": "3.1.1",
+  "lrat_proof": "/Users/nmm/Development/SATurday/proofs/18ec791eb2201bc53888126b22a930ea530ea0e09496689aa5218caa542dcb32.lrat",
+  "solver_log": "/Users/nmm/Development/SATurday/proofs/18ec791eb2201bc53888126b22a930ea530ea0e09496689aa5218caa542dcb32.log",
+  "timestamp": "2026-03-04 09:19:25"
+}
