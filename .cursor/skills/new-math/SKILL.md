@@ -71,8 +71,9 @@ subagent with conversation history and print its response. Repeat until "go with
 ## Step 3: Commit
 
 ```bash
+WORKSPACE=$(git rev-parse --show-toplevel)
 SLUG="<slug>"
-BASE="research/$SLUG"
+BASE="$WORKSPACE/research/$SLUG"
 mkdir -p "$BASE/lean" "$BASE/sat" "$BASE/logs" "$BASE/notes"
 ```
 
@@ -86,7 +87,7 @@ import json, time
 print(json.dumps({'timestamp': int(time.time()), 'chosen_approach': '<name>',
   'slug': '$SLUG', 'barrier_evasion_claimed': '<summary>',
   'first_lean_target': '<target>'}))
-" >> "search/logs/new_math_proposals.jsonl"
+" >> "$WORKSPACE/search/logs/new_math_proposals.jsonl"
 ```
 
 Route to proof-sprint (Lean target) or ORACLE (needs SAT evidence) or write an
@@ -131,9 +132,10 @@ Search `"<theorem> OR <approach> P vs NP proof 2025 2026"`. Append any flaws fou
 to the HITL prompt.
 
 ```bash
-LEAN_DIR="research/<slug>/lean"
+WORKSPACE=$(git rev-parse --show-toplevel)
+LEAN_DIR="$WORKSPACE/research/<slug>/lean"
 SORRY_COUNT=$(grep -rn ":= sorry\|^ *sorry$" --include="*.lean" "$LEAN_DIR" 2>/dev/null | wc -l | tr -d ' ')
-cd "theory" && lake build 2>/dev/null
+cd "$WORKSPACE/theory" && lake build 2>/dev/null
 lake env lean --stdin <<'LEAN' 2>&1 | grep -q "sorryAx" && echo "SORRY_AX" || echo "CLEAN"
 #print axioms <theorem_name>
 LEAN
@@ -142,7 +144,8 @@ LEAN
 If SORRY_COUNT=0 and CLEAN, print HITL prompt and wait for user YES. On YES:
 
 ```bash
-cd "/Volumes/SSK Drive/SATurday"
+WORKSPACE=$(git rev-parse --show-toplevel)
+cd "$WORKSPACE"
 git add -f research/<slug>/ search/logs/
 git commit -m "P != NP proved: <theorem name>"
 ```
