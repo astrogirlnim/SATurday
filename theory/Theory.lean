@@ -21,3 +21,4 @@ focusing on circuit lower bounds, algorithm analysis, and P vs NP exploration.
 
 LOG: Theory library root module with tactic libraries and circuit definitions
 -/
+import SheafApproach.SatisfactionSheaf

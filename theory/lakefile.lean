@@ -21,6 +21,10 @@ lean_lib «Conjectures» where
   -- Generated conjectures and proofs from agent system
   globs := #[.submodules `Conjectures]
 
+lean_lib «SheafApproach» where
+  -- Sheaf-cohomological obstruction: new P vs NP approach (session 2026-04-13)
+  globs := #[.submodules `SheafApproach]
+
 -- Test script to verify basic lemmas
 script test do
   IO.println "LOG: Running SATurday theory tests..."
