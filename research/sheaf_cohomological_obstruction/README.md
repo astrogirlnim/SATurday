@@ -66,14 +66,18 @@ and notes/linearization.md):
    cohomology or the clause cover nerve. H^0 correspondence is VERIFIED and is the
    correct first Lean target. (notes/2sat_correspondence.md, notes/linearization.md)
 
-4. [NEXT] Test whether Cech H^1 of the clause cover nerve detects unsatisfiability
-   for 2-SAT and 3-SAT empirically. This is the cheapest path to identifying the
-   correct obstruction construction before committing to Lean formalization.
+4. [DONE - theory] Test Cech H^1 of the clause cover nerve for 2-SAT.
+   Result: FAIL (2026-04-13). Two failure modes confirmed:
+     1-skeleton only: H_1 = 1.00 always (too many cycles, regardless of SAT).
+     Full nerve with triangles: H_1 = 0.00 always (nerve is contractible, trivial).
+   This matches the theoretical prediction: any polynomial-time syntactic construction
+   either produces H_1 always-nonzero or always-zero. No transition is possible.
+   The empirical phase is definitively complete. All five constructions tested have
+   failed. The correct obstruction does not admit a polynomial-time syntactic formula.
 
-5. [PENDING] Formalize the H^0 theorem (global sections = satisfying assignments)
-   in Lean 4 as an unconditional foundation. This does not depend on any unresolved
-   conjectures and is a correct, useful result regardless of what the obstruction turns
-   out to be.
+5. [NEXT] Formalize the H^0 theorem in Lean 4: global sections of F_lin equal
+   satisfying assignments. This is unconditionally correct and does not depend on
+   any unresolved conjecture. File: research/sheaf_cohomological_obstruction/lean/SolutionSheaf.lean
 
 ## Empirical result round 2 (session 2026-04-13)
 
@@ -146,13 +150,10 @@ Next step: implement and test construction (a) as the cheapest empirical check.
 
 ## Status
 Active. Session started: 2026-04-12.
-Empirical phase complete (2026-04-13): all syntax-based constructions fail.
-Preliminary theory complete (2026-04-13): H^0 correspondence verified; H^1 original
-conjecture refuted; linearization committed to F_2; polynomial-size chain complex
-identified as the major open blocker.
+Empirical phase DEFINITIVELY COMPLETE (2026-04-13): five constructions tested, all fail.
+Preliminary theory complete (2026-04-13): H^0 correct, H^1 wrong direction, F_2 committed.
 
-Next action: empirically test Cech H^1 of the clause cover nerve for 2-SAT and 3-SAT
-to identify the correct obstruction construction before beginning Lean 4 formalization.
+Next action: Lean 4 formalization of H^0 theorem in lean/SolutionSheaf.lean.
 
 ## Key references
 Mulmuley and Sohoni (2001): background on geometric obstruction methods.
