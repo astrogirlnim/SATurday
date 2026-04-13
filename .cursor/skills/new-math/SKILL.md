@@ -8,6 +8,58 @@ description: >
 
 # NEW-MATH: Mathematical Strategy and Pursuit
 
+## Current Approach State
+
+Read this section FIRST at every session start. If an approach is already active,
+skip Steps 0-3 and resume at the recorded step.
+
+```
+Active approach:  Sheaf-Cohomological Obstruction to Polynomial Search
+Slug:             sheaf_cohomological_obstruction
+Folder:           research/sheaf_cohomological_obstruction/
+Current step:     Step 4 (Pursue) -- preliminary theory phase
+Step 4 status:    IN PROGRESS
+
+Progress so far:
+  Empirical phase complete (sessions 2026-04-12, 2026-04-13):
+    All syntax-based H_1 constructions fail (H_1 > 0 = 100% at every ratio).
+    Root cause: any polynomial-time-computable syntactic sheaf cannot capture
+    satisfiability without solving SAT.
+
+  Preliminary theory complete (2026-04-13):
+    H^0 = satisfying assignments: VERIFIED (first Lean target, unconditional)
+    H^1 obstruction (original conjecture): REFUTED for solution-space sheaf
+    Linearization: committed to F_2 coefficients
+    Polynomial-size chain complex: OPEN (major blocker)
+
+  Next action in Step 4:
+    Option A (empirical): test Cech H^1 of the clause cover nerve for 2-SAT
+      and 3-SAT to identify the correct obstruction construction.
+    Option B (Lean): formalize the H^0 theorem (unconditionally correct) in
+      research/sheaf_cohomological_obstruction/lean/ regardless of obstruction.
+    Recommended: Option A first (cheap), then Option B.
+
+Barrier verdicts (from Step 3 commit):
+  Relativization:  claimed evaded (sheaf built from instance structure, not oracle)
+                   CORNER CASE UNRESOLVED: sheaf over computation tree might relativize
+  Natural proofs:  claimed evaded (H^1 is a global geometric invariant of one instance)
+  Algebraization:  claimed evaded (combinatorial topology resists algebrization)
+  Step 5 Barrier Validator: NOT YET RUN
+
+Key files:
+  research/sheaf_cohomological_obstruction/README.md
+  research/sheaf_cohomological_obstruction/notes/2sat_correspondence.md
+  research/sheaf_cohomological_obstruction/notes/linearization.md
+  research/sheaf_cohomological_obstruction/notes/literature.md
+  research/sheaf_cohomological_obstruction/logs/
+  research/sheaf_cohomological_obstruction/lean/   (empty -- not started)
+```
+
+To start a second approach: user must explicitly say "abandon sheaf approach" or
+"new approach alongside sheaf". N4 (one approach at a time) applies.
+
+---
+
 ## Purpose
 
 Identify a mathematical approach to P vs NP that plausibly evades all three
@@ -100,8 +152,14 @@ which of the three barriers it evades and how. No hedging.
 ```
 You are a research mathematician proposing approaches to separate P from NP.
 
-The current approach (Razborov monotone lower bounds) is blocked by all three
-barriers: relativization, natural proofs, and algebraization.
+The previously pursued approaches are listed below. Do not re-propose any of them.
+All are known to be blocked or currently in progress:
+
+  Razborov monotone lower bounds: blocked by all three barriers (relativization,
+    natural proofs, algebraization). Pursued in theory/ as V12.
+  Sheaf-cohomological obstruction: in progress (research/sheaf_cohomological_obstruction/).
+    H^1 original conjecture refuted; correct obstruction construction still open.
+    Barrier verdicts unverified (Step 5 not yet run).
 
 CRITICAL CONSTRAINT: Do NOT propose extensions of existing work. The user wants
 genuinely novel approaches based on the fundamental structure of the problem and
@@ -183,7 +241,7 @@ Example: "Geometric Complexity Theory" -> `geometric_complexity_theory`.
 Create the approach folder and scaffold:
 ```bash
 SLUG="<slug>"
-BASE="/Users/nmm/Development/SATurday/research/$SLUG"
+BASE="research/$SLUG"
 mkdir -p "$BASE/lean" "$BASE/sat" "$BASE/logs" "$BASE/notes"
 
 # Seed the literature notes file with what was found in Step 0
@@ -243,7 +301,7 @@ entry = {
   'first_lean_target': '<from Proposer output>'
 }
 print(json.dumps(entry))
-" >> /Users/nmm/Development/SATurday/search/logs/new_math_proposals.jsonl
+" >> "search/logs/new_math_proposals.jsonl"
 ```
 
 Print:
@@ -263,8 +321,37 @@ Then route:
 
 ## Step 4: Pursue
 
-Follow whichever skill was routed to in Step 3. Return the outcome
-(closed / published / stuck / timeout) when done.
+Step 4 has two parallel tracks. Both may be active simultaneously for a given approach.
+Complete at least one node per session (Convention C3 from proof-sprint applies here too).
+
+**Track A — Empirical (new Python script in research/<slug>/)**
+
+Before formalizing any conjecture in Lean, run a cheap empirical check:
+  1. If the obstruction construction is unverified, write a new empirical script
+     in research/<slug>/ to test it on 2-SAT (smallest tractable case).
+  2. If 2-SAT passes, test 3-SAT near the phase threshold.
+  3. Log results to research/<slug>/logs/ in JSONL.
+  4. Record verdict (passes / fails / inconclusive) back in this skill's
+     "Current Approach State" section above.
+
+For the sheaf approach, the next empirical target is:
+  Cech H^1 of the clause cover nerve (see notes/linearization.md candidate (c)).
+  Script: research/sheaf_cohomological_obstruction/empirical_nerve_h1.py
+
+**Track B — Formal (Lean 4 in research/<slug>/lean/)**
+
+Pursue the first Lean target from Step 3. Route:
+  If first target is a Lean theorem -> follow .cursor/skills/proof-sprint/SKILL.md
+    with the theorem file path set to research/<slug>/lean/<file>.lean.
+  If first target needs empirical SAT evidence first -> follow .cursor/skills/run-oracle/SKILL.md.
+
+For the sheaf approach, Track B can begin immediately with the unconditional theorem:
+  H^0(F_lin) = satisfying assignments  (does not depend on any unresolved conjecture)
+  File: research/sheaf_cohomological_obstruction/lean/SolutionSheaf.lean
+
+Return the outcome (closed / published / stuck / timeout) when done.
+
+After each Track A or Track B result, update "Current Approach State" above.
 
 ---
 
@@ -352,13 +439,17 @@ append that finding to the HITL prompt so the user can weigh it.
 A result only counts as separating P from NP if ALL of the following hold:
 
 ```bash
+# Approach Lean files live in research/<slug>/lean/ (not theory/)
+LEAN_DIR="research/<slug>/lean"
+
 # 1. The target theorem is sorry-free in Lean
-SORRY_COUNT=$(cd /Users/nmm/Development/SATurday/theory && \
-  grep -rn ":= sorry\|^ *sorry$" --include="*.lean" \
-  <path to approach theorem file> 2>/dev/null | wc -l | tr -d ' ')
+SORRY_COUNT=$(grep -rn ":= sorry\|^ *sorry$" --include="*.lean" \
+  "$LEAN_DIR" 2>/dev/null | wc -l | tr -d ' ')
 
 # 2. No sorryAx in the axiom set
-cd /Users/nmm/Development/SATurday/theory && lake build 2>/dev/null
+# Note: approach theorems import from theory/ via the workspace lakefile.
+# Run from the approach's lean dir if it has its own lakefile, else from theory/.
+cd "theory" && lake build 2>/dev/null
 lake env lean --stdin <<'LEAN' 2>&1 | grep -q "sorryAx" && echo "SORRY_AX" || echo "CLEAN"
 #print axioms <theorem_name>
 LEAN
@@ -402,8 +493,8 @@ Commit and notify.
 ```
 
 ```bash
-cd /Users/nmm/Development/SATurday
-git add -f theory/ search/logs/
+cd "/Volumes/SSK Drive/SATurday"
+git add -f research/<slug>/ search/logs/
 git commit -m "P != NP proved: <theorem name>"
 ```
 
