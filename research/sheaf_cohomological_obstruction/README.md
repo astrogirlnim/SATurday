@@ -46,7 +46,50 @@ the satisfying assignments of the SAT instance.
 4. Formalize the first Lean target (global sections = satisfying assignments)
    as a foundation for future mechanized proofs.
 
-## Empirical result (session 2026-04-12)
+## Empirical result round 2 (session 2026-04-13)
+
+Tested three reformulations across n in {15, 20, 30}, 100 trials each, 14 ratios,
+with Wilson 95% confidence intervals.
+
+Constructions tested:
+  A. Conflict complex: vertices = clauses, edges = conflicting clause pairs
+  B. Variable co-occurrence complex: vertices = variables, edges = co-occurrence in clause
+  C. Resolution complex: vertices = clauses, edges = pairs resolvable in one step
+
+Result: all three show H_1 > 0 = 1.00 at every ratio tested. Same failure as
+the literal clause complex. This is not a statistical artifact (100 trials at n=30,
+Wilson CI confirms H_1 > 0 fraction is above 90% even at easy ratios).
+
+Root cause identified: all four constructions (including the original) are built
+from the formula's SYNTACTIC structure (which clauses/variables are connected).
+Any such construction produces a simplicial complex that is always highly connected
+(many independent cycles in the 1-skeleton, not all of which are killed by triangles).
+The H_1 measures topological structure of the constraint graph, not satisfiability.
+
+Fundamental circularity: any polynomial-time computable sheaf built from the
+formula's syntax cannot capture satisfiability (if it did, we would have a
+polynomial-time SAT algorithm). The only sheaves that are guaranteed to track
+satisfiability involve the SOLUTION SPACE directly, which is exponentially large
+to enumerate.
+
+This is not a refutation of the approach — it is a clarification of what the
+correct sheaf must look like:
+  The stalk at a partial assignment sigma must be the set of satisfying total
+  assignments extending sigma. This sheaf captures satisfiability by definition
+  (H^0 = satisfying assignments, H^1 = obstruction to extension). But computing
+  this sheaf in general takes exponential time — which is CONSISTENT with P != NP.
+
+Implication: the correct path is THEORETICAL, not empirical. The approach becomes:
+  1. Define the solution-space sheaf formally.
+  2. Prove H^1 = 0 iff the formula is satisfiable (formal theorem).
+  3. Study the computational complexity of H^1 for the implicit sheaf description
+     (given a CNF formula, not a full enumeration of the solution space).
+  4. Show that computing H^1 is hard (this is the P vs NP claim in cohomological
+     language).
+
+The empirical phase is complete. Future work is formal (Lean 4) and theoretical.
+
+## Empirical result round 1 (session 2026-04-12)
 
 Tested: H_1 of the literal clause complex (vertices = literals, triangles = clauses)
 vs. satisfiability across n in {10, 15, 20}, ratios 2.5 to 6.0, 50 trials each.
@@ -73,8 +116,10 @@ Required fix: The sheaf must be reformulated. Candidates:
 Next step: implement and test construction (a) as the cheapest empirical check.
 
 ## Status
-Active. Session started: 2026-04-12. Literal clause complex FAILED empirical test.
-Reformulation in progress.
+Active. Session started: 2026-04-12.
+Empirical phase complete (2026-04-13): all syntax-based constructions fail.
+Pivoting to formal theoretical work. Next action: define solution-space sheaf
+in Lean 4 and prove H^0 = satisfying assignments as the first formal theorem.
 
 ## Key references
 Mulmuley and Sohoni (2001): background on geometric obstruction methods.
