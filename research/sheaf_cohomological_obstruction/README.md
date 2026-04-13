@@ -24,27 +24,56 @@ Define sheaf F over {0,1}^n where the stalk at vertex v is the set of
 clause-consistent extensions from v. Prove that global sections of F are exactly
 the satisfying assignments of the SAT instance.
 
-## Known blockers (as of session start)
-1. Stalks are sets, not abelian groups. Standard sheaf cohomology requires abelian
-   group stalks. The construction must be linearized (e.g., free Z-module or F_2
-   coefficients) and the satisfiability correspondence verified to survive.
-2. The sheaf lives over 2^n vertices. A polynomial-size chain complex derived from
-   the CNF formula (not an explicit enumeration) must be constructed for the
-   complexity question to be well-posed.
-3. The equivalence "H^1(F) = 0 iff phi is satisfiable" (or an analogous hardness
-   correspondence) is a conjecture, not a theorem.
-4. Relativization is admitted as unresolved and must be addressed before any claim
-   of a P vs NP separation.
+## Known blockers (updated 2026-04-13)
 
-## Recommended near-term research path
-1. Compute H^1 of random 3-SAT instances near the satisfiability threshold
-   numerically for small n (n up to 30 is feasible with existing tools).
-2. Determine empirically whether the cohomological transition coincides with the
-   satisfiability threshold at ratio approximately 4.267 clauses per variable.
-3. Prove or disprove the H^1-satisfiability correspondence for 2-SAT, where
-   satisfiability is polynomial and cohomology is well-understood.
-4. Formalize the first Lean target (global sections = satisfying assignments)
-   as a foundation for future mechanized proofs.
+Blocker status after preliminary theoretical work (see notes/2sat_correspondence.md
+and notes/linearization.md):
+
+1. Linearization: RESOLVED. Use F_2 coefficients. The free F_2-vector space on each
+   stalk F(sigma) = { satisfying total assignments extending sigma } is the correct
+   linearized sheaf F_lin. Restriction maps extend by F_2-linearity. The H^0 = Sol(phi)
+   identification survives linearization. (notes/linearization.md)
+
+2. Polynomial-size chain complex: OPEN (major). The current construction has the poset
+   PA_n of size 3^n (exponentially large). A polynomial-size description must be
+   constructed for the complexity question to be well-posed. Candidate: clause cover
+   nerve (O(|phi|) simplices per dimension). Not yet verified to compute the same H^1.
+
+3. H^1 obstruction conjecture: REFUTED in its original form. When phi is unsatisfiable,
+   all stalks of F_lin are zero (Sol(phi) = empty), so H^1 = 0 trivially. The original
+   conjecture "H^1 = 0 iff satisfiable" requires H^1 != 0 for satisfiable instances,
+   which is the WRONG direction. The correct obstruction must come from a different
+   construction: relative cohomology H^1(PA_n, PA_n^sat; F_lin) or Cech cohomology
+   of the clause cover nerve. (notes/2sat_correspondence.md)
+
+4. Relativization: UNRESOLVED. The corner case (sheaf defined over a computation tree
+   rather than the instance structure) must be ruled out before any separation claim.
+
+## Recommended near-term research path (updated 2026-04-13)
+
+1. [DONE] Compute H_1 of random 3-SAT instances near the satisfiability threshold
+   numerically for small n. (empirical_h1.py, session 2026-04-12)
+
+2. [DONE] Determine empirically whether the cohomological transition coincides with
+   the satisfiability threshold at ratio approximately 4.267 clauses per variable.
+   Result: FAILED for all four syntax-based constructions. H_1 > 0 = 100% at every
+   ratio. Root cause: any polynomial-time computable sheaf built from formula syntax
+   cannot capture satisfiability. (empirical_reformulations.py, session 2026-04-13)
+
+3. [DONE - theory] Prove or disprove the H^1-satisfiability correspondence for 2-SAT.
+   Result: H^1 obstruction conjecture REFUTED for the solution-space sheaf. Unsatisfiable
+   instances have H^1 = 0 (all stalks zero). The correct obstruction lives in relative
+   cohomology or the clause cover nerve. H^0 correspondence is VERIFIED and is the
+   correct first Lean target. (notes/2sat_correspondence.md, notes/linearization.md)
+
+4. [NEXT] Test whether Cech H^1 of the clause cover nerve detects unsatisfiability
+   for 2-SAT and 3-SAT empirically. This is the cheapest path to identifying the
+   correct obstruction construction before committing to Lean formalization.
+
+5. [PENDING] Formalize the H^0 theorem (global sections = satisfying assignments)
+   in Lean 4 as an unconditional foundation. This does not depend on any unresolved
+   conjectures and is a correct, useful result regardless of what the obstruction turns
+   out to be.
 
 ## Empirical result round 2 (session 2026-04-13)
 
@@ -118,8 +147,12 @@ Next step: implement and test construction (a) as the cheapest empirical check.
 ## Status
 Active. Session started: 2026-04-12.
 Empirical phase complete (2026-04-13): all syntax-based constructions fail.
-Pivoting to formal theoretical work. Next action: define solution-space sheaf
-in Lean 4 and prove H^0 = satisfying assignments as the first formal theorem.
+Preliminary theory complete (2026-04-13): H^0 correspondence verified; H^1 original
+conjecture refuted; linearization committed to F_2; polynomial-size chain complex
+identified as the major open blocker.
+
+Next action: empirically test Cech H^1 of the clause cover nerve for 2-SAT and 3-SAT
+to identify the correct obstruction construction before beginning Lean 4 formalization.
 
 ## Key references
 Mulmuley and Sohoni (2001): background on geometric obstruction methods.
