@@ -1,0 +1,64 @@
+# Bet D V13: Active Critic-Conjecturer Oracle Feedback Loop
+#
+# Inherits from bet_d_stage1.yaml and adds:
+#   1. LLM enabled (mathstral:7b via Ollama)
+#   2. llm_feedback_loop enabled in Critic
+#
+# V13 loop behavior:
+#   - Critic runs oracle-world diagnostics on each proof
+#   - For relativizing proofs, Critic extracts oracle witness
+#   - Critic feeds witness to Conjecturer.propose_non_relativizing_tweak()
+#   - LLM proposes a barrier-escaping variant proof sketch
+#   - Iterations logged to search/logs/v13_loop_iterations.jsonl
+#
+# Scope: n=2-4, 2 seeds per size (smaller to keep runtime manageable)
+# Expected: UNSAT + oracle witnesses + LLM proposals for each relativizing proof
+
+offline:
+  enabled: true
+
+bets:
+  bet_d:
+    enabled: true
+    reduction_schemas:
+      - non_relativizing_reduction
+      - oracle_barrier_test
+      - algebraization_reduction
+    source_problems:
+      - sat
+    target_problems:
+      - circuit_lower_bound
+    size_range:
+      min: 2
+      max: 4
+    seed_range:
+      start: 41000
+      count: 2
+
+agents:
+  planner:
+    enabled: true
+    max_tasks: 30
+  conjecturer:
+    enabled: true
+    max_conjectures: 30
+    llm:
+      enabled: true
+      model: "mathstral:7b"
+      endpoint: "http://localhost:11434"
+      num_predict: 4096
+      temperature: 0.2
+  miner:
+    enabled: true
+    timeout_seconds: 90
+    max_size_mb: 256
+  formalizer:
+    enabled: true
+    output_dir: theory/Conjectures/BetD/
+    close_sorry_with_llm: true
+    close_sorry_attempts: 2
+  critic:
+    enabled: true
+    check_relativization: true
+    oracle_world_diagnostics: true
+    llm_feedback_loop: true

@@ -66,6 +66,9 @@ theory/Conjectures/BetB/
 theory/Conjectures/BetC/
 theory/Conjectures/BetD/
 
+# Research local dependencies (pip --target installs)
+research/**/.deps/
+
 # Temporary files
 *.tmp
 *.temp

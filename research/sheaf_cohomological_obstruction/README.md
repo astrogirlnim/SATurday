@@ -46,8 +46,35 @@ the satisfying assignments of the SAT instance.
 4. Formalize the first Lean target (global sections = satisfying assignments)
    as a foundation for future mechanized proofs.
 
+## Empirical result (session 2026-04-12)
+
+Tested: H_1 of the literal clause complex (vertices = literals, triangles = clauses)
+vs. satisfiability across n in {10, 15, 20}, ratios 2.5 to 6.0, 50 trials each.
+
+Finding: H_1 > 0 for 100% of instances at every ratio tested.
+The literal clause complex is always topologically non-trivial, regardless of
+whether the formula is satisfiable. There is no transition.
+
+Interpretation: The literal clause complex captures co-occurrence structure of
+literals in clauses, not the satisfiability obstruction. The construction is
+incorrect. The deep analysis warning was confirmed: stalks are sets, not abelian
+groups, and the correspondence between H^1 and satisfiability was never established.
+
+Required fix: The sheaf must be reformulated. Candidates:
+  (a) Conflict complex: vertices = clauses, edges = conflicting pairs of clauses,
+      k-simplices = mutually conflicting sets; H_1 of this complex may track
+      unsatisfiability more directly.
+  (b) Resolution/CDCL state sheaf: model the state space of a CDCL solver as a
+      sheaf; H_1 measures the irreducible learned clause structure.
+  (c) F_2-linearization of the assignment sheaf: take the free F_2-module on each
+      stalk and define restriction maps as linear projections; prove H^1 = 0 iff
+      satisfiable for 2-SAT first, then extend.
+
+Next step: implement and test construction (a) as the cheapest empirical check.
+
 ## Status
-Active. Session started: 2026-04-12.
+Active. Session started: 2026-04-12. Literal clause complex FAILED empirical test.
+Reformulation in progress.
 
 ## Key references
 Mulmuley and Sohoni (2001): background on geometric obstruction methods.

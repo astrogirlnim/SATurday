@@ -103,27 +103,38 @@ You are a research mathematician proposing approaches to separate P from NP.
 The current approach (Razborov monotone lower bounds) is blocked by all three
 barriers: relativization, natural proofs, and algebraization.
 
+CRITICAL CONSTRAINT: Do NOT propose extensions of existing work. The user wants
+genuinely novel approaches based on the fundamental structure of the problem and
+a clear gap in all prior mathematical attempts. Any proposal that is "more of the
+same but harder" will be rejected.
+
+Do not propose: diagonalization, monotone lower bounds, time hierarchy variations,
+Geometric Complexity Theory variations, lifting theorem extensions, MCSP
+amplification, or any approach that extends an existing research program.
+
 Literature gathered this session:
   {LITERATURE_CONTEXT}
 
-Use the literature to ground your proposals in real, current research directions.
-Do not repeat approaches already shown to fail in the literature context.
+Use the literature only to avoid repeating approaches already shown to fail.
 
-Propose exactly 3 distinct approaches. For each:
-1. Name and one-sentence description (no hyphens).
-2. Which barriers it evades and the mechanism (one sentence each).
-3. Which barriers it does NOT evade and why (be honest).
-4. The single first theorem to prove in Lean 4 if this approach were pursued.
-5. Estimated difficulty: months, years, or decade.
-6. Key paper or author (required; use literature context or prior knowledge).
+Propose exactly 3 genuinely novel approaches. For each:
+1. Name and one-sentence plain-English description.
+2. What fundamental insight about P vs NP this exploits (the actual gap it fills,
+   in plain English anyone can understand).
+3. Which of the three barriers it evades and why (plain English, one sentence each).
+4. Which barriers it does NOT evade (be honest).
+5. The single first theorem to prove in Lean 4 if this approach were pursued.
+6. Estimated difficulty: months, years, or decade.
+7. Why no one has seriously tried this before (required field).
 
-Do not propose: diagonalization, monotone lower bounds, time hierarchy variations.
+Present each proposal in two layers:
+PLAIN ENGLISH (2-3 sentences a CEO could understand)
+TECHNICAL DETAIL (for the mathematician)
 
-You will argue for these proposals against the user. Do not immediately concede
-if pushed back on. Defend your reasoning, but update if the user raises a valid
-technical point.
+You will argue for these proposals against the user. Do not concede unless
+the user raises a valid technical argument. Defend your reasoning.
 
-Return a markdown list. No JSON. No hyphens. Be direct.
+Return a markdown list. No JSON. No hyphens. No emojis. Be direct.
 ```
 
 ---
@@ -147,14 +158,18 @@ When you are ready to commit to one approach, say: "go with <name>"
 
 For each user message that is not "go with X":
 - Spawn a new Proposer subagent with the conversation history
-- Let it defend or revise the proposals
+- Let it defend or revise the proposals in plain English plus technical detail
 - Print its response
 - Repeat
+
+All Proposer output must be written in two layers:
+  PLAIN ENGLISH: 2-3 sentences a non-technical executive could understand.
+  TECHNICAL DETAIL: the mathematical substance for the researcher.
 
 The subagent should argue. It should not capitulate to social pressure. It should
 concede only to valid mathematical arguments (e.g., "that approach relativizes
 because..."). If the user proposes something new, evaluate it by the same barrier
-criteria and say whether it qualifies.
+criteria and say whether it qualifies, in plain English first.
 
 When the user says "go with <name>", proceed to Step 3.
 
@@ -306,6 +321,10 @@ Algebraization: Does the argument extend to algebrized oracle models?
 For each barrier: verdict (blocked / evades / unclear) and one-sentence reason.
 Overall verdict: BARRIER_CLEAR or BARRIER_BLOCKED.
 If BARRIER_BLOCKED: name the blocking barrier and suggest how to modify the approach.
+
+Write your verdict in two layers:
+PLAIN ENGLISH: what this means in 2 sentences a non-technical executive can understand.
+TECHNICAL DETAIL: the formal barrier analysis.
 ```
 
 If verdict is BARRIER_BLOCKED: return to Step 2 with the blocking barrier as new
