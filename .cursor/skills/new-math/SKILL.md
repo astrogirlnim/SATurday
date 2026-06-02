@@ -1,6 +1,145 @@
 ---
 name: new-math
 description: >
+  One-cycle barrier-aware hypothesis generation used by saturday when action_type is
+  new_math_step. Must include an immediate falsifiable check in the same session.
+---
+
+# NEW MATH
+
+## Purpose
+
+Propose one novel P vs NP direction that targets barrier evasion, then run one immediate
+falsifiable check before ending the session.
+
+## Cycle Contract
+
+- One hypothesis.
+- One immediate falsifiable check.
+- One logged proposal record.
+- Return one standardized action result.
+
+```mermaid
+flowchart TD
+    literature[LiteratureScan]
+    propose[ProposeOneHypothesis]
+    validate[BarrierValidation]
+    testNow[ImmediateFalsifiableCheck]
+    record[RecordProposalAndCheck]
+    done[ReturnActionResult]
+
+    literature --> propose
+    propose --> validate
+    validate --> testNow
+    testNow --> record
+    record --> done
+```
+
+## Step 0: Resume and Literature
+
+Read:
+
+- `search/logs/new_math_proposals.jsonl` (last line if present)
+- `memory_bank/mmemory_bank_activeContext.md`
+
+Run targeted literature scan (WebSearch) for recency and known refutations.
+
+## Step 1: Propose One Hypothesis
+
+Generate exactly one hypothesis, not three.
+
+Output:
+
+```json
+{
+  "hypothesis_name": "<name>",
+  "core_claim": "<single falsifiable claim>",
+  "first_formal_target": "<lean_or_proof_target>",
+  "expected_barrier_profile": {
+    "relativization": "evades|blocked|unclear",
+    "natural_proofs": "evades|blocked|unclear",
+    "algebraization": "evades|blocked|unclear"
+  }
+}
+```
+
+## Step 2: Barrier Validation
+
+Validate against the three barriers and recent known objections.
+If clearly blocked by literature, mark `status=blocked` and still provide one revised check target.
+
+## Step 3: Immediate Falsifiable Check (Mandatory)
+
+Run one concrete check in the same session, chosen by cheapest path:
+
+- SAT check on reduced instance.
+- Lean sanity theorem/proof skeleton check.
+- Proof complexity counterexample probe.
+
+Record:
+
+```json
+{
+  "check_type": "sat_probe|lean_probe|counterexample_probe",
+  "check_target": "<statement_or_instance>",
+  "check_result": "supports|refutes|inconclusive|failed",
+  "evidence_refs": ["<paths_hashes_logs>"]
+}
+```
+
+## Step 4: Record
+
+Append one line to `search/logs/new_math_proposals.jsonl`:
+
+```json
+{
+  "timestamp": "<unix>",
+  "chosen_approach": "<hypothesis_name>",
+  "core_claim": "<claim>",
+  "barrier_profile": {
+    "relativization": "evades|blocked|unclear",
+    "natural_proofs": "evades|blocked|unclear",
+    "algebraization": "evades|blocked|unclear"
+  },
+  "immediate_check": {
+    "type": "<type>",
+    "result": "<result>"
+  },
+  "next_recommended_action": "prove_step|mine_step|new_math_step"
+}
+```
+
+## Step 5: Return to Saturday
+
+Return exactly:
+
+```json
+{
+  "status": "success|partial|blocked",
+  "artifact_refs": ["<files_hashes_logs>"],
+  "barrier_assessment": {
+    "relativization": "blocked|evades|unclear",
+    "natural_proofs": "blocked|evades|unclear",
+    "algebraization": "blocked|evades|unclear"
+  },
+  "next_recommended_action": "prove_step|mine_step|new_math_step"
+}
+```
+
+Mapping:
+
+- Check `supports` with no known hard barrier contradiction -> `success`
+- Check `inconclusive` -> `partial`
+- Check `refutes` or clear barrier block -> `blocked`
+
+## Invariants
+
+- Never end a new-math session without an immediate falsifiable check.
+- Keep work local and reproducible.
+- One active hypothesis thread at a time.
+---
+name: new-math
+description: >
   Proposes new mathematical approaches to P vs NP, debates them with the user,
   then pursues the chosen approach. Use when the current chain is barrier-blocked,
   or when the user says "new math", "new direction", or "what next for P vs NP".

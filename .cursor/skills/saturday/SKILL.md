@@ -1,354 +1,157 @@
 ---
 name: saturday
 description: >
-  Unified P vs NP research loop. One skill to run. A Director subagent reads current
-  project state and routes to either ORACLE (empirical SAT mining) or proof-sprint
-  (Lean sorry-closing). Use this instead of calling those skills separately.
-  Invoke when the user says "run saturday", "continue research", or "next session".
+  Canonical SATurday research entrypoint. Runs one single-cycle session with one
+  action: prove_step, mine_step, or new_math_step. Use for run saturday,
+  continue research, or next session.
 ---
 
-# SATURDAY: Unified Research Loop
+# SATURDAY
 
 ## Purpose
 
-Make compounding progress toward a formal proof of a non-trivial circuit lower bound
-in Lean 4, as a concrete step toward P vs NP.
+Run exactly one high value research action per session, write one canonical state
+record, and stop. This minimizes orchestration overhead and keeps progress auditable.
 
-Each session does exactly one of:
-- **Mine** — run the ORACLE loop to generate new LRAT-certified lower bound evidence
-- **Prove** — run the proof-sprint loop to close one Lean sorry using that evidence
+## Session Contract
 
-The Director decides which. You never have to choose.
-
-## The Loop
+- One decision.
+- One action.
+- One canonical state write.
+- Stop.
 
 ```mermaid
 flowchart TD
-    load["Step 0\nLoad Context\norchestrator"]
-    victory["Victory Check\norchestrator"]
-    done["RESEARCH GOAL\nCOMPLETE\n(exit success)"]
-    director["Step 1\nDirector\nsubagent"]
-    mine["Step 2A\nORACLE mode\n(empirical mining)"]
-    prove["Step 2B\nProof Sprint mode\n(sorry closing)"]
-    record["Step 3\nRecorder\norchestrator"]
-    commit["Commit + log"]
-    loop["Next session?"]
+    loadContext["LoadContext"]
+    chooseAction["ChooseAction"]
+    runAction["RunAction"]
+    scoreResult["ScoreResult"]
+    writeState["WriteCanonicalState"]
+    stopSession["StopSession"]
 
-    load --> victory
-    victory -->|"V12 sorry-free, no sorryAx"| done
-    victory -->|"sorrys remain"| director
-    director -->|"frontier sorrys exist"| prove
-    director -->|"no frontier, need data"| mine
-    director -->|"both available"| prove
-    prove --> record
-    mine --> record
-    record --> commit
-    commit --> victory
+    loadContext --> chooseAction
+    chooseAction --> runAction
+    runAction --> scoreResult
+    scoreResult --> writeState
+    writeState --> stopSession
 ```
 
----
+## Canonical Action Types
 
-## Strategic Advisory (orchestrator — print once at session start, do not block)
+- `prove_step`: close one frontier Lean node.
+- `mine_step`: generate one LRAT backed SAT result and optional Lean anchor.
+- `new_math_step`: generate one barrier-aware hypothesis and run one immediate falsifiable check.
 
-Before loading context, print this advisory verbatim. It is a permanent reminder,
-not a gate. The loop continues regardless.
+## Step 0: Load Context
 
-```
-------------------------------------------------------------
-STRATEGIC ADVISORY
-------------------------------------------------------------
-Current research target: monotone_parity_exponential_lower_bound_v12
-  (Razborov 1985: monotone circuits computing parity require exponential size)
-
-FORMALIZATION STATUS: Not formalized in any proof assistant (Lean, Coq, Isabelle).
-Completing V12 would be the first machine-checked proof of this result.
-This is a genuine contribution to the formal math community.
-
-BARRIER STATUS FOR P vs NP:
-  Relativization:   BLOCKED. Monotone lower bounds relativize. The result holds
-                    in oracle models, so it cannot separate P from NP (BGS 1975).
-  Natural proofs:   BLOCKED. Razborov's approximation method is itself a natural
-                    proof (Razborov-Rudich 1997). It cannot extend to general
-                    circuits without disproving one-way functions.
-  Algebraization:   BLOCKED. The argument algebrizes (AW 2008).
-
-IMPLICATION: V12, once fully proved with no sorry, does NOT constitute evidence
-that P != NP. General circuits can compute parity in O(n) gates (XOR). The
-monotone model is strictly weaker than the unrestricted model.
-
-TO PURSUE P vs NP DIRECTLY: Run the new-math skill.
-  .cursor/skills/new-math/SKILL.md
-  This skill proposes non-relativizing, non-naturalizing research directions
-  and evaluates them against known barriers.
-
-Recent barrier-evading attempts in the literature (unverified, 2025):
-  arxiv:2510.08814  Quantale weakness + geometric complexity (Mulmuley direction)
-  arxiv:2508.13200  Intrinsic barrier framework (topological approach)
-------------------------------------------------------------
-```
-
-Log this advisory to `search/logs/strategic_advisory.jsonl` (append, one line per session):
-```json
-{"session": <N>, "target": "V12", "barrier_status": "all_three_blocked",
- "formalization_value": "first_in_any_prover", "timestamp": <unix>}
-```
-
----
-
-## Step 0: Load Context (orchestrator — no subagent)
-
-Read these files directly before spawning anything:
+Read:
 
 - `memory_bank/mmemory_bank_activeContext.md`
 - `memory_bank/mmemory_bank_progress.md`
-- `search/logs/proof_sprint_log.jsonl` — last entry if exists (`tail -1`)
-- `search/logs/oracle_reflections.jsonl` — last entry if exists (`tail -1`)
-- `search/logs/guardrail_decisions.jsonl` — last entry if exists (`tail -1`)
+- `memory_bank/mmemory_bank_systemPatterns.md`
+- `search/logs/saturday_sessions.jsonl` (last line if present)
+- `search/logs/proof_sprint_log.jsonl` (last line if present)
+- `search/logs/miner_results.jsonl` (last line if present)
+- `search/logs/new_math_proposals.jsonl` (last line if present)
 
-Run the sorry inventory:
+Run sorry inventory:
+
 ```bash
-cd /Users/nmm/Development/SATurday/theory && \
-  grep -rn ":= sorry\|^ *sorry$" --include="*.lean" | grep -v "^Binary"
+WORKSPACE=$(git rev-parse --show-toplevel)
+cd "$WORKSPACE/theory" && rg ":= sorry|^ *sorry$" --glob "*.lean"
 ```
 
-Run the disk check:
+Run disk check:
+
 ```bash
-df -h /Users/nmm/Development/SATurday | tail -1
+WORKSPACE=$(git rev-parse --show-toplevel)
+df -h "$WORKSPACE" | awk 'NR==2 {print}'
 ```
 
-If free space is under 3GB: skip any step that would generate large CNF or LRAT files.
+Build `SessionState`:
 
-Construct `SessionState`:
 ```json
 {
-  "sorry_map": [...],
-  "last_oracle_action": "...",
-  "last_sprint_status": "...",
-  "disk_free_gb": <float>
+  "session_id": "<unix_ts_or_counter>",
+  "sorry_frontier_count": "<int>",
+  "last_action_type": "prove_step|mine_step|new_math_step|none",
+  "last_result": "success|partial|blocked|none",
+  "disk_free_gb": "<float>"
 }
 ```
 
----
+## Step 1: Choose Action
 
-## Victory Check (orchestrator — run after Step 0 and after every commit)
+Choose exactly one action using this priority:
 
-Run this shell block. If it returns DONE, stop the loop immediately and print
-the victory message below. Do not spawn the Director.
+1. If a frontier sorry is currently closable with existing lemmas/certificates: `prove_step`.
+2. Else if a blocked frontier node can be reduced to SAT certificate generation: `mine_step`.
+3. Else: `new_math_step`.
 
-```bash
-# Count sorrys in the V12 proof chain files only (not stubs or mathlib)
-V12_SORRYS=$(cd /Users/nmm/Development/SATurday/theory && \
-  grep -rn ":= sorry\|^ *sorry$" \
-    Conjectures/BetA/Proofs/MonotoneParityInductive.lean \
-    Theory/Sunflower.lean \
-    --include="*.lean" 2>/dev/null | wc -l | tr -d ' ')
+Output:
 
-echo "V12_SORRYS=$V12_SORRYS"
-
-if [ "$V12_SORRYS" = "0" ]; then
-  # Secondary check: confirm no sorryAx in the theorem's axiom set
-  cd /Users/nmm/Development/SATurday/theory
-  lake build 2>/dev/null
-  SORRY_AX=$(lake env lean --stdin 2>&1 <<'LEAN'
-#print axioms monotone_parity_exponential_lower_bound_v12
-LEAN
-)
-  echo "$SORRY_AX" | grep -q "sorryAx" && echo "SORRY_AX_FOUND" || echo "DONE"
-fi
-```
-
-If the output contains `DONE`:
-
-1. Write to `search/logs/saturday_sessions.jsonl`:
-   ```json
-   {"session": <N>, "mode": "victory", "target": "monotone_parity_exponential_lower_bound_v12",
-    "outcome": "complete", "barrier_tag": "relativization_safe", "timestamp": <unix>}
-   ```
-
-2. Commit:
-   ```bash
-   cd /Users/nmm/Development/SATurday
-   git add -f theory/ search/logs/
-   git commit -m "Saturday session <N>: RESEARCH GOAL COMPLETE V12 sorry-free"
-   ```
-
-3. Print verbatim:
-   ```
-   ============================================================
-   RESEARCH GOAL COMPLETE
-   ============================================================
-   Theorem: monotone_parity_exponential_lower_bound_v12
-   Statement: For all n >= 2, any monotone circuit computing parity-n has size >= 2^(n/4).
-   Status: Fully proved in Lean 4. No sorry. No sorryAx.
-   Axiom baseline: lrat_implies_lower_bound, sunflower_lemma, synthesis_encoding_correct,
-                   lrat_checker_sound, Classical.choice, propext, Quot.sound, funext
-   Next step: Human review. Consider submitting to Lean community or arXiv.
-   ============================================================
-   ```
-
-4. Exit. Do not run Step 1 or any further steps.
-
----
-
-## Step 1: Director (spawn subagent)
-
-```
-Task tool call:
-  subagent_type: generalPurpose
-  description: "Saturday Director"
-  prompt: |
-    You are the Director of a P vs NP research project using Lean 4 and SAT solvers.
-
-    Read these files first:
-      memory_bank/mmemory_bank_activeContext.md
-      .cursor/skills/proof-sprint/SKILL.md
-      .cursor/skills/run-oracle/SKILL.md
-
-    Current session state:
-      {SESSION_STATE_JSON}
-
-    Your job: decide whether this session should run ORACLE (empirical SAT mining)
-    or proof-sprint (Lean sorry-closing), and name the single specific target.
-
-    Decision rules (apply in order, first match wins):
-    1. If any sorry in sorry_map has all its dependencies proved or axiom-only:
-       -> mode = "prove", target = deepest such sorry toward V12.
-    2. If last_sprint_status = "stuck" on the same theorem twice:
-       -> mode = "mine", target = SAT encoding of the stuck sorry's content.
-    3. If last_oracle_action = "PUBLISH" and a new LRAT hash was just anchored:
-       -> mode = "prove", target = the sorry that LRAT hash closes.
-    4. Default:
-       -> mode = "mine", target = next parameter range from active context.
-
-    Return ONLY a JSON block:
-    {
-      "mode": "prove|mine",
-      "target": "<theorem name or SAT instance description>",
-      "rationale": "<one sentence>",
-      "mode_config": {
-        "if_prove": {
-          "sorry_file": "<path>",
-          "sorry_line": <int>,
-          "proof_approach": "<informal sketch, no hyphens>"
-        },
-        "if_mine": {
-          "n": <int>,
-          "max_gates": <int>,
-          "circuit_class": "monotone|ac0",
-          "seed": <int>
-        }
-      }
-    }
-```
-
----
-
-## Step 2A: ORACLE Mode
-
-Follow the steps in `.cursor/skills/run-oracle/SKILL.md` starting at Step 1,
-using the `mode_config.if_mine` values from the Director output as the
-`parameter_range` for the Planner.
-
-Return the `GuardrailDecision` when done.
-
----
-
-## Step 2B: Proof Sprint Mode
-
-Follow the steps in `.cursor/skills/proof-sprint/SKILL.md` starting at Step 1
-(Navigator), passing the Director's `mode_config.if_prove` values as context
-for the Navigator's target selection.
-
-Return the `AttackerOutput` when done.
-
----
-
-## Step 3: Recorder (orchestrator — no subagent)
-
-Append one line to `search/logs/saturday_sessions.jsonl`:
 ```json
 {
-  "session": <N>,
-  "mode": "prove|mine",
-  "target": "...",
-  "outcome": "closed|published|stuck|timeout",
-  "barrier_tag": "...",
-  "timestamp": <unix>
+  "action_type": "prove_step|mine_step|new_math_step",
+  "target": "<single theorem, SAT instance, or hypothesis>",
+  "rationale": "<one sentence>",
+  "action_config": {}
 }
 ```
 
-If outcome is "closed" or "published":
-```bash
-cd /Users/nmm/Development/SATurday
-git add -f theory/ search/logs/ proofs/
-git commit -m "Saturday session <N>: <mode> <target> (<outcome>)"
+## Step 2: Run Action
+
+- If `action_type=prove_step`: execute `.cursor/skills/proof-sprint/SKILL.md` as one node close attempt.
+- If `action_type=mine_step`: execute `.cursor/skills/run-oracle/SKILL.md` as one mine cycle (no internal loop).
+- If `action_type=new_math_step`: execute `.cursor/skills/new-math/SKILL.md` through hypothesis plus immediate falsifiable check.
+
+Each action returns:
+
+```json
+{
+  "status": "success|partial|blocked",
+  "artifact_refs": ["<paths_or_hashes>"],
+  "barrier_assessment": {
+    "relativization": "blocked|evades|unclear",
+    "natural_proofs": "blocked|evades|unclear",
+    "algebraization": "blocked|evades|unclear"
+  },
+  "next_recommended_action": "prove_step|mine_step|new_math_step"
+}
 ```
 
-After the commit, run the **Victory Check** above.
-If it returns `DONE`, stop and print the victory message.
-Otherwise, print the session summary:
+## Step 3: Write Canonical State
 
-```
-Session <N> complete.
-Mode: <prove|mine>
-Target: <theorem or SAT instance>
-Outcome: <closed|published|stuck|timeout>
-Next target: <what the Director would pick next, based on current state>
-```
+Append exactly one JSON line to `search/logs/saturday_sessions.jsonl`:
 
----
-
-## Conventions
-
-**C1 — Barrier tagging.**
-Every theorem closed or LRAT anchor committed must carry a barrier tag.
-No `unknown` tag is committed without a HITL checkpoint.
-
-**C2 — No silent axioms.**
-Every `axiom` added must have a named proof obligation in `EncodingCorrectness.lean`
-or a direct analog.
-
-**C3 — One node per session.**
-Each session must close or publish at least one node. If zero: log the blocker,
-print the HITL prompt from proof-sprint, and stop.
-
----
-
-## Current Research Chain
-
-```
-TARGET: monotone_parity_exponential_lower_bound_v12
-  (for all n >= 2, any monotone circuit computing parity-n has size >= 2^(n/4))
-
-Proved (green, no sorry):
-  monotone_parity_k_lower_bound   k = 2..8 (LRAT certified, C.size > 32)
-  andGateSupportFamily            (noncomputable def, fully implemented)
-  andGateFamilySizeLeCircuitSize  (lemma, fully proved)
-  V12 n=2..8 branch               (closed via interval_cases + omega, session 2)
-
-AC0 depth table (LRAT certified):
-  parity-3, 4, 5 at depth 2 (UNSAT); parity-4 at depth 3 (SAT sanity check)
-
-Open (sorry remaining):
-  monotone_parity_sunflower_connection   (Theory/Sunflower.lean:196)
-    needs: Razborov restriction argument (formalizing circuit restriction)
-  V12 n>=9 branch                        (MonotoneParityInductive.lean)
-    needs: sunflower connection OR LRAT certs for n=9..16+
-
-Victory condition (triggers exit):
-  Both files above have zero sorrys AND #print axioms shows no sorryAx
+```json
+{
+  "session_id": "<id>",
+  "action_type": "prove_step|mine_step|new_math_step",
+  "target": "<target>",
+  "result": "success|partial|blocked",
+  "barrier_assessment": {
+    "relativization": "blocked|evades|unclear",
+    "natural_proofs": "blocked|evades|unclear",
+    "algebraization": "blocked|evades|unclear"
+  },
+  "artifact_refs": ["<paths_or_hashes>"],
+  "next_recommended_action": "prove_step|mine_step|new_math_step",
+  "timestamp": "<unix>"
+}
 ```
 
----
+Stop immediately after writing this record.
 
-## Sub-skill Reference
+## Invariants
 
-| When... | Use... |
-|---|---|
-| Frontier sorrys exist | `.cursor/skills/proof-sprint/SKILL.md` |
-| No frontier, need SAT data | `.cursor/skills/run-oracle/SKILL.md` |
-| Both available | proof-sprint first |
-| User says "run saturday" | this file |
-| Current chain barrier-blocked for P vs NP | `.cursor/skills/new-math/SKILL.md` |
-| User says "new math" or "new direction" | `.cursor/skills/new-math/SKILL.md` |
-| V12 complete, need a new research target | `.cursor/skills/new-math/SKILL.md` |
+- Local only execution.
+- Deterministic seeds for SAT/solver work.
+- No internal multi-iteration loop inside a single session.
+- Exactly one canonical state record per session.
+
+## References
+
+- `.cursor/skills/run-oracle/SKILL.md`
+- `.cursor/skills/proof-sprint/SKILL.md`
+- `.cursor/skills/new-math/SKILL.md`
