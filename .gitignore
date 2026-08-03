@@ -26,10 +26,12 @@ theory/lake-packages/
 theory/.cache/
 *.olean
 
-# SAT Solvers
+# SAT Solvers and proof checkers (built locally by infra/build scripts)
 infra/build/kissat
 infra/build/kissat-src/
 infra/build/cadical
+infra/build/drat-trim
+infra/build/drat-trim.c
 *.o
 *.a
 

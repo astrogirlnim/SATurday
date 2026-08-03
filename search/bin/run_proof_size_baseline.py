@@ -10,8 +10,9 @@ For one CNF family (php, tseitin, random-kcnf) and a parameter sweep, this runne
 3. Generates the CNF deterministically, solves with the run_kissat wrapper (fixed
    seed, LRAT logging, artifact registration into proofs/index.json).
 4. Measures proof size (bytes and lines, gzip aware) as calibration data.
-5. Runs the verify_lrat format check where possible and labels it honestly as
-   format_only (it is a stub, not a verified checker).
+5. Verifies every UNSAT proof for real with drat-trim via search/bin/verify_lrat
+   (kissat emits binary DRAT; the checker validates it against the CNF and
+   reports core lemmas and resolution steps as honest size metrics).
 6. Appends one JSON line per instance plus one summary line to
    search/logs/falsifier_runs.jsonl.
 
@@ -92,27 +93,50 @@ def proof_metrics(proof_path: Optional[str]) -> Dict:
     return {"proof_bytes": raw_bytes, "proof_lines": lines, "proof_compressed": compressed}
 
 
-def format_check(cnf_path: Optional[str], proof_path: Optional[str]) -> str:
+def verify_proof(cnf_path: Optional[str], proof_path: Optional[str],
+                 timeout_s: int = 300) -> Dict:
     """
-    Run the verify_lrat stub where possible. Honest labeling: this is a format
-    check only, not verified proof checking (see the stub's own docstring).
+    Real proof verification via the drat-trim wrapper (search/bin/verify_lrat).
+    Returns proof_check plus honest checker statistics (core lemmas and
+    resolution steps), which are better size signals than raw bytes for the
+    binary DRAT proofs kissat emits. Gzip inputs are handled by the wrapper.
     """
+    empty = {"proof_check": "no_proof", "proof_core_lemmas": None,
+             "proof_resolution_steps": None}
     if not proof_path or not Path(proof_path).exists():
-        return "no_proof"
-    if Path(proof_path).suffix == ".gz":
-        log("format check skipped: proof is compressed")
-        return "skipped_compressed"
+        return empty
     try:
         result = subprocess.run(
-            [sys.executable, str(VERIFY_LRAT), "--cnf", str(cnf_path), "--lrat", str(proof_path)],
-            capture_output=True, text=True, timeout=60,
+            [sys.executable, str(VERIFY_LRAT),
+             "--cnf", str(cnf_path), "--lrat", str(proof_path),
+             "--timeout", str(timeout_s)],
+            capture_output=True, text=True, timeout=timeout_s + 60,
         )
-        verdict = "format_only" if result.returncode == 0 else "format_check_failed"
-        log(f"verify_lrat exit {result.returncode}: {verdict}")
-        return verdict
     except subprocess.TimeoutExpired:
-        log("verify_lrat timed out after 60 seconds")
-        return "format_check_timeout"
+        log(f"verify_lrat exceeded the {timeout_s + 60}s backstop")
+        return {**empty, "proof_check": "verification_timeout"}
+
+    try:
+        summary = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        log(f"ERROR: verify_lrat stdout was not JSON: {result.stdout[:300]}")
+        return {**empty, "proof_check": "verification_error"}
+
+    if summary.get("verified"):
+        verdict = "drat_trim_verified"
+    elif "timeout" in str(summary.get("message", "")):
+        verdict = "verification_timeout"
+    else:
+        verdict = "verification_failed"
+    log(f"verify_lrat verdict: {verdict} "
+        f"(core_lemmas={summary.get('core_lemmas')}, "
+        f"resolution_steps={summary.get('resolution_steps')}, "
+        f"elapsed={summary.get('elapsed_s')}s)")
+    return {
+        "proof_check": verdict,
+        "proof_core_lemmas": summary.get("core_lemmas"),
+        "proof_resolution_steps": summary.get("resolution_steps"),
+    }
 
 
 def run_instance(
@@ -178,9 +202,9 @@ def run_instance(
     # 4. Proof size measurement (the calibration signal).
     record.update(proof_metrics(metadata.get("lrat_proof")))
 
-    # 5. Honest proof checking label.
+    # 5. Real proof verification (drat-trim) with honest labeling.
     if record["status"] == "UNSAT":
-        record["proof_check"] = format_check(metadata.get("input_cnf"), metadata.get("lrat_proof"))
+        record.update(verify_proof(metadata.get("input_cnf"), metadata.get("lrat_proof")))
     else:
         record["proof_check"] = "not_applicable"
 

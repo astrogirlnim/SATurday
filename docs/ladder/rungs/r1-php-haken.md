@@ -99,3 +99,16 @@ above it.
   proofs/index.json; ledger search/logs/falsifier_runs.jsonl. Proof check labeled
   format_only (the verify_lrat stub is not a verified checker); this is
   calibration data, not a theorem.
+- 2026-08-03 tooling upgrade (real proof checking): drat-trim built at
+  infra/build/drat-trim and wired into search/bin/verify_lrat, which now
+  decompresses gzip inputs and passes only on an explicit s VERIFIED line.
+  Two corrections to the earlier falsify entry: the proofs kissat emits are
+  binary DRAT (the .lrat extension is historical), so the proof lines metric in
+  that entry counted lines of binary data and should be read as rough size
+  only; the honest metric is drat-trim core lemmas and resolution steps, now
+  recorded per instance in search/logs/falsifier_runs.jsonl. Reverified today:
+  PHP core lemmas grow 7 (n=3), 31 (n=4), 143 (n=5), 1026 (n=6), and 488949
+  with 10.5 million resolution steps at n=9 (checked in 4.5 seconds). The
+  exponential reading of T1.1 stands, now on verified numbers. A corrupted
+  proof was confirmed to fail the checker (negative control, test file
+  deleted).

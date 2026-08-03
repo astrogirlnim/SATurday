@@ -1,152 +1,165 @@
 #!/usr/bin/env python3
 """
-Minimal LRAT proof verification wrapper.
+Real proof verification wrapper around drat-trim.
 
-For MVP, this provides basic LRAT proof validation:
-- Checks proof file exists and is readable
-- Verifies proof format is valid LRAT
-- Performs basic structural validation
+Replaces the former stub that only checked the proof file was non-empty. This
+wrapper runs the drat-trim checker (built by infra/build/lrat_check_build.sh at
+infra/build/drat-trim) against the original DIMACS CNF and the solver proof.
 
-For production use, this would call external verified LRAT checker (drat-trim or cake_lpr).
-Currently implements basic validation to unblock R10 implementation.
+Facts this wrapper is honest about:
+- kissat 3.1.1 emits BINARY DRAT proofs; the repo's .lrat file extension is
+  historical. drat-trim auto-detects binary mode and checks DRAT directly.
+- Verification passes only on an explicit "s VERIFIED" line from drat-trim.
+- Gzip-compressed CNF or proof files are transparently decompressed to
+  temporary files for checking and cleaned up afterward.
 
-LOG: LRAT proof verification wrapper
+CLI (kept compatible with search/tools/artifact_store.py):
+    verify_lrat --cnf <file[.gz]> --lrat <file[.gz]> [--timeout SECONDS]
+
+Exit codes: 0 verified, 1 anything else (not verified, missing files, timeout,
+checker missing). A JSON summary is printed to stdout; logs go to stderr.
+
+LOG: real drat-trim proof verification wrapper
 """
 
 import argparse
+import gzip
+import json
+import shutil
+import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, Optional, Tuple
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+DRAT_TRIM = REPO_ROOT / "infra" / "build" / "drat-trim"
 
 
-def verify_lrat_format(lrat_path: Path) -> Tuple[bool, str]:
+def log(message: str) -> None:
+    """Timestamped stderr logging."""
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[verify_lrat {timestamp}] {message}", file=sys.stderr)
+
+
+def materialize(path: Path, tmpdir: Path, label: str) -> Optional[Path]:
     """
-    Verify LRAT proof file format.
-    
-    Args:
-        lrat_path: Path to LRAT proof file
-        
-    Returns:
-        (success, message) tuple
+    Return a plain-file path for the input, decompressing .gz into tmpdir.
+    Returns None if the file does not exist.
     """
-    print(f"LOG: Verifying LRAT proof format: {lrat_path}", file=sys.stderr)
-    
-    if not lrat_path.exists():
-        return False, f"LRAT proof file not found: {lrat_path}"
-    
-    if lrat_path.stat().st_size == 0:
-        return False, f"LRAT proof file is empty: {lrat_path}"
-    
-    try:
-        with open(lrat_path, 'rb') as f:
-            content = f.read()
-        
-        # Check if it looks like an LRAT proof
-        # LRAT proofs are typically line-based with clause IDs and literals
-        lines = content.decode('utf-8', errors='ignore').strip().split('\n')
-        
-        if len(lines) == 0:
-            return False, "LRAT proof contains no lines"
-        
-        # Basic format check: should have at least one line
-        # Real LRAT verification would check clause resolution steps
-        print(f"LOG: LRAT proof has {len(lines)} lines", file=sys.stderr)
-        print(f"LOG: Proof size: {lrat_path.stat().st_size} bytes", file=sys.stderr)
-        
-        # For MVP: Accept any non-empty LRAT file
-        # TODO: Integrate external LRAT checker (drat-trim or cake_lpr) for full verification
-        return True, f"LRAT proof format valid ({len(lines)} lines)"
-        
-    except Exception as e:
-        return False, f"Error reading LRAT proof: {e}"
+    if not path.exists():
+        log(f"ERROR: {label} file not found: {path}")
+        return None
+    if path.suffix != ".gz":
+        log(f"{label}: {path} ({path.stat().st_size} bytes, uncompressed)")
+        return path
+    target = tmpdir / path.stem  # strip the .gz suffix
+    log(f"{label}: decompressing {path} to {target}")
+    with gzip.open(path, "rb") as f_in, open(target, "wb") as f_out:
+        shutil.copyfileobj(f_in, f_out)
+    log(f"{label}: decompressed size {target.stat().st_size} bytes")
+    return target
 
 
-def verify_lrat_with_cnf(cnf_path: Path, lrat_path: Path) -> Tuple[bool, str]:
+def parse_stats(output: str) -> Dict[str, Optional[int]]:
     """
-    Verify LRAT proof against CNF file.
-    
-    Args:
-        cnf_path: Path to CNF file
-        lrat_path: Path to LRAT proof file
-        
-    Returns:
-        (success, message) tuple
+    Extract honest proof-size statistics from drat-trim output lines like:
+      c 143 of 181 lemmas in core using 2085 resolution steps
     """
-    print(f"LOG: Verifying LRAT proof against CNF", file=sys.stderr)
-    print(f"LOG:   CNF:  {cnf_path}", file=sys.stderr)
-    print(f"LOG:   LRAT: {lrat_path}", file=sys.stderr)
-    
-    # Check CNF exists
-    if not cnf_path.exists():
-        return False, f"CNF file not found: {cnf_path}"
-    
-    # Check LRAT format
-    format_ok, format_msg = verify_lrat_format(lrat_path)
-    if not format_ok:
-        return False, format_msg
-    
-    # For MVP: Basic structural validation
-    # TODO: Call external LRAT checker to fully verify proof
-    # Command would be: drat-trim <cnf_file> <lrat_file>
-    # or: cake_lpr <cnf_file> <lrat_file>
-    
-    print(f"LOG: Verification complete: {format_msg}", file=sys.stderr)
-    return True, f"LRAT proof verified (basic validation)"
+    stats: Dict[str, Optional[int]] = {
+        "core_lemmas": None, "total_lemmas": None, "resolution_steps": None,
+    }
+    for line in output.splitlines():
+        # Format: c 143 of 181 lemmas in core using 2085 resolution steps
+        parts = line.split()
+        if "lemmas in core using" in line and len(parts) >= 11:
+            try:
+                stats["core_lemmas"] = int(parts[1])
+                stats["total_lemmas"] = int(parts[3])
+                stats["resolution_steps"] = int(parts[8])
+            except (ValueError, IndexError):
+                log(f"WARNING: could not parse stats line: {line}")
+    return stats
 
 
-def main():
-    """Main entry point."""
+def verify(cnf_path: Path, proof_path: Path, timeout_s: int) -> Tuple[bool, Dict]:
+    """Run drat-trim and decide strictly on the presence of 's VERIFIED'."""
+    result: Dict = {
+        "verified": False,
+        "checker": "drat-trim",
+        "cnf": str(cnf_path),
+        "proof": str(proof_path),
+        "timeout_s": timeout_s,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    if not DRAT_TRIM.exists():
+        log(f"ERROR: drat-trim binary missing at {DRAT_TRIM}")
+        log("Run: bash infra/build/lrat_check_build.sh")
+        result["message"] = "checker binary missing"
+        return False, result
+
+    with tempfile.TemporaryDirectory(prefix="verify_lrat_") as tmp:
+        tmpdir = Path(tmp)
+        cnf = materialize(cnf_path, tmpdir, "CNF")
+        proof = materialize(proof_path, tmpdir, "proof")
+        if cnf is None or proof is None:
+            result["message"] = "input file missing"
+            return False, result
+
+        cmd = [str(DRAT_TRIM), str(cnf), str(proof)]
+        log(f"running: {' '.join(cmd)} (timeout {timeout_s}s)")
+        start = time.time()
+        try:
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout_s,
+            )
+        except subprocess.TimeoutExpired:
+            elapsed = time.time() - start
+            log(f"TIMEOUT after {elapsed:.1f}s")
+            result["message"] = f"checker timeout after {timeout_s}s"
+            result["elapsed_s"] = round(elapsed, 3)
+            return False, result
+
+        elapsed = time.time() - start
+        for line in proc.stdout.splitlines():
+            log(f"drat-trim: {line}")
+
+        verified = any(
+            line.strip() == "s VERIFIED" for line in proc.stdout.splitlines()
+        )
+        result.update(parse_stats(proc.stdout))
+        result["verified"] = verified
+        result["exit_code"] = proc.returncode
+        result["elapsed_s"] = round(elapsed, 3)
+        result["message"] = (
+            "s VERIFIED" if verified
+            else f"not verified (exit {proc.returncode})"
+        )
+        log(f"verdict: {result['message']} in {elapsed:.3f}s")
+        return verified, result
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Verify LRAT proof files",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Verify LRAT proof format only
-  verify_lrat --lrat proof.lrat
-  
-  # Verify LRAT proof against CNF file
-  verify_lrat --cnf problem.cnf --lrat proof.lrat
-
-NOTE: This MVP implementation performs basic format validation.
-For production use, integrate external verified LRAT checker (drat-trim or cake_lpr).
-"""
+        description="Verify a solver proof against its CNF with drat-trim"
     )
-    
-    parser.add_argument(
-        "--cnf",
-        type=Path,
-        help="CNF file path (optional, enables full verification)"
-    )
-    
-    parser.add_argument(
-        "--lrat",
-        type=Path,
-        required=True,
-        help="LRAT proof file path"
-    )
-    
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Verbose output"
-    )
-    
+    parser.add_argument("--cnf", type=Path, required=True, help="DIMACS CNF file (.gz ok)")
+    parser.add_argument("--lrat", type=Path, required=True,
+                        help="proof file, binary or ASCII DRAT (.gz ok; historical flag name)")
+    parser.add_argument("--timeout", type=int, default=300,
+                        help="checker wall-clock cap in seconds (default 300)")
     args = parser.parse_args()
-    
-    # Perform verification
-    if args.cnf:
-        success, message = verify_lrat_with_cnf(args.cnf, args.lrat)
-    else:
-        success, message = verify_lrat_format(args.lrat)
-    
-    # Output result
-    if success:
-        print(f"✓ SUCCESS: {message}")
-        return 0
-    else:
-        print(f"✗ FAILED: {message}", file=sys.stderr)
-        return 1
+
+    log("=" * 60)
+    log("drat-trim proof verification")
+    log("=" * 60)
+
+    verified, result = verify(args.cnf, args.lrat, args.timeout)
+    print(json.dumps(result, indent=2))
+    sys.exit(0 if verified else 1)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

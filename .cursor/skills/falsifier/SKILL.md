@@ -43,7 +43,10 @@ cd "$WORKSPACE" && python search/bin/run_proof_size_baseline.py \
    3-regular graphs), `random-kcnf` (fixed clause density, seeded).
 
 3. Read the run summary it appends to `search/logs/falsifier_runs.jsonl` and the
-   per-instance records (status, solve seconds, DRAT lines, verified UNSAT).
+   per-instance records (status, solve seconds, proof bytes, drat-trim core
+   lemmas and resolution steps, proof_check verdict). Every UNSAT proof is
+   checked for real by drat-trim (search/bin/verify_lrat); kissat emits binary
+   DRAT, and a record counts as verified only on an explicit s VERIFIED.
 4. Interpret against the rung's expectation and record the reading in the rung
    memory: growth curve shape, budget breaches, anomalies.
 
