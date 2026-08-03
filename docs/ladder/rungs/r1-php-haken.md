@@ -434,3 +434,12 @@ above it.
   derivation transport under matching, iterative shrink, smaller PHP isomorphism,
   close Frontier php_resolution_size_lower_bound. Pending human gate
   merge_certified. Next after merge: formalize G7b derivation restriction.
+- 2026-08-03 human gate merge_certified: G7 MatchingRestriction cluster (14
+  declarations: mem_gridPosLits_iff, gridPosLits_card,
+  largeThreshold_eq_intermediate_sq, mem_matchingForced_place,
+  mem_matchingForced_row, mem_matchingForced_col, matchingLookup_place,
+  restrictClause_none_of_killed, card_eq_sum_ite_mem, sum_card_eq_sum_hitCount,
+  exists_popular_grid_literal, filter_not_killed_card, large_survivors_le,
+  monotoneClause_card_ge_largeThreshold) accepted into the accepted tree.
+  Gate remains green. R1 stays active. Next: formalize G7b derivation
+  restriction under matching.
