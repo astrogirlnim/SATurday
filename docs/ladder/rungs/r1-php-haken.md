@@ -462,3 +462,12 @@ above it.
   refutable_matchingRestrict) accepted into the accepted tree. Gate remains
   green. R1 stays active. Next: formalize G7c size-preserving derivation
   restriction.
+- 2026-08-03 formalize (G7c: size-preserving derivation restriction): SUCCESS.
+  Extended MatchingRestriction.lean. Certified: restrictClause_eq_none_iff;
+  resolvent kill when both parents killed; subclause embeds when one parent
+  killed; restriction commutes with resolution when pivot unassigned;
+  derivation_restrict_sub (surviving conclusion yields a subclause derivation
+  of size ≤ original); exists_restrict_refutation;
+  exists_matchingRestrict_refutation. Gate green (110 accepted decls). Pending
+  human gate merge_certified. Next after merge: formalize G7d iterative large
+  clause kill and smaller PHP isomorphism toward Frontier close.

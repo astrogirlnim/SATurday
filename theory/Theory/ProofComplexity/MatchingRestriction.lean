@@ -21,9 +21,9 @@ Honest threshold choice: BP96 takes W = V/10 with width ≥ 2(n+1)²/9. We only
 certified width ((n+1)/3)², so we set `largeThreshold` to that certified width.
 The exponential constant may need recalibration when the size assembly closes.
 
-G7b (this module, continued): semantic restriction transport (unsat and
-refutability preserved). Size-nonincreasing syntactic derivation surgery,
-iterative shrink, smaller PHP isomorphism, and Frontier close are deferred.
+G7b: semantic restriction transport. G7c: size-nonincreasing syntactic
+derivation surgery (`derivation_restrict_sub`, `exists_restrict_refutation`).
+Iterative shrink, smaller PHP isomorphism, and Frontier close are deferred.
 
 LOG: R1 matching restriction module (BP96 Theorem 2 / G7)
 -/
@@ -410,7 +410,7 @@ theorem unsat_restrictCNF_of_unsat {ρ : ℕ → Option Bool} {F : CNF}
   fun hs => h (Satisfiable_of_restrictCNF hs)
 
 /-- Refutability is preserved under restriction (via R0 completeness).
-Size is not controlled here; size-nonincreasing syntactic transport is next. -/
+Size-nonincreasing syntactic transport is certified below (G7c). -/
 theorem refutable_restrictCNF (ρ : ℕ → Option Bool) {F : CNF}
     (h : Refutable F) : Refutable (restrictCNF ρ F) :=
   resolution_complete (unsat_restrictCNF_of_unsat (resolution_sound h))
@@ -420,5 +420,261 @@ theorem refutable_matchingRestrict {n : ℕ} (i : Fin (n + 1)) (j : Fin n)
     (h : Refutable (phpCNF n)) :
     Refutable (restrictCNF (matchingLookup n i j) (phpCNF n)) :=
   refutable_restrictCNF (matchingLookup n i j) h
+
+/-! ## Size-preserving syntactic transport (G7c) -/
+
+theorem restrictClause_eq_none_iff (ρ : ℕ → Option Bool) (C : Clause) :
+    restrictClause ρ C = none ↔ ∃ l ∈ C, ρ l.var = some l.pos := by
+  simp only [restrictClause]
+  constructor
+  · intro h
+    by_cases hsat : ∃ l ∈ C, ρ l.var = some l.pos
+    · exact hsat
+    · simp [hsat] at h
+  · intro hsat
+    simp [hsat]
+
+theorem mem_of_mem_restrictClause {ρ : ℕ → Option Bool} {C C' : Clause}
+    {l : Literal} (h : restrictClause ρ C = some C') (hl : l ∈ C') :
+    l ∈ C ∧ ρ l.var = none := by
+  have hiff := (restrictClause_eq_some_iff ρ C C').mp h
+  have hl' : l ∈ C.filter fun t => ρ t.var = none := by simpa [hiff.2] using hl
+  exact ⟨(mem_filter.mp hl').1, (mem_filter.mp hl').2⟩
+
+/-- If both parents are killed, the resolvent is killed. -/
+theorem restrictClause_resolvent_none_of_parents_none (ρ : ℕ → Option Bool)
+    {C D : Clause} (x : ℕ)
+    (hC : restrictClause ρ C = none) (hD : restrictClause ρ D = none) :
+    restrictClause ρ (resolvent C D x) = none := by
+  obtain ⟨lC, hlC, hρC⟩ := (restrictClause_eq_none_iff ρ C).mp hC
+  obtain ⟨lD, hlD, hρD⟩ := (restrictClause_eq_none_iff ρ D).mp hD
+  refine (restrictClause_eq_none_iff ρ _).mpr ?_
+  by_cases hCx : lC = ⟨x, true⟩
+  · subst hCx
+    by_cases hDx : lD = ⟨x, false⟩
+    · subst hDx
+      -- ρ x cannot be both some true and some false
+      cases hρC.symm.trans hρD
+    · exact ⟨lD, mem_union_right _ (mem_erase.mpr ⟨hDx, hlD⟩), hρD⟩
+  · exact ⟨lC, mem_union_left _ (mem_erase.mpr ⟨hCx, hlC⟩), hρC⟩
+
+/-- Left parent killed (must be via +x); surviving right restriction embeds
+into the restricted resolvent. -/
+theorem restrict_sub_of_left_killed (ρ : ℕ → Option Bool) {C D D' R' : Clause}
+    (x : ℕ) (_hx : (⟨x, true⟩ : Literal) ∈ C)
+    (hC : restrictClause ρ C = none) (hD : restrictClause ρ D = some D')
+    (hR : restrictClause ρ (resolvent C D x) = some R') :
+    D' ⊆ R' := by
+  obtain ⟨lC, hlC, hρC⟩ := (restrictClause_eq_none_iff ρ C).mp hC
+  have hCx : lC = ⟨x, true⟩ := by
+    by_contra hne
+    have hlR : lC ∈ resolvent C D x :=
+      mem_union_left _ (mem_erase.mpr ⟨hne, hlC⟩)
+    have hnone : restrictClause ρ (resolvent C D x) = none :=
+      (restrictClause_eq_none_iff ρ _).mpr ⟨lC, hlR, hρC⟩
+    simp [hnone] at hR
+  subst hCx
+  -- ρ x = some true, so -x cannot appear in D'
+  intro l hl
+  obtain ⟨hlD, hun⟩ := mem_of_mem_restrictClause hD hl
+  have hlne : l ≠ ⟨x, false⟩ := by
+    intro heq
+    subst heq
+    simp [hρC] at hun
+  have hlR : l ∈ resolvent C D x :=
+    mem_union_right _ (mem_erase.mpr ⟨hlne, hlD⟩)
+  have hiff := (restrictClause_eq_some_iff ρ (resolvent C D x) R').mp hR
+  have : l ∈ (resolvent C D x).filter fun t => ρ t.var = none :=
+    mem_filter.mpr ⟨hlR, hun⟩
+  simpa [hiff.2] using this
+
+theorem restrict_sub_of_right_killed (ρ : ℕ → Option Bool) {C C' D R' : Clause}
+    (x : ℕ) (_hnx : (⟨x, false⟩ : Literal) ∈ D)
+    (hC : restrictClause ρ C = some C') (hD : restrictClause ρ D = none)
+    (hR : restrictClause ρ (resolvent C D x) = some R') :
+    C' ⊆ R' := by
+  obtain ⟨lD, hlD, hρD⟩ := (restrictClause_eq_none_iff ρ D).mp hD
+  have hDx : lD = ⟨x, false⟩ := by
+    by_contra hne
+    have hlR : lD ∈ resolvent C D x :=
+      mem_union_right _ (mem_erase.mpr ⟨hne, hlD⟩)
+    have hnone : restrictClause ρ (resolvent C D x) = none :=
+      (restrictClause_eq_none_iff ρ _).mpr ⟨lD, hlR, hρD⟩
+    simp [hnone] at hR
+  subst hDx
+  intro l hl
+  obtain ⟨hlC, hun⟩ := mem_of_mem_restrictClause hC hl
+  have hlne : l ≠ ⟨x, true⟩ := by
+    intro heq
+    subst heq
+    simp [hρD] at hun
+  have hlR : l ∈ resolvent C D x :=
+    mem_union_left _ (mem_erase.mpr ⟨hlne, hlC⟩)
+  have hiff := (restrictClause_eq_some_iff ρ (resolvent C D x) R').mp hR
+  have : l ∈ (resolvent C D x).filter fun t => ρ t.var = none :=
+    mem_filter.mpr ⟨hlR, hun⟩
+  simpa [hiff.2] using this
+
+/-- Both parents survive only if the pivot is unassigned; then restriction
+commutes with resolution. -/
+theorem restrict_resolvent_of_both_some (ρ : ℕ → Option Bool) {C C' D D' : Clause}
+    (x : ℕ) (hx : (⟨x, true⟩ : Literal) ∈ C) (hnx : (⟨x, false⟩ : Literal) ∈ D)
+    (hC : restrictClause ρ C = some C') (hD : restrictClause ρ D = some D')
+    (hxun : ρ x = none) :
+    restrictClause ρ (resolvent C D x) = some (resolvent C' D' x) ∧
+      (⟨x, true⟩ : Literal) ∈ C' ∧ (⟨x, false⟩ : Literal) ∈ D' := by
+  have ⟨hCnsat, hCeq⟩ := (restrictClause_eq_some_iff ρ C C').mp hC
+  have ⟨hDnsat, hDeq⟩ := (restrictClause_eq_some_iff ρ D D').mp hD
+  have hxC' : (⟨x, true⟩ : Literal) ∈ C' := by
+    simp [hCeq, mem_filter, hx, hxun]
+  have hxD' : (⟨x, false⟩ : Literal) ∈ D' := by
+    simp [hDeq, mem_filter, hnx, hxun]
+  refine ⟨?_, hxC', hxD'⟩
+  -- Prove by characterizing both sides as the unassigned lits of the resolvent.
+  have hR :
+      restrictClause ρ (resolvent C D x) =
+        some ((resolvent C D x).filter fun l => ρ l.var = none) := by
+    apply (restrictClause_eq_some_iff ρ (resolvent C D x) _).mpr
+    refine ⟨?_, rfl⟩
+    intro l hl hsat
+    have hl' : l ∈ C.erase ⟨x, true⟩ ∨ l ∈ D.erase ⟨x, false⟩ :=
+      (mem_union).mp (by simpa [resolvent] using hl)
+    rcases hl' with hlC | hlD
+    · exact hCnsat l (mem_of_mem_erase hlC) hsat
+    · exact hDnsat l (mem_of_mem_erase hlD) hsat
+  have hfilter :
+      (resolvent C D x).filter (fun l => ρ l.var = none) = resolvent C' D' x := by
+    ext l
+    constructor
+    · intro hl
+      obtain ⟨hlR, hun⟩ := mem_filter.mp hl
+      have hl' : l ∈ C.erase ⟨x, true⟩ ∨ l ∈ D.erase ⟨x, false⟩ :=
+        (mem_union).mp (by simpa [resolvent] using hlR)
+      simp only [resolvent, mem_union, mem_erase, hCeq, hDeq, mem_filter]
+      rcases hl' with hlC | hlD
+      · obtain ⟨hlne, hlC⟩ := mem_erase.mp hlC
+        exact Or.inl ⟨hlne, hlC, hun⟩
+      · obtain ⟨hlne, hlD⟩ := mem_erase.mp hlD
+        exact Or.inr ⟨hlne, hlD, hun⟩
+    · intro hl
+      simp only [resolvent, mem_union, mem_erase, hCeq, hDeq, mem_filter] at hl
+      apply mem_filter.mpr
+      rcases hl with ⟨hlne, hlC, hun⟩ | ⟨hlne, hlD, hun⟩
+      · exact ⟨mem_union_left _ (mem_erase.mpr ⟨hlne, hlC⟩), hun⟩
+      · exact ⟨mem_union_right _ (mem_erase.mpr ⟨hlne, hlD⟩), hun⟩
+  rw [hR, hfilter]
+
+/-- Core G7c: if the conclusion survives restriction, some subclause of the
+restricted conclusion has a derivation from `restrictCNF ρ F` of size at most
+the original. -/
+theorem derivation_restrict_sub (ρ : ℕ → Option Bool) {F : CNF} {C : Clause}
+    (d : Derivation F C) {C' : Clause} (hC' : restrictClause ρ C = some C') :
+    ∃ D : Clause, ∃ d' : Derivation (restrictCNF ρ F) D,
+      D ⊆ C' ∧ d'.size ≤ d.size := by
+  induction d generalizing C' with
+  | hyp C hC =>
+    refine ⟨C', Derivation.hyp C' ?_, Subset.rfl, ?_⟩
+    · exact (mem_restrictCNF_iff ρ F C').mpr ⟨C, hC, hC'⟩
+    · exact Nat.le_refl 1
+  | res x dC dD hx hnx ihC ihD =>
+    -- Parent conclusions are the binders C, D of this res step.
+    change restrictClause ρ (resolvent dC.conclusion dD.conclusion x) = some C' at hC'
+    cases hCrest : restrictClause ρ dC.conclusion with
+    | none =>
+      cases hDrest : restrictClause ρ dD.conclusion with
+      | none =>
+        have hnone :=
+          restrictClause_resolvent_none_of_parents_none ρ x hCrest hDrest
+        rw [hnone] at hC'
+        cases hC'
+      | some D' =>
+        obtain ⟨E, dE, hEsub, hEsz⟩ := ihD (C' := D') hDrest
+        have hDR : D' ⊆ C' :=
+          restrict_sub_of_left_killed (C := dC.conclusion) (D := dD.conclusion)
+            ρ x hx hCrest hDrest hC'
+        refine ⟨E, dE, Subset.trans hEsub hDR, Nat.le_trans hEsz ?_⟩
+        change dD.size ≤ dC.size + dD.size + 1
+        omega
+    | some Cparent =>
+      cases hDrest : restrictClause ρ dD.conclusion with
+      | none =>
+        obtain ⟨E, dE, hEsub, hEsz⟩ := ihC (C' := Cparent) hCrest
+        have hCR : Cparent ⊆ C' :=
+          restrict_sub_of_right_killed (C := dC.conclusion) (D := dD.conclusion)
+            ρ x hnx hCrest hDrest hC'
+        refine ⟨E, dE, Subset.trans hEsub hCR, Nat.le_trans hEsz ?_⟩
+        change dC.size ≤ dC.size + dD.size + 1
+        omega
+      | some Dparent =>
+        have hxun : ρ x = none := by
+          cases hρ : ρ x with
+          | none => rfl
+          | some b =>
+            cases b
+            · have : restrictClause ρ dD.conclusion = none :=
+                (restrictClause_eq_none_iff ρ _).mpr
+                  ⟨⟨x, false⟩, hnx, by simp [hρ]⟩
+              rw [this] at hDrest
+              cases hDrest
+            · have : restrictClause ρ dC.conclusion = none :=
+                (restrictClause_eq_none_iff ρ _).mpr
+                  ⟨⟨x, true⟩, hx, by simp [hρ]⟩
+              rw [this] at hCrest
+              cases hCrest
+        obtain ⟨hReq, _, _⟩ :=
+          restrict_resolvent_of_both_some (C := dC.conclusion) (D := dD.conclusion)
+            ρ x hx hnx hCrest hDrest hxun
+        have hC'eq : C' = resolvent Cparent Dparent x :=
+          Option.some.inj (hC'.symm.trans hReq)
+        obtain ⟨E1, d1, h1, hs1⟩ := ihC (C' := Cparent) hCrest
+        obtain ⟨E2, d2, h2, hs2⟩ := ihD (C' := Dparent) hDrest
+        by_cases hE1x : (⟨x, true⟩ : Literal) ∈ E1
+        · by_cases hE2x : (⟨x, false⟩ : Literal) ∈ E2
+          · refine ⟨resolvent E1 E2 x, Derivation.res x d1 d2 hE1x hE2x, ?_, ?_⟩
+            · intro l hl
+              have hl' : l ∈ E1.erase ⟨x, true⟩ ∨ l ∈ E2.erase ⟨x, false⟩ :=
+                (mem_union).mp (by simpa [resolvent] using hl)
+              rw [hC'eq]
+              simp only [resolvent, mem_union, mem_erase]
+              rcases hl' with hl1 | hl2
+              · obtain ⟨hlne, hl1⟩ := mem_erase.mp hl1
+                exact Or.inl ⟨hlne, h1 hl1⟩
+              · obtain ⟨hlne, hl2⟩ := mem_erase.mp hl2
+                exact Or.inr ⟨hlne, h2 hl2⟩
+            · change d1.size + d2.size + 1 ≤ dC.size + dD.size + 1
+              omega
+          · refine ⟨E2, d2, ?_, Nat.le_trans hs2 ?_⟩
+            · intro l hl
+              have hlD : l ∈ Dparent := h2 hl
+              have hlne : l ≠ ⟨x, false⟩ := fun heq => hE2x (heq ▸ hl)
+              rw [hC'eq]
+              exact mem_union_right _ (mem_erase.mpr ⟨hlne, hlD⟩)
+            · change dD.size ≤ dC.size + dD.size + 1
+              omega
+        · refine ⟨E1, d1, ?_, Nat.le_trans hs1 ?_⟩
+          · intro l hl
+            have hlC : l ∈ Cparent := h1 hl
+            have hlne : l ≠ ⟨x, true⟩ := fun heq => hE1x (heq ▸ hl)
+            rw [hC'eq]
+            exact mem_union_left _ (mem_erase.mpr ⟨hlne, hlC⟩)
+          · change dC.size ≤ dC.size + dD.size + 1
+            omega
+
+/-- Size-nonincreasing transport of a refutation under restriction. -/
+theorem exists_restrict_refutation (ρ : ℕ → Option Bool) {F : CNF}
+    (d : Derivation F (∅ : Clause)) :
+    ∃ d' : Derivation (restrictCNF ρ F) (∅ : Clause), d'.size ≤ d.size := by
+  obtain ⟨D, d', hsub, hsz⟩ := derivation_restrict_sub ρ d (restrictClause_empty ρ)
+  have hD : D = ∅ := Subset.antisymm hsub (empty_subset _)
+  subst hD
+  exact ⟨d', hsz⟩
+
+/-- Matching restriction of a PHP refutation yields a restricted refutation
+of size at most the original. -/
+theorem exists_matchingRestrict_refutation {n : ℕ} (i : Fin (n + 1)) (j : Fin n)
+    (d : Derivation (phpCNF n) (∅ : Clause)) :
+    ∃ d' : Derivation (restrictCNF (matchingLookup n i j) (phpCNF n)) (∅ : Clause),
+      d'.size ≤ d.size :=
+  exists_restrict_refutation (matchingLookup n i j) d
 
 end SATurday.ProofComplexity

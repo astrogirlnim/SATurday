@@ -134,3 +134,14 @@ SATurday.ProofComplexity.Satisfiable_of_restrictCNF
 SATurday.ProofComplexity.unsat_restrictCNF_of_unsat
 SATurday.ProofComplexity.refutable_restrictCNF
 SATurday.ProofComplexity.refutable_matchingRestrict
+# R1 BP96 Theorem 2 / G7c: size-preserving syntactic restriction transport
+# (certified 2026-08-03, saturday formalize)
+SATurday.ProofComplexity.restrictClause_eq_none_iff
+SATurday.ProofComplexity.mem_of_mem_restrictClause
+SATurday.ProofComplexity.restrictClause_resolvent_none_of_parents_none
+SATurday.ProofComplexity.restrict_sub_of_left_killed
+SATurday.ProofComplexity.restrict_sub_of_right_killed
+SATurday.ProofComplexity.restrict_resolvent_of_both_some
+SATurday.ProofComplexity.derivation_restrict_sub
+SATurday.ProofComplexity.exists_restrict_refutation
+SATurday.ProofComplexity.exists_matchingRestrict_refutation
