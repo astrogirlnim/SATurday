@@ -312,3 +312,74 @@ above it.
   accepted tree. Certified that μ({p_ij}) = (n+1)! − n!, so the naive width
   lemma stays dead. Pending human gate merge_certified. Next: prove cycle to
   lock the BP96 matching complexity statement (G3), then resume lemma 3.
+- 2026-08-03 human gate merge_certified: the four lemma 3 support declarations
+  (litUnsat_pos_iff, litUnsat_neg_iff, falsifies_iff_forall_lit,
+  complexity_singleton_pos) accepted into the accepted tree. Gate remains
+  green. R1 stays active. Next: prove cycle locking BP96 Lemma 1 complexity.
+- 2026-08-03 prove (G3 lock: BP96 Lemma 1 complexity, not matching measure):
+  SUCCESS on scholarship lock; PARTIAL on the width argument (gaps for
+  formalize).
+
+  Literature source (known): Beame and Pitassi, Simplified and Improved
+  Resolution Lower Bounds, FOCS 1996, Lemma 1 and Theorem 2. PDF:
+  https://homes.cs.washington.edu/~beame/papers/focsclause.pdf
+
+  Locked definition (adaptation to our PHP(n+1, n) encoding; known measure,
+  not new):
+    L(C) := { i : Fin (n+1) | ∃ π : Crit n, π i = Fin.last n ∧ falsifies n C π }
+    comp(C) := |L(C)|
+  Equivalent BP96 phrasing: minimum number of pigeon axioms that imply C on
+  all critical assignments. Equivalence: a critical assignment falsifies
+  exactly the left out pigeon axiom, so S implies C on critical assignments
+  iff L(C) ⊆ indices(S), hence the minimum |S| equals |L(C)|.
+
+  Values:
+    comp(∅) = n+1
+    comp(pigeonClause i) = 1
+    comp(holeClause) = 0
+  Subadditivity: L(resolvent C D x) ⊆ L(C) ∪ L(D), so
+    comp(resolvent) ≤ comp(C) + comp(D).
+  Intermediate clause (from subadditivity and leaf values): every refutation
+  contains a clause C with (n+1)/3 < comp(C) ≤ 2(n+1)/3.
+
+  Adversarial reconciliation with the width 1 counterexample: for
+  C = {⟨pvar 0 0, true⟩}, every left out pigeon admits some π falsifying C,
+  so comp(C) = n+1, which lies outside the intermediate band
+  ((n+1)/3, 2(n+1)/3]. The naive μ measure put this C in the "large" class;
+  comp correctly classifies it as near empty complexity. Prior "matching
+  complexity" pivot is REJECTED; μ stays for the certified linear bound only.
+
+  Lemma 3 restated (adaptation of BP96 Lemma 1, one developed argument):
+  Let C be a clause with m = comp(C) and (n+1)/3 < m ≤ 2(n+1)/3. After the
+  Buss monotone transform (replace each ¬p_{i,k} by the positive literals
+  {p_{t,k} | t ≠ i}, which preserves critical satisfaction), C contains at
+  least (n+1 − m)·m distinct positive grid literals. For m in the intermediate
+  band this is at least 2(n+1)²/9. Proof idea (BP96): take minimal S = L(C)
+  with |S| = m; fix i ∈ S and an i-critical α falsifying C; for each pigeon
+  j ∉ S, the j-critical α' obtained by swapping i with j satisfies C (because
+  left out j ∉ S means α' satisfies all of S, hence C); monotone C must
+  contain the positive variable that distinguishes α from α'.
+
+  Size assembly (BP96 Theorem 2, deferred as lemma 4): if S < 2^{n/20}, a
+  short sequence of matching restrictions kills every clause of size ≥ n²/10,
+  leaving a refutation of a still nontrivial PHP with no large clause,
+  contradicting Lemma 1. Constant 20 matches our Frontier statement.
+
+  Gap list:
+  G1/G2. Done (certified).
+  G3. LOCKED this cycle: comp = |L|, intermediate band, reject matching
+  measure. Class: closed.
+  G5. Formalize L, comp, values, subadditivity, intermediate existence.
+  Class: routine to medium (Finset image of left outs over Fals).
+  G6. Formalize monotone transform and the (n+1−m)m width lower bound for
+  intermediate comp. Class: hard (the BP96 swap argument).
+  G7. Restriction size assembly (lemma 4 / Theorem 2). Class: hard; waits
+  on G6.
+
+  Self adversarial pass: quantifiers are finite and explicit; no claim that
+  μ alone gives width; the width 1 clause is reconciled by the intermediate
+  band. Worst gap: G6 (monotone transform plus swap). No barrier issue at
+  resolution level. Status: prose ready for formalize of G5 (definitions and
+  intermediate existence); G6 needs its own formalize after G5 merges.
+
+  Next: formalize G5 (L, comp, subadditivity, intermediate clause).
