@@ -242,3 +242,73 @@ above it.
   Most important thing learned: Classical was required for Finset.filter over
   falsifies (clauseSat is existential); the module is noncomputable but axiom
   clean. Next: prove cycle for lemma 3 (medium μ clauses are wide).
+- 2026-08-03 human gate merge_certified: ClauseComplexity.lean accepted into
+  the accepted tree. Thirteen declarations remain in
+  scripts/accepted_declarations.txt; gate green; no Frontier and no sorry.
+  R1 stays active. Linear bound php_resolution_size_linear is now an accepted
+  result (not the exponential target).
+- 2026-08-03 prove (BP96 lemma 3: width of medium complexity): PARTIAL, with a
+  critical adversarial correction to the lemma statement itself.
+
+  Restated naive target (from the earlier decomposition): every clause C with
+  μ(C) at least (n+1)! / 2^{δ n} contains at least δ n literals.
+
+  Non vacuity: Crit(n) and μ are certified (ClauseComplexity).
+
+  Adversarial pass (kills the naive target): take C = {⟨pvar 0 0, true⟩}, a
+  single positive literal (width 1). Then α falsifies C iff π does not place
+  pigeon 0 in hole 0, so μ(C) = (n+1)! − n! which is at least (n+1)! / 2 for
+  n ≥ 1. The naive "large μ implies wide" statement is FALSE for our μ.
+
+  Rejected patches:
+  (A) L*(C) = {i | every π leaving out i falsifies C}. Gives |L*(∅)| = n+1 and
+  |L*(pigeon i)| = 1, but nonempty non axiom clauses appear to have |L*| ≤ 1,
+  so L* cannot carry intermediate complexity for the exponential argument.
+  (B) Keep naive μ and restrict to "bottleneck" clauses (first falsified on a
+  root to leaf walk). Still needs a width law that survives the positive
+  literal counterexample; not pinned this cycle.
+
+  Developed pivot (one argument, adaptation of Beame and Pitassi 1996 /
+  Haken bottleneck counting, not a new theorem):
+  The exponential content is not a pure width law for μ. It is an incidence
+  counting argument: pairs (π, C) where C is a designated bottleneck clause
+  for π in a size S refutation, combined with a structural bound on how many
+  critical assignments a clause of small "matching complexity" can own.
+  Matching complexity (literature adaptation, to be locked next): the size of
+  the largest partial matching M of pigeons to holes such that every critical
+  extension of M falsifies C. Single positive literals have matching
+  complexity 0 or 1 and do not contradict the literature width law for that
+  measure. Our μ remains the right leaf to root potential for Claim 3 of
+  lemma 2 (linear bound, certified); it is the wrong sole measure for lemma 3.
+
+  Gap list:
+  G1. Literal level characterization of falsifies (needed for any repaired
+  lemma 3): π falsifies C iff every literal of C is false under
+  criticalAssignment n π; positive ⟨pvar i j, true⟩ is false iff π i ≠
+  castSucc j; negative ⟨pvar i j, false⟩ is false iff π i = castSucc j.
+  Class: routine. Formalize this cycle.
+  G2. Corollary μ({positive p_ij}) = (n+1)! − n!, recording the counterexample
+  as a certified theorem so the naive lemma cannot silently return. Class:
+  routine.
+  G3. Lock the precise literature statement of matching complexity (or the
+  exact BP96 lemma number and formula) against Beame and Pitassi 1996 before
+  further prove cycles on lemma 3. Class: hard (scholarship, not Lean).
+  G4. Exponential assembly (old lemma 4) waits on G3. Class: hard.
+
+  Self adversarial pass: the pivot does not claim a new lower bound; it
+  refuses to formalize a false width lemma. Quantifiers on G1 and G2 are
+  explicit and finite. No barrier issue at resolution level. Worst gap: G3
+  must be settled by reading BP96 and writing a one line falsifiable claim
+  before the next prove cycle on lemma 3 proper.
+
+  Status: partial. Next: formalize G1 and G2 (literal characterization and
+  the width 1 counterexample theorem), then a scholarship prove cycle to lock
+  the matching complexity statement from BP96.
+- 2026-08-03 formalize (lemma 3 support G1/G2): SUCCESS. Extended
+  ClauseComplexity.lean with litUnsat_pos_iff, litUnsat_neg_iff,
+  falsifies_iff_forall_lit, complexity_singleton_pos. Gate green
+  (scripts/check_axioms.sh). Seventeen declarations listed for this module
+  cluster (thirteen prior plus four new). No Frontier and no sorry in the
+  accepted tree. Certified that μ({p_ij}) = (n+1)! − n!, so the naive width
+  lemma stays dead. Pending human gate merge_certified. Next: prove cycle to
+  lock the BP96 matching complexity statement (G3), then resume lemma 3.

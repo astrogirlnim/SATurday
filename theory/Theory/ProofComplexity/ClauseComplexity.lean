@@ -24,7 +24,10 @@ Certified claims in this module:
 Honest scope: Claim 3 is only a linear lower bound. The exponential R1 target
 needs lemmas 3 and 4 (width of medium complexity clauses).
 
-LOG: R1 clause complexity module (BP96 lemma 2)
+Also certified (lemma 3 support G1/G2): literal unsatisfaction under critical
+assignments, and the width 1 counterexample μ({p_ij}) = (n+1)! − n!.
+
+LOG: R1 clause complexity module (BP96 lemma 2 plus lemma 3 support)
 -/
 
 namespace SATurday.ProofComplexity
@@ -274,5 +277,89 @@ theorem php_resolution_size_linear (n : ℕ)
   have hfact : (n + 1).factorial = (n + 1) * n.factorial := Nat.factorial_succ n
   rw [hfact] at h
   exact Nat.le_of_mul_le_mul_right h (Nat.factorial_pos n)
+
+/-! ## Literal characterization (lemma 3 support, G1/G2 from 2026-08-03 prove)
+
+Certified so that the naive "large μ implies wide" claim cannot return silently:
+a single positive grid literal already has μ = (n+1)! − n!.
+-/
+
+/-- Positive grid literal is false under the critical assignment iff the
+permutation does not place pigeon `i` in hole `j`. -/
+theorem litUnsat_pos_iff {n : ℕ} (pi : Crit n) (i : Fin (n + 1)) (j : Fin n) :
+    ¬ litSat (criticalAssignment n pi) ⟨pvar n i j, true⟩ ↔
+      pi i ≠ Fin.castSucc j := by
+  simp only [litSat, criticalAssignment_pvar]
+
+/-- Negative grid literal is false under the critical assignment iff the
+permutation places pigeon `i` in hole `j`. -/
+theorem litUnsat_neg_iff {n : ℕ} (pi : Crit n) (i : Fin (n + 1)) (j : Fin n) :
+    ¬ litSat (criticalAssignment n pi) ⟨pvar n i j, false⟩ ↔
+      pi i = Fin.castSucc j := by
+  -- litSat of negative means assignment is false; criticalAssignment is true
+  -- exactly on placements, so unsat of negative means placed.
+  constructor
+  · intro h
+    by_contra hne
+    have : criticalAssignment n pi (pvar n i j) = false := by
+      cases hval : criticalAssignment n pi (pvar n i j)
+      · rfl
+      · exact absurd ((criticalAssignment_pvar pi i j).mp hval) hne
+    exact h this
+  · intro hplace hsat
+    have htrue : criticalAssignment n pi (pvar n i j) = true :=
+      (criticalAssignment_pvar pi i j).mpr hplace
+    exact Bool.noConfusion (hsat.symm.trans htrue)
+
+/-- A critical permutation falsifies `C` iff every literal of `C` is unsatisfied. -/
+theorem falsifies_iff_forall_lit {n : ℕ} (C : Clause) (pi : Crit n) :
+    falsifies n C pi ↔ ∀ l ∈ C, ¬ litSat (criticalAssignment n pi) l := by
+  simp only [falsifies, clauseSat, not_exists, not_and]
+
+/-- Width 1 counterexample: one positive grid literal has
+μ = (n+1)! − n!. Kills naive "large μ implies wide". -/
+theorem complexity_singleton_pos (n : ℕ) (i : Fin (n + 1)) (j : Fin n) :
+    complexity n ({⟨pvar n i j, true⟩} : Clause) =
+      (n + 1).factorial - n.factorial := by
+  simp only [complexity, Fals]
+  -- Fals = {σ | σ i ≠ castSucc j}
+  have hfilter :
+      Finset.univ.filter (fun σ : Crit n =>
+          falsifies n ({⟨pvar n i j, true⟩} : Clause) σ) =
+      Finset.univ.filter (fun σ : Crit n => σ i ≠ Fin.castSucc j) := by
+    refine Finset.filter_congr ?_
+    intro σ _
+    simp only [falsifies_iff_forall_lit, Finset.mem_singleton, forall_eq,
+      litUnsat_pos_iff]
+  rw [hfilter]
+  -- card(filter ≠ y) = card univ − card(filter = y)
+  set Sy : Finset (Crit n) :=
+    Finset.univ.filter (fun σ : Crit n => σ i = Fin.castSucc j)
+  set Sne : Finset (Crit n) :=
+    Finset.univ.filter (fun σ : Crit n => σ i ≠ Fin.castSucc j)
+  have hdisj : Disjoint Sy Sne := by
+    rw [Finset.disjoint_left]
+    intro σ hSy hSne
+    exact (Finset.mem_filter.mp hSne).2 (Finset.mem_filter.mp hSy).2
+  have hunion : Sy ∪ Sne = Finset.univ := by
+    ext σ
+    constructor
+    · intro _; exact Finset.mem_univ σ
+    · intro _
+      simp only [Finset.mem_union, Finset.mem_filter, Finset.mem_univ, true_and, Sy, Sne]
+      exact Classical.em (σ i = Fin.castSucc j)
+  have heqCard : Sy.card = Fintype.card { σ : Crit n // σ i = Fin.castSucc j } := by
+    rw [← Fintype.card_coe]
+    refine Fintype.card_congr
+      ⟨fun ⟨σ, h⟩ => ⟨σ, (Finset.mem_filter.mp h).2⟩,
+       fun ⟨σ, h⟩ => ⟨σ, Finset.mem_filter.mpr ⟨Finset.mem_univ σ, h⟩⟩,
+       fun _ => rfl, fun _ => rfl⟩
+  have hsum := (Finset.card_union_of_disjoint hdisj).symm
+  -- (Sy ∪ Sne).card = Sy.card + Sne.card, and union = univ
+  rw [hunion, Finset.card_univ] at hsum
+  have hcard : Sne.card = Fintype.card (Crit n) -
+      Fintype.card { σ : Crit n // σ i = Fin.castSucc j } := by
+    omega
+  simpa [Sne, Fintype.card_perm, Fintype.card_fin, card_perm_fiber] using hcard
 
 end SATurday.ProofComplexity

@@ -42,3 +42,10 @@ SATurday.ProofComplexity.complexity_le_complexitySum
 SATurday.ProofComplexity.complexity_php_hyp_le
 SATurday.ProofComplexity.Derivation.complexitySum_le_size_mul
 SATurday.ProofComplexity.php_resolution_size_linear
+
+# R1 BP96 lemma 3 support: literal characterization and width-1 counterexample
+# (certified 2026-08-03, saturday formalize after adversarial prove)
+SATurday.ProofComplexity.litUnsat_pos_iff
+SATurday.ProofComplexity.litUnsat_neg_iff
+SATurday.ProofComplexity.falsifies_iff_forall_lit
+SATurday.ProofComplexity.complexity_singleton_pos
