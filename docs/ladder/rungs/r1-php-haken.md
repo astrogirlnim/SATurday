@@ -395,3 +395,15 @@ above it.
   that corollary was not certified this cycle and is not needed for G5.
   Pending human gate merge_certified. Next after merge: formalize G6 (monotone
   transform and (n+1−m)m width bound).
+- 2026-08-03 human gate merge_certified: G5 pigeonComplexity cluster (14
+  declarations) accepted into the accepted tree. Gate remains green. R1 stays
+  active. Next: formalize G6.
+- 2026-08-03 formalize (G6: monotone transform and one-pigeon width): PARTIAL
+  SUCCESS. New module MonotoneWidth.lean. Certified: grid decoding; Buss
+  monotone transform with critical equivalence (L and pigeonComplexity
+  invariant); swap construction; monotoneClause_contains_swap_literal;
+  monotoneClause_card_one_pigeon ((n+1)−m ≤ |monotoneClause| for each
+  i ∈ L(C)). Gate green. Deferred to next formalize: product assembly
+  m·((n+1)−m) over all i ∈ L and the intermediate quadratic 2(n+1)²/9.
+  Pending human gate merge_certified for the G6 cluster. Next: formalize
+  product width bound.

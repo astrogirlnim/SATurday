@@ -3,6 +3,7 @@ import Theory.ProofComplexity.Resolution
 import Theory.ProofComplexity.PHP
 import Theory.ProofComplexity.CriticalAssignments
 import Theory.ProofComplexity.ClauseComplexity
+import Theory.ProofComplexity.MonotoneWidth
 
 /-!
 # SATurday Theory Library

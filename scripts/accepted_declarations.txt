@@ -66,3 +66,29 @@ SATurday.ProofComplexity.pigeonComplexity_resolvent_le
 SATurday.ProofComplexity.pigeonComplexity_php_hyp_le
 SATurday.ProofComplexity.exists_intermediate_of_high_pigeonComplexity
 SATurday.ProofComplexity.exists_intermediate_pigeonComplexity
+
+# R1 BP96 Lemma 1 / G6: monotone transform, swap lemma, one-pigeon width
+# (certified 2026-08-03, saturday formalize; product bound deferred)
+SATurday.ProofComplexity.isGridVar_pvar
+SATurday.ProofComplexity.gridPigeon_pvar
+SATurday.ProofComplexity.gridHole_pvar
+SATurday.ProofComplexity.pvar_grid_eq
+SATurday.ProofComplexity.litSat_neg_grid_iff
+SATurday.ProofComplexity.clauseSat_monotoneLiteral_iff
+SATurday.ProofComplexity.clauseSat_monotoneClause_iff
+SATurday.ProofComplexity.falsifies_monotoneClause_iff
+SATurday.ProofComplexity.L_monotoneClause
+SATurday.ProofComplexity.pigeonComplexity_monotoneClause
+SATurday.ProofComplexity.monotoneClause_not_neg_grid
+SATurday.ProofComplexity.Crit.swapLeftOut_apply_j
+SATurday.ProofComplexity.Crit.swapLeftOut_apply_i
+SATurday.ProofComplexity.Crit.swapLeftOut_apply_other
+SATurday.ProofComplexity.Crit.holeOf_spec
+SATurday.ProofComplexity.leftOut_ne_of_mem_L_not_mem
+SATurday.ProofComplexity.placed_of_leftOut_other
+SATurday.ProofComplexity.not_mem_L_not_falsifies
+SATurday.ProofComplexity.monotoneClause_contains_swap_literal
+SATurday.ProofComplexity.card_Lcompl
+SATurday.ProofComplexity.forcedLitsOne_subset_monotone
+SATurday.ProofComplexity.forcedLitsOne_card
+SATurday.ProofComplexity.monotoneClause_card_one_pigeon
