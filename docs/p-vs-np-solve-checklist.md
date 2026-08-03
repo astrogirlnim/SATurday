@@ -31,7 +31,7 @@ ladder after the program audit (see docs/postmortems/).
 - [x] Eliminate any rung that cannot be made precise in Lean-level terms.
 
 ## 4) Formalization First
-- [ ] R0: resolution soundness and completeness in Lean, zero sorries, gate passes.
+- [x] R0: resolution soundness and completeness in Lean, zero sorries, gate passes.
 - [ ] R1 statement: PHP family and the Haken lower bound stated in Lean
       (Frontier namespace until proved).
 - [ ] Prove the first nontrivial new lemma in Lean without new axioms.

@@ -21,6 +21,10 @@ echo "[axiom-gate] workspace: $WORKSPACE"
 # ---------------------------------------------------------------- 1. build ---
 echo "[axiom-gate] step 1: lake build"
 cd "$THEORY_DIR" || { echo "[axiom-gate] FAIL: theory dir missing"; exit 1; }
+# The external drive spawns AppleDouble ._*.lean sidecars that lake's module
+# glob would try to parse as Lean source; remove them before every build.
+find . -name "._*" -not -path "./.lake/*" -delete 2>/dev/null
+echo "[axiom-gate] AppleDouble sidecars cleaned"
 if ! lake build 2>&1 | tail -5; then
   echo "[axiom-gate] FAIL: lake build failed"
   exit 1

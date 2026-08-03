@@ -17,13 +17,13 @@ R4-class results plus the certified R5 bridge.
 ## Rungs
 
 - R0 resolution foundations
-  - status: active
+  - status: certified (2026-08-03, axiom gate green)
   - statement: resolution soundness and refutational completeness, certified in Lean
   - memory: docs/ladder/rungs/r0-resolution-foundations.md
   - lean: theory/Theory/ProofComplexity/Resolution.lean
 
 - R1 PHP Haken lower bound
-  - status: proposed
+  - status: active (opened by R0 certification)
   - statement: resolution refutations of PHP(n+1, n) require size exponential in n
   - memory: docs/ladder/rungs/r1-php-haken.md
   - lean: theory/Theory/ProofComplexity/PHP.lean

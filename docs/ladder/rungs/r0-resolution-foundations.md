@@ -1,6 +1,6 @@
 # R0: Resolution Foundations
 
-Status: active
+Status: certified
 Lean home: theory/Theory/ProofComplexity/Resolution.lean
 
 ## Statement
@@ -32,3 +32,16 @@ Not applicable (no lower-bound claim).
   induction on the derivation (case split on the resolved variable's value);
   completeness by Davis-Putnam variable elimination with induction on the number of
   variables, handling tautological clauses by a filtering lemma.
+- 2026-08-03 formalize: CERTIFIED. theory/Theory/ProofComplexity/Resolution.lean
+  compiles with zero sorries; scripts/check_axioms.sh reports exactly propext,
+  Classical.choice, Quot.sound for derivation_entails, resolution_sound,
+  resolution_complete, resolution_refutable_iff. One proof improvement over the
+  planned route: no tautology filtering lemma was needed. The Davis-Putnam split
+  was made polarity strict (posClauses and negClauses each demand the opposite
+  literal absent), so clauses containing both polarities of the eliminated
+  variable drop out of the elimination and never block the extension argument.
+  Size-counted derivations (Derivation.size) are in place for the R1 statement.
+  Most important thing learned: the mathlib rename to notMem style names is the
+  only friction point at this toolchain version; the AppleDouble sidecar files on
+  this external drive break lake module globbing and must be cleaned before every
+  build (the axiom gate now does this).

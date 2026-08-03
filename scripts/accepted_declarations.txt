@@ -7,3 +7,9 @@
 SATurday.add_zero_eq
 SATurday.zero_add_eq
 SATurday.one_mul_eq
+
+# R0: resolution foundations (certified 2026-08-03)
+SATurday.ProofComplexity.derivation_entails
+SATurday.ProofComplexity.resolution_sound
+SATurday.ProofComplexity.resolution_complete
+SATurday.ProofComplexity.resolution_refutable_iff

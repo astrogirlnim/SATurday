@@ -1,4 +1,5 @@
 import Theory.Basic
+import Theory.ProofComplexity.Resolution
 
 /-!
 # SATurday Theory Library
