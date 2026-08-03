@@ -27,3 +27,18 @@ SATurday.ProofComplexity.criticalAssignment_sat_pigeonClause_iff
 SATurday.ProofComplexity.criticalAssignment_falsifies_leftOut
 SATurday.ProofComplexity.criticalAssignment_sat_iff
 SATurday.ProofComplexity.criticalAssignment_sat_php_erase
+
+# R1 BP96 lemma 2: clause complexity measure (certified 2026-08-03, saturday session)
+SATurday.ProofComplexity.falsifies_empty
+SATurday.ProofComplexity.complexity_empty
+SATurday.ProofComplexity.complexity_holeClause
+SATurday.ProofComplexity.falsifies_pigeonClause_iff
+SATurday.ProofComplexity.card_perm_fiber
+SATurday.ProofComplexity.complexity_pigeonClause
+SATurday.ProofComplexity.criticalAssignment_sat_resolvent
+SATurday.ProofComplexity.Fals_resolvent_subset
+SATurday.ProofComplexity.complexity_resolvent_le
+SATurday.ProofComplexity.complexity_le_complexitySum
+SATurday.ProofComplexity.complexity_php_hyp_le
+SATurday.ProofComplexity.Derivation.complexitySum_le_size_mul
+SATurday.ProofComplexity.php_resolution_size_linear

@@ -229,3 +229,16 @@ above it.
   Status: partial (lemma 2 pinned with only routine gaps; exponential content
   deferred). Next recommended action: formalize Claims 1 to 3 for μ, then a
   fresh prove cycle for lemma 3 (width of medium complexity clauses).
+- 2026-08-03 formalize (BP96 lemma 2: clause complexity): CERTIFIED, gate green
+  on 13 new declarations in
+  theory/Theory/ProofComplexity/ClauseComplexity.lean. Definitions: Crit,
+  falsifies, Fals, complexity (= μ). Claim 1: complexity_empty = (n+1)!,
+  complexity_holeClause = 0, complexity_pigeonClause = n! (via card_perm_fiber:
+  evaluation fibers of Perm partition equally). Claim 2:
+  Fals_resolvent_subset and complexity_resolvent_le under erase then union.
+  Claim 3: leaf complexitySum, complexity_le_complexitySum, and
+  php_resolution_size_linear (every refutation has size ≥ n+1). Honest: this
+  is only the linear bound; exponential R1 still needs lemmas 3 and 4.
+  Most important thing learned: Classical was required for Finset.filter over
+  falsifies (clauseSat is existential); the module is noncomputable but axiom
+  clean. Next: prove cycle for lemma 3 (medium μ clauses are wide).
