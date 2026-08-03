@@ -137,3 +137,95 @@ above it.
   Next: lemma 2 of the decomposition, the clause complexity measure and its
   subadditivity across a resolution step (the combinatorial heart; prove cycle
   first to pin the measure definition against the erase-then-union resolvent).
+- 2026-08-03 human gate merge_certified: CriticalAssignments.lean accepted into
+  the accepted tree. Seven declarations remain listed in
+  scripts/accepted_declarations.txt; axiom gate rechecked green; module has no
+  Frontier namespace and no sorry. R1 status stays active (support lemmas only;
+  the Haken size bound itself is still Frontier).
+- 2026-08-03 prove (BP96 lemma 2: clause complexity measure and subadditivity):
+
+  Restated target for this lemma only: define a complexity measure μ on clauses
+  of PHP(n+1, n) that is (i) zero on every hole clause, (ii) exactly n! on each
+  pigeon clause, (iii) exactly (n+1)! on the empty clause, and (iv) subadditive
+  across our erase then union resolvent, so that for every resolution step
+  μ(resolvent C D x) ≤ μ(C) + μ(D).
+
+  Non vacuity: Crit(n) is the finite set of permutations of Fin (n+1), size
+  (n+1)!, and criticalAssignment n π is certified for each π; the empty clause
+  is never satisfied, so the measure on the empty clause is nonempty.
+
+  Definition chosen (one of three sketches; developed):
+  Let Crit(n) := Equiv.Perm (Fin (n+1)).
+  Let Fals(C) := { π ∈ Crit(n) | ¬ clauseSat (criticalAssignment n π) C }.
+  Let μ(C) := |Fals(C)|.
+
+  Rejected alternatives for this cycle:
+  (A) L(C) := set of left out pigeons i for which some π with leftOut π = i
+  falsifies C. Gives L(∅) = all n+1 pigeons and L(pigeon i) = {i}, with
+  L(resolvent) ⊆ L(C) ∪ L(D), but only yields a linear size lower bound S ≥ n+1
+  after leaf summing, so it is too weak as the sole measure for the exponential
+  claim (keep it as an auxiliary later if useful).
+  (B) Minimum support size among pigeons mentioned by literals of C. Easy to
+  define from syntax, but subadditivity under resolvent fails or needs weakening
+  clauses; textbook writeups that use it silently allow weakening.
+
+  Developed argument for μ = |Fals|:
+
+  Claim 1 (axioms). For every hole clause H ∈ holeClauses n, Fals(H) = ∅, so
+  μ(H) = 0. Proof: criticalAssignment_sat_holeClause (certified).
+  For pigeonClause n i, Fals(pigeonClause n i) = { π | π.symm (Fin.last n) = i },
+  so μ = n!. Proof: criticalAssignment_sat_pigeonClause_iff plus the fact that
+  π.symm last runs through all pigeons equally often (exactly n! each).
+  For the empty clause, Fals(∅) = Crit(n), so μ(∅) = (n+1)!. Proof: clauseSat
+  of empty is ∃ l ∈ ∅, ..., which is false for every assignment.
+
+  Claim 2 (subadditivity under erase then union). For any C, D and variable x
+  with ⟨x, true⟩ ∈ C and ⟨x, false⟩ ∈ D,
+  Fals(resolvent C D x) ⊆ Fals(C) ∪ Fals(D), hence μ(resolvent C D x) ≤ μ(C) + μ(D).
+  Proof. Fix π and write α := criticalAssignment n π. Suppose α satisfies both
+  C and D; we show α satisfies the resolvent. Same case split as
+  derivation_entails (R0, certified):
+  if α x = true then the negative literal of x is false under α, so the witness
+  literal of D is not ⟨x, false⟩ and therefore survives in D.erase ⟨x, false⟩,
+  hence sits in the resolvent;
+  if α x = false then the witness of C is not ⟨x, true⟩ and survives in
+  C.erase ⟨x, true⟩.
+  Contrapositively, if α falsifies the resolvent then α falsifies C or D.
+
+  Claim 3 (leaf sum, honesty). By induction on Derivation, μ(conclusion) ≤
+  sum of μ over hyp leaves of the derivation tree. Every PHP hyp leaf has
+  μ ≤ n!, and the number of hyp leaves is at most Derivation.size. Therefore
+  (n+1)! = μ(∅) ≤ S · n!, so S ≥ n+1. This is only a linear lower bound.
+  Lemma 2 alone does NOT prove the exponential R1 target; the exponential
+  content lives in lemmas 3 and 4 (intermediate complexity plus width).
+
+  Gap list:
+  G1. Formalizing Fals and μ as Finset valued objects over Equiv.Perm, with
+  decidable membership via criticalAssignment (decide already used there).
+  Class: routine.
+  G2. Claim 1 for pigeon clauses: counting that exactly n! permutations leave
+  out a fixed pigeon (bijection with Equiv.Perm (Fin n) after removing the
+  left out element). Class: routine (mathlib Equiv.Perm card facts).
+  G3. Claim 2 written against our exact resolvent definition, including the
+  case where C still contains ⟨x, false⟩ after erase of ⟨x, true⟩ (allowed by
+  our Derivation; soundness still holds). Class: routine given R0 case split;
+  mark hard only if Lean encoding of "witness survives erase" gets sticky.
+  G4. Honest separation: do not claim exponential from Claim 3. Class: none
+  (discipline, already recorded).
+
+  Self adversarial pass:
+  Quantifiers: μ is defined for every clause, subadditivity for every legal
+  resolution step; the R1 target still quantifies over every Derivation of
+  empty from phpCNF n. No hidden asymptotic: Claim 3 is exact for every n ≥ 1
+  (for n = 0, Fin 0 is empty and hole clauses vanish; the module already
+  handles n = 0 in lemma 1). Off by one: (n+1)! / n! = n+1 is correct for the
+  linear bound. Does this secretly prove something false? No; linear resolution
+  lower bounds for PHP are true and weak. Does the erase then union silently
+  break subadditivity? The case analysis mirrors certified derivation_entails,
+  so a failure here would already contradict R0 soundness. Worst remaining gap
+  for the exponential program is NOT in lemma 2; it is lemma 3 (a clause with
+  medium μ must be wide in grid literals), which needs a separate prove cycle.
+
+  Status: partial (lemma 2 pinned with only routine gaps; exponential content
+  deferred). Next recommended action: formalize Claims 1 to 3 for μ, then a
+  fresh prove cycle for lemma 3 (width of medium complexity clauses).
