@@ -12,7 +12,7 @@ require mathlib from git
 lean_lib «Theory» where
   -- Main theory library: proof complexity ladder modules
   -- LOG: Core proof complexity modules (resolution, PHP, ladder rungs)
-  globs := #[.submodules `Theory]
+  globs := #[.andSubmodules `Theory]
 
 -- Test script to verify basic lemmas
 script test do

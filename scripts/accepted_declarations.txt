@@ -1,0 +1,9 @@
+# Accepted declarations checked by scripts/check_axioms.sh.
+# One fully qualified Lean name per line. Lines starting with # are comments.
+# A declaration may be listed only when its module is in the accepted tree
+# (no Frontier namespace) and its result has passed the merge_certified gate.
+
+# Smoke lemmas (Lean setup verification)
+SATurday.add_zero_eq
+SATurday.zero_add_eq
+SATurday.one_mul_eq
