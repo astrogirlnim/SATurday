@@ -59,13 +59,15 @@ search/logs/*.jsonl
 docs/reports/
 search/plans/generated/
 search/specs/
-theory/Conjectures/BetA/
-theory/Conjectures/BetB/
-theory/Conjectures/BetC/
-theory/Conjectures/BetD/
+
+# Archived dead program (kept on disk, bulk not versioned; see docs/postmortems/)
+archive/theory/Conjectures/BetA/
+archive/theory/Conjectures/BetB/
+archive/theory/Conjectures/BetC/
+archive/theory/Conjectures/BetD/
 
 # Research local dependencies (pip --target installs)
-research/**/.deps/
+archive/research/**/.deps/
 
 # Temporary files
 *.tmp

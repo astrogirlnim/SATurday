@@ -10,20 +10,9 @@ require mathlib from git
 
 @[default_target]
 lean_lib «Theory» where
-  -- Main theory library
-  -- LOG: Core complexity theory modules
-
-lean_lib «Tactics» where
-  -- Tactic libraries for circuit complexity proofs
-  globs := #[.submodules `Tactics]
-
-lean_lib «Conjectures» where
-  -- Generated conjectures and proofs from agent system
-  globs := #[.submodules `Conjectures]
-
-lean_lib «SheafApproach» where
-  -- Sheaf-cohomological obstruction: new P vs NP approach (session 2026-04-13)
-  globs := #[.submodules `SheafApproach]
+  -- Main theory library: proof complexity ladder modules
+  -- LOG: Core proof complexity modules (resolution, PHP, ladder rungs)
+  globs := #[.submodules `Theory]
 
 -- Test script to verify basic lemmas
 script test do

@@ -1,25 +1,21 @@
 import Theory.Basic
-import Theory.Circuits
-import Theory.PvsNPGoal
-import Tactics.CircuitTactics
-import Tactics.EncodingTactics
-import Tactics.InductionScaffolds
 
 /-!
 # SATurday Theory Library
 
 Main entry point for the SATurday formal verification library.
 
-This library provides formal definitions and proofs for complexity theory,
-focusing on circuit lower bounds, algorithm analysis, and P vs NP exploration.
+Reboot (2026-08-03): the library now targets the proof complexity ladder.
+The old circuit, sunflower, and sheaf modules were archived to archive/theory
+after the program audit; see docs/postmortems/ for the reasons.
 
 ## Modules
-- `Theory.Basic`: Fundamental definitions and lemmas
-- `Theory.Circuits`: Circuit structures and evaluation semantics
-- `Tactics.CircuitTactics`: Circuit complexity proof tactics
-- `Tactics.EncodingTactics`: CNF encoding correctness tactics
-- `Tactics.InductionScaffolds`: Standard induction patterns
+- `Theory.Basic`: fundamental smoke lemmas verifying the Lean setup
+- `Theory.ProofComplexity.*`: the active ladder (resolution first)
 
-LOG: Theory library root module with tactic libraries and circuit definitions
+Acceptance bar for anything imported here: compiles, zero sorries, and
+axioms limited to propext, Classical.choice, Quot.sound
+(enforced by scripts/check_axioms.sh).
+
+LOG: Theory library root module for the proof complexity ladder
 -/
-import SheafApproach.SatisfactionSheaf
