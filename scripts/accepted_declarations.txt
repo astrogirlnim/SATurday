@@ -102,3 +102,19 @@ SATurday.ProofComplexity.forcedLitsAll_card
 SATurday.ProofComplexity.monotoneClause_card_ge
 SATurday.ProofComplexity.intermediate_product_ge
 SATurday.ProofComplexity.monotoneClause_card_intermediate
+# R1 BP96 Theorem 2 / G7: matching restriction and large clause averaging
+# (certified 2026-08-03, saturday formalize; derivation transport deferred)
+SATurday.ProofComplexity.mem_gridPosLits_iff
+SATurday.ProofComplexity.gridPosLits_card
+SATurday.ProofComplexity.largeThreshold_eq_intermediate_sq
+SATurday.ProofComplexity.mem_matchingForced_place
+SATurday.ProofComplexity.mem_matchingForced_row
+SATurday.ProofComplexity.mem_matchingForced_col
+SATurday.ProofComplexity.matchingLookup_place
+SATurday.ProofComplexity.restrictClause_none_of_killed
+SATurday.ProofComplexity.card_eq_sum_ite_mem
+SATurday.ProofComplexity.sum_card_eq_sum_hitCount
+SATurday.ProofComplexity.exists_popular_grid_literal
+SATurday.ProofComplexity.filter_not_killed_card
+SATurday.ProofComplexity.large_survivors_le
+SATurday.ProofComplexity.monotoneClause_card_ge_largeThreshold

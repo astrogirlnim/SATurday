@@ -4,6 +4,7 @@ import Theory.ProofComplexity.PHP
 import Theory.ProofComplexity.CriticalAssignments
 import Theory.ProofComplexity.ClauseComplexity
 import Theory.ProofComplexity.MonotoneWidth
+import Theory.ProofComplexity.MatchingRestriction
 
 /-!
 # SATurday Theory Library

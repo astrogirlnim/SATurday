@@ -424,3 +424,13 @@ above it.
   intermediate_product_ge, monotoneClause_card_intermediate) accepted into
   the accepted tree. Gate remains green. R1 stays active. Next: formalize G7
   restriction size assembly toward php_resolution_size_lower_bound.
+- 2026-08-03 formalize (G7: matching restriction and large clause averaging):
+  PARTIAL SUCCESS. New module MatchingRestriction.lean. Certified: gridPosLits;
+  matchingForced and matchingLookup; restrictClause kill of positive placement;
+  double counting exists_popular_grid_literal; large_survivors_le; bridge
+  monotoneClause_card_ge_largeThreshold. Honest threshold choice:
+  largeThreshold = ((n+1)/3)² (certified G6 width), not paper V/10 which needs
+  the stronger 2(n+1)²/9 width. Gate green (87 accepted decls). Deferred:
+  derivation transport under matching, iterative shrink, smaller PHP isomorphism,
+  close Frontier php_resolution_size_lower_bound. Pending human gate
+  merge_certified. Next after merge: formalize G7b derivation restriction.
