@@ -366,8 +366,9 @@ def main() -> None:
     parser.add_argument(
         "--timeout",
         type=int,
-        default=None,
-        help="Timeout in seconds (default: no timeout)"
+        default=1800,
+        help="Timeout in seconds (default: 1800; docs/p-vs-np-stop-conditions.md budget cap). "
+             "Unbounded runs are forbidden; pass a larger explicit value to override."
     )
     parser.add_argument(
         "--no-register",

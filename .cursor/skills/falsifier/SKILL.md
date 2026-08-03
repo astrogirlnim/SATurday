@@ -35,7 +35,7 @@ frontier conjectures.
 
 ```bash
 WORKSPACE=$(git rev-parse --show-toplevel)
-cd "$WORKSPACE" && python -m search.bin.run_proof_size_baseline \
+cd "$WORKSPACE" && python search/bin/run_proof_size_baseline.py \
   --family php --n-min 4 --n-max 10 --seed 42
 ```
 

@@ -54,6 +54,7 @@ proofs/
 *.log
 search/logs/
 search/logs/*.jsonl
+!search/logs/falsifier_runs.jsonl
 
 # Generated Artifacts (test/execution outputs)
 docs/reports/
