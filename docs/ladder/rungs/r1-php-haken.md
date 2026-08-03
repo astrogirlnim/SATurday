@@ -112,3 +112,28 @@ above it.
   exponential reading of T1.1 stands, now on verified numbers. A corrupted
   proof was confirmed to fail the checker (negative control, test file
   deleted).
+- 2026-08-03 formalize (BP96 lemma 1: critical assignments): CERTIFIED, gate
+  green on 7 new declarations in
+  theory/Theory/ProofComplexity/CriticalAssignments.lean. Encoding decision:
+  a critical assignment is carried by a permutation pi of Fin (n+1); pigeon i
+  sits in hole j exactly when pi i equals Fin.castSucc j, and the left-out
+  pigeon is pi.symm (Fin.last n). This avoids subtype bijections entirely.
+  Certified: pvar_inj (variable encoding injective via division and remainder),
+  criticalAssignment_pvar (grid specification), criticalAssignment_sat_holeClause
+  (permutation injectivity means no shared holes),
+  criticalAssignment_sat_pigeonClause_iff (satisfied exactly when placed),
+  criticalAssignment_falsifies_leftOut, criticalAssignment_sat_iff (a critical
+  assignment falsifies exactly one clause of PHP, the left-out pigeon clause),
+  criticalAssignment_sat_php_erase (the BP96 launching shape). Three build
+  attempts used (within the formalizer contract): attempt failures were Nat
+  division lemma name drift, fixed with toolchain-exact names
+  (Nat.mul_add_mod_of_lt, Nat.mul_add_div). One tooling fix landed alongside:
+  the axiom gate parser now merges wrapped print axioms output lines, which
+  long declaration names triggered for the first time.
+  Most important thing learned: the C-as-clause phrasing of
+  criticalAssignment_sat_iff (quantifying over the clause, not the pigeon
+  index) sidesteps pigeon clause collision edge cases at n equals 0, so no
+  side conditions were needed anywhere in the module.
+  Next: lemma 2 of the decomposition, the clause complexity measure and its
+  subadditivity across a resolution step (the combinatorial heart; prove cycle
+  first to pin the measure definition against the erase-then-union resolvent).

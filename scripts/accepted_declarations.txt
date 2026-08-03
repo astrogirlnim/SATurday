@@ -18,3 +18,12 @@ SATurday.ProofComplexity.resolution_refutable_iff
 # The R1 lower bound itself is Frontier and is NOT listed here.
 SATurday.ProofComplexity.phpCNF_unsat
 SATurday.ProofComplexity.phpCNF_refutable
+
+# R1 BP96 lemma 1: critical assignments (certified 2026-08-03, saturday session)
+SATurday.ProofComplexity.pvar_inj
+SATurday.ProofComplexity.criticalAssignment_pvar
+SATurday.ProofComplexity.criticalAssignment_sat_holeClause
+SATurday.ProofComplexity.criticalAssignment_sat_pigeonClause_iff
+SATurday.ProofComplexity.criticalAssignment_falsifies_leftOut
+SATurday.ProofComplexity.criticalAssignment_sat_iff
+SATurday.ProofComplexity.criticalAssignment_sat_php_erase

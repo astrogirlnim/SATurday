@@ -76,20 +76,42 @@ if [ $STATUS -ne 0 ]; then
   exit 1
 fi
 
-# Each line looks like: 'Foo.bar' depends on axioms: [propext, Classical.choice]
+# Records look like: 'Foo.bar' depends on axioms: [propext, Classical.choice]
 # or: 'Foo.bar' does not depend on any axioms
-while IFS= read -r line; do
-  case "$line" in
-    *"depends on axioms"*)
-      AXES=$(echo "$line" | sed -E 's/.*\[(.*)\].*/\1/')
-      BAD=$(echo "$AXES" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | rg -v "^($ALLOWED_AXIOMS)$" || true)
-      if [ -n "$BAD" ]; then
-        echo "[axiom-gate] FAIL: nonstandard axiom(s) [$BAD] in: $line"
-        FAIL=1
-      fi
-      ;;
-  esac
-done <<< "$OUTPUT"
+# Long declaration names make Lean wrap the bracket list across lines, so the
+# parse merges continuation lines before checking. Done in python for rigor.
+PARSE_RESULT=$(printf '%s\n' "$OUTPUT" | python3 -c '
+import re
+import sys
+
+ALLOWED = {"propext", "Classical.choice", "Quot.sound"}
+text = sys.stdin.read()
+# Merge wrapped lines: a newline inside an unclosed bracket list is a wrap.
+merged = re.sub(r"\n(?!\x27|warning|error|\[)", " ", text)
+failures = 0
+checked = 0
+for line in merged.splitlines():
+    if "depends on axioms" not in line:
+        continue
+    checked += 1
+    match = re.search(r"\[(.*)\]", line)
+    if not match:
+        print(f"PARSE_FAIL could not read axiom list: {line.strip()}")
+        failures += 1
+        continue
+    axioms = {a.strip() for a in match.group(1).split(",") if a.strip()}
+    bad = axioms - ALLOWED
+    if bad:
+        print(f"AXIOM_FAIL {sorted(bad)} in: {line.strip()}")
+        failures += 1
+print(f"CHECKED {checked} declarations with axiom dependencies")
+sys.exit(1 if failures else 0)
+')
+PARSE_STATUS=$?
+echo "$PARSE_RESULT" | sed 's/^/[axiom-gate] /'
+if [ $PARSE_STATUS -ne 0 ]; then
+  FAIL=1
+fi
 
 if [ $FAIL -eq 0 ]; then
   echo "[axiom-gate] PASS: build green, accepted tree sorry free, axioms within {propext, Classical.choice, Quot.sound}"
