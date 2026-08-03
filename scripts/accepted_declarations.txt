@@ -49,3 +49,20 @@ SATurday.ProofComplexity.litUnsat_pos_iff
 SATurday.ProofComplexity.litUnsat_neg_iff
 SATurday.ProofComplexity.falsifies_iff_forall_lit
 SATurday.ProofComplexity.complexity_singleton_pos
+
+# R1 BP96 Lemma 1 measure G5: L, pigeonComplexity, intermediate existence
+# (certified 2026-08-03, saturday formalize)
+SATurday.ProofComplexity.Crit.leftOut_eq
+SATurday.ProofComplexity.Crit.leftOut_iff
+SATurday.ProofComplexity.mem_L_iff
+SATurday.ProofComplexity.L_empty
+SATurday.ProofComplexity.pigeonComplexity_empty
+SATurday.ProofComplexity.L_pigeonClause
+SATurday.ProofComplexity.pigeonComplexity_pigeonClause
+SATurday.ProofComplexity.L_holeClause
+SATurday.ProofComplexity.pigeonComplexity_holeClause
+SATurday.ProofComplexity.L_resolvent_subset
+SATurday.ProofComplexity.pigeonComplexity_resolvent_le
+SATurday.ProofComplexity.pigeonComplexity_php_hyp_le
+SATurday.ProofComplexity.exists_intermediate_of_high_pigeonComplexity
+SATurday.ProofComplexity.exists_intermediate_pigeonComplexity

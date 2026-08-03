@@ -383,3 +383,15 @@ above it.
   intermediate existence); G6 needs its own formalize after G5 merges.
 
   Next: formalize G5 (L, comp, subadditivity, intermediate clause).
+- 2026-08-03 formalize (G5: L, pigeonComplexity, intermediate existence):
+  SUCCESS. Extended ClauseComplexity.lean (plus Derivation.conclusion in
+  Resolution.lean for term level parent clauses). Certified: Crit.leftOut_eq,
+  Crit.leftOut_iff, mem_L_iff, L_empty, pigeonComplexity_empty, L_pigeonClause,
+  pigeonComplexity_pigeonClause, L_holeClause, pigeonComplexity_holeClause,
+  L_resolvent_subset, pigeonComplexity_resolvent_le, pigeonComplexity_php_hyp_le,
+  exists_intermediate_of_high_pigeonComplexity, exists_intermediate_pigeonComplexity
+  (n ≥ 1). Gate green. Correction vs prior prose: width 1 positive literal has
+  full L = univ only when n ≥ 2 (for n = 1 the unique hole forces placement);
+  that corollary was not certified this cycle and is not needed for G5.
+  Pending human gate merge_certified. Next after merge: formalize G6 (monotone
+  transform and (n+1−m)m width bound).

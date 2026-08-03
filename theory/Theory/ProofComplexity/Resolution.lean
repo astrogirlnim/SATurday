@@ -92,6 +92,9 @@ def Derivation.size {F : CNF} : {C : Clause} → Derivation F C → ℕ
   | _, .hyp _ _ => 1
   | _, .res _ dC dD _ _ => dC.size + dD.size + 1
 
+/-- The conclusion clause of a derivation (the type index, made term-level). -/
+def Derivation.conclusion {F : CNF} {C : Clause} (_ : Derivation F C) : Clause := C
+
 /-- Derivability as a proposition. -/
 def Derives (F : CNF) (C : Clause) : Prop := Nonempty (Derivation F C)
 

@@ -27,7 +27,11 @@ needs lemmas 3 and 4 (width of medium complexity clauses).
 Also certified (lemma 3 support G1/G2): literal unsatisfaction under critical
 assignments, and the width 1 counterexample μ({p_ij}) = (n+1)! − n!.
 
-LOG: R1 clause complexity module (BP96 lemma 2 plus lemma 3 support)
+Also certified (G5, BP96 Lemma 1 measure): L(C) = left-out pigeons of Fals(C),
+pigeonComplexity = |L|, values on axioms and empty, subadditivity, and
+existence of an intermediate-complexity clause in every refutation (n ≥ 1).
+
+LOG: R1 clause complexity module (BP96 lemma 2, lemma 3 support, G5)
 -/
 
 namespace SATurday.ProofComplexity
@@ -361,5 +365,182 @@ theorem complexity_singleton_pos (n : ℕ) (i : Fin (n + 1)) (j : Fin n) :
       Fintype.card { σ : Crit n // σ i = Fin.castSucc j } := by
     omega
   simpa [Sne, Fintype.card_perm, Fintype.card_fin, card_perm_fiber] using hcard
+
+/-! ## BP96 Lemma 1 complexity (G5): left-out pigeon measure
+
+Locked 2026-08-03 prove cycle (docs/ladder/rungs/r1-php-haken.md):
+
+  L(C) = { i | ∃ π, π leaves out i and falsifies C }
+  pigeonComplexity(C) = |L(C)|
+
+This is the Beame-Pitassi measure (minimum number of pigeon axioms that imply
+C on critical assignments). Distinct from μ = |Fals|; μ stays for the linear
+size bound only.
+-/
+
+/-- The pigeon left out by a critical permutation: the unique `i` with
+`pi i = Fin.last n`. -/
+def Crit.leftOut {n : ℕ} (pi : Crit n) : Fin (n + 1) :=
+  pi.symm (Fin.last n)
+
+/-- Specification: `leftOut` is mapped to the last (hole-out) value. -/
+theorem Crit.leftOut_eq {n : ℕ} (pi : Crit n) :
+    pi pi.leftOut = Fin.last n :=
+  pi.apply_symm_apply _
+
+/-- Left-out characterization: `pi i = last` iff `i = leftOut pi`. -/
+theorem Crit.leftOut_iff {n : ℕ} (pi : Crit n) (i : Fin (n + 1)) :
+    pi i = Fin.last n ↔ i = pi.leftOut := by
+  constructor
+  · intro h
+    have hsym := congrArg pi.symm h
+    simpa [Crit.leftOut, Equiv.symm_apply_apply] using hsym
+  · intro h
+    rw [h, Crit.leftOut_eq]
+
+/-- L(C): pigeons that appear as left-out for some falsifying critical perm. -/
+noncomputable def L (n : ℕ) (C : Clause) : Finset (Fin (n + 1)) :=
+  (Fals n C).image Crit.leftOut
+
+/-- Membership in L via existence of a falsifying critical perm leaving out `i`. -/
+theorem mem_L_iff {n : ℕ} (C : Clause) (i : Fin (n + 1)) :
+    i ∈ L n C ↔ ∃ pi : Crit n, pi i = Fin.last n ∧ falsifies n C pi := by
+  simp only [L, Finset.mem_image, Fals, Finset.mem_filter, Finset.mem_univ, true_and]
+  constructor
+  · rintro ⟨pi, hf, rfl⟩
+    exact ⟨pi, Crit.leftOut_eq pi, hf⟩
+  · rintro ⟨pi, hlast, hf⟩
+    refine ⟨pi, hf, ((Crit.leftOut_iff pi i).mp hlast).symm⟩
+
+/-- BP96 complexity: number of left-out pigeons that can falsify `C`. -/
+noncomputable def pigeonComplexity (n : ℕ) (C : Clause) : ℕ := (L n C).card
+
+/-- Every pigeon is left out by some critical perm, so L(∅) = univ. -/
+theorem L_empty (n : ℕ) : L n (∅ : Clause) = Finset.univ := by
+  ext i
+  constructor
+  · intro _; exact Finset.mem_univ i
+  · intro _
+    refine (mem_L_iff (∅ : Clause) i).mpr ?_
+    exact ⟨Equiv.swap i (Fin.last n), by simp [Equiv.swap_apply_left],
+      falsifies_empty n _⟩
+
+/-- pigeonComplexity(∅) = n+1. -/
+theorem pigeonComplexity_empty (n : ℕ) :
+    pigeonComplexity n (∅ : Clause) = n + 1 := by
+  simp only [pigeonComplexity, L_empty, Finset.card_univ, Fintype.card_fin]
+
+/-- L(pigeonClause i) = {i}. -/
+theorem L_pigeonClause (n : ℕ) (i : Fin (n + 1)) :
+    L n (pigeonClause n i) = {i} := by
+  ext k
+  simp only [mem_L_iff, Finset.mem_singleton, falsifies_pigeonClause_iff]
+  constructor
+  · rintro ⟨pi, hkLast, hiLast⟩
+    -- hkLast : pi k = last, hiLast : pi i = last ⇒ k = i
+    exact (pi.injective (hiLast.trans hkLast.symm)).symm
+  · intro hk
+    rw [hk]
+    refine ⟨Equiv.swap i (Fin.last n), ?_, ?_⟩
+    · simp [Equiv.swap_apply_left]
+    · simp [Equiv.swap_apply_left]
+
+/-- pigeonComplexity(pigeonClause i) = 1. -/
+theorem pigeonComplexity_pigeonClause (n : ℕ) (i : Fin (n + 1)) :
+    pigeonComplexity n (pigeonClause n i) = 1 := by
+  simp [pigeonComplexity, L_pigeonClause]
+
+/-- L(hole) = ∅. -/
+theorem L_holeClause {n : ℕ} {C : Clause} (hC : C ∈ holeClauses n) :
+    L n C = ∅ := by
+  ext i
+  simp only [mem_L_iff, Finset.notMem_empty, iff_false]
+  rintro ⟨pi, _, hf⟩
+  exact not_falsifies_holeClause pi hC hf
+
+/-- pigeonComplexity(hole) = 0. -/
+theorem pigeonComplexity_holeClause {n : ℕ} {C : Clause} (hC : C ∈ holeClauses n) :
+    pigeonComplexity n C = 0 := by
+  simp [pigeonComplexity, L_holeClause hC]
+
+/-- Subadditivity of L under resolution. -/
+theorem L_resolvent_subset {n : ℕ} (C D : Clause) (x : ℕ) :
+    L n (resolvent C D x) ⊆ L n C ∪ L n D := by
+  intro i hi
+  obtain ⟨pi, hlast, hf⟩ := (mem_L_iff (resolvent C D x) i).mp hi
+  have hFals : pi ∈ Fals n (resolvent C D x) :=
+    Finset.mem_filter.mpr ⟨Finset.mem_univ pi, hf⟩
+  have hCD : pi ∈ Fals n C ∪ Fals n D := Fals_resolvent_subset (n := n) C D x hFals
+  simp only [Finset.mem_union, Fals, Finset.mem_filter, Finset.mem_univ, true_and] at hCD
+  simp only [Finset.mem_union]
+  rcases hCD with hfC | hfD
+  · left; exact (mem_L_iff C i).mpr ⟨pi, hlast, hfC⟩
+  · right; exact (mem_L_iff D i).mpr ⟨pi, hlast, hfD⟩
+
+/-- Subadditivity of pigeonComplexity under resolution. -/
+theorem pigeonComplexity_resolvent_le {n : ℕ} (C D : Clause) (x : ℕ) :
+    pigeonComplexity n (resolvent C D x) ≤
+      pigeonComplexity n C + pigeonComplexity n D := by
+  simp only [pigeonComplexity]
+  calc (L n (resolvent C D x)).card
+      ≤ (L n C ∪ L n D).card := Finset.card_le_card (L_resolvent_subset C D x)
+    _ ≤ (L n C).card + (L n D).card := Finset.card_union_le _ _
+
+/-- PHP hypotheses have pigeonComplexity at most 1. -/
+theorem pigeonComplexity_php_hyp_le {n : ℕ} {C : Clause} (hC : C ∈ phpCNF n) :
+    pigeonComplexity n C ≤ 1 := by
+  rcases Finset.mem_union.mp hC with hp | hh
+  · simp only [pigeonClauses, Finset.mem_image, Finset.mem_univ, true_and] at hp
+    obtain ⟨i, rfl⟩ := hp
+    exact (pigeonComplexity_pigeonClause n i).le
+  · rw [pigeonComplexity_holeClause hh]
+    exact Nat.zero_le _
+
+/-- If a derived clause has pigeonComplexity above 2(n+1)/3 and n ≥ 1, some
+(possibly earlier) clause in the same derivation lies in the intermediate band
+((n+1)/3, 2(n+1)/3]. -/
+theorem exists_intermediate_of_high_pigeonComplexity {n : ℕ} (hn : 1 ≤ n)
+    {C : Clause} (d : Derivation (phpCNF n) C)
+    (hhigh : 2 * (n + 1) / 3 < pigeonComplexity n C) :
+    ∃ C' : Clause, (n + 1) / 3 < pigeonComplexity n C' ∧
+      pigeonComplexity n C' ≤ 2 * (n + 1) / 3 ∧
+      Nonempty (Derivation (phpCNF n) C') := by
+  cases d with
+  | hyp C hC =>
+    have hle := pigeonComplexity_php_hyp_le hC
+    omega
+  | res x dC dD hx hnx =>
+    set k := n + 1
+    -- Use term-level conclusions so omega sees one resolvent expression.
+    change 2 * k / 3 <
+      pigeonComplexity n (resolvent dC.conclusion dD.conclusion x) at hhigh
+    have hle : pigeonComplexity n (resolvent dC.conclusion dD.conclusion x) ≤
+        pigeonComplexity n dC.conclusion + pigeonComplexity n dD.conclusion :=
+      pigeonComplexity_resolvent_le dC.conclusion dD.conclusion x
+    by_cases hCh : 2 * k / 3 < pigeonComplexity n dC.conclusion
+    · exact exists_intermediate_of_high_pigeonComplexity hn dC hCh
+    · by_cases hDh : 2 * k / 3 < pigeonComplexity n dD.conclusion
+      · exact exists_intermediate_of_high_pigeonComplexity hn dD hDh
+      · have hCh' : pigeonComplexity n dC.conclusion ≤ 2 * k / 3 := Nat.not_lt.mp hCh
+        have hDh' : pigeonComplexity n dD.conclusion ≤ 2 * k / 3 := Nat.not_lt.mp hDh
+        by_cases hCmid : k / 3 < pigeonComplexity n dC.conclusion
+        · exact ⟨dC.conclusion, hCmid, hCh', ⟨dC⟩⟩
+        · by_cases hDmid : k / 3 < pigeonComplexity n dD.conclusion
+          · exact ⟨dD.conclusion, hDmid, hDh', ⟨dD⟩⟩
+          · have hCmid' : pigeonComplexity n dC.conclusion ≤ k / 3 := Nat.not_lt.mp hCmid
+            have hDmid' : pigeonComplexity n dD.conclusion ≤ k / 3 := Nat.not_lt.mp hDmid
+            omega
+
+/-- Every resolution refutation of PHP(n+1, n) for n ≥ 1 contains a clause of
+intermediate BP96 complexity. -/
+theorem exists_intermediate_pigeonComplexity {n : ℕ} (hn : 1 ≤ n)
+    (d : Derivation (phpCNF n) (∅ : Clause)) :
+    ∃ C : Clause, (n + 1) / 3 < pigeonComplexity n C ∧
+      pigeonComplexity n C ≤ 2 * (n + 1) / 3 ∧
+      Nonempty (Derivation (phpCNF n) C) := by
+  have hhigh : 2 * (n + 1) / 3 < pigeonComplexity n (∅ : Clause) := by
+    rw [pigeonComplexity_empty]
+    omega
+  exact exists_intermediate_of_high_pigeonComplexity hn d hhigh
 
 end SATurday.ProofComplexity

@@ -35,7 +35,8 @@ ladder after the program audit (see docs/postmortems/).
 - [x] R1 statement: PHP family and the Haken lower bound stated in Lean
       (Frontier namespace until proved); non-vacuity witness phpCNF_unsat and
       phpCNF_refutable certified.
-- [ ] Prove the first nontrivial new lemma in Lean without new axioms.
+- [x] Prove the first nontrivial new lemma in Lean without new axioms
+      (exists_intermediate_pigeonComplexity and the linear size bound).
 - [ ] Keep a hard rule: no paper-only dependency may sit on the critical path.
 
 ## 5) Adversarial Validation Loop
