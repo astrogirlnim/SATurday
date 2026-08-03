@@ -407,3 +407,14 @@ above it.
   m·((n+1)−m) over all i ∈ L and the intermediate quadratic 2(n+1)²/9.
   Pending human gate merge_certified for the G6 cluster. Next: formalize
   product width bound.
+- 2026-08-03 human gate merge_certified: G6 MonotoneWidth cluster (23
+  declarations) accepted into the accepted tree. Gate remains green. R1 stays
+  active. Next: formalize product width m·((n+1)−m) and intermediate quadratic.
+- 2026-08-03 formalize (G6 product width and intermediate quadratic): SUCCESS.
+  Extended MonotoneWidth.lean. Certified: chosenFalsifier; forcedLitsAll with
+  pairwise disjointness; forcedLitsAll_card (= m·((n+1)−m));
+  monotoneClause_card_ge; intermediate_product_ge ((k/3)² on the band
+  k/3 < m ≤ 2k/3); monotoneClause_card_intermediate. Honest Nat bound is
+  (k/3)², not the continuum 2k²/9. Gate green (74 accepted decls). Pending
+  human gate merge_certified for the product cluster. Next after merge:
+  formalize G7 restriction size assembly toward php_resolution_size_lower_bound.

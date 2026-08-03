@@ -362,4 +362,107 @@ theorem monotoneClause_card_one_pigeon {n : ℕ} (hn : 0 < n) (C : Clause)
     _ = (forcedLitsOne C i hiL pi hleft).card := hcard.symm
     _ ≤ (monotoneClause n hn C).card := Finset.card_le_card hsub
 
+/-! ## Product width bound (G6 assembly) -/
+
+/-- A chosen i-critical falsifier for each i ∈ L(C). -/
+noncomputable def chosenFalsifier {n : ℕ} (C : Clause) (i : Fin (n + 1))
+    (hiL : i ∈ L n C) : Crit n :=
+  Classical.choose ((mem_L_iff C i).mp hiL)
+
+theorem chosenFalsifier_leftOut {n : ℕ} (C : Clause) (i : Fin (n + 1))
+    (hiL : i ∈ L n C) :
+    (chosenFalsifier C i hiL) i = Fin.last n :=
+  (Classical.choose_spec ((mem_L_iff C i).mp hiL)).1
+
+theorem chosenFalsifier_falsifies {n : ℕ} (C : Clause) (i : Fin (n + 1))
+    (hiL : i ∈ L n C) :
+    falsifies n C (chosenFalsifier C i hiL) :=
+  (Classical.choose_spec ((mem_L_iff C i).mp hiL)).2
+
+/-- All forced swap literals across every i ∈ L(C). -/
+noncomputable def forcedLitsAll (n : ℕ) (C : Clause) : Finset Literal :=
+  (L n C).attach.biUnion fun i =>
+    forcedLitsOne C i.1 i.2 (chosenFalsifier C i.1 i.2)
+      (chosenFalsifier_leftOut C i.1 i.2)
+
+theorem forcedLitsAll_subset {n : ℕ} (hn : 0 < n) (C : Clause) :
+    forcedLitsAll n C ⊆ monotoneClause n hn C := by
+  intro l hl
+  simp only [forcedLitsAll, Finset.mem_biUnion] at hl
+  obtain ⟨i, _, hl'⟩ := hl
+  exact forcedLitsOne_subset_monotone hn C i.1 i.2
+    (chosenFalsifier C i.1 i.2) (chosenFalsifier_leftOut C i.1 i.2)
+    (chosenFalsifier_falsifies C i.1 i.2) hl'
+
+/-- Forced literals for distinct pigeons are disjoint (pvar encodes the pigeon). -/
+theorem forcedLitsOne_disjoint {n : ℕ} (C : Clause)
+    {i i' : Fin (n + 1)} (hiL : i ∈ L n C) (hiL' : i' ∈ L n C) (hne : i ≠ i')
+    (pi : Crit n) (hleft : pi i = Fin.last n)
+    (pi' : Crit n) (hleft' : pi' i' = Fin.last n) :
+    Disjoint (forcedLitsOne C i hiL pi hleft) (forcedLitsOne C i' hiL' pi' hleft') := by
+  rw [Finset.disjoint_left]
+  intro l hl hl'
+  simp only [forcedLitsOne, Finset.mem_image] at hl hl'
+  obtain ⟨j, _, rfl⟩ := hl
+  obtain ⟨j', _, heq⟩ := hl'
+  have hinj := pvar_inj (congrArg Literal.var heq)
+  exact hne hinj.1.symm
+
+theorem forcedLitsAll_card (n : ℕ) (C : Clause) :
+    (forcedLitsAll n C).card =
+      pigeonComplexity n C * ((n + 1) - pigeonComplexity n C) := by
+  -- Pairwise disjoint biUnion over attach
+  have hdisj :
+      ∀ x ∈ (L n C).attach, ∀ y ∈ (L n C).attach, x ≠ y →
+        Disjoint
+          (forcedLitsOne C x.1 x.2 (chosenFalsifier C x.1 x.2)
+            (chosenFalsifier_leftOut C x.1 x.2))
+          (forcedLitsOne C y.1 y.2 (chosenFalsifier C y.1 y.2)
+            (chosenFalsifier_leftOut C y.1 y.2)) := by
+    intro a _ b _ hne
+    exact forcedLitsOne_disjoint C a.2 b.2 (fun heq => hne (Subtype.ext heq))
+      _ _ _ _
+  rw [forcedLitsAll, Finset.card_biUnion hdisj]
+  have hsum :
+      ∑ i ∈ (L n C).attach,
+        (forcedLitsOne C i.1 i.2 (chosenFalsifier C i.1 i.2)
+          (chosenFalsifier_leftOut C i.1 i.2)).card =
+      ∑ _i ∈ (L n C).attach, (Lcompl n C).card := by
+    refine Finset.sum_congr rfl ?_
+    intro i _
+    exact forcedLitsOne_card C i.1 i.2 _ _
+  rw [hsum, Finset.sum_const, Finset.card_attach, nsmul_eq_mul]
+  -- LHS: |Lcompl| * |L|; RHS goal: |L| * ((n+1)-|L|)
+  -- nsmul_eq_mul introduces a Nat.cast; strip it, then commute factors.
+  simp [pigeonComplexity, card_Lcompl, Nat.cast_id]
+
+/-- Main G6 bound: monotone image size is at least m·((n+1)−m). -/
+theorem monotoneClause_card_ge {n : ℕ} (hn : 0 < n) (C : Clause) :
+    pigeonComplexity n C * ((n + 1) - pigeonComplexity n C) ≤
+      (monotoneClause n hn C).card := by
+  calc pigeonComplexity n C * ((n + 1) - pigeonComplexity n C)
+      = (forcedLitsAll n C).card := (forcedLitsAll_card n C).symm
+    _ ≤ (monotoneClause n hn C).card := Finset.card_le_card (forcedLitsAll_subset hn C)
+
+/-- On the intermediate band (k/3 < m ≤ 2k/3), both factors are at least k/3, so
+the product is at least (k/3)². (Honest Nat bound; the real BP96 2k²/9 is the
+continuum minimum at the band edge.) -/
+theorem intermediate_product_ge {k m : ℕ}
+    (hlo : k / 3 < m) (hhi : m ≤ 2 * k / 3) :
+    (k / 3) * (k / 3) ≤ m * (k - m) := by
+  have hm : k / 3 ≤ m := Nat.le_of_lt hlo
+  have hkm : k / 3 ≤ k - m := by
+    have h1 : k - 2 * k / 3 ≤ k - m := Nat.sub_le_sub_left hhi k
+    have h2 : k / 3 ≤ k - 2 * k / 3 := by omega
+    exact le_trans h2 h1
+  exact Nat.mul_le_mul hm hkm
+
+/-- Intermediate complexity yields quadratic width after the monotone transform. -/
+theorem monotoneClause_card_intermediate {n : ℕ} (hn : 0 < n) (C : Clause)
+    (hlo : (n + 1) / 3 < pigeonComplexity n C)
+    (hhi : pigeonComplexity n C ≤ 2 * (n + 1) / 3) :
+    ((n + 1) / 3) * ((n + 1) / 3) ≤ (monotoneClause n hn C).card := by
+  have hprod := intermediate_product_ge hlo hhi
+  exact le_trans hprod (monotoneClause_card_ge hn C)
+
 end SATurday.ProofComplexity

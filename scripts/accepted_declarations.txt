@@ -68,7 +68,9 @@ SATurday.ProofComplexity.exists_intermediate_of_high_pigeonComplexity
 SATurday.ProofComplexity.exists_intermediate_pigeonComplexity
 
 # R1 BP96 Lemma 1 / G6: monotone transform, swap lemma, one-pigeon width
-# (certified 2026-08-03, saturday formalize; product bound deferred)
+# (certified 2026-08-03, saturday formalize)
+# G6 product: m*((n+1)-m) width and intermediate (k/3)^2 bound
+# (certified 2026-08-03, saturday formalize)
 SATurday.ProofComplexity.isGridVar_pvar
 SATurday.ProofComplexity.gridPigeon_pvar
 SATurday.ProofComplexity.gridHole_pvar
@@ -92,3 +94,11 @@ SATurday.ProofComplexity.card_Lcompl
 SATurday.ProofComplexity.forcedLitsOne_subset_monotone
 SATurday.ProofComplexity.forcedLitsOne_card
 SATurday.ProofComplexity.monotoneClause_card_one_pigeon
+SATurday.ProofComplexity.chosenFalsifier_leftOut
+SATurday.ProofComplexity.chosenFalsifier_falsifies
+SATurday.ProofComplexity.forcedLitsAll_subset
+SATurday.ProofComplexity.forcedLitsOne_disjoint
+SATurday.ProofComplexity.forcedLitsAll_card
+SATurday.ProofComplexity.monotoneClause_card_ge
+SATurday.ProofComplexity.intermediate_product_ge
+SATurday.ProofComplexity.monotoneClause_card_intermediate
