@@ -1,67 +1,70 @@
 ---
 name: saturday
 description: >
-  Canonical SATurday research entrypoint. Runs one single-cycle session with one
-  action: prove_step, mine_step, or new_math_step. Use for run saturday,
-  continue research, or next session.
+  Canonical SATurday research entrypoint for the proof complexity ladder. Runs one
+  single-cycle session with one action: prove, formalize, falsify, or audit. Use for
+  run saturday, continue research, or next session.
 ---
 
 # SATURDAY
 
 ## Purpose
 
-Run exactly one high value research action per session, write one canonical state
-record, update the solve checklist, and stop. This minimizes orchestration overhead
-and keeps progress auditable.
+Run exactly one high value research action per session against one ladder rung,
+append the result to that rung's memory, write one canonical session record, and
+stop. The ladder (docs/ladder/ladder.md) is the single source of truth for what the
+program is climbing.
 
 ## Session Contract
 
-- One decision.
+- One rung.
 - One action.
-- One canonical state write.
-- One checklist update (at least one item marked done, if the action succeeds).
+- One rung memory append.
+- One canonical session record.
 - Stop.
 
 ```mermaid
 flowchart TD
-    loadContext["LoadContext"]
-    chooseAction["ChooseAction"]
-    runAction["RunAction"]
-    scoreResult["ScoreResult"]
-    writeState["WriteCanonicalState"]
+    loadContext["LoadContext: ladder plus rung memories"]
+    chooseAction["ChooseRungAndAction"]
+    runAction["RunAction via role skill"]
+    writeMemory["AppendRungMemory"]
+    writeState["WriteSessionRecord"]
     stopSession["StopSession"]
 
     loadContext --> chooseAction
     chooseAction --> runAction
-    runAction --> scoreResult
-    scoreResult --> writeState
+    runAction --> writeMemory
+    writeMemory --> writeState
     writeState --> stopSession
 ```
 
-## Canonical Action Types
+## Action Types
 
-- `prove_step`: close one frontier Lean node.
-- `mine_step`: generate one LRAT backed SAT result and optional Lean anchor.
-- `new_math_step`: generate one barrier-aware hypothesis and run one immediate falsifiable check.
+- `prove`: one prose proof attempt on the chosen rung (skill: prover).
+- `formalize`: one Lean formalization push for a prose argument that passed its
+  gate (skill: formalizer).
+- `falsify`: one bounded empirical attack or calibration run (skill: falsifier).
+- `audit`: one barrier and soundness audit of a rung or argument
+  (skill: barrier-auditor).
 
 ## Step 0: Load Context
 
 Read:
 
-- `memory_bank/mmemory_bank_activeContext.md`
-- `memory_bank/mmemory_bank_progress.md`
-- `memory_bank/mmemory_bank_systemPatterns.md`
+- `docs/ladder/ladder.md`
+- the memory file of every rung with status active or prose_accepted
+  (`docs/ladder/rungs/`)
 - `search/logs/saturday_sessions.jsonl` (last line if present)
-- `search/logs/proof_sprint_log.jsonl` (last line if present)
-- `search/logs/miner_results.jsonl` (last line if present)
-- `search/logs/new_math_proposals.jsonl` (last line if present)
 - `docs/p-vs-np-solve-checklist.md`
+- `docs/p-vs-np-stop-conditions.md` (budget caps)
 
-Run sorry inventory:
+Run sorry inventory (accepted tree must be clean; Frontier namespaces are reported
+separately):
 
 ```bash
 WORKSPACE=$(git rev-parse --show-toplevel)
-cd "$WORKSPACE/theory" && rg ":= sorry|^ *sorry$" --glob "*.lean"
+cd "$WORKSPACE/theory" && rg -n "sorry" --glob "*.lean" Theory/ | rg -v "Frontier" || echo "accepted tree clean"
 ```
 
 Run disk check:
@@ -71,101 +74,103 @@ WORKSPACE=$(git rev-parse --show-toplevel)
 df -h "$WORKSPACE" | awk 'NR==2 {print}'
 ```
 
-Build `SessionState`:
+## Step 1: Choose Rung and Action
 
-```json
-{
-  "session_id": "<unix_ts_or_counter>",
-  "sorry_frontier_count": "<int>",
-  "next_checklist_item": "<first unchecked checklist line>",
-  "last_action_type": "prove_step|mine_step|new_math_step|none",
-  "last_result": "success|partial|blocked|none",
-  "disk_free_gb": "<float>"
-}
-```
+Priority:
 
-## Step 1: Choose Action
-
-Choose exactly one action using this priority:
-
-0. First unchecked item in `docs/p-vs-np-solve-checklist.md` drives target selection.
-   Prefer an action that can concretely complete that item in one cycle.
-
-1. If a frontier sorry is currently closable with existing lemmas/certificates: `prove_step`.
-2. Else if a blocked frontier node can be reduced to SAT certificate generation: `mine_step`.
-3. Else: `new_math_step`.
+1. The lowest rung whose status is active drives the session.
+2. On that rung: if a prose argument passed audit and the human gate, `formalize`.
+3. Else if the rung needs mathematical content, `prove`.
+4. Else if the rung's falsification or calibration test has not run, `falsify`.
+5. Else `audit`.
+6. If every active rung is blocked twice for the same cause, this session must
+   change approach or propose a kill decision (stop conditions).
 
 Output:
 
 ```json
 {
-  "action_type": "prove_step|mine_step|new_math_step",
-  "target": "<single theorem, SAT instance, or hypothesis>",
-  "rationale": "<one sentence>",
-  "action_config": {}
+  "rung": "<rung id, for example r0-resolution-foundations>",
+  "action_type": "prove|formalize|falsify|audit",
+  "target": "<single statement, module, or family>",
+  "rationale": "<one sentence>"
 }
 ```
 
 ## Step 2: Run Action
 
-- If `action_type=prove_step`: execute `.cursor/skills/proof-sprint/SKILL.md` as one node close attempt.
-- If `action_type=mine_step`: execute `.cursor/skills/run-oracle/SKILL.md` as one mine cycle (no internal loop).
-- If `action_type=new_math_step`: execute `.cursor/skills/new-math/SKILL.md` through hypothesis plus immediate falsifiable check.
+- `prove`: execute `.cursor/skills/prover/SKILL.md`.
+- `formalize`: execute `.cursor/skills/formalizer/SKILL.md`.
+- `falsify`: execute `.cursor/skills/falsifier/SKILL.md`.
+- `audit`: execute `.cursor/skills/barrier-auditor/SKILL.md`.
 
-Each action returns:
+Each role skill returns:
 
 ```json
 {
   "status": "success|partial|blocked",
-  "artifact_refs": ["<paths_or_hashes>"],
-  "barrier_assessment": {
-    "relativization": "blocked|evades|unclear",
-    "natural_proofs": "blocked|evades|unclear",
-    "algebraization": "blocked|evades|unclear"
-  },
-  "next_recommended_action": "prove_step|mine_step|new_math_step"
+  "artifact_refs": ["<paths or hashes>"],
+  "notes": "<what a reader needs to know, complete sentences>",
+  "next_recommended_action": "prove|formalize|falsify|audit"
 }
 ```
 
-## Step 3: Write Canonical State
+## Step 3: Append Rung Memory
+
+Append one dated entry to the rung's Session log section in
+`docs/ladder/rungs/<rung>.md`. Entries are append only; never rewrite or delete
+earlier entries. The entry records: action, result, artifacts, and the single most
+important thing learned.
+
+## Step 4: Write Session Record
 
 Append exactly one JSON line to `search/logs/saturday_sessions.jsonl`:
 
 ```json
 {
-  "session_id": "<id>",
-  "action_type": "prove_step|mine_step|new_math_step",
+  "session_id": "<unix timestamp>",
+  "rung": "<rung id>",
+  "action_type": "prove|formalize|falsify|audit",
   "target": "<target>",
   "result": "success|partial|blocked",
-  "barrier_assessment": {
-    "relativization": "blocked|evades|unclear",
-    "natural_proofs": "blocked|evades|unclear",
-    "algebraization": "blocked|evades|unclear"
-  },
-  "artifact_refs": ["<paths_or_hashes>"],
-  "next_recommended_action": "prove_step|mine_step|new_math_step",
+  "artifact_refs": ["<paths or hashes>"],
+  "gate_pending": "none|adopt_rung|accept_prose|merge_certified|kill_rung",
+  "next_recommended_action": "prove|formalize|falsify|audit",
   "timestamp": "<unix>"
 }
 ```
 
-Then update checklist:
+Then update the checklist minimally: in `docs/p-vs-np-solve-checklist.md`, mark
+only items directly completed by this cycle. No speculative checkoffs.
 
-- In `docs/p-vs-np-solve-checklist.md`, mark completed item(s) `[x]`.
-- Keep the update minimal: only items directly completed by this single cycle.
-- Do not mark speculative or partial work as complete.
+## Human Gates (never self-approve)
 
-Stop immediately after writing this record.
+Three decisions belong to the human and are recorded as gate_pending in the session
+record, then presented at session end:
+
+- adopting or killing a rung (ladder status change to active or killed),
+- accepting a prose proof for formalization (status prose_accepted),
+- merging a certified result into the accepted tree (status certified).
+
+Stop immediately after writing the session record and, if applicable, presenting
+the pending gate question.
 
 ## Invariants
 
-- Local only execution.
-- Deterministic seeds for SAT/solver work.
+- Local only execution. Deterministic seeds for solver work.
 - No internal multi-iteration loop inside a single session.
-- Exactly one canonical state record per session.
-- Checklist integrity: only evidence-backed checkoffs.
+- Exactly one canonical session record per session.
+- Accepted tree stays clean: zero sorries, standard axioms only
+  (scripts/check_axioms.sh).
+- Budgets from docs/p-vs-np-stop-conditions.md are enforced by tooling; a session
+  never leaves a solver running past session end.
+- Generated prose avoids hyphens as punctuation; spell connections in words. File
+  names and existing identifiers are exempt.
 
 ## References
 
-- `.cursor/skills/run-oracle/SKILL.md`
-- `.cursor/skills/proof-sprint/SKILL.md`
-- `.cursor/skills/new-math/SKILL.md`
+- `.cursor/skills/prover/SKILL.md`
+- `.cursor/skills/formalizer/SKILL.md`
+- `.cursor/skills/falsifier/SKILL.md`
+- `.cursor/skills/barrier-auditor/SKILL.md`
+- `docs/ladder/ladder.md`
