@@ -452,3 +452,13 @@ above it.
   size-nonincreasing syntactic surgery (subclause induction). Gate green
   (101 accepted decls). Pending human gate merge_certified. Next after merge:
   formalize G7c size-preserving derivation restriction.
+- 2026-08-03 human gate merge_certified: G7b semantic restriction cluster (14
+  declarations: restrictClause_empty, restrictClause_eq_some_iff,
+  restrictClause_subset, mem_restrictCNF_iff, extendAssign_unassigned,
+  extendAssign_assigned, litSat_extend_of_mem_restrict,
+  clauseSat_extend_of_restrict, clauseSat_extend_of_killed,
+  cnfSat_extend_of_restrictCNF, Satisfiable_of_restrictCNF,
+  unsat_restrictCNF_of_unsat, refutable_restrictCNF,
+  refutable_matchingRestrict) accepted into the accepted tree. Gate remains
+  green. R1 stays active. Next: formalize G7c size-preserving derivation
+  restriction.
