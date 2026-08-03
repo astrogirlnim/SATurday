@@ -1,5 +1,6 @@
 import Theory.Basic
 import Theory.Circuits
+import Theory.PvsNPGoal
 import Tactics.CircuitTactics
 import Tactics.EncodingTactics
 import Tactics.InductionScaffolds

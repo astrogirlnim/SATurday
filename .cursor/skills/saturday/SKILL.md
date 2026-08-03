@@ -11,13 +11,15 @@ description: >
 ## Purpose
 
 Run exactly one high value research action per session, write one canonical state
-record, and stop. This minimizes orchestration overhead and keeps progress auditable.
+record, update the solve checklist, and stop. This minimizes orchestration overhead
+and keeps progress auditable.
 
 ## Session Contract
 
 - One decision.
 - One action.
 - One canonical state write.
+- One checklist update (at least one item marked done, if the action succeeds).
 - Stop.
 
 ```mermaid
@@ -53,6 +55,7 @@ Read:
 - `search/logs/proof_sprint_log.jsonl` (last line if present)
 - `search/logs/miner_results.jsonl` (last line if present)
 - `search/logs/new_math_proposals.jsonl` (last line if present)
+- `docs/p-vs-np-solve-checklist.md`
 
 Run sorry inventory:
 
@@ -74,6 +77,7 @@ Build `SessionState`:
 {
   "session_id": "<unix_ts_or_counter>",
   "sorry_frontier_count": "<int>",
+  "next_checklist_item": "<first unchecked checklist line>",
   "last_action_type": "prove_step|mine_step|new_math_step|none",
   "last_result": "success|partial|blocked|none",
   "disk_free_gb": "<float>"
@@ -83,6 +87,9 @@ Build `SessionState`:
 ## Step 1: Choose Action
 
 Choose exactly one action using this priority:
+
+0. First unchecked item in `docs/p-vs-np-solve-checklist.md` drives target selection.
+   Prefer an action that can concretely complete that item in one cycle.
 
 1. If a frontier sorry is currently closable with existing lemmas/certificates: `prove_step`.
 2. Else if a blocked frontier node can be reduced to SAT certificate generation: `mine_step`.
@@ -141,6 +148,12 @@ Append exactly one JSON line to `search/logs/saturday_sessions.jsonl`:
 }
 ```
 
+Then update checklist:
+
+- In `docs/p-vs-np-solve-checklist.md`, mark completed item(s) `[x]`.
+- Keep the update minimal: only items directly completed by this single cycle.
+- Do not mark speculative or partial work as complete.
+
 Stop immediately after writing this record.
 
 ## Invariants
@@ -149,6 +162,7 @@ Stop immediately after writing this record.
 - Deterministic seeds for SAT/solver work.
 - No internal multi-iteration loop inside a single session.
 - Exactly one canonical state record per session.
+- Checklist integrity: only evidence-backed checkoffs.
 
 ## References
 

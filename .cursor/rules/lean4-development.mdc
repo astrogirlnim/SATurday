@@ -1,0 +1,103 @@
+---
+description: Lean 4 programming best practices
+alwaysApply: false
+---
+# Lean 4 Development Best Practices
+
+Best practices for developing formal proofs and mathematics in Lean 4, based on lessons learned from building the SATurday project's circuit complexity formalizations.
+
+## Module Structure
+
+### Import Order (Critical)
+Imports MUST always come FIRST, before any comments or code:
+```lean
+import Mathlib.Data.Nat.Basic
+import Mathlib.Tactic
+
+/-! Module documentation comes after imports -/
+```
+
+### Valid Mathlib Imports
+- Use `Mathlib.Data.Nat.Basic` not `Mathlib.Data.Nat.Pow` (doesn't exist)
+- Use `Mathlib.Tactic` for all standard tactics
+- Check mathlib documentation before importing
+
+## Proof Tactics
+
+### Induction PatternsStandard induction:
+```lean
+induction n with
+| zero => -- base case
+| succ n' ih => -- inductive step
+```
+
+Strong induction:
+```lean
+induction n using Nat.strong_induction_on with
+| _ n ih => exact h n ih
+```### Case Analysis
+```lean
+-- For small bounded n
+interval_cases n <;> assumption
+
+-- For booleans  
+cases a <;> cases b <;> simp
+```
+
+### Key Tactics
+- `omega` - Linear arithmetic (closes goal if successful)
+- `simp` - Simplification
+- `ring` - Polynomial ring algebra
+- `calc` - Equational reasoning
+- `exact` - Provide exact proof term### Avoid "No goals to be solved" Errors
+Never add tactics after goal is closed:
+```lean
+| zero =>
+  simp [base]  -- Goal closed here, stop
+  -- omega    -- Would cause "No goals" error
+```
+
+## Documentation
+
+Module docs use `/-! ... -/`:
+```lean
+/-!
+# Circuit Tactics
+
+Reusable tactics for circuit complexity proofs.
+-/
+```
+
+Theorem docs use `/-- ... -/`:
+```lean
+/-- Exponential lower bound: 2^n ≥ n -/
+lemma exp_lower_bound (n : ℕ) : n ≤ 2^n := by
+```
+
+## MVP Strategy
+
+Accept `sorry` placeholders with TODOs:
+```lean
+theorem circuit_bound : size ≥ 2^n := by
+  -- TODO: Complete using Razborov's method
+  sorry
+```
+
+## Common Fixes
+
+1. Strong induction syntax changed in Lean 4
+2. Remove tactics after goal closes
+3. Use `interval_cases` for small n
+4. Import Mathlib.Tactic not individual tactics
+
+## Build Process
+
+Always verify with:
+```bash
+lake build ModuleName
+```
+
+## Resources
+
+- Lean 4 Manual: https://lean-lang.org/lean4/doc/
+- Mathlib Docs: https://leanprover-community.github.io/mathlib4_docs/

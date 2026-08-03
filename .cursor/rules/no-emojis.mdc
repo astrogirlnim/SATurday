@@ -1,0 +1,41 @@
+---
+alwaysApply: true
+---
+
+# No Emojis in Code or Documentation
+
+## Rule
+**Never use emojis in any files** created or modified in this project. This includes:
+- Source code (Python, Lean)
+- Documentation (README, CONTRIBUTING, markdown files)
+- Comments and docstrings
+- Commit messages
+- Configuration files
+- Any other project files
+
+## Rationale
+- Maintains professional, academic tone appropriate for research software
+- Ensures compatibility across all text editors and terminals
+- Improves readability and reduces visual clutter
+- Follows established conventions for formal technical documentation
+
+## Enforcement
+- Use plain text lists with hyphens instead of checkmark emojis
+- Use descriptive text instead of icon emojis
+- Keep all project files emoji-free
+
+## Examples
+
+**Bad:**
+```markdown
+- ✅ Feature complete
+- 🚀 Fast performance
+- 🔒 Secure by default
+```
+
+**Good:**
+```markdown
+- Feature complete
+- Fast performance
+- Secure by default
+```
