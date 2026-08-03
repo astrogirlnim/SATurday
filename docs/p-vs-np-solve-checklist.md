@@ -32,15 +32,17 @@ ladder after the program audit (see docs/postmortems/).
 
 ## 4) Formalization First
 - [x] R0: resolution soundness and completeness in Lean, zero sorries, gate passes.
-- [ ] R1 statement: PHP family and the Haken lower bound stated in Lean
-      (Frontier namespace until proved).
+- [x] R1 statement: PHP family and the Haken lower bound stated in Lean
+      (Frontier namespace until proved); non-vacuity witness phpCNF_unsat and
+      phpCNF_refutable certified.
 - [ ] Prove the first nontrivial new lemma in Lean without new axioms.
 - [ ] Keep a hard rule: no paper-only dependency may sit on the critical path.
 
 ## 5) Adversarial Validation Loop
-- [ ] Barrier audit run against the first R1 prose argument.
-- [ ] Falsifier baseline: PHP, Tseitin, random k-CNF proof-size curves recorded
-      under budget caps.
+- [x] Barrier audit run against the first R1 prose argument (recorded in
+      docs/ladder/rungs/r1-php-haken.md; verdict proceed).
+- [x] Falsifier baseline: PHP, Tseitin, random k-CNF proof-size curves recorded
+      under budget caps (search/logs/falsifier_runs.jsonl; PHP wall at n=11).
 - [ ] If a blocker survives 3 attempts, refactor or kill the branch.
 
 ## 6) Convergence Criteria

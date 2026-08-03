@@ -13,3 +13,8 @@ SATurday.ProofComplexity.derivation_entails
 SATurday.ProofComplexity.resolution_sound
 SATurday.ProofComplexity.resolution_complete
 SATurday.ProofComplexity.resolution_refutable_iff
+
+# R1 support: pigeonhole family non-vacuity witness (certified 2026-08-03)
+# The R1 lower bound itself is Frontier and is NOT listed here.
+SATurday.ProofComplexity.phpCNF_unsat
+SATurday.ProofComplexity.phpCNF_refutable

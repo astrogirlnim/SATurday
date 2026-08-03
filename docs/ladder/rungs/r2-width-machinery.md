@@ -31,3 +31,13 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
 ## Session log (append-only)
 
 - 2026-08-03 reboot: rung proposed.
+- 2026-08-03 falsify (early smoke calibration, budgets enforced): Tseitin
+  odd-charge on the 3-regular circulant, n = 6..16 even, all UNSAT within
+  milliseconds with proof lines in the tens to low hundreds; random 3-CNF at
+  density 5, n = 20..44 step 4: 5 UNSAT, 2 SAT (small-n fluctuation near the
+  threshold, expected and recorded honestly). Two conclusions for rung design:
+  the circulant chord graph is not a strong expander, so the R2 Tseitin family
+  must switch to genuine expanders (random 3-regular with expansion check, or an
+  explicit Ramanujan-style construction) before hardness curves mean anything;
+  and the random 3-CNF density should rise toward 5.5 or n should grow before it
+  is used as a hardness calibration family. Ledger: search/logs/falsifier_runs.jsonl.

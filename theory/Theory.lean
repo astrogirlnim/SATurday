@@ -1,5 +1,6 @@
 import Theory.Basic
 import Theory.ProofComplexity.Resolution
+import Theory.ProofComplexity.PHP
 
 /-!
 # SATurday Theory Library
