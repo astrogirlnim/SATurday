@@ -118,3 +118,19 @@ SATurday.ProofComplexity.exists_popular_grid_literal
 SATurday.ProofComplexity.filter_not_killed_card
 SATurday.ProofComplexity.large_survivors_le
 SATurday.ProofComplexity.monotoneClause_card_ge_largeThreshold
+# R1 BP96 Theorem 2 / G7b: semantic restriction transport
+# (certified 2026-08-03, saturday formalize; size-preserving surgery deferred)
+SATurday.ProofComplexity.restrictClause_empty
+SATurday.ProofComplexity.restrictClause_eq_some_iff
+SATurday.ProofComplexity.restrictClause_subset
+SATurday.ProofComplexity.mem_restrictCNF_iff
+SATurday.ProofComplexity.extendAssign_unassigned
+SATurday.ProofComplexity.extendAssign_assigned
+SATurday.ProofComplexity.litSat_extend_of_mem_restrict
+SATurday.ProofComplexity.clauseSat_extend_of_restrict
+SATurday.ProofComplexity.clauseSat_extend_of_killed
+SATurday.ProofComplexity.cnfSat_extend_of_restrictCNF
+SATurday.ProofComplexity.Satisfiable_of_restrictCNF
+SATurday.ProofComplexity.unsat_restrictCNF_of_unsat
+SATurday.ProofComplexity.refutable_restrictCNF
+SATurday.ProofComplexity.refutable_matchingRestrict

@@ -21,10 +21,11 @@ Honest threshold choice: BP96 takes W = V/10 with width ≥ 2(n+1)²/9. We only
 certified width ((n+1)/3)², so we set `largeThreshold` to that certified width.
 The exponential constant may need recalibration when the size assembly closes.
 
-Derivation transport, iterative shrink to a smaller PHP, and the final
-contradiction assembly are deferred.
+G7b (this module, continued): semantic restriction transport (unsat and
+refutability preserved). Size-nonincreasing syntactic derivation surgery,
+iterative shrink, smaller PHP isomorphism, and Frontier close are deferred.
 
-LOG: R1 matching restriction module (BP96 Theorem 2 / G7, partial)
+LOG: R1 matching restriction module (BP96 Theorem 2 / G7)
 -/
 
 namespace SATurday.ProofComplexity
@@ -292,5 +293,132 @@ theorem monotoneClause_card_ge_largeThreshold {n : ℕ} (hn : 0 < n) (C : Clause
     (hhi : pigeonComplexity n C ≤ 2 * (n + 1) / 3) :
     largeThreshold n ≤ (monotoneClause n hn C).card := by
   simpa [largeThreshold] using monotoneClause_card_intermediate hn C hlo hhi
+
+/-! ## Restriction helpers and semantic transport (G7b)
+
+Syntactic size-nonincreasing derivation surgery (subclause induction) is the
+next chunk. This chunk certifies the clause/CNF restriction API and the
+semantic fact that unsatisfiability (hence refutability, via R0 completeness)
+is preserved under restriction.
+-/
+
+theorem restrictClause_empty (ρ : ℕ → Option Bool) :
+    restrictClause ρ (∅ : Clause) = some ∅ := by
+  simp [restrictClause]
+
+theorem restrictClause_eq_some_iff (ρ : ℕ → Option Bool) (C C' : Clause) :
+    restrictClause ρ C = some C' ↔
+      (∀ l ∈ C, ρ l.var ≠ some l.pos) ∧
+        C' = C.filter fun l => ρ l.var = none := by
+  simp only [restrictClause]
+  constructor
+  · intro h
+    by_cases hsat : ∃ l ∈ C, ρ l.var = some l.pos
+    · simp [hsat] at h
+    · simp [hsat] at h
+      refine ⟨?_, h.symm⟩
+      intro l hl hρ
+      exact hsat ⟨l, hl, hρ⟩
+  · rintro ⟨hnsat, rfl⟩
+    have hsat : ¬∃ l ∈ C, ρ l.var = some l.pos := fun ⟨l, hl, hρ⟩ => hnsat l hl hρ
+    simp [hsat]
+
+theorem restrictClause_subset {ρ : ℕ → Option Bool} {C C' : Clause}
+    (h : restrictClause ρ C = some C') : C' ⊆ C := by
+  have h' := (restrictClause_eq_some_iff ρ C C').mp h
+  rw [h'.2]
+  exact filter_subset _ _
+
+theorem mem_restrictCNF_iff (ρ : ℕ → Option Bool) (F : CNF) (C' : Clause) :
+    C' ∈ restrictCNF ρ F ↔ ∃ C ∈ F, restrictClause ρ C = some C' := by
+  constructor
+  · intro h
+    simp only [restrictCNF, mem_biUnion] at h
+    obtain ⟨C, hC, hmem⟩ := h
+    cases hres : restrictClause ρ C with
+    | none => simp [hres] at hmem
+    | some C'' =>
+      simp only [hres, mem_singleton] at hmem
+      subst hmem
+      exact ⟨C, hC, hres⟩
+  · rintro ⟨C, hC, hres⟩
+    simp only [restrictCNF, mem_biUnion]
+    exact ⟨C, hC, by simp [hres]⟩
+
+/-- Fill unset variables of `ρ` from a total assignment `a`. -/
+def extendAssign (ρ : ℕ → Option Bool) (a : Assignment) : Assignment :=
+  fun v => match ρ v with
+    | some b => b
+    | none => a v
+
+theorem extendAssign_unassigned {ρ : ℕ → Option Bool} {a : Assignment} {v : ℕ}
+    (h : ρ v = none) : extendAssign ρ a v = a v := by
+  simp [extendAssign, h]
+
+theorem extendAssign_assigned {ρ : ℕ → Option Bool} {a : Assignment} {v : ℕ}
+    {b : Bool} (h : ρ v = some b) : extendAssign ρ a v = b := by
+  simp [extendAssign, h]
+
+theorem litSat_extend_of_mem_restrict {ρ : ℕ → Option Bool} {a : Assignment}
+    {C C' : Clause} {l : Literal}
+    (hC : restrictClause ρ C = some C') (hl : l ∈ C') (hla : litSat a l) :
+    litSat (extendAssign ρ a) l := by
+  have hiff := (restrictClause_eq_some_iff ρ C C').mp hC
+  have hun : ρ l.var = none := by
+    have : l ∈ C.filter fun t => ρ t.var = none := by
+      simpa [hiff.2] using hl
+    exact (mem_filter.mp this).2
+  simp only [litSat, extendAssign_unassigned hun]
+  exact hla
+
+theorem clauseSat_extend_of_restrict {ρ : ℕ → Option Bool} {a : Assignment}
+    {C C' : Clause}
+    (hC : restrictClause ρ C = some C') (ha : clauseSat a C') :
+    clauseSat (extendAssign ρ a) C := by
+  obtain ⟨l, hl, hla⟩ := ha
+  exact ⟨l, restrictClause_subset hC hl, litSat_extend_of_mem_restrict hC hl hla⟩
+
+theorem clauseSat_extend_of_killed {ρ : ℕ → Option Bool} {a : Assignment}
+    {C : Clause} (hC : restrictClause ρ C = none) :
+    clauseSat (extendAssign ρ a) C := by
+  simp only [restrictClause] at hC
+  by_cases hsat : ∃ l ∈ C, ρ l.var = some l.pos
+  · obtain ⟨l, hl, hρ⟩ := hsat
+    refine ⟨l, hl, ?_⟩
+    simp only [litSat, extendAssign, hρ]
+  · simp [hsat] at hC
+
+theorem cnfSat_extend_of_restrictCNF {ρ : ℕ → Option Bool} {a : Assignment}
+    {F : CNF} (ha : cnfSat a (restrictCNF ρ F)) :
+    cnfSat (extendAssign ρ a) F := by
+  intro C hC
+  cases hres : restrictClause ρ C with
+  | none => exact clauseSat_extend_of_killed hres
+  | some C' =>
+    have hmem : C' ∈ restrictCNF ρ F :=
+      (mem_restrictCNF_iff ρ F C').mpr ⟨C, hC, hres⟩
+    exact clauseSat_extend_of_restrict hres (ha C' hmem)
+
+/-- Satisfiability lifts along restriction (extend the model). -/
+theorem Satisfiable_of_restrictCNF {ρ : ℕ → Option Bool} {F : CNF}
+    (h : Satisfiable (restrictCNF ρ F)) : Satisfiable F := by
+  obtain ⟨a, ha⟩ := h
+  exact ⟨extendAssign ρ a, cnfSat_extend_of_restrictCNF ha⟩
+
+theorem unsat_restrictCNF_of_unsat {ρ : ℕ → Option Bool} {F : CNF}
+    (h : ¬Satisfiable F) : ¬Satisfiable (restrictCNF ρ F) :=
+  fun hs => h (Satisfiable_of_restrictCNF hs)
+
+/-- Refutability is preserved under restriction (via R0 completeness).
+Size is not controlled here; size-nonincreasing syntactic transport is next. -/
+theorem refutable_restrictCNF (ρ : ℕ → Option Bool) {F : CNF}
+    (h : Refutable F) : Refutable (restrictCNF ρ F) :=
+  resolution_complete (unsat_restrictCNF_of_unsat (resolution_sound h))
+
+/-- Matching step preserves PHP refutability of the restricted CNF. -/
+theorem refutable_matchingRestrict {n : ℕ} (i : Fin (n + 1)) (j : Fin n)
+    (h : Refutable (phpCNF n)) :
+    Refutable (restrictCNF (matchingLookup n i j) (phpCNF n)) :=
+  refutable_restrictCNF (matchingLookup n i j) h
 
 end SATurday.ProofComplexity

@@ -443,3 +443,12 @@ above it.
   monotoneClause_card_ge_largeThreshold) accepted into the accepted tree.
   Gate remains green. R1 stays active. Next: formalize G7b derivation
   restriction under matching.
+- 2026-08-03 formalize (G7b: semantic restriction transport): PARTIAL SUCCESS.
+  Extended MatchingRestriction.lean. Certified: restrictClause_empty,
+  restrictClause_eq_some_iff, mem_restrictCNF_iff, extendAssign and model
+  lifting (Satisfiable_of_restrictCNF), unsat_restrictCNF_of_unsat,
+  refutable_restrictCNF (via R0 completeness), refutable_matchingRestrict.
+  Honest limit: this does not bound restricted proof size; BP96 needs
+  size-nonincreasing syntactic surgery (subclause induction). Gate green
+  (101 accepted decls). Pending human gate merge_certified. Next after merge:
+  formalize G7c size-preserving derivation restriction.
