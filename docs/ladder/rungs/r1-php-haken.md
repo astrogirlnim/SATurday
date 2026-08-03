@@ -418,3 +418,9 @@ above it.
   (k/3)², not the continuum 2k²/9. Gate green (74 accepted decls). Pending
   human gate merge_certified for the product cluster. Next after merge:
   formalize G7 restriction size assembly toward php_resolution_size_lower_bound.
+- 2026-08-03 human gate merge_certified: G6 product cluster (8 declarations:
+  chosenFalsifier_leftOut, chosenFalsifier_falsifies, forcedLitsAll_subset,
+  forcedLitsOne_disjoint, forcedLitsAll_card, monotoneClause_card_ge,
+  intermediate_product_ge, monotoneClause_card_intermediate) accepted into
+  the accepted tree. Gate remains green. R1 stays active. Next: formalize G7
+  restriction size assembly toward php_resolution_size_lower_bound.
