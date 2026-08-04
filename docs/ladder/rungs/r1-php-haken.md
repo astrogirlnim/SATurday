@@ -521,3 +521,13 @@ above it.
   unrename, iterative shrink rate, Frontier close. Pending human gate
   merge_certified. Next after merge: formalize G7g derivation unrename
   transport.
+- 2026-08-03 human gate merge_certified: G7f rename unrename CNF iso cluster
+  (13 declarations: renameClause_empty, mem_renameClause_iff,
+  matchingEmbedVar_inj, matchingRenameσ_pvar,
+  matchingRenamePigeonClause_eq_rename, matchingRenameHoleClause_eq_rename,
+  matchingRenameCNF_eq_renameCNF, matchingRenameσ_inj_on_pvar,
+  matchingUnrenameσ_embed, matchingUnrenameσ_rename_pvar,
+  unrename_matchingRenamePigeonClause, unrename_matchingRenameHoleClause,
+  unrename_matchingRenameCNF) accepted into the accepted tree. Gate remains
+  green. R1 stays active. Next: formalize G7g size preserving derivation
+  unrename transport.
