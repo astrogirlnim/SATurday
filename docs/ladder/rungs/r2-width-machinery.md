@@ -441,3 +441,27 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   does not drop.
   Pending human gate merge_certified. Next: formalize fatSteps_le_log and
   the rate corollary, or the chainCNF non vacuity witness.
+
+- 2026-08-04 human gate merge_certified: APPROVED by session decision ("go").
+  SizeWidth bsw_width_of_fatCount cluster (9 declarations, commit f649a53)
+  accepted into the accepted tree. R2 stays prose_accepted. Next: formalize
+  fatSteps_le_log and bsw_size_lower_bound.
+
+- 2026-08-04 formalize (fatSteps_le_log rate arithmetic): PARTIAL to SUCCESS on
+  the log bound, rate corollary still open. New accepted declarations (12):
+  fatBlock, le_mul_fatBlock, div_fatBlock_le_mul_div, iterate_fatShrink_le,
+  iterate_fatShrink_anti, fatSteps_le_add_iterate, fatBlock_mul_half_succ_div_ge,
+  fatShrink_iterate_fatBlock_le_half, fatSteps_le_log, bswRateConst,
+  Derivation.size_pos, bsw_width_log_bound. Gate green. Verified
+  cnfLits_card = 2 * (cnfVars).card from Width.lean; bsw_width_of_fatCount uses
+  that equality. Pinned reserved constant bswRateConst = 24 for the eventual
+  size corollary, but bsw_size_lower_bound itself did not finish this cycle
+  (loose Nat packaging of Delta^2/(c n) versus log2 size loses a factor past
+  the honest 8 to 24 range without tighter casework). Intermediate
+  bsw_width_log_bound records the usable width versus log size form.
+  Remaining SizeWidth gaps: bsw_size_lower_bound with pinned c, chainCNF and
+  bsw_bound_beats_trivial.
+  Most important thing learned: the half block argument needs t < N for the
+  per step drop lower bound; the t = N wipe is a one line separate case.
+  Pending human gate merge_certified. Next: finish bsw_size_lower_bound at
+  bswRateConst = 24, or ship chainCNF non vacuity.

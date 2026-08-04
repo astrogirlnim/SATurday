@@ -324,7 +324,7 @@ SATurday.ProofComplexity.exists_derivation_restrict_kill_lit
 SATurday.ProofComplexity.exists_restrict_refutation_kill_lit
 SATurday.ProofComplexity.fatCount_kill_le_fatShrink
 # R2 BSW: bsw_width_of_fatCount core induction
-# (certified 2026-08-04, saturday formalize; pending merge_certified)
+# (certified 2026-08-04, saturday formalize; merge_certified approved)
 SATurday.ProofComplexity.fatShrink_mono_N
 SATurday.ProofComplexity.fatShrink_le_fatShrink_succ
 SATurday.ProofComplexity.fatShrink_mono_m
@@ -334,3 +334,17 @@ SATurday.ProofComplexity.cnfLits_card_le_of_vars_subset
 SATurday.ProofComplexity.exists_derivation_false_branch_clause
 SATurday.ProofComplexity.bsw_width_of_fatCount_aux
 SATurday.ProofComplexity.bsw_width_of_fatCount
+# R2 BSW: fatSteps_le_log rate arithmetic
+# (certified 2026-08-04, saturday formalize; pending merge_certified)
+SATurday.ProofComplexity.fatBlock
+SATurday.ProofComplexity.le_mul_fatBlock
+SATurday.ProofComplexity.div_fatBlock_le_mul_div
+SATurday.ProofComplexity.iterate_fatShrink_le
+SATurday.ProofComplexity.iterate_fatShrink_anti
+SATurday.ProofComplexity.fatSteps_le_add_iterate
+SATurday.ProofComplexity.fatBlock_mul_half_succ_div_ge
+SATurday.ProofComplexity.fatShrink_iterate_fatBlock_le_half
+SATurday.ProofComplexity.fatSteps_le_log
+SATurday.ProofComplexity.bswRateConst
+SATurday.ProofComplexity.Derivation.size_pos
+SATurday.ProofComplexity.bsw_width_log_bound

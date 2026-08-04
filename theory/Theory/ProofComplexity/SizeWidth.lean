@@ -637,4 +637,264 @@ theorem bsw_width_of_fatCount (F : CNF) (t : ℕ)
       (d.fatCount t) (cnfVars F).card F rfl hN d rfl
   exact ⟨d', hw⟩
 
+
+/-! ## Rate arithmetic: fatSteps versus log -/
+
+/-- Averaging block length: about `N / t` steps suffice to cut the fat count. -/
+def fatBlock (N t : ℕ) : ℕ := N / t + 1
+
+/-- Under `0 < t`, the literal budget fits in one averaging block. -/
+theorem le_mul_fatBlock {N t : ℕ} (ht : 0 < t) : N ≤ t * fatBlock N t :=
+  (Nat.lt_mul_div_succ N ht).le
+
+/-- Pigeon arithmetic: `m / fatBlock ≤ t * m / N`. -/
+theorem div_fatBlock_le_mul_div {N t m : ℕ} (ht : 0 < t) (hNt : t ≤ N) :
+    m / fatBlock N t ≤ t * m / N := by
+  set B := fatBlock N t with hB
+  have hNpos : 0 < N := Nat.zero_lt_of_lt (lt_of_lt_of_le ht hNt)
+  have hNB : N ≤ t * B := by simpa [hB] using le_mul_fatBlock ht
+  refine (Nat.le_div_iff_mul_le hNpos).mpr ?_
+  calc
+    (m / B) * N ≤ (m / B) * (t * B) := Nat.mul_le_mul_left _ hNB
+    _ = t * (m / B * B) := by ring
+    _ ≤ t * m := Nat.mul_le_mul_left t (Nat.div_mul_le_self m B)
+
+/-- Iterating `fatShrink` never increases the count. -/
+theorem iterate_fatShrink_le (N t m k : ℕ) :
+    (fatShrink N t)^[k] m ≤ m := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    rw [Function.iterate_succ_apply']
+    exact (fatShrink_le_self N t _).trans ih
+
+/-- More shrink iterations yields a smaller or equal count. -/
+theorem iterate_fatShrink_anti (N t m : ℕ) {j k : ℕ} (hjk : j ≤ k) :
+    (fatShrink N t)^[k] m ≤ (fatShrink N t)^[j] m := by
+  induction hjk with
+  | refl => exact le_rfl
+  | step h ih =>
+    rw [Function.iterate_succ_apply']
+    exact (fatShrink_le_self N t _).trans ih
+
+/-- `fatSteps` pays at most the iterate length plus the residual count's steps. -/
+theorem fatSteps_le_add_iterate (N t m k : ℕ) :
+    fatSteps N t m ≤ k + fatSteps N t ((fatShrink N t)^[k] m) := by
+  induction k generalizing m with
+  | zero => simp
+  | succ k ih =>
+    by_cases hm : 0 < m
+    · rw [fatSteps_of_pos N t m hm, Function.iterate_succ_apply]
+      have := ih (fatShrink N t m)
+      omega
+    · have hm0 : m = 0 := Nat.eq_zero_of_not_pos hm
+      subst hm0
+      have hfix : fatShrink N t 0 = 0 := by simp [fatShrink]
+      simp [fatSteps_zero, Function.iterate_fixed hfix]
+
+/-- When `t < N` and `cur > 0`, one shrink removes at least `t*cur/N + 1`. -/
+private theorem fatShrink_drop_lt {N t cur : ℕ}
+    (htN : t < N) (hcur : 0 < cur) :
+    t * cur / N + 1 ≤ cur - fatShrink N t cur := by
+  have hNpos : 0 < N := Nat.zero_lt_of_lt htN
+  have hlt : t * cur / N < cur := by
+    have hmul : t * cur < N * cur := Nat.mul_lt_mul_of_pos_right htN hcur
+    exact Nat.div_lt_of_lt_mul hmul
+  have hle : t * cur / N + 1 ≤ cur := Nat.succ_le_of_lt hlt
+  simp only [fatShrink]
+  omega
+
+/-- Drop lower bound under `t < N` when the current count is at least `halfSucc`. -/
+private theorem fatShrink_drop_of_half_ge {N t cur halfSucc : ℕ}
+    (htN : t < N) (hcur : halfSucc ≤ cur) (hpos : 0 < halfSucc) :
+    t * halfSucc / N + 1 ≤ cur - fatShrink N t cur := by
+  have hcurpos : 0 < cur := lt_of_lt_of_le hpos hcur
+  have hdrop := fatShrink_drop_lt (N := N) (t := t) (cur := cur) htN hcurpos
+  have hle : t * halfSucc / N ≤ t * cur / N :=
+    Nat.div_le_div_right (Nat.mul_le_mul_left t hcur)
+  omega
+
+/-- Block removal lower bound for `t < N`. -/
+theorem fatBlock_mul_half_succ_div_ge {N t m : ℕ}
+    (ht : 0 < t) (htN : t < N) :
+    fatBlock N t * (t * (m / 2 + 1) / N + 1) ≥ m - m / 2 := by
+  set B := fatBlock N t
+  set a := m / 2 + 1
+  have hNt : t ≤ N := le_of_lt htN
+  have hdiv : a / B ≤ t * a / N := div_fatBlock_le_mul_div (m := a) ht hNt
+  have hBpos : 0 < B := Nat.succ_pos _
+  have h1 : B * (a / B + 1) ≤ B * (t * a / N + 1) :=
+    Nat.mul_le_mul_left B (Nat.add_le_add_right hdiv 1)
+  have h2 : a + 1 ≤ B * (a / B) + B := by
+    have hdivmod : B * (a / B) + a % B = a := Nat.div_add_mod a B
+    have hmod : a % B < B := Nat.mod_lt a hBpos
+    omega
+  have h3 : B * (a / B + 1) = B * (a / B) + B := by ring
+  have h4 : m / 2 + 2 ≤ B * (a / B + 1) := by
+    rw [h3]; simpa [a] using h2
+  have h5 : m - m / 2 ≤ m / 2 + 1 := by omega
+  omega
+
+/-- Telescope under `t < N`. -/
+private theorem fatShrink_iterate_drop_ge {N t m : ℕ}
+    (htN : t < N) (k : ℕ)
+    (hstay : ∀ j < k, m / 2 + 1 ≤ (fatShrink N t)^[j] m) :
+    k * (t * (m / 2 + 1) / N + 1) ≤ m - (fatShrink N t)^[k] m := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    have hstay' : ∀ j < k, m / 2 + 1 ≤ (fatShrink N t)^[j] m :=
+      fun j hj => hstay j (Nat.lt_succ_of_lt hj)
+    have ihk := ih hstay'
+    have hcur : m / 2 + 1 ≤ (fatShrink N t)^[k] m := hstay k (Nat.lt_succ_self _)
+    have hdrop :=
+      fatShrink_drop_of_half_ge (N := N) (t := t)
+        (cur := (fatShrink N t)^[k] m) (halfSucc := m / 2 + 1) htN hcur
+        (Nat.succ_pos _)
+    have hiter :
+        (fatShrink N t)^[k + 1] m = fatShrink N t ((fatShrink N t)^[k] m) :=
+      Function.iterate_succ_apply' _ _ _
+    have hle1 : (fatShrink N t)^[k + 1] m ≤ (fatShrink N t)^[k] m := by
+      rw [hiter]; exact fatShrink_le_self _ _ _
+    have hle0 : (fatShrink N t)^[k] m ≤ m := iterate_fatShrink_le N t m k
+    calc
+      (k + 1) * (t * (m / 2 + 1) / N + 1)
+          = k * (t * (m / 2 + 1) / N + 1) + (t * (m / 2 + 1) / N + 1) := by
+            ring
+      _ ≤ (m - (fatShrink N t)^[k] m) +
+            ((fatShrink N t)^[k] m - fatShrink N t ((fatShrink N t)^[k] m)) :=
+          Nat.add_le_add ihk hdrop
+      _ = m - fatShrink N t ((fatShrink N t)^[k] m) := by omega
+      _ = m - (fatShrink N t)^[k + 1] m := by rw [hiter]
+
+/-- When `t = N`, one shrink wipes the count. -/
+private theorem fatShrink_eq_zero_of_t_eq_N {N m : ℕ} (hN : 0 < N) (hm : 0 < m) :
+    fatShrink N N m = 0 := by
+  simp only [fatShrink]
+  have : N * m / N = m := by rw [Nat.mul_comm, Nat.mul_div_left m hN]
+  omega
+
+/-- After one averaging block the fat count is at most half. -/
+theorem fatShrink_iterate_fatBlock_le_half {N t m : ℕ}
+    (ht : 0 < t) (hNt : t ≤ N) :
+    (fatShrink N t)^[fatBlock N t] m ≤ m / 2 := by
+  set B := fatBlock N t
+  by_cases hteq : t = N
+  · -- With `t = N`, a single shrink reaches 0.
+    by_cases hm : m = 0
+    · subst hm
+      have hfix : fatShrink N t 0 = 0 := by simp [fatShrink]
+      simp [Function.iterate_fixed hfix]
+    · have hmpos : 0 < m := Nat.pos_of_ne_zero hm
+      have hNpos : 0 < N := lt_of_lt_of_le ht hNt
+      have h1 : fatShrink N t m = 0 := by
+        simpa [hteq] using fatShrink_eq_zero_of_t_eq_N hNpos hmpos
+      have hB : B = 2 := by
+        simp only [B, fatBlock, hteq, Nat.div_self hNpos]
+      have hfix : fatShrink N t 0 = 0 := by simp [fatShrink]
+      have hstep0 : (fatShrink N t)^[1] m = 0 := by
+        rw [Function.iterate_one, h1]
+      calc
+        (fatShrink N t)^[B] m = (fatShrink N t)^[2] m := by rw [hB]
+        _ = (fatShrink N t)^[1 + 1] m := rfl
+        _ = (fatShrink N t)^[1] ((fatShrink N t)^[1] m) := by
+              rw [Function.iterate_add_apply]
+        _ = (fatShrink N t)^[1] 0 := by rw [hstep0]
+        _ = 0 := by rw [Function.iterate_one, hfix]
+        _ ≤ m / 2 := Nat.zero_le _
+  · -- `t < N`: additive block argument
+    have htN : t < N := Nat.lt_of_le_of_ne hNt hteq
+    by_contra hgt
+    have hmB : m / 2 + 1 ≤ (fatShrink N t)^[B] m := by omega
+    have hm_ge : m / 2 + 1 ≤ m :=
+      hmB.trans (iterate_fatShrink_le N t m B)
+    have hstay : ∀ j ≤ B, m / 2 + 1 ≤ (fatShrink N t)^[j] m := by
+      intro j hj
+      exact hmB.trans (iterate_fatShrink_anti N t m hj)
+    have hstay' : ∀ j < B, m / 2 + 1 ≤ (fatShrink N t)^[j] m :=
+      fun j hj => hstay j (le_of_lt hj)
+    have hrm := fatShrink_iterate_drop_ge (N := N) (t := t) (m := m) htN B hstay'
+    have hrm' := fatBlock_mul_half_succ_div_ge (N := N) (t := t) (m := m) ht htN
+    have hupper : m - (fatShrink N t)^[B] m ≤ m - (m / 2 + 1) :=
+      Nat.sub_le_sub_left hmB _
+    have hge : m - m / 2 ≤ B * (t * (m / 2 + 1) / N + 1) := hrm'
+    have hle : B * (t * (m / 2 + 1) / N + 1) ≤ m - (m / 2 + 1) :=
+      hrm.trans hupper
+    have hchain : m - m / 2 ≤ m - (m / 2 + 1) := hge.trans hle
+    have hstrict : m - (m / 2 + 1) + 1 = m - m / 2 := by omega
+    omega
+
+/-- `fatSteps N t m ≤ fatBlock N t * (Nat.log 2 m + 1)`. -/
+theorem fatSteps_le_log {N t m : ℕ} (ht : 0 < t) (hNt : t ≤ N) :
+    fatSteps N t m ≤ fatBlock N t * (Nat.log 2 m + 1) := by
+  induction m using Nat.strong_induction_on with
+  | h m ih =>
+    by_cases hm : m = 0
+    · subst hm; simp [fatSteps_zero]
+    · set B := fatBlock N t
+      have hiter :=
+        fatShrink_iterate_fatBlock_le_half (N := N) (t := t) (m := m) ht hNt
+      set m' := (fatShrink N t)^[B] m
+      have hm'le : m' ≤ m / 2 := by simpa [m', B] using hiter
+      have hsteps : fatSteps N t m ≤ B + fatSteps N t m' := by
+        simpa [m', B] using fatSteps_le_add_iterate N t m B
+      by_cases hm'0 : m' = 0
+      · have hsteps0 : fatSteps N t m ≤ B := by
+          simpa [hm'0, fatSteps_zero] using hsteps
+        exact hsteps0.trans (Nat.le_mul_of_pos_right B (Nat.succ_pos _))
+      · have hmpos : 0 < m := Nat.pos_of_ne_zero hm
+        have hm2lt : m / 2 < m := Nat.div_lt_self hmpos (by decide : 1 < 2)
+        have hm'lt : m' < m := lt_of_le_of_lt hm'le hm2lt
+        have ih' : fatSteps N t m' ≤ B * (Nat.log 2 m' + 1) := by
+          simpa [B] using ih m' hm'lt
+        have hm2le : 2 ≤ m := by
+          have : 0 < m' := Nat.pos_of_ne_zero hm'0
+          have : 1 ≤ m / 2 := by omega
+          omega
+        have hlogm : 1 ≤ Nat.log 2 m :=
+          Nat.log_pos (by decide : 1 < 2) hm2le
+        have hlog' : Nat.log 2 m' + 1 ≤ Nat.log 2 m := by
+          have hle : Nat.log 2 m' ≤ Nat.log 2 (m / 2) :=
+            Nat.log_mono_right hm'le
+          have hdiv : Nat.log 2 (m / 2) = Nat.log 2 m - 1 := Nat.log_div_base 2 m
+          omega
+        calc
+          fatSteps N t m ≤ B + fatSteps N t m' := hsteps
+          _ ≤ B + B * (Nat.log 2 m' + 1) := Nat.add_le_add_left ih' _
+          _ = B * (1 + (Nat.log 2 m' + 1)) := by ring
+          _ ≤ B * (Nat.log 2 m + 1) := Nat.mul_le_mul_left B (by omega)
+
+/-- Explicit rate constant reserved for the size corollary packaging. -/
+def bswRateConst : ℕ := 24
+
+/-- Every derivation has positive size. -/
+theorem Derivation.size_pos {F : CNF} {C : Clause} (d : Derivation F C) :
+    0 < d.size := by
+  induction d with
+  | hyp _ _ => exact Nat.succ_pos _
+  | res _ _ _ _ _ ihC ihD =>
+    simp only [Derivation.size]
+    omega
+
+/-- Width-to-log-size intermediate form of the rate packaging. -/
+theorem bsw_width_log_bound (F : CNF) (W : ℕ)
+    (hW : ∀ d : Derivation F (∅ : Clause), W ≤ d.width)
+    (d : Derivation F (∅ : Clause))
+    (t : ℕ) (ht : 0 < t)
+    (htN : t ≤ 2 * (cnfVars F).card) :
+    W ≤ cnfWidth F + t +
+      fatBlock (2 * (cnfVars F).card) t * (Nat.log 2 d.size + 1) := by
+  set N := 2 * (cnfVars F).card
+  obtain ⟨d', hw⟩ := bsw_width_of_fatCount F t d
+  have hWd' := hW d'
+  have h1 : W ≤ cnfWidth F + t + fatSteps N t (d.fatCount t) := by
+    simpa [N] using hWd'.trans hw
+  have hlog := fatSteps_le_log (N := N) (t := t) (m := d.fatCount t) ht htN
+  have hfat : d.fatCount t ≤ d.size := d.fatCount_le_size t
+  have hlogS :
+      fatSteps N t (d.fatCount t) ≤
+        fatBlock N t * (Nat.log 2 d.size + 1) :=
+    hlog.trans (Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right hfat)))
+  exact h1.trans (Nat.add_le_add_left hlogS _)
+
 end SATurday.ProofComplexity
