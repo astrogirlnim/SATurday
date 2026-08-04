@@ -489,3 +489,10 @@ above it.
   decls). Deferred: renaming iso restrictCNF(matchingLookup)(phpCNF n) ≃
   phpCNF (n−1); rate optimal iterative 9/10 shrink; Frontier close. Pending
   human gate merge_certified. Next after merge: formalize G7e smaller PHP iso.
+- 2026-08-03 human gate merge_certified: G7d iterative kill progress cluster
+  (10 declarations: matchingLookup_row, matchingLookup_col, mem_pigeonClause,
+  pigeonClause_subset_gridPosLits, restrictClause_pigeonClause_place,
+  restrictClause_pigeonClause_other, exists_matching_kills_one,
+  filter_not_killed_card_lt, large_survivors_lt,
+  exists_matching_strict_progress) accepted into the accepted tree. Gate
+  remains green. R1 stays active. Next: formalize G7e smaller PHP isomorphism.
