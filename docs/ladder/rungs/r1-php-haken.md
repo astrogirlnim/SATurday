@@ -543,3 +543,10 @@ above it.
   invariant. Deferred: monotone semantic calculus for the kill counting,
   Frontier close. Pending human gate merge_certified. Next after merge:
   formalize G8a monotone semantic calculus and simulation.
+- 2026-08-04 human gate merge_certified: G7g shrink step cluster (9
+  declarations: derivation_clauseVars_subset,
+  renameClause_resolvent_of_pivot_inj, exists_derivation_renameInj,
+  exists_refutation_of_cnf_eq, exists_derivation_of_concl_eq,
+  mem_cnfVars_matchingRenameCNF, matchingUnrenameσ_injOn, php_shrink_step,
+  php_shrink_le) accepted into the accepted tree. Gate remains green. R1
+  stays active. Next: formalize G8a monotone semantic calculus.
