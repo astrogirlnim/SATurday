@@ -2,7 +2,8 @@
 
 Status: prose_accepted
 Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (item 1
-merged); item 2 planned as FinGraph.lean, Tseitin.lean, CSExpansion.lean
+merged); FinGraph.lean and Tseitin.lean (item 2 start merged); CSExpansion.lean
+planned
 
 ## Statement
 
@@ -920,3 +921,33 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   in session jsonl; not awaited in chat per user blanket continue).
   Next recommended action: formalize FinGraph.lean (FinEdge, FinGraph,
   edgeBoundary, HasExpansion, petersenGraph).
+
+- 2026-08-04 formalize (FinGraph cluster 1, plus Tseitin CNF scaffold): SUCCESS.
+  Files verified before edits (no duplicates): existing ProofComplexity modules
+  Resolution, PHP, CriticalAssignments, ClauseComplexity, MonotoneWidth,
+  MatchingRestriction, MonotoneCalculus, Width, SizeWidth only; ripgrep found
+  zero FinGraph, FinEdge, edgeBoundary, HasExpansion, petersenGraph, tseitinCNF,
+  oddCharge in theory/. docs/file_structure.md absent; structure from live tree.
+  Created theory/Theory/ProofComplexity/FinGraph.lean and Tseitin.lean; wired in
+  theory/Theory.lean after SizeWidth.
+
+  FinGraph decls: FinEdge, FinGraph, finEdgeOf, incident, degree, IsRegular,
+  edgeBoundary, HasExpansion, mem_incident_iff, incident_subset,
+  mem_edgeBoundary_iff, edgeBoundary_subset, edgeBoundary_empty,
+  edgeBoundary_univ, edgeBoundary_sdiff_univ, FinEdge.ne_endpoints,
+  edgeBoundary_singleton, HasExpansion.degree_ge, petersenGraph,
+  petersenGraph_card, petersenGraph_regular. Expansion of Petersen NOT claimed
+  (deferred; no placeholder proof). native_decide rejected by axiom gate;
+  card and regularity use decide.
+
+  Tseitin scaffold decls: Charge, oddCharge, oddCharge_single,
+  oddCharge_single_odd, edgeVar, edgeVar_injective, parityForbidClause,
+  vertexParityClauses, tseitinCNF, mem_tseitinCNF_iff,
+  clauseVars_parityForbidClause_subset. Unsat and width bound not in this cycle.
+
+  Axiom gate: PASS (scripts/check_axioms.sh). merge_certified auto-recorded per
+  user blanket after green gate.
+  Artifacts: FinGraph.lean, Tseitin.lean, Theory.lean,
+  scripts/accepted_declarations.txt.
+  Next recommended action: formalize petersenGraph_expansion (cluster 1b) or
+  tseitinCNF_unsat (cluster 2 remainder).

@@ -8,6 +8,8 @@ import Theory.ProofComplexity.MatchingRestriction
 import Theory.ProofComplexity.MonotoneCalculus
 import Theory.ProofComplexity.Width
 import Theory.ProofComplexity.SizeWidth
+import Theory.ProofComplexity.FinGraph
+import Theory.ProofComplexity.Tseitin
 
 /-!
 # SATurday Theory Library

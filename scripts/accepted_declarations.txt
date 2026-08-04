@@ -386,3 +386,40 @@ SATurday.ProofComplexity.cnfVars_chainCNF_card
 SATurday.ProofComplexity.chainCNF_unsat
 SATurday.ProofComplexity.chainCNF_refutable
 SATurday.ProofComplexity.bsw_bound_beats_trivial
+
+# R2 item 2 cluster 1: FinGraph API and Petersen construction
+# (certified 2026-08-04, saturday formalize; expansion deferred)
+SATurday.ProofComplexity.FinEdge
+SATurday.ProofComplexity.finEdgeOf
+SATurday.ProofComplexity.incident
+SATurday.ProofComplexity.degree
+SATurday.ProofComplexity.IsRegular
+SATurday.ProofComplexity.edgeBoundary
+SATurday.ProofComplexity.HasExpansion
+SATurday.ProofComplexity.mem_incident_iff
+SATurday.ProofComplexity.incident_subset
+SATurday.ProofComplexity.mem_edgeBoundary_iff
+SATurday.ProofComplexity.edgeBoundary_subset
+SATurday.ProofComplexity.edgeBoundary_empty
+SATurday.ProofComplexity.edgeBoundary_univ
+SATurday.ProofComplexity.edgeBoundary_sdiff_univ
+SATurday.ProofComplexity.FinEdge.ne_endpoints
+SATurday.ProofComplexity.edgeBoundary_singleton
+SATurday.ProofComplexity.HasExpansion.degree_ge
+SATurday.ProofComplexity.petersenGraph
+SATurday.ProofComplexity.petersenGraph_card
+SATurday.ProofComplexity.petersenGraph_regular
+
+# R2 item 2 cluster 2 start: Tseitin CNF construction (certified 2026-08-04)
+# Unsat and expander width bound remain open.
+SATurday.ProofComplexity.Charge
+SATurday.ProofComplexity.oddCharge
+SATurday.ProofComplexity.oddCharge_single
+SATurday.ProofComplexity.oddCharge_single_odd
+SATurday.ProofComplexity.edgeVar
+SATurday.ProofComplexity.edgeVar_injective
+SATurday.ProofComplexity.parityForbidClause
+SATurday.ProofComplexity.vertexParityClauses
+SATurday.ProofComplexity.tseitinCNF
+SATurday.ProofComplexity.mem_tseitinCNF_iff
+SATurday.ProofComplexity.clauseVars_parityForbidClause_subset

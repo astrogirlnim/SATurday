@@ -34,10 +34,10 @@ R4-class results plus the certified R5 bridge.
   - statement: Ben-Sasson-Wigderson width-size tradeoff, random k-CNF and Tseitin
     expander lower bounds
   - memory: docs/ladder/rungs/r2-width-machinery.md
-  - lean: Width.lean and SizeWidth.lean; item 1 BSW core, rate (c=24), and
-    chainCNF non vacuity merged; item 2 width lower bounds pinned in prose
-    (targets tseitin_expander_width_lower_bound, cs_expansion_width_lower_bound;
-    modules FinGraph.lean, Tseitin.lean, CSExpansion.lean not yet formalized)
+  - lean: Width.lean and SizeWidth.lean (item 1 BSW merged); FinGraph.lean and
+    Tseitin.lean CNF construction merged for item 2 start; still open:
+    petersenGraph_expansion, tseitinCNF_unsat, tseitin_expander_width_lower_bound,
+    CSExpansion.lean
 
 - R3 stronger systems
   - status: proposed
