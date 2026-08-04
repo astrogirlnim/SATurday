@@ -1089,4 +1089,268 @@ theorem matchingRestrict_phpCNF_eq_rename {k : ℕ}
   Subset.antisymm (restrict_subset_matchingRenameCNF i j)
     (matchingRenameCNF_subset_restrict i j)
 
+/-! ## G7f: variable rename transport onto the smaller PHP
+
+`matchingRenameCNF` is the pointwise image of `phpCNF k` under embedding its
+grid variables. Derivations from `phpCNF k` transport into the rename CNF with
+identical size. Combined with G7e and G7c this yields a same size refutation of
+the matching restriction (hence of the rename image).
+-/
+
+/-- Rename a literal by acting on its variable index. -/
+def renameLit (σ : ℕ → ℕ) (l : Literal) : Literal :=
+  ⟨σ l.var, l.pos⟩
+
+/-- Rename a clause pointwise. -/
+noncomputable def renameClause (σ : ℕ → ℕ) (C : Clause) : Clause :=
+  C.image (renameLit σ)
+
+/-- Rename a CNF pointwise. -/
+noncomputable def renameCNF (σ : ℕ → ℕ) (F : CNF) : CNF :=
+  F.image (renameClause σ)
+
+theorem renameClause_empty (σ : ℕ → ℕ) : renameClause σ (∅ : Clause) = ∅ := by
+  simp [renameClause]
+
+theorem mem_renameClause_iff (σ : ℕ → ℕ) (C : Clause) (l' : Literal) :
+    l' ∈ renameClause σ C ↔ ∃ l ∈ C, renameLit σ l = l' :=
+  mem_image
+
+theorem matchingEmbedVar_inj {k : ℕ} {placed : Fin (k + 2)} {hole : Fin (k + 1)}
+    {i₁ i₂ : Fin (k + 1)} {j₁ j₂ : Fin k}
+    (h : matchingEmbedVar k placed hole i₁ j₁ = matchingEmbedVar k placed hole i₂ j₂) :
+    i₁ = i₂ ∧ j₁ = j₂ := by
+  have hinj := pvar_inj h
+  exact ⟨Fin.succAbove_right_inj.mp hinj.1, Fin.succAbove_right_inj.mp hinj.2⟩
+
+/-- Matching rename map: PHP(k+1, k) grid vars embed; all other indices stay put. -/
+noncomputable def matchingRenameσ (k : ℕ) (placed : Fin (k + 2)) (hole : Fin (k + 1))
+    (v : ℕ) : ℕ :=
+  if h : ∃ p : Fin (k + 1) × Fin k, v = pvar k p.1 p.2 then
+    let p := Classical.choose h
+    matchingEmbedVar k placed hole p.1 p.2
+  else
+    v
+
+theorem matchingRenameσ_pvar {k : ℕ} (placed : Fin (k + 2)) (hole : Fin (k + 1))
+    (i' : Fin (k + 1)) (j' : Fin k) :
+    matchingRenameσ k placed hole (pvar k i' j') =
+      matchingEmbedVar k placed hole i' j' := by
+  have hex : ∃ p : Fin (k + 1) × Fin k, pvar k i' j' = pvar k p.1 p.2 :=
+    ⟨⟨i', j'⟩, rfl⟩
+  simp only [matchingRenameσ, hex, ↓reduceDIte]
+  have hspec := Classical.choose_spec hex
+  have hinj := pvar_inj hspec.symm
+  simp only [matchingEmbedVar]
+  rw [hinj.1, hinj.2]
+
+/-- Renamed pigeon axiom equals the pointwise rename of the small pigeon axiom. -/
+theorem matchingRenamePigeonClause_eq_rename {k : ℕ}
+    (placed : Fin (k + 2)) (hole : Fin (k + 1)) (i' : Fin (k + 1)) :
+    matchingRenamePigeonClause k placed hole i' =
+      renameClause (matchingRenameσ k placed hole) (pigeonClause k i') := by
+  simp only [matchingRenamePigeonClause, renameClause, pigeonClause, image_image]
+  refine image_congr fun j' _ => ?_
+  change (⟨matchingEmbedVar k placed hole i' j', true⟩ : Literal) =
+    ⟨matchingRenameσ k placed hole (pvar k i' j'), true⟩
+  rw [matchingRenameσ_pvar]
+
+/-- Renamed hole axiom equals the pointwise rename of the small hole axiom. -/
+theorem matchingRenameHoleClause_eq_rename {k : ℕ}
+    (placed : Fin (k + 2)) (hole : Fin (k + 1))
+    (j' : Fin k) (i1 i2 : Fin (k + 1)) :
+    matchingRenameHoleClause k placed hole j' i1 i2 =
+      renameClause (matchingRenameσ k placed hole)
+        ({⟨pvar k i1 j', false⟩, ⟨pvar k i2 j', false⟩} : Clause) := by
+  ext l
+  simp only [matchingRenameHoleClause, renameClause, mem_image, renameLit, mem_insert,
+    mem_singleton]
+  constructor
+  · intro hl
+    rcases hl with rfl | rfl
+    · exact ⟨⟨pvar k i1 j', false⟩, Or.inl rfl, by simp [matchingRenameσ_pvar]⟩
+    · exact ⟨⟨pvar k i2 j', false⟩, Or.inr rfl, by simp [matchingRenameσ_pvar]⟩
+  · rintro ⟨l0, hl0, rfl⟩
+    rcases hl0 with rfl | rfl
+    · exact Or.inl (by simp [matchingRenameσ_pvar, matchingEmbedVar])
+    · exact Or.inr (by simp [matchingRenameσ_pvar, matchingEmbedVar])
+
+/-- The rename CNF is the pointwise image of `phpCNF k`. -/
+theorem matchingRenameCNF_eq_renameCNF {k : ℕ}
+    (placed : Fin (k + 2)) (hole : Fin (k + 1)) :
+    matchingRenameCNF k placed hole =
+      renameCNF (matchingRenameσ k placed hole) (phpCNF k) := by
+  ext C
+  constructor
+  · intro hC
+    simp only [renameCNF, mem_image]
+    simp only [matchingRenameCNF, mem_union, mem_image, mem_biUnion] at hC
+    rcases hC with hpig | hhole
+    · obtain ⟨i', _, rfl⟩ := hpig
+      refine ⟨pigeonClause k i', ?_,
+        (matchingRenamePigeonClause_eq_rename placed hole i').symm⟩
+      exact mem_union_left _ (mem_image_of_mem _ (mem_univ _))
+    · obtain ⟨j', _, i1, _, i2, hi2, rfl⟩ := hhole
+      have hlt : i1 < i2 := (mem_filter.mp hi2).2
+      refine ⟨({⟨pvar k i1 j', false⟩, ⟨pvar k i2 j', false⟩} : Clause), ?_,
+        (matchingRenameHoleClause_eq_rename placed hole j' i1 i2).symm⟩
+      refine mem_union_right _ ?_
+      refine mem_biUnion.mpr ⟨j', mem_univ _, ?_⟩
+      refine mem_biUnion.mpr ⟨i1, mem_univ _, ?_⟩
+      exact mem_image.mpr ⟨i2, mem_filter.mpr ⟨mem_univ _, hlt⟩, rfl⟩
+  · intro hC
+    obtain ⟨C0, hC0, rfl⟩ := mem_image.mp (show C ∈ renameCNF _ _ from hC)
+    rcases mem_union.mp hC0 with hpig | hhole
+    · obtain ⟨i', _, rfl⟩ := mem_image.mp hpig
+      rw [← matchingRenamePigeonClause_eq_rename placed hole i']
+      exact mem_union_left _ (mem_image_of_mem _ (mem_univ _))
+    · obtain ⟨j', _, hrest⟩ := mem_biUnion.mp hhole
+      obtain ⟨i1, _, hrest2⟩ := mem_biUnion.mp hrest
+      obtain ⟨i2, hi2f, rfl⟩ := mem_image.mp hrest2
+      have hlt : i1 < i2 := (mem_filter.mp hi2f).2
+      rw [← matchingRenameHoleClause_eq_rename placed hole j' i1 i2]
+      refine mem_union_right _ ?_
+      refine mem_biUnion.mpr ⟨j', mem_univ _, ?_⟩
+      refine mem_biUnion.mpr ⟨i1, mem_univ _, ?_⟩
+      exact mem_image.mpr ⟨i2, mem_filter.mpr ⟨mem_univ _, hlt⟩, rfl⟩
+
+/-- Injectivity of matching rename on PHP(k+1, k) grid variables. -/
+theorem matchingRenameσ_inj_on_pvar {k : ℕ} (placed : Fin (k + 2)) (hole : Fin (k + 1))
+    {i₁ i₂ : Fin (k + 1)} {j₁ j₂ : Fin k}
+    (h : matchingRenameσ k placed hole (pvar k i₁ j₁) =
+      matchingRenameσ k placed hole (pvar k i₂ j₂)) :
+    i₁ = i₂ ∧ j₁ = j₂ := by
+  rw [matchingRenameσ_pvar, matchingRenameσ_pvar] at h
+  exact matchingEmbedVar_inj h
+
+/-- Inverse rename: embedded large-grid vars decode back to PHP(k+1, k) vars. -/
+noncomputable def matchingUnrenameσ (k : ℕ) (placed : Fin (k + 2)) (hole : Fin (k + 1))
+    (v : ℕ) : ℕ :=
+  if h : ∃ p : Fin (k + 1) × Fin k, v = matchingEmbedVar k placed hole p.1 p.2 then
+    let p := Classical.choose h
+    pvar k p.1 p.2
+  else
+    v
+
+theorem matchingUnrenameσ_embed {k : ℕ} (placed : Fin (k + 2)) (hole : Fin (k + 1))
+    (i' : Fin (k + 1)) (j' : Fin k) :
+    matchingUnrenameσ k placed hole (matchingEmbedVar k placed hole i' j') =
+      pvar k i' j' := by
+  have hex : ∃ p : Fin (k + 1) × Fin k,
+      matchingEmbedVar k placed hole i' j' = matchingEmbedVar k placed hole p.1 p.2 :=
+    ⟨⟨i', j'⟩, rfl⟩
+  simp only [matchingUnrenameσ, hex, ↓reduceDIte]
+  have hspec := Classical.choose_spec hex
+  have hinj := matchingEmbedVar_inj hspec.symm
+  rw [hinj.1, hinj.2]
+
+theorem matchingUnrenameσ_rename_pvar {k : ℕ} (placed : Fin (k + 2)) (hole : Fin (k + 1))
+    (i' : Fin (k + 1)) (j' : Fin k) :
+    matchingUnrenameσ k placed hole (matchingRenameσ k placed hole (pvar k i' j')) =
+      pvar k i' j' := by
+  rw [matchingRenameσ_pvar, matchingUnrenameσ_embed]
+
+/-- Unrenaming a renamed pigeon axiom recovers the small pigeon axiom. -/
+theorem unrename_matchingRenamePigeonClause {k : ℕ}
+    (placed : Fin (k + 2)) (hole : Fin (k + 1)) (i' : Fin (k + 1)) :
+    renameClause (matchingUnrenameσ k placed hole)
+        (matchingRenamePigeonClause k placed hole i') =
+      pigeonClause k i' := by
+  rw [matchingRenamePigeonClause_eq_rename]
+  simp only [renameClause, pigeonClause, image_image]
+  refine image_congr fun j' _ => ?_
+  change (⟨matchingUnrenameσ k placed hole
+      (matchingRenameσ k placed hole (pvar k i' j')), true⟩ : Literal) =
+    ⟨pvar k i' j', true⟩
+  rw [matchingUnrenameσ_rename_pvar]
+
+/-- Unrenaming a renamed hole axiom recovers the small hole axiom. -/
+theorem unrename_matchingRenameHoleClause {k : ℕ}
+    (placed : Fin (k + 2)) (hole : Fin (k + 1))
+    (j' : Fin k) (i1 i2 : Fin (k + 1)) :
+    renameClause (matchingUnrenameσ k placed hole)
+        (matchingRenameHoleClause k placed hole j' i1 i2) =
+      ({⟨pvar k i1 j', false⟩, ⟨pvar k i2 j', false⟩} : Clause) := by
+  set H : Clause := {⟨pvar k i1 j', false⟩, ⟨pvar k i2 j', false⟩}
+  set σ := matchingRenameσ k placed hole
+  set τ := matchingUnrenameσ k placed hole
+  have hren : matchingRenameHoleClause k placed hole j' i1 i2 = renameClause σ H :=
+    matchingRenameHoleClause_eq_rename placed hole j' i1 i2
+  rw [hren]
+  have hback_lit (ia : Fin (k + 1)) :
+      renameLit τ (renameLit σ ⟨pvar k ia j', false⟩) = ⟨pvar k ia j', false⟩ := by
+    dsimp [σ, τ, renameLit]
+    exact congrArg (fun v => (⟨v, false⟩ : Literal))
+      (matchingUnrenameσ_rename_pvar placed hole ia j')
+  ext l
+  constructor
+  · intro hl
+    obtain ⟨l1, hl1, rfl⟩ := (mem_renameClause_iff τ _ _).mp hl
+    obtain ⟨l0, hl0, rfl⟩ := (mem_renameClause_iff σ _ _).mp hl1
+    have hl0' : l0 = ⟨pvar k i1 j', false⟩ ∨ l0 = ⟨pvar k i2 j', false⟩ := by
+      simpa [H, mem_insert, mem_singleton] using hl0
+    rcases hl0' with rfl | rfl
+    · simpa [hback_lit i1] using (show ⟨pvar k i1 j', false⟩ ∈ H from hl0)
+    · simpa [hback_lit i2] using (show ⟨pvar k i2 j', false⟩ ∈ H from hl0)
+  · intro hl
+    have hl' : l = ⟨pvar k i1 j', false⟩ ∨ l = ⟨pvar k i2 j', false⟩ := by
+      simpa [H, mem_insert, mem_singleton] using hl
+    rcases hl' with rfl | rfl
+    · refine (mem_renameClause_iff τ _ _).mpr
+        ⟨renameLit σ ⟨pvar k i1 j', false⟩, ?_, hback_lit i1⟩
+      · exact (mem_renameClause_iff σ _ _).mpr ⟨⟨pvar k i1 j', false⟩, mem_insert_self _ _, rfl⟩
+    · refine (mem_renameClause_iff τ _ _).mpr
+        ⟨renameLit σ ⟨pvar k i2 j', false⟩, ?_, hback_lit i2⟩
+      · exact (mem_renameClause_iff σ _ _).mpr
+          ⟨⟨pvar k i2 j', false⟩, mem_insert_of_mem (mem_singleton_self _), rfl⟩
+
+/-- Unrenaming the matching rename CNF recovers `phpCNF k`. -/
+theorem unrename_matchingRenameCNF {k : ℕ}
+    (placed : Fin (k + 2)) (hole : Fin (k + 1)) :
+    renameCNF (matchingUnrenameσ k placed hole) (matchingRenameCNF k placed hole) =
+      phpCNF k := by
+  rw [matchingRenameCNF_eq_renameCNF]
+  ext C
+  simp only [renameCNF, mem_image]
+  constructor
+  · rintro ⟨C1, ⟨C0, hC0, rfl⟩, rfl⟩
+    -- C1 = renameClause σ C0, and we unrename it back.
+    -- Need renameClause τ (renameClause σ C0) = C0 for C0 ∈ phpCNF k.
+    rcases mem_union.mp hC0 with hpig | hhole
+    · obtain ⟨i', _, rfl⟩ := mem_image.mp hpig
+      have hback := unrename_matchingRenamePigeonClause placed hole i'
+      rw [matchingRenamePigeonClause_eq_rename] at hback
+      rw [hback]
+      exact mem_union_left _ (mem_image_of_mem _ (mem_univ _))
+    · obtain ⟨j', _, hrest⟩ := mem_biUnion.mp hhole
+      obtain ⟨i1, _, hrest2⟩ := mem_biUnion.mp hrest
+      obtain ⟨i2, hi2f, rfl⟩ := mem_image.mp hrest2
+      have hlt : i1 < i2 := (mem_filter.mp hi2f).2
+      have hback := unrename_matchingRenameHoleClause placed hole j' i1 i2
+      rw [matchingRenameHoleClause_eq_rename] at hback
+      rw [hback]
+      refine mem_union_right _ ?_
+      refine mem_biUnion.mpr ⟨j', mem_univ _, ?_⟩
+      refine mem_biUnion.mpr ⟨i1, mem_univ _, ?_⟩
+      exact mem_image.mpr ⟨i2, mem_filter.mpr ⟨mem_univ _, hlt⟩, rfl⟩
+  · intro hC
+    rcases mem_union.mp hC with hpig | hhole
+    · obtain ⟨i', _, rfl⟩ := mem_image.mp hpig
+      refine ⟨matchingRenamePigeonClause k placed hole i', ?_, ?_⟩
+      · exact ⟨pigeonClause k i', mem_union_left _ (mem_image_of_mem _ (mem_univ _)),
+          (matchingRenamePigeonClause_eq_rename placed hole i').symm⟩
+      · exact unrename_matchingRenamePigeonClause placed hole i'
+    · obtain ⟨j', _, hrest⟩ := mem_biUnion.mp hhole
+      obtain ⟨i1, _, hrest2⟩ := mem_biUnion.mp hrest
+      obtain ⟨i2, hi2f, rfl⟩ := mem_image.mp hrest2
+      have hlt : i1 < i2 := (mem_filter.mp hi2f).2
+      refine ⟨matchingRenameHoleClause k placed hole j' i1 i2, ?_, ?_⟩
+      · refine ⟨({⟨pvar k i1 j', false⟩, ⟨pvar k i2 j', false⟩} : Clause), ?_,
+          (matchingRenameHoleClause_eq_rename placed hole j' i1 i2).symm⟩
+        refine mem_union_right _ ?_
+        refine mem_biUnion.mpr ⟨j', mem_univ _, ?_⟩
+        refine mem_biUnion.mpr ⟨i1, mem_univ _, ?_⟩
+        exact mem_image.mpr ⟨i2, mem_filter.mpr ⟨mem_univ _, hlt⟩, rfl⟩
+      · exact unrename_matchingRenameHoleClause placed hole j' i1 i2
+
 end SATurday.ProofComplexity

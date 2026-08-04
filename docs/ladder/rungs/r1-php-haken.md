@@ -513,3 +513,11 @@ above it.
   matchingRestrict_phpCNF_eq_rename) accepted into the accepted tree. Gate
   remains green. R1 stays active. Next: formalize G7f inverse rename
   derivation transport onto phpCNF k.
+- 2026-08-03 formalize (G7f: rename and unrename CNF iso): PARTIAL SUCCESS.
+  Extended MatchingRestriction.lean. Certified: renameLit/renameClause/renameCNF;
+  matchingRenameσ and matchingUnrenameσ; matchingRenameCNF_eq_renameCNF;
+  unrename_matchingRenameCNF (inverse recovers phpCNF k). Gate green (143
+  accepted decls). Deferred: size preserving derivation transport along
+  unrename, iterative shrink rate, Frontier close. Pending human gate
+  merge_certified. Next after merge: formalize G7g derivation unrename
+  transport.

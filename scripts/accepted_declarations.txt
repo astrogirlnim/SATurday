@@ -169,3 +169,18 @@ SATurday.ProofComplexity.restrictClause_hole_succAbove
 SATurday.ProofComplexity.matchingRenameCNF_subset_restrict
 SATurday.ProofComplexity.restrict_subset_matchingRenameCNF
 SATurday.ProofComplexity.matchingRestrict_phpCNF_eq_rename
+# R1 BP96 Theorem 2 / G7f: rename and unrename iso between phpCNF k and matchingRenameCNF
+# (certified 2026-08-03, saturday formalize)
+SATurday.ProofComplexity.renameClause_empty
+SATurday.ProofComplexity.mem_renameClause_iff
+SATurday.ProofComplexity.matchingEmbedVar_inj
+SATurday.ProofComplexity.matchingRenameσ_pvar
+SATurday.ProofComplexity.matchingRenamePigeonClause_eq_rename
+SATurday.ProofComplexity.matchingRenameHoleClause_eq_rename
+SATurday.ProofComplexity.matchingRenameCNF_eq_renameCNF
+SATurday.ProofComplexity.matchingRenameσ_inj_on_pvar
+SATurday.ProofComplexity.matchingUnrenameσ_embed
+SATurday.ProofComplexity.matchingUnrenameσ_rename_pvar
+SATurday.ProofComplexity.unrename_matchingRenamePigeonClause
+SATurday.ProofComplexity.unrename_matchingRenameHoleClause
+SATurday.ProofComplexity.unrename_matchingRenameCNF
