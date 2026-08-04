@@ -1,28 +1,118 @@
 # R5: Cook-Reckhow Bridge
 
 Status: active
-Lean home: theory/Theory/ProofComplexity/Bridge/ (created at adoption)
+Lean home: theory/Theory/ProofComplexity/Bridge/ (planned tree; not yet created)
+Namespace plan: SATurday.Bridge (separate from SATurday.ProofComplexity)
 
-## Statement
+## Statement (pinned 2026-08-04 prove)
 
-Formalize in Lean, zero sorries, standard axioms only:
+Formalize in Lean, zero sorries, standard axioms only. Classification: adaptation
+(Cook and Reckhow 1979; Arora and Barak textbook presentation).
 
-1. P and NP over a real machine model. Base: mathlib computability
-   (Turing.TM2ComputableInPolyTime as the polynomial-time notion; NP via
-   polynomial-time verifiers with polynomially bounded witnesses). coNP as
-   complements.
-2. Propositional proof systems (Cook-Reckhow): polynomial-time computable onto maps
-   from strings to TAUT (equivalently UNSAT refutation systems).
-3. Bridge theorem 1: a polynomially bounded proof system exists iff NP = coNP.
-4. Bridge theorem 2: P = NP implies NP = coNP.
-5. Corollary (summit shape): if every propositional proof system has a
-   super-polynomially hard family, then P != NP.
+Alphabet and encodings (pinned):
+- Bit strings: `List Bool` with length `|x|`.
+- Fixed encoding maps of type `α → List Bool` (mathlib style `ea`, `eb` as in
+  `Turing.TM2ComputableInPolyTime`).
+- Languages: predicates `L : List Bool → Prop` (or `Set (List Bool)`).
+
+Machine model (pinned to mathlib, verified present):
+- Import: `Mathlib.Computability.TuringMachine.Computable`.
+- Polynomial time total functions: structure
+  `Turing.TM2ComputableInPolyTime ea eb f` with fields `tm : FinTM2`,
+  alphabet equivalences, `time : Polynomial ℕ`, and
+  `outputsFun` bounding steps by `time.eval (ea a).length`.
+- Related: `TM2Computable`, `TM2ComputableInTime`, `FinTM2`.
+- Mathlib gap recorded: `proof_wanted TM2ComputableInPolyTime.comp` (composition
+  of poly time maps is not yet a mathlib theorem). R5 must either prove
+  composition locally or avoid relying on an unproved mathlib stub.
+
+Complexity classes (pinned statements):
+1. `InP L` means there exists a decidable characteristic function
+   `χ : List Bool → Bool` with `∀ x, χ x = true ↔ L x`, and a witness
+   `Turing.TM2ComputableInPolyTime (fun x => x) (fun b => [b]) χ`
+   (identity encoding on inputs; single bit encoding on outputs).
+2. `InNP L` means there exist a polynomial `p : Polynomial ℕ` and a
+   polynomial time verifier
+   `V : List Bool → List Bool → Bool` such that
+   `Turing.TM2ComputableInPolyTime encodePair encodeBool V` holds for a fixed
+   pairing `encodePair (x, w) = ⟨x, w⟩`, and
+   `∀ x, L x ↔ ∃ w, |w| ≤ (p.eval |x|) ∧ V x w = true`.
+3. `InCoNP L` means `InNP (complement L)`, where
+   `complement L x ↔ ¬ L x`.
+4. Class equalities: `ClassP = ClassNP` means `∀ L, InP L ↔ InNP L`;
+   `ClassNP = ClassCoNP` means `∀ L, InNP L ↔ InCoNP L`.
+
+Propositional proof systems (Cook and Reckhow, pinned):
+5. Let `TAUT : List Bool → Prop` be the language of encodings of propositional
+   tautologies under a fixed sound and complete encoding of formulas
+   (encoding to be defined in Bridge/FormulaEncoding; must satisfy:
+   every formula has a code, satisfiability of the decoded formula matches
+   the semantic predicate, and decoding is polynomial time).
+6. A propositional proof system is a triple `(f, hf_poly, hf_onto)` where
+   `f : List Bool → List Bool`,
+   `hf_poly : Turing.TM2ComputableInPolyTime idEnc idEnc f`,
+   and `hf_onto : ∀ φ, TAUT φ → ∃ π, f π = φ`
+   (equivalently: `f` maps onto `TAUT`). Soundness is the converse
+   direction `f π = φ → TAUT φ`, required as part of the structure.
+7. Equivalent UNSAT refutation system form (for CNF bridge to R0): a
+   polynomial time function `r` onto encodings of unsatisfiable CNFs, with
+   soundness `r π = ψ → Unsat ψ`. The two forms are interreducible by
+   negation of the encoded formula; R5 may formalize either and derive the
+   other.
+8. Polynomially bounded: a proof system `f` is polynomially bounded if there
+   exists `q : Polynomial ℕ` such that
+   `∀ φ, TAUT φ → ∃ π, f π = φ ∧ |π| ≤ q.eval |φ|`.
+
+Bridge theorems (pinned):
+9. Bridge theorem 1 (Cook and Reckhow 1979):
+   `(∃ f, IsPropProofSystem f ∧ PolynomiallyBounded f) ↔ ClassNP = ClassCoNP`.
+10. Bridge theorem 2:
+    `ClassP = ClassNP → ClassNP = ClassCoNP`.
+11. Summit corollary (contrapositive packaging):
+    `(∀ f, IsPropProofSystem f → ¬ PolynomiallyBounded f) → ClassP ≠ ClassNP`.
+    Derived from (9) and (10); does not encode any lower bound as an axiom.
+
+Non vacuity witnesses (statement hygiene):
+- `InP` nonempty: the empty language and `List Bool → True` (all strings) are in P
+  via constant output machines (build from `idComputableInPolyTime` style).
+- `InNP` nonempty: SAT (under the same formula encoding) is the standard witness;
+  even without SAT, every language in P is in NP via ignoring the witness.
+- Proof systems nonempty: the truth table proof system (enumerate all
+  assignments; accept if the formula is true on all) is a propositional proof
+  system and is exponential size, hence not polynomially bounded; it witnesses
+  that `IsPropProofSystem` is satisfiable so universal claims are nonvacuous.
+- TAUT nonempty: encoding of `p ∨ ¬p` (or `True`) is a tautology.
 
 ## Why this rung
 
 This replaces the vacuous opaque-constant PvsNPGoal module (archived) with a real
 target statement. Until R5 is certified, the summit link is informal and cited, and
 is never encoded as an axiom.
+
+## Planned Lean module tree (Bridge/, separate from R2)
+
+Do not place these under shared R2 width modules. Do not reopen R1. Create only at
+formalize time; this prove cycle writes no Lean.
+
+- `theory/Theory/ProofComplexity/Bridge/Encoding.lean`
+  Pairing, length, bit encodings; `encodePair`, `encodeBool`.
+- `theory/Theory/ProofComplexity/Bridge/Complexity.lean`
+  `InP`, `InNP`, `InCoNP`, class equalities over `TM2ComputableInPolyTime`.
+- `theory/Theory/ProofComplexity/Bridge/FormulaEncoding.lean`
+  Propositional formulas as inductive type plus poly time encode or decode to
+  `List Bool`; semantic `Tautology` and `TAUT`.
+- `theory/Theory/ProofComplexity/Bridge/ProofSystem.lean`
+  `IsPropProofSystem`, `PolynomiallyBounded`, truth table system witness.
+- `theory/Theory/ProofComplexity/Bridge/CookReckhow.lean`
+  Bridge theorems 1 and 2 and the summit corollary.
+- Root import: add `Theory.ProofComplexity.Bridge.CookReckhow` to `Theory.lean`
+  only when the first accepted Bridge declaration is ready for the axiom gate
+  (not this cycle).
+
+Independence: R5 does not import R2 width machinery
+(`MonotoneWidth`, `MatchingRestriction`, `MonotoneCalculus`). Optional later
+link from UNSAT encodings to `SATurday.ProofComplexity` CNF types is deferred
+until Bridge theorem statements compile against `List Bool` alone.
 
 ## Falsification test
 
@@ -32,7 +122,12 @@ deferred until R1 proves the pipeline can certify hard content.
 
 ## Barrier notes
 
-Not applicable (no lower-bound claim).
+Not applicable (no lower-bound claim). Classical barriers (relativization,
+natural proofs, algebraization) do not apply to this definitional bridge.
+Formalization soundness risks (encoding games, poly time closure) are tracked
+as gaps below, not as barrier walls. No barrier audit gate required before
+formalize for R5 itself; audit would apply only if a future argument claimed a
+lower bound via the bridge.
 
 ## Session log (append-only)
 
@@ -40,3 +135,119 @@ Not applicable (no lower-bound claim).
 
 - 2026-08-04 adopt: rung opened to active by R1 certification
   (path A honest-rate close). Next: prove cycle to pin the machine model and bridge theorem statements before Lean.
+
+- 2026-08-04 prove (pin machine model and Cook Reckhow bridge): PARTIAL.
+
+  Target this cycle: pin machine model, class definitions, proof system
+  definition, bridge theorems 1 and 2, summit corollary, and Bridge module
+  plan; develop one prose argument for the bridge; gap list; adversarial pass.
+  No Lean written (prover contract).
+
+  Existing names verified before pinning (no guessing):
+  - mathlib: `Turing.TM2ComputableInPolyTime`, `TM2ComputableInTime`,
+    `TM2Computable`, `FinTM2`, `idComputableInPolyTime`,
+    `proof_wanted TM2ComputableInPolyTime.comp`
+    in `Mathlib.Computability.TuringMachine.Computable`
+  - repo: no `theory/Theory/ProofComplexity/Bridge/` files yet; R2 modules
+    `Resolution`, `PHP`, `CriticalAssignments`, `ClauseComplexity`,
+    `MonotoneWidth`, `MatchingRestriction`, `MonotoneCalculus` left untouched
+  - docs: `docs/ladder/rungs/r5-cook-reckhow-bridge.md`,
+    `docs/p-vs-np-main-attack.md`, `docs/p-vs-np-lemma-chain.md`
+
+  Rejected alternate pins (sketches only):
+  (A) Define P via arbitrary `ℕ → ℕ` time bounds without `Polynomial ℕ`.
+      Rejected: weaker than mathlib's poly time structure and harder to compose
+      with literature statements.
+  (B) Start from opaque class constants again (archived PvsNPGoal). Rejected:
+      fails proof standards (no opaque constants on the critical path).
+  (C) Wait for R2. Rejected: R5 is independent after R1; DAG edge is R1 to R5.
+
+  Developed argument (Cook and Reckhow 1979, adaptation; one argument):
+
+  Definitions as pinned in Statement above. Work over bit strings.
+
+  Lemma A (Psubseteq NP). For every language L, InP L implies InNP L.
+  Proof sketch: if χ decides L in poly time, set V x w := χ x and ignore w,
+  with witness length bound 0. Known; gap class routine once poly time
+  machines can ignore an extra input tape or concatenate a dummy witness.
+
+  Lemma B (Bridge theorem 2). ClassP = ClassNP implies ClassNP = ClassCoNP.
+  Proof: assume ClassP = ClassNP. For any L in NP we have L in P, so
+  complement L is in P (deterministic poly time closed under complement:
+  flip the output bit of χ), hence complement L in NP, so L in coNP.
+  Symmetrically every coNP language is in NP. Gap class: routine once
+  complementation of P is formalized; hard if output flip needs a separate
+  TM2 construction not yet in mathlib.
+
+  Lemma C (Bridge theorem 1, => direction). If a polynomially bounded proof
+  system f exists, then ClassNP = ClassCoNP.
+  Proof sketch: TAUT is in coNP (a nontautology has a short falsifying
+  assignment as an NP witness for the complement). If f is a polynomially
+  bounded proof system, then TAUT is in NP: the short proof π is the witness
+  and V(φ, π) checks f(π) = φ in poly time. So TAUT in NP ∩ coNP. The standard
+  Cook Reckhow reduction shows every coNP language poly time many one reduces
+  to TAUT (or dually every NP language reduces to SAT); with TAUT in NP one
+  gets ClassCoNP ⊆ ClassNP, and the other inclusion is symmetric or via
+  complements. Gap class: hard (needs poly time many one reductions and
+  generalization from TAUT to all of coNP).
+
+  Lemma D (Bridge theorem 1, <= direction). If ClassNP = ClassCoNP, then a
+  polynomially bounded proof system exists.
+  Proof sketch: TAUT is in coNP always, hence in NP by assumption. An NP
+  machine for TAUT yields a verifier V(φ, π). Set f(π*) to decode a pair
+  (φ, π) and output φ if V(φ, π) accepts, else output a trivial tautology.
+  Then f is poly time, sound, onto TAUT, and proofs are poly length by the
+  NP witness length bound. Gap class: hard (pairing/decoding machinery and
+  careful onto proof).
+
+  Lemma E (summit corollary). From Bridge theorems 1 and 2: if no proof system
+  is polynomially bounded, then ClassNP ≠ ClassCoNP, hence ClassP ≠ ClassNP.
+  Gap class: routine once 1 and 2 are theorems.
+
+  Gap list:
+  1. Poly time closure under complement for P (output bit flip on TM2).
+     Class: routine.
+  2. Poly time closure under pairing, projection, and composition. Mathlib
+     leaves `TM2ComputableInPolyTime.comp` as `proof_wanted`. Class: hard.
+  3. Formula encoding with poly time encode or decode and semantic agreement.
+     Class: hard (bookkeeping, not new math).
+  4. Poly time many one reduction from every coNP language to TAUT (or NP to
+     SAT) sufficient for the generalization step in Lemma C. Class: hard.
+  5. Truth table proof system as nonvacuity witness, including poly time proof
+     checking of a truth table certificate. Class: routine to hard depending
+     on formula encoding.
+  6. Equivalence of TAUT proof systems and UNSAT refutation systems.
+     Class: routine given encoding of negation.
+  7. Encoding invariance: bridge theorems should not depend on bit level
+     quirks of one fixed encoding. Class: unknown to hard; may be scoped by
+     fixing one encoding for the whole ladder and proving invariance later.
+
+  Self adversarial pass:
+  - Quantifiers: class equalities are ∀ L; proof system existence is ∃ f;
+    polynomially bounded is ∃ q ∀ φ ∃ π. Order matches Cook Reckhow; do not
+    swap to ∀ φ ∃ q (that would be trivial per formula).
+  - Hidden uniformity: NP witness length must be a single polynomial of |x|,
+    not a per instance bound. Pinned via `Polynomial ℕ`.
+  - Vacuity: truth table system prevents "all systems are unbounded" from
+    quantifying over an empty set of systems; TAUT nonempty prevents empty
+    language tricks on onto maps.
+  - Does any step prove P ≠ NP? No. The corollary is an implication whose
+    hypothesis is the open all systems program; R5 never assumes that
+    hypothesis as an axiom.
+  - Off by one: witness length `p.eval |x|` versus `|x| + 1` style bounds;
+    pin `≤ p.eval |x|` and ensure pairing length accounts for separators.
+  - Secret summit hardness: Lemma C's reduction step is the heaviest gap; if
+    formalize stalls, keep Bridge theorem 1 as two lemmas with the reduction
+    isolated so Complexity and ProofSystem can certify first.
+  - R3+ barrier flag: no lower bound claimed; barrier audit not required for
+    this definitional rung (see Barrier notes).
+
+  Worst gap: item 2 (poly time composition and pairing on TM2) plus item 4
+  (coNP to TAUT reduction). These dominate formalization cost.
+
+  Result: PARTIAL. Statements and module plan pinned; prose argument complete
+  with substantive formalization gaps remaining. Next: formalize starting at
+  Encoding.lean and Complexity.lean (InP, InNP, InCoNP), not CookReckhow.lean
+  first.
+
+  Artifacts: docs/ladder/rungs/r5-cook-reckhow-bridge.md
