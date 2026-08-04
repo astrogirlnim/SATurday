@@ -560,3 +560,11 @@ above it.
   accepted decls). Deferred: intermediate width lemma for MonoDeriv,
   restriction of monotone lines, kill counting, Frontier close. Pending human
   gate merge_certified. Next after merge: formalize G8b monotone width lemma.
+- 2026-08-04 human gate merge_certified: G8a monotone calculus cluster (12
+  declarations: Fals_monotoneClause, Fals_holeClause_empty,
+  L_subset_of_Fals_subset_union, L_subset_of_Fals_subset, phpCNF_lit_grid,
+  derivation_lit_grid, monotoneClause_subset_gridPosLits, monotoneClause_empty,
+  MonoDeriv.concl_subset, exists_monoDeriv_of_derivation,
+  exists_monoDeriv_of_concl_eq, exists_monoDeriv_refutation) accepted into
+  the accepted tree. Gate remains green. R1 stays active. Next: formalize
+  G8b monotone width lemma.
