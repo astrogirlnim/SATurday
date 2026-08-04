@@ -490,3 +490,10 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   weakening the pinned statement shape.
   Pending human gate merge_certified. Next: formalize chainCNF and
   bsw_bound_beats_trivial.
+
+- 2026-08-04 human gate merge_certified: APPROVED by session decision ("go").
+  SizeWidth bsw_size_lower_bound cluster (4 declarations, commit 66b011e)
+  accepted into the accepted tree: Derivation.width_le_cnfLits_card,
+  delta_mul_fatBlock_le, bsw_delta_sq_le_of_width_log, bsw_size_lower_bound.
+  Pinned rate constant c = bswRateConst = 24. R2 stays prose_accepted.
+  Next: formalize chainCNF and bsw_bound_beats_trivial.

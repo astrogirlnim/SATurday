@@ -349,7 +349,7 @@ SATurday.ProofComplexity.bswRateConst
 SATurday.ProofComplexity.Derivation.size_pos
 SATurday.ProofComplexity.bsw_width_log_bound
 # R2 BSW: bsw_size_lower_bound rate corollary at c = 24
-# (certified 2026-08-04, saturday formalize; pending merge_certified)
+# (certified 2026-08-04, saturday formalize; merge_certified approved)
 SATurday.ProofComplexity.Derivation.width_le_cnfLits_card
 SATurday.ProofComplexity.delta_mul_fatBlock_le
 SATurday.ProofComplexity.bsw_delta_sq_le_of_width_log
