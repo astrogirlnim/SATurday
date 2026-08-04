@@ -421,3 +421,23 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   subtraction rewritten additively with Nat.le_sub_iff_add_le; omega cannot
   reason through a compound subtracted RHS as a single atom.
   Pending human gate merge_certified. Next: formalize bsw_width_of_fatCount.
+
+- 2026-08-04 human gate merge_certified: APPROVED by session decision ("go").
+  SizeWidth first cluster (12 declarations, commit ed09d55) accepted into the
+  accepted tree. R2 stays prose_accepted. Next: formalize bsw_width_of_fatCount.
+
+- 2026-08-04 formalize (bsw_width_of_fatCount core induction): SUCCESS.
+  Closed the pinned core tradeoff in SizeWidth.lean via lex induction on
+  (fatCount, vars.card) with over-approximating literal budget N. New accepted
+  declarations (9): fatShrink_mono_N, fatShrink_le_fatShrink_succ,
+  fatShrink_mono_m, fatSteps_mono_m, mem_cnfVars_of_mem_cnfLits,
+  cnfLits_card_le_of_vars_subset, exists_derivation_false_branch_clause,
+  bsw_width_of_fatCount_aux, bsw_width_of_fatCount. Gate green.
+  Remaining SizeWidth gaps: fatSteps_le_log, bsw_size_lower_bound (open
+  constant c), chainCNF and bsw_bound_beats_trivial.
+  Most important thing learned: over-approximating N in the auxiliary
+  statement lets the false branch keep the same fatSteps budget while the
+  lex second component (variable count) supplies termination when fatCount
+  does not drop.
+  Pending human gate merge_certified. Next: formalize fatSteps_le_log and
+  the rate corollary, or the chainCNF non vacuity witness.

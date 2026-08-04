@@ -310,7 +310,7 @@ SATurday.ProofComplexity.assignOne_preimage_subset
 SATurday.ProofComplexity.exists_derivation_add_lit
 SATurday.ProofComplexity.exists_derivation_graft_width
 # R2 BSW: SizeWidth fatShrink, fatSteps, kill-lit fat drop
-# (certified 2026-08-04, saturday formalize; pending merge_certified)
+# (certified 2026-08-04, saturday formalize; merge_certified approved)
 SATurday.ProofComplexity.fatShrink
 SATurday.ProofComplexity.fatShrink_lt
 SATurday.ProofComplexity.fatSteps
@@ -323,3 +323,14 @@ SATurday.ProofComplexity.Derivation.fatCount_eq_zero_of_lits_le
 SATurday.ProofComplexity.exists_derivation_restrict_kill_lit
 SATurday.ProofComplexity.exists_restrict_refutation_kill_lit
 SATurday.ProofComplexity.fatCount_kill_le_fatShrink
+# R2 BSW: bsw_width_of_fatCount core induction
+# (certified 2026-08-04, saturday formalize; pending merge_certified)
+SATurday.ProofComplexity.fatShrink_mono_N
+SATurday.ProofComplexity.fatShrink_le_fatShrink_succ
+SATurday.ProofComplexity.fatShrink_mono_m
+SATurday.ProofComplexity.fatSteps_mono_m
+SATurday.ProofComplexity.mem_cnfVars_of_mem_cnfLits
+SATurday.ProofComplexity.cnfLits_card_le_of_vars_subset
+SATurday.ProofComplexity.exists_derivation_false_branch_clause
+SATurday.ProofComplexity.bsw_width_of_fatCount_aux
+SATurday.ProofComplexity.bsw_width_of_fatCount

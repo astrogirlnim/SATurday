@@ -3,11 +3,10 @@ import Theory.ProofComplexity.Width
 /-!
 # Ben-Sasson and Wigderson Size versus Width (Ladder Rung R2)
 
-First SizeWidth cluster: discrete `fatShrink` / `fatSteps` measures and the
-kill-lit restriction lemma that drops `fatLitCount` from the fat count.
-The core `bsw_width_of_fatCount` induction is the next formalize cycle.
+Discrete `fatShrink` / `fatSteps` measures, kill-lit fat drop, and the core
+`bsw_width_of_fatCount` induction (Ben-Sasson and Wigderson 2001).
 
-LOG: R2 BSW size-width measures and kill-lit transport
+LOG: R2 BSW size-width core induction
 -/
 
 namespace SATurday.ProofComplexity
@@ -297,5 +296,345 @@ theorem fatCount_kill_le_fatShrink {F : CNF} (l : Literal)
   have hfl := Derivation.fatLitCount_le_fatCount t l d
   simp only [fatShrink]
   omega
+
+/-! ## Monotonicity of fatShrink / fatSteps -/
+
+/-- Larger denominator yields a smaller natural quotient. -/
+private theorem div_le_div_of_le_denominator {k N1 N2 : ℕ}
+    (hN1 : 0 < N1) (hN : N1 ≤ N2) : k / N2 ≤ k / N1 := by
+  have hmul : (k / N2) * N1 ≤ k := by
+    have h1 : N1 * (k / N2) ≤ N2 * (k / N2) := Nat.mul_le_mul_right _ hN
+    have h2 : N2 * (k / N2) ≤ k := by simpa [Nat.mul_comm] using Nat.mul_div_le k N2
+    simpa [Nat.mul_comm] using h1.trans h2
+  exact (Nat.le_div_iff_mul_le hN1).mpr hmul
+
+/-- Larger literal budget removes fewer fat nodes in one averaging step. -/
+theorem fatShrink_mono_N {N1 N2 t m : ℕ} (hN1 : 0 < N1) (hN : N1 ≤ N2) :
+    fatShrink N1 t m ≤ fatShrink N2 t m := by
+  simp only [fatShrink]
+  exact Nat.sub_le_sub_left
+    (Nat.add_le_add_right (div_le_div_of_le_denominator (k := t * m) hN1 hN) 1) _
+
+/-- One-step monotonicity of `fatShrink` in the count when `t < N`. -/
+theorem fatShrink_le_fatShrink_succ {N t m : ℕ} (ht : t < N) :
+    fatShrink N t m ≤ fatShrink N t (m + 1) := by
+  have hNpos : 0 < N := Nat.zero_lt_of_lt ht
+  simp only [fatShrink]
+  have hdiv : t * (m + 1) / N ≤ t * m / N + 1 := by
+    have hx := Nat.add_div (a := t * m) (b := t) hNpos
+    have htN : t / N = 0 := Nat.div_eq_of_lt ht
+    have hmul : t * (m + 1) = t * m + t := Nat.mul_succ t m
+    rw [hmul, hx, htN]
+    split_ifs <;> omega
+  omega
+
+/-- `fatShrink` is monotone in the count under `t < N`. -/
+theorem fatShrink_mono_m {N t : ℕ} (ht : t < N) {m1 m2 : ℕ}
+    (hle : m1 ≤ m2) : fatShrink N t m1 ≤ fatShrink N t m2 := by
+  induction hle with
+  | refl => exact le_rfl
+  | step h ih => exact ih.trans (fatShrink_le_fatShrink_succ ht)
+
+/-- `fatSteps` is monotone in the count when `t < N`. -/
+theorem fatSteps_mono_m {N t : ℕ} (ht : t < N) {m1 m2 : ℕ}
+    (hle : m1 ≤ m2) : fatSteps N t m1 ≤ fatSteps N t m2 := by
+  induction m2 using Nat.strong_induction_on generalizing m1 with
+  | h m2 ih =>
+    by_cases hm2 : 0 < m2
+    · by_cases hm1 : 0 < m1
+      · rw [fatSteps_of_pos N t m1 hm1, fatSteps_of_pos N t m2 hm2]
+        exact Nat.add_le_add_left
+          (ih (fatShrink N t m2) (fatShrink_lt hm2) (fatShrink_mono_m ht hle)) 1
+      · simp [Nat.eq_zero_of_not_pos hm1, fatSteps_zero]
+    · have hm2z : m2 = 0 := Nat.eq_zero_of_not_pos hm2
+      have hm1z : m1 = 0 := Nat.eq_zero_of_le_zero (hm2z ▸ hle)
+      simp [hm1z, hm2z, fatSteps_zero]
+
+theorem mem_cnfVars_of_mem_cnfLits {F : CNF} {l : Literal}
+    (hl : l ∈ cnfLits F) : l.var ∈ cnfVars F := by
+  simp only [cnfLits, mem_biUnion] at hl
+  obtain ⟨v, hv, hlit⟩ := hl
+  simp only [mem_insert, mem_singleton] at hlit
+  rcases hlit with h | h
+  · exact (congrArg Literal.var h) ▸ hv
+  · exact (congrArg Literal.var h) ▸ hv
+
+theorem cnfLits_card_le_of_vars_subset {F G : CNF}
+    (h : cnfVars F ⊆ cnfVars G) :
+    (cnfLits F).card ≤ (cnfLits G).card := by
+  simp only [cnfLits_card]
+  exact Nat.mul_le_mul_left 2 (card_le_card h)
+
+/-! ## False-branch hypothesis recovery -/
+
+private theorem filter_assignOne_eq_var_ne {x : ℕ} {b : Bool} {C0 D : Clause}
+    (hres : restrictClause (assignOne x b) C0 = some D) :
+    D = C0.filter fun lit => lit.var ≠ x := by
+  have h := ((restrictClause_eq_some_iff (assignOne x b) C0 D).mp hres).2
+  rw [h]
+  ext lit
+  simp [assignOne]
+
+/-- Every clause of the false-branch restriction is width-bounded derivable
+from `F` once the complementary unit `negLit l` is in hand. -/
+theorem exists_derivation_false_branch_clause {F : CNF} (l : Literal)
+    {U : Clause} (dU : Derivation F U) (hU : U = {negLit l})
+    {D : Clause} (hD : D ∈ restrictCNF (assignOne l.var (!l.pos)) F) :
+    ∃ d : Derivation F D, d.width ≤ max (cnfWidth F) dU.width := by
+  obtain ⟨C0, hC0, hres⟩ := (mem_restrictCNF_iff (assignOne l.var (!l.pos)) F D).mp hD
+  have hDsub : D ⊆ C0 := restrictClause_subset hres
+  have hpre : C0 ⊆ insert l D := by
+    simpa using
+      (assignOne_preimage_subset (x := l.var) (b := !l.pos) hres)
+  have hnsat :
+      ∀ lit ∈ C0, assignOne l.var (!l.pos) lit.var ≠ some lit.pos :=
+    ((restrictClause_eq_some_iff _ C0 D).mp hres).1
+  by_cases hlC0 : l ∈ C0
+  · rcases l with ⟨x, p⟩
+    change U = {⟨x, !p⟩} at hU
+    change (⟨x, p⟩ : Literal) ∈ C0 at hlC0
+    have hopp : (⟨x, !p⟩ : Literal) ∉ C0 := fun hop =>
+      hnsat _ hop (by simp [assignOne])
+    have hDeq := filter_assignOne_eq_var_ne (x := x) (b := !p) hres
+    have herase : D = C0.erase ⟨x, p⟩ := by
+      ext lit
+      simp only [hDeq, mem_filter, mem_erase]
+      constructor
+      · rintro ⟨hlit, hvar⟩
+        exact ⟨fun heq => hvar (by cases lit; cases heq; rfl), hlit⟩
+      · rintro ⟨hne, hlit⟩
+        refine ⟨hlit, fun hv => ?_⟩
+        have : lit.pos = p ∨ lit.pos = !p := by
+          cases lit.pos <;> cases p <;> simp
+        rcases this with hp | hp
+        · exact hne (by cases lit; simp_all [hp, hv])
+        · have : lit = ⟨x, !p⟩ := by cases lit; simp_all [hp, hv]
+          exact hopp (this ▸ hlit)
+    cases p
+    · have hx : (⟨x, true⟩ : Literal) ∈ U := by simp [hU]
+      have hnx : (⟨x, false⟩ : Literal) ∈ C0 := hlC0
+      have hReq : resolvent U C0 x = D := by
+        rw [herase, hU]; simp [resolvent, erase_singleton]
+      rw [← hReq]
+      refine ⟨Derivation.res x dU (Derivation.hyp C0 hC0) hx hnx, ?_⟩
+      simp only [Derivation.width]
+      have hC0le := Derivation.width_hyp_le_cnfWidth hC0
+      have hRle : (resolvent U C0 x).card ≤ cnfWidth F := by
+        have hsub : resolvent U C0 x ⊆ C0 := by
+          intro lit hl
+          have : lit ∈ C0.erase ⟨x, false⟩ := by
+            simpa [resolvent, hU, erase_singleton] using hl
+          exact (mem_erase.mp this).2
+        exact (card_le_card hsub).trans hC0le
+      exact max_le (max_le (le_max_right _ _) (hC0le.trans (le_max_left _ _)))
+        (hRle.trans (le_max_left _ _))
+    · have hx : (⟨x, true⟩ : Literal) ∈ C0 := hlC0
+      have hnx : (⟨x, false⟩ : Literal) ∈ U := by simp [hU]
+      have hReq : resolvent C0 U x = D := by
+        rw [herase, hU]; simp [resolvent, erase_singleton]
+      rw [← hReq]
+      refine ⟨Derivation.res x (Derivation.hyp C0 hC0) dU hx hnx, ?_⟩
+      simp only [Derivation.width]
+      have hC0le := Derivation.width_hyp_le_cnfWidth hC0
+      have hRle : (resolvent C0 U x).card ≤ cnfWidth F := by
+        have hsub : resolvent C0 U x ⊆ C0 := by
+          intro lit hl
+          have : lit ∈ C0.erase ⟨x, true⟩ := by
+            simpa [resolvent, hU, erase_singleton] using hl
+          exact (mem_erase.mp this).2
+        exact (card_le_card hsub).trans hC0le
+      exact max_le (max_le (hC0le.trans (le_max_left _ _)) (le_max_right _ _))
+        (hRle.trans (le_max_left _ _))
+  · have hEq : D = C0 :=
+      Subset.antisymm hDsub fun a ha => by
+        have h := hpre ha
+        simp only [mem_insert] at h
+        rcases h with rfl | hDmem
+        · exact absurd ha hlC0
+        · exact hDmem
+    rw [hEq]
+    exact ⟨Derivation.hyp C0 hC0,
+      (Derivation.width_hyp_le_cnfWidth hC0).trans (le_max_left _ _)⟩
+
+/-! ## Core BSW width-of-fatCount tradeoff -/
+
+/-- Strengthened induction: literal budget `N` may over-approximate `(cnfLits F).card`. -/
+theorem bsw_width_of_fatCount_aux (N t : ℕ) :
+    ∀ (m nv : ℕ) (F : CNF),
+      (cnfVars F).card = nv →
+      (cnfLits F).card ≤ N →
+      ∀ (d : Derivation F (∅ : Clause)),
+        d.fatCount t = m →
+        ∃ d' : Derivation F (∅ : Clause),
+          d'.width ≤ cnfWidth F + t + fatSteps N t m := by
+  intro m
+  induction m using Nat.strong_induction_on with
+  | h m ihm =>
+    intro nv
+    induction nv using Nat.strong_induction_on with
+    | h nv ihnv =>
+      intro F hnv hN d hfat
+      by_cases hmpos : 0 < m
+      · have hmF : 0 < d.fatCount t := by simpa [hfat] using hmpos
+        have htF : t < (cnfLits F).card := by
+          by_contra hge
+          have : d.fatCount t = 0 :=
+            Derivation.fatCount_eq_zero_of_lits_le d (Nat.not_lt.mp hge)
+          omega
+        have htN : t < N := lt_of_lt_of_le htF hN
+        have hNF_pos : 0 < (cnfLits F).card := Nat.zero_lt_of_lt htF
+        obtain ⟨l, hlits, hpop⟩ := exists_popular_literal d t hmF
+        obtain ⟨d1, _hwd1, hfat1⟩ :=
+          fatCount_kill_le_fatShrink l d t (by simpa [hfat] using hpop)
+        have hN1 :
+            (cnfLits (restrictCNF (assignOne l.var l.pos) F)).card ≤ N :=
+          (cnfLits_card_le_of_vars_subset
+            (cnfVars_restrictCNF_subset _ F)).trans hN
+        have hm1le : d1.fatCount t ≤ fatShrink (cnfLits F).card t m := by
+          simpa [hfat] using hfat1
+        have hm1lt : d1.fatCount t < m :=
+          lt_of_le_of_lt hm1le
+            (fatShrink_lt (N := (cnfLits F).card) (t := t) hmpos)
+        obtain ⟨d1n, hw1n⟩ :=
+          ihm (d1.fatCount t) hm1lt
+            (cnfVars (restrictCNF (assignOne l.var l.pos) F)).card
+            (restrictCNF (assignOne l.var l.pos) F) rfl hN1 d1 rfl
+        obtain ⟨U, dU, hUsub, hUwd⟩ := exists_derivation_add_lit d1n
+        have hstep :
+            fatSteps N t m = 1 + fatSteps N t (fatShrink N t m) :=
+          fatSteps_of_pos N t m hmpos
+        have hw1n' :
+            d1n.width ≤ cnfWidth F + t + fatSteps N t (fatShrink N t m) := by
+          have hmono :
+              fatSteps N t (d1.fatCount t) ≤
+                fatSteps N t (fatShrink N t m) :=
+            fatSteps_mono_m htN
+              (hm1le.trans (fatShrink_mono_N hNF_pos hN))
+          calc
+            d1n.width
+                ≤ cnfWidth (restrictCNF (assignOne l.var l.pos) F) + t +
+                    fatSteps N t (d1.fatCount t) := hw1n
+            _ ≤ cnfWidth F + t + fatSteps N t (d1.fatCount t) :=
+              Nat.add_le_add_right
+                (Nat.add_le_add_right (cnfWidth_restrictCNF_le _ F) t) _
+            _ ≤ cnfWidth F + t + fatSteps N t (fatShrink N t m) :=
+              Nat.add_le_add_left hmono _
+        have hUbound :
+            dU.width ≤ cnfWidth F + t + fatSteps N t m := by
+          have hmax :
+              max (cnfWidth F) (d1n.width + 1) ≤
+                cnfWidth F + t + fatSteps N t m := by
+            refine max_le (by omega) ?_
+            have : d1n.width + 1 ≤
+                cnfWidth F + t + fatSteps N t (fatShrink N t m) + 1 := by
+              omega
+            rw [hstep]; omega
+          exact hUwd.trans hmax
+        by_cases hUempty : U = (∅ : Clause)
+        · subst hUempty
+          exact ⟨dU, hUbound⟩
+        · have hUsing : U = {negLit l} := by
+            obtain ⟨a, ha⟩ := nonempty_of_ne_empty hUempty
+            have ha' : a = negLit l := by
+              have := hUsub ha
+              simpa [mem_singleton] using this
+            refine Subset.antisymm ?_ (singleton_subset_iff.mpr (ha' ▸ ha))
+            intro z hz
+            have := hUsub hz
+            simpa [mem_singleton] using this
+          obtain ⟨d0, _hsz0, _hwd0, hfat0⟩ :=
+            exists_restrict_refutation_width (assignOne l.var (!l.pos)) d
+          have hN0 :
+              (cnfLits (restrictCNF (assignOne l.var (!l.pos)) F)).card ≤ N :=
+            (cnfLits_card_le_of_vars_subset
+              (cnfVars_restrictCNF_subset _ F)).trans hN
+          have hm0le : d0.fatCount t ≤ m := by simpa [hfat] using hfat0 t
+          have hvar : l.var ∈ cnfVars F := mem_cnfVars_of_mem_cnfLits hlits
+          have hnv0lt :
+              (cnfVars (restrictCNF (assignOne l.var (!l.pos)) F)).card < nv := by
+            have hss :=
+              cnfVars_restrictCNF_ssubset_assignOne (F := F) (!l.pos) hvar
+            simpa [hnv] using card_lt_card hss
+          by_cases hm0lt : d0.fatCount t < m
+          · obtain ⟨d0n, hw0n⟩ :=
+              ihm (d0.fatCount t) hm0lt
+                (cnfVars (restrictCNF (assignOne l.var (!l.pos)) F)).card
+                (restrictCNF (assignOne l.var (!l.pos)) F) rfl hN0 d0 rfl
+            have hw0bound :
+                d0n.width ≤ cnfWidth F + t + fatSteps N t m := by
+              calc
+                d0n.width
+                    ≤ cnfWidth (restrictCNF (assignOne l.var (!l.pos)) F) +
+                        t + fatSteps N t (d0.fatCount t) := hw0n
+                _ ≤ cnfWidth F + t + fatSteps N t (d0.fatCount t) :=
+                  Nat.add_le_add_right
+                    (Nat.add_le_add_right (cnfWidth_restrictCNF_le _ F) t) _
+                _ ≤ cnfWidth F + t + fatSteps N t m :=
+                  Nat.add_le_add_left (fatSteps_mono_m htN hm0le) _
+            have hAll :
+                ∀ C ∈ restrictCNF (assignOne l.var (!l.pos)) F,
+                  ∃ e : Derivation F C,
+                    e.width ≤ max (cnfWidth F) dU.width :=
+              fun C hC =>
+                exists_derivation_false_branch_clause l dU hUsing hC
+            obtain ⟨dG, hwG⟩ :=
+              exists_derivation_graft_width
+                (max (cnfWidth F) dU.width) hAll d0n
+            exact ⟨dG,
+              hwG.trans (max_le (max_le (by omega) hUbound) hw0bound)⟩
+          · have hm0eq : d0.fatCount t = m :=
+              le_antisymm hm0le (Nat.not_lt.mp hm0lt)
+            obtain ⟨d0n, hw⟩ :=
+              ihnv (cnfVars (restrictCNF (assignOne l.var (!l.pos)) F)).card
+                hnv0lt (restrictCNF (assignOne l.var (!l.pos)) F) rfl hN0 d0
+                hm0eq
+            have hw0n :
+                d0n.width ≤
+                  cnfWidth (restrictCNF (assignOne l.var (!l.pos)) F) + t +
+                    fatSteps N t (d0.fatCount t) := by
+              simpa [hm0eq] using hw
+            have hw0bound :
+                d0n.width ≤ cnfWidth F + t + fatSteps N t m := by
+              calc
+                d0n.width
+                    ≤ cnfWidth (restrictCNF (assignOne l.var (!l.pos)) F) +
+                        t + fatSteps N t (d0.fatCount t) := hw0n
+                _ ≤ cnfWidth F + t + fatSteps N t (d0.fatCount t) :=
+                  Nat.add_le_add_right
+                    (Nat.add_le_add_right (cnfWidth_restrictCNF_le _ F) t) _
+                _ ≤ cnfWidth F + t + fatSteps N t m :=
+                  Nat.add_le_add_left (fatSteps_mono_m htN hm0le) _
+            have hAll :
+                ∀ C ∈ restrictCNF (assignOne l.var (!l.pos)) F,
+                  ∃ e : Derivation F C,
+                    e.width ≤ max (cnfWidth F) dU.width :=
+              fun C hC =>
+                exists_derivation_false_branch_clause l dU hUsing hC
+            obtain ⟨dG, hwG⟩ :=
+              exists_derivation_graft_width
+                (max (cnfWidth F) dU.width) hAll d0n
+            exact ⟨dG,
+              hwG.trans (max_le (max_le (by omega) hUbound) hw0bound)⟩
+      · have hm0 : m = 0 := Nat.eq_zero_of_not_pos hmpos
+        subst hm0
+        refine ⟨d, ?_⟩
+        have hw := width_le_of_fatCount_zero d t hfat
+        simp only [fatSteps_zero, Nat.add_zero]
+        exact hw.trans (max_le (Nat.le_add_right _ _) (Nat.le_add_left _ _))
+
+/-- Ben-Sasson and Wigderson: a refutation of fat count `m` yields a refutation
+whose width is at most `cnfWidth F + t + fatSteps (2 * |vars|) t m`. -/
+theorem bsw_width_of_fatCount (F : CNF) (t : ℕ)
+    (d : Derivation F (∅ : Clause)) :
+    ∃ d' : Derivation F (∅ : Clause),
+      d'.width ≤
+        cnfWidth F + t +
+          fatSteps (2 * (cnfVars F).card) t (d.fatCount t) := by
+  have hN : (cnfLits F).card ≤ 2 * (cnfVars F).card := by
+    simp [cnfLits_card]
+  obtain ⟨d', hw⟩ :=
+    bsw_width_of_fatCount_aux (2 * (cnfVars F).card) t
+      (d.fatCount t) (cnfVars F).card F rfl hN d rfl
+  exact ⟨d', hw⟩
 
 end SATurday.ProofComplexity
