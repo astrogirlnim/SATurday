@@ -1,7 +1,7 @@
 # R2: Width Machinery and More Families
 
-Status: active
-Lean home: theory/Theory/ProofComplexity/ (module split decided at adoption)
+Status: prose_accepted
+Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (planned)
 
 ## Statement
 
@@ -355,3 +355,32 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Human gate pending: accept_prose for the pinned core statement and the module
   plan. Next recommended action: formalize, starting with the measures and
   `exists_derivation_restrict_width` in `Width.lean`.
+
+- 2026-08-04 human gate accept_prose: APPROVED by session decision ("go").
+  Status set to prose_accepted. Pinned core `bsw_width_of_fatCount`, rate
+  corollary shape with open constant `c`, discrete `fatShrink`/`fatSteps`
+  packaging, and the Width.lean then SizeWidth.lean module plan are accepted
+  for formalization. Most important thing learned: human approval unblocks the
+  first Width.lean cluster without reopening the PHP rate chase.
+
+- 2026-08-04 formalize (Width.lean measures and restrict-width transport):
+  SUCCESS. New module `theory/Theory/ProofComplexity/Width.lean` imported from
+  Theory.lean. Certified cluster (24 declarations in
+  scripts/accepted_declarations.txt): cnfWidth, cnfLits, cnfLits_card,
+  assignOne, assignOne_self, assignOne_ne, Derivation.lines,
+  Derivation.concl_mem_lines, Derivation.lines_card_le_size, Derivation.width,
+  Derivation.fatCount, Derivation.fatLitCount, Derivation.fatCount_le_size,
+  Derivation.width_hyp_le_cnfWidth, width_le_of_fatCount_zero,
+  cnfWidth_restrictCNF_le, notMem_cnfVars_restrictCNF_of_assigned,
+  cnfVars_restrictCNF_subset, cnfVars_restrictCNF_ssubset_assignOne,
+  card_le_of_subset, resolvent_subset_of_subset,
+  exists_derivation_restrict_width, exists_restrict_refutation_width.
+  Gate green after adding the cluster. Gap 1 from the prove entry
+  (exists_derivation_restrict_width) is closed. Remaining Width.lean gaps:
+  exists_popular_literal, exists_derivation_add_lit,
+  exists_derivation_graft_width. SizeWidth.lean still unstarted.
+  Most important thing learned: the size-only derivation_restrict_sub
+  induction lifts cleanly once resolvent_subset_of_subset makes the fat and
+  width inequalities definitional rather than rewriting through Option.
+  Pending human gate merge_certified. Next: formalize exists_popular_literal
+  and the add_lit / graft width lemmas, or start SizeWidth.lean measures.

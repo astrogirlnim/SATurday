@@ -272,3 +272,28 @@ SATurday.ProofComplexity.monoDeriv_size_lower_bound
 SATurday.ProofComplexity.php_resolution_size_lower_bound
 SATurday.ProofComplexity.php_resolution_size_lower_bound_honest
 SATurday.ProofComplexity.php_resolution_size_lower_bound_n200
+# R2 BSW: width measures and restrict-width transport
+# (certified 2026-08-04, saturday formalize; pending merge_certified)
+SATurday.ProofComplexity.cnfWidth
+SATurday.ProofComplexity.cnfLits
+SATurday.ProofComplexity.cnfLits_card
+SATurday.ProofComplexity.assignOne
+SATurday.ProofComplexity.assignOne_self
+SATurday.ProofComplexity.assignOne_ne
+SATurday.ProofComplexity.Derivation.lines
+SATurday.ProofComplexity.Derivation.concl_mem_lines
+SATurday.ProofComplexity.Derivation.lines_card_le_size
+SATurday.ProofComplexity.Derivation.width
+SATurday.ProofComplexity.Derivation.fatCount
+SATurday.ProofComplexity.Derivation.fatLitCount
+SATurday.ProofComplexity.Derivation.fatCount_le_size
+SATurday.ProofComplexity.Derivation.width_hyp_le_cnfWidth
+SATurday.ProofComplexity.width_le_of_fatCount_zero
+SATurday.ProofComplexity.cnfWidth_restrictCNF_le
+SATurday.ProofComplexity.notMem_cnfVars_restrictCNF_of_assigned
+SATurday.ProofComplexity.cnfVars_restrictCNF_subset
+SATurday.ProofComplexity.cnfVars_restrictCNF_ssubset_assignOne
+SATurday.ProofComplexity.card_le_of_subset
+SATurday.ProofComplexity.resolvent_subset_of_subset
+SATurday.ProofComplexity.exists_derivation_restrict_width
+SATurday.ProofComplexity.exists_restrict_refutation_width

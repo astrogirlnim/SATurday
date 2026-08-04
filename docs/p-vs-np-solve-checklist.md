@@ -10,7 +10,7 @@ ladder after the program audit (see docs/postmortems/).
 - [x] Fix accepted proof standards (zero sorries, standard axioms only, axiom gate).
 - [x] Fix stop conditions (barrier failure, vacuous statements, budget breaches).
 - [ ] Formalize the target chain statement in Lean without opaque constants (rung R5;
-      deferred until R1 is certified, tracked in docs/ladder/ladder.md).
+      prove pinned 2026-08-04; formalize Encoding then Complexity next).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

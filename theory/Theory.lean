@@ -6,6 +6,7 @@ import Theory.ProofComplexity.ClauseComplexity
 import Theory.ProofComplexity.MonotoneWidth
 import Theory.ProofComplexity.MatchingRestriction
 import Theory.ProofComplexity.MonotoneCalculus
+import Theory.ProofComplexity.Width
 
 /-!
 # SATurday Theory Library

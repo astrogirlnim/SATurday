@@ -30,10 +30,11 @@ R4-class results plus the certified R5 bridge.
     (`php_resolution_size_lower_bound`; family defs in PHP.lean)
 
 - R2 width machinery
-  - status: active (opened by R1 certification)
+  - status: prose_accepted (2026-08-04, human gate accept_prose)
   - statement: Ben-Sasson-Wigderson width-size tradeoff, random k-CNF and Tseitin
     expander lower bounds
   - memory: docs/ladder/rungs/r2-width-machinery.md
+  - lean: theory/Theory/ProofComplexity/Width.lean (in progress)
 
 - R3 stronger systems
   - status: proposed
