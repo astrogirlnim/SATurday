@@ -35,7 +35,9 @@ R4-class results plus the certified R5 bridge.
     expander lower bounds
   - memory: docs/ladder/rungs/r2-width-machinery.md
   - lean: Width.lean and SizeWidth.lean; item 1 BSW core, rate (c=24), and
-    chainCNF non vacuity merged; item 2 width lower bounds still open
+    chainCNF non vacuity merged; item 2 width lower bounds pinned in prose
+    (targets tseitin_expander_width_lower_bound, cs_expansion_width_lower_bound;
+    modules FinGraph.lean, Tseitin.lean, CSExpansion.lean not yet formalized)
 
 - R3 stronger systems
   - status: proposed

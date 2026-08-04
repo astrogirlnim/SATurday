@@ -1,7 +1,8 @@
 # R2: Width Machinery and More Families
 
 Status: prose_accepted
-Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (planned)
+Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (item 1
+merged); item 2 planned as FinGraph.lean, Tseitin.lean, CSExpansion.lean
 
 ## Statement
 
@@ -526,3 +527,396 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Next recommended action: prove (pin width lower bound statements and Lean
   module plan for genuine expanders / random k CNF), or audit the completed
   BSW package before opening item 2.
+
+- 2026-08-04 prove (pin R2 item 2: expander Tseitin and random k CNF width
+  lower bounds): SUCCESS on the pin. Prose only, no Lean written this cycle.
+  Prior falsify honesty is baked into the pin: the 3 regular circulant used by
+  search/benchmarks/proof_complexity_families.py is a calibration graph only and
+  is NOT an expander witness for hardness. Details follow.
+
+  ### Files and names verified before this pin (no duplicates)
+
+  Lean ProofComplexity tree today (all existing; none invented as duplicates):
+  Resolution.lean, PHP.lean, CriticalAssignments.lean, ClauseComplexity.lean,
+  MonotoneWidth.lean, MatchingRestriction.lean, MonotoneCalculus.lean,
+  Width.lean, SizeWidth.lean. Root importer: theory/Theory.lean.
+  Ripgrep over theory and docs found zero hits for: tseitinCNF, HasExpansion,
+  edgeBoundary, HasCSExpansion, petersenGraph, tseitinWidthDiv, csWidthDiv,
+  FinGraph, oddCharge. Python family generators exist only under
+  search/benchmarks/proof_complexity_families.py (tseitin_cnf, random_kcnf) and
+  are empirical calibration, not Lean certificates. Archive EncodingTactics
+  tseitin_correct is circuit encoding, unrelated, and stays archived.
+  docs/file_structure.md was searched and does not exist in this workspace;
+  structure is taken from the live ProofComplexity directory listing above.
+  Reused certified consumers: cnfWidth, Derivation.width, bsw_size_lower_bound,
+  bswRateConst from Width.lean and SizeWidth.lean.
+
+  ### Action choice
+
+  rung: r2-width-machinery
+  action_type: prove
+  target: item 2 width lower bounds for expander Tseitin and CS expanding k CNF
+  rationale: item 1 BSW machine is merged; item 2 still needs Lean level pins
+  before any formalize of families or expansion lemmas.
+
+  ### Statement restated with all quantifiers explicit
+
+  All objects live in namespace SATurday.ProofComplexity and use the existing
+  resolution calculus of Resolution.lean (Literal, Clause, CNF, Derivation,
+  Derivation.size, Derivation.width, Refutable, cnfVars, cnfWidth).
+
+  #### (A) Lightweight graphs and expansion (new module FinGraph.lean)
+
+  Target definitions (none exist today):
+
+  - `FinEdge (n : ℕ) := { e : Fin n × Fin n // e.1 < e.2 }`, unordered edge as
+    an ordered pair with the lesser endpoint first.
+  - `FinGraph (n : ℕ) := Finset (FinEdge n)`, simple undirected graph on
+    vertex set `Fin n`.
+  - `incident (G : FinGraph n) (v : Fin n) : Finset (FinEdge n)`, edges of `G`
+    that contain `v`.
+  - `degree (G : FinGraph n) (v : Fin n) : ℕ := (incident G v).card`.
+  - `IsRegular (G : FinGraph n) (d : ℕ) : Prop := ∀ v, degree G v = d`.
+  - `edgeBoundary (G : FinGraph n) (S : Finset (Fin n)) : Finset (FinEdge n)`,
+    edges of `G` with exactly one endpoint in `S`.
+  - `HasExpansion (G : FinGraph n) (α : ℕ) : Prop` means: for every
+    `S : Finset (Fin n)`, if `S.Nonempty` and `2 * S.card ≤ n`, then
+    `α * S.card ≤ (edgeBoundary G S).card`.
+    Integer factor `α` is deliberate (no rationals on the critical path). Graphs
+    with fractional expansion below 1 are reported by `α = 0` and give a vacuous
+    width claim; the pin never pretends the circulant meets a positive `α`.
+
+  Explicit small witness (non vacuity of expansion, not of the whole R2 summit):
+
+  - `petersenGraph : FinGraph 10`, the Petersen graph on 10 vertices (3 regular,
+    15 edges), encoded by an explicit `Finset` of `FinEdge 10` literals.
+  - Target lemma `petersenGraph_regular : IsRegular petersenGraph 3`.
+  - Target lemma `petersenGraph_expansion : HasExpansion petersenGraph 1`,
+    proved by finite enumeration over subsets of `Fin 10` of size 1 through 5.
+    Class: routine but heavy. This is the honest replacement for the circulant:
+    expansion is checked, not assumed from chord drawings.
+
+  Existence for large n (optional later cluster, not required to start
+  formalize):
+
+  - `exists_3regular_expander : ∀ N, ∃ n ≥ N, ∃ G : FinGraph n,
+      Even n ∧ IsRegular G 3 ∧ HasExpansion G 1`, marked known via the
+    probabilistic method for random 3 regular graphs (Bollobas / Friedman style
+    existence), adaptation into Lean. Gap class: hard. Formalize cycles may ship
+    Petersen first and defer infinite families.
+
+  Anti cheat note: `tseitin_edges` in the Python falsifier (cycle plus diametral
+  chords) is NOT claimed to satisfy `HasExpansion _ 1`. The 2026-08-03 falsify
+  session already showed soft proof sizes on that family; the Lean pin refuses
+  to launder that graph into an expander hypothesis.
+
+  #### (B) Tseitin CNF and width lower bound (new module Tseitin.lean)
+
+  Charge and formula:
+
+  - `Charge (n : ℕ) := Fin n → Bool` (equivalently `Fin 2`, Boolean parity).
+  - `oddCharge (χ : Charge n) : Prop := (Finset.univ.filter χ).card % 2 = 1`.
+  - `edgeVar {n} (e : FinEdge n) : ℕ`, a canonical injection from edges into
+    variable indices (for example `e.val.1 * n + e.val.2`).
+  - `parityClause {n} (evars : List ℕ) (signs : List Bool) : Clause`, one
+    width `evars.length` clause forbidding one failing XOR assignment.
+  - `vertexParityClauses (G : FinGraph n) (χ : Charge n) (v : Fin n) : CNF`,
+    the `2^(d-1)` clauses encoding XOR of incident edge variables equal to
+    `χ v`, for `d = degree G v`.
+  - `tseitinCNF (G : FinGraph n) (χ : Charge n) : CNF :=` union over vertices
+    of `vertexParityClauses`.
+
+  Pinned unsatisfiability (parity, no expansion used):
+
+  - Target name `tseitinCNF_unsat`: for every `n`, every `G : FinGraph n`, and
+    every `χ` with `oddCharge χ`, `¬ Satisfiable (tseitinCNF G χ)`.
+  - Target name `tseitinCNF_refutable`: same hypotheses imply
+    `Refutable (tseitinCNF G χ)`, via existing `resolution_complete`.
+
+  Pinned width lower bound (the item 2 core for family (a)):
+
+  - Reserved natural `tseitinWidthDiv : ℕ := 2` (same packaging style as
+    `bswRateConst`; adjust only if the Lean proof forces a larger explicit
+    divisor, never silently).
+  - Target name `tseitin_expander_width_lower_bound`:
+    for every `n : ℕ`, every `G : FinGraph n`, every `χ : Charge n`, every
+    `α : ℕ`, if `oddCharge χ` and `HasExpansion G α`, then for every
+    refutation `d : Derivation (tseitinCNF G χ) (∅ : Clause)`,
+
+        (α * n) / tseitinWidthDiv ≤ d.width
+
+    Quantifier order: expansion and odd charge are hypotheses on the instance;
+    the width bound is universal over refutations. No claim is made for graphs
+    that fail `HasExpansion`.
+
+  Size corollary (no new rate arithmetic; reuse item 1):
+
+  - Target name `tseitin_expander_size_lower_bound`: under the same hypotheses,
+    every refutation `d` satisfies the `bsw_size_lower_bound` conclusion with
+    `W := (α * n) / tseitinWidthDiv`, that is
+
+        2 ^ ((W - cnfWidth (tseitinCNF G χ)) * (W - cnfWidth (tseitinCNF G χ)) /
+              (bswRateConst * (cnfVars (tseitinCNF G χ)).card)) ≤ d.size
+
+    For `IsRegular G 3` one has `cnfWidth (tseitinCNF G χ) = 3`, and variable
+    count equals `|E|`. Informativeness requires
+    `W > 3`, hence `α * n > 3 * tseitinWidthDiv`. With the pinned divisor 2 and
+    `α ≥ 1` this holds for all `n ≥ 7`, so Petersen (`n = 10`, `α = 1`) is in
+    the informative range once `petersenGraph_expansion` is certified.
+
+  #### (C) CS expansion for k CNF and width lower bound (new module CSExpansion.lean)
+
+  Combinatorial hypothesis (Chvatal and Szemeredi style boundary form, discrete):
+
+  - `clauseSupport (C : Clause) : Finset ℕ := clauseVars C` (already have
+    `clauseVars`).
+  - `cnfSupport (F : CNF) : Finset ℕ := cnfVars F`.
+  - `HasCSExpansion (F : CNF) (k β α : ℕ) : Prop` means: `cnfWidth F ≤ k`, and
+    for every `S : Finset ℕ` with `S ⊆ cnfVars F`, if `S.Nonempty` and
+    `β * S.card ≤ (cnfVars F).card`, then every clause of `F` that is entirely
+    supported on `S` contributes to a boundary count satisfying
+    `α * S.card ≤ (boundaryClauses F S).card`, where
+    `boundaryClauses F S` is the set of clauses of `F` that touch `S` and also
+    touch its complement inside `cnfVars F`. (Exact boundary encoding is part of
+    the first formalize cluster; the pin freezes the inequality shape and the
+    parameters, not a floating prose synonym.)
+
+  Pinned width lower bound (family (b)):
+
+  - Reserved natural `csWidthDiv : ℕ := 2`.
+  - Target name `cs_expansion_width_lower_bound`:
+    for every `F : CNF` and parameters `k β α`, if `HasCSExpansion F k β α`
+    and `Refutable F`, then for every refutation
+    `d : Derivation F (∅ : Clause)`,
+
+        (α * (cnfVars F).card) / (csWidthDiv * β) ≤ d.width
+
+    Again the bound is conditional on a discrete expansion hypothesis. No seeded
+    DIMACS instance from the falsifier is hereby declared hard.
+
+  Existence at suitable density (separate from the width machine):
+
+  - Target name `exists_cs_expanding_3cnf`:
+    for every `N`, there exist `n ≥ N`, `F : CNF`, and parameters with
+    `k = 3`, `β = 4`, `α = 1` (exact constants to be locked when the
+    probabilistic calculation is formalized) such that
+    `(cnfVars F).card = n`, `HasCSExpansion F 3 β α`, `¬ Satisfiable F`,
+    and `(α * n) / (csWidthDiv * β) > cnfWidth F`.
+  - Density guidance from falsify: calibration used density 5.0 and saw SAT
+    at small `n`; the existence proof should target density at least 5.5
+    (above the satisfiability threshold ~4.267 for 3 CNF) with `n` large
+    enough that the CS expansion event holds. Marked known
+    (Chvatal and Szemeredi 1988; Ben Sasson and Wigderson 2001 packaging),
+    adaptation into Lean. Gap class: hard.
+
+  Size corollary: target name `cs_expansion_size_lower_bound`, identical reuse
+  of `bsw_size_lower_bound` with
+  `W := (α * (cnfVars F).card) / (csWidthDiv * β)`.
+
+  ### Non vacuity (statement hygiene)
+
+  Four separate checks; none may be skipped.
+
+  1. Odd charge Tseitin instances exist and are unsatisfiable without expansion:
+     any `G` on `n ≥ 1` with `χ` sending one vertex to true and the rest false
+     has `oddCharge χ`. Witness term to build at formalize time:
+     `oddCharge_single (n) (v : Fin n)`. Combined with `tseitinCNF_unsat`, the
+     quantified set of unsatisfiable Tseitin CNFs is nonempty. This alone does
+     NOT make the width lower bound informative.
+  2. Expansion hypothesis is inhabited by a checked graph: `petersenGraph` with
+     `petersenGraph_expansion : HasExpansion petersenGraph 1`. Circulant is
+     excluded. Until Petersen expansion is certified in Lean, the width theorem
+     may still be proved conditionally; the informative instance is not claimed
+     certified.
+  3. Width bound beats initial width on that witness: with `α = 1`, `n = 10`,
+     `tseitinWidthDiv = 2`, the pinned lower bound is 5, while
+     `cnfWidth (tseitinCNF petersenGraph χ) = 3` for 3 regular Petersen, and
+     the trivial ceiling is `2 * |E| = 30`. Target name
+     `tseitin_petersen_width_beats_cnfWidth`.
+  4. CS expanding unsatisfiable 3 CNFs exist for infinitely many sizes:
+     `exists_cs_expanding_3cnf`. Small falsifier seeds at density 5.0 are NOT
+     witnesses (some were SAT). No concrete DIMACS file is cited as a theorem
+     witness.
+
+  ### The one argument developed in full (Tseitin boundary to width)
+
+  Fix `G : FinGraph n`, `χ` with `oddCharge χ`, and `α` with `HasExpansion G α`.
+  Write `F := tseitinCNF G χ`. The argument is the Ben Sasson and Wigderson
+  cut sensitive width argument for Tseitin (known, 2001), packaged against
+  `Derivation.width` rather than against proof size directly; size then follows
+  from the already certified `bsw_size_lower_bound`.
+
+  Step 1 (linear algebra over GF(2)). Each vertex constraint is an affine
+  equation on incident edge variables. Summing all vertex equations yields
+  the identity `0 = sum χ`, because each edge appears twice. Hence
+  `oddCharge χ` implies unsatisfiability. This is `tseitinCNF_unsat` and does
+  not use expansion. Gap class once encoded with `ZMod 2` sums: routine.
+
+  Step 2 (partial assignments as cuts). For a set `S : Finset (Fin n)` of
+  vertices, let `ρ_S` be any partial assignment to the edges inside `S` that
+  satisfies all vertex constraints of vertices whose entire star lies in the
+  assigned region, if such an assignment exists. The standard Tseitin fact is
+  that the XOR system restricted to `S` is consistent if and only if the total
+  charge on `S` equals the parity of the assigned cut edges. Consequently, when
+  the charge on `S` is odd relative to a fixed global solution attempt, every
+  total extension fails, and every resolution refutation of `F` must "pay for"
+  the cut. Target intermediate name: `tseitin_cut_parity`.
+
+  Step 3 (clause to cut complex). Following Ben Sasson and Wigderson, associate
+  to each clause `C` appearing in a refutation a critical vertex set
+  `complex(C) ⊆ Fin n` consisting of those vertices whose local parity
+  constraint is falsified by a minimal partial assignment that falsifies `C`
+  and satisfies as many vertex constraints as possible. The empty clause has
+  complex equal to the full vertex set (or a nonempty odd charge component).
+  Hypothesis clauses of `F` have complex size at most 1. Resolution of two
+  clauses yields a complex contained in the union of the parent complexes.
+  Target name: `tseitin_complex_res_subset`.
+
+  Step 4 (expansion forces wide clauses). Because complexes grow from size 1
+  hypotheses to a complex of size greater than `n / 2` at the empty clause,
+  every refutation contains some line `C` whose complex `S := complex(C)`
+  satisfies `0 < S.card ≤ n / 2` and whose resolvent parent crosses the
+  threshold, or more cleanly (BSW packaging): some line has
+  `n / 4 ≤ S.card ≤ n / 2` (the exact threshold constants are part of
+  `tseitinWidthDiv` bookkeeping). For such an `S`, every literal of `C` that
+  mentions an edge variable outside the cut can be removed by restriction
+  arguments already in MatchingRestriction.lean style, and the surviving
+  essential literals must include a distinct edge variable for each edge of
+  `edgeBoundary G S`. Therefore
+
+      (edgeBoundary G S).card ≤ C.card ≤ d.width
+
+  Apply `HasExpansion G α` to get `α * S.card ≤ d.width`. With
+  `S.card ≥ n / tseitinWidthDiv` (the threshold chosen in the complex growth
+  argument), conclude
+  `(α * n) / tseitinWidthDiv ≤ d.width`.
+  Target name: `tseitin_expander_width_lower_bound`.
+
+  Step 5 (size). Invoke certified `bsw_size_lower_bound` with
+  `W := (α * n) / tseitinWidthDiv`. No new rate constant is introduced.
+
+  The random k CNF half of item 2 uses the same complex growth skeleton with
+  `HasCSExpansion` supplying the boundary inequality in place of
+  `HasExpansion`. Developing both in full would duplicate the skeleton; the
+  CS case is therefore recorded as the same argument with the clause boundary
+  substituted, and its first formalize cluster is the definition of
+  `boundaryClauses` plus `cs_expansion_width_lower_bound` after Tseitin
+  lands. External citations: Urquhart 1987 (Tseitin expanders), Chvatal and
+  Szemeredi 1988 (random CNF), Ben Sasson and Wigderson 2001 (width packaging).
+  All marked known; discrete `HasExpansion` / `HasCSExpansion` packaging marked
+  adaptation. No new axiom.
+
+  ### Gap list
+
+  1. `FinGraph` API and `edgeBoundary` lemmas (symmetry, degree sum, handshaking).
+     Gap class: routine.
+  2. `petersenGraph` explicit edge set plus `petersenGraph_regular` and
+     `petersenGraph_expansion` by finite check. Gap class: routine but heavy.
+  3. `tseitinCNF` construction and `tseitinCNF_unsat` via GF(2) summation.
+     Gap class: routine.
+  4. `tseitin_complex_*` bridge from clauses to vertex sets (the semantic heart).
+     Gap class: hard (first real formalization risk on item 2).
+  5. Threshold arithmetic locking `tseitinWidthDiv = 2` (or raising it explicitly
+     if the complex argument needs `n/4`). Gap class: routine once gap 4 is
+     clear; constant may increase but must stay explicit.
+  6. `tseitin_expander_size_lower_bound` as a one liner over
+     `bsw_size_lower_bound`. Gap class: routine.
+  7. `HasCSExpansion` / `boundaryClauses` definitions matching the Tseitin
+     complex argument. Gap class: hard (shared skeleton, new bookkeeping).
+  8. `exists_cs_expanding_3cnf` probabilistic method. Gap class: hard; may lag
+     many cycles after the conditional width theorem.
+  9. `exists_3regular_expander` infinite family. Gap class: hard; Petersen
+     unblocks informative non vacuity without it.
+  10. Falsifier upgrade (outside Lean accept tree): add an expander backed
+      Tseitin generator (reject circulant for hardness curves; keep circulant
+      only as a soft smoke). Gap class: routine engineering, not a theorem gap.
+
+  Gaps 4 and 7 are the only hard mathematical formalization gaps on the
+  conditional width theorems. Gaps 8 and 9 are existence gaps and must not block
+  proving the conditional machines.
+
+  ### Self adversarial pass
+
+  1. Quantifier order. Width lower bounds are conditional on expansion
+     hypotheses. Stating "every Tseitin formula needs linear width" without
+     expansion would be false (path graphs and circulants are easy). The pin
+     refuses that strengthening.
+  2. Circulant laundering. The falsifier family is explicitly not a witness.
+     Any future formalize that instantiates `HasExpansion` on the circulant
+     without a proof is a cheat and fails the adversarial bar.
+  3. Vacuous rate on dense graphs. If degree grows with `n`, then `cnfWidth`
+     can exceed `W` and `bsw_size_lower_bound` becomes vacuous (exponent zero).
+     The pin therefore targets bounded degree expanders (degree 3) and records
+     the inequality `W > cnfWidth` as a separate non vacuity lemma.
+  4. Random seeds are not theorems. Seed 42 at density 5.0 produced SAT for
+     some small `n` in falsify logs; citing those files as hard instances would
+     be false. Existence is asymptotic and probabilistic.
+  5. Does the argument prove something summit hard. No. It is a 1987 through
+     2001 resolution theorem, below R3 systems.
+  6. Automatability. Linear width lower bounds plus BSW give exponential size,
+     still consistent with Atserias and Muller non automatability (which rules
+     out polynomial time proof search, not the existence of lower bounds).
+  7. Off by one on `n/2` versus `2 * S.card ≤ n`. The `HasExpansion` predicate
+     uses the inclusive half size convention matching Finset cardinal arithmetic
+     in Lean; the complex threshold constants feed `tseitinWidthDiv` and must
+     be re checked when gap 4 is formalized.
+  8. Connectivity. Odd charge unsat does not need connectivity. Width via
+     complexes needs care on disconnected graphs: expansion on each component
+     with odd charge. The pin assumes the expansion hypothesis globally, which
+     already forbids sparse cuts; disconnected graphs with an isolated odd
+     charge vertex have `edgeBoundary` empty for that singleton and fail
+     `HasExpansion α` for every positive `α`. Safe.
+  9. Trivial width ceiling. `Derivation.width_le_cnfLits_card` gives width at
+     most `2 * |E|`. The pinned linear lower bound is below that ceiling for
+     all parameters in range, so the statement is not crushed by the trivial
+     upper bound.
+
+  ### Barrier pass
+
+  Relativization, natural proofs, algebraization: not applicable (syntactic
+  resolution width). Feasible interpolation death: not used. Automatability
+  death: checked above. Simulation order: results stay at resolution; they do
+  not transfer to Res(k), cutting planes, or Frege by themselves. Rung remains
+  below R3, so no R3 plus barrier audit is required before formalize of this
+  pin. (Reuse of expansion at R4 is flagged for a future audit when that rung
+  opens; not a blocker now.)
+
+  ### Lean module plan (edit existing tree, no duplicate families)
+
+  Add three modules after SizeWidth in `theory/Theory.lean`. Do not edit
+  certified R0 or R1 modules. Do not recreate Width.lean or SizeWidth.lean.
+
+  1. `theory/Theory/ProofComplexity/FinGraph.lean`
+     Imports: `Theory.ProofComplexity.Resolution` (for Finset style only; no
+     derivation facts required). Contents: `FinEdge`, `FinGraph`, `incident`,
+     `degree`, `IsRegular`, `edgeBoundary`, `HasExpansion`, elementary lemmas,
+     `petersenGraph`, `petersenGraph_regular`, `petersenGraph_expansion`.
+  2. `theory/Theory/ProofComplexity/Tseitin.lean`
+     Imports: `Theory.ProofComplexity.FinGraph`, `Theory.ProofComplexity.Width`,
+     `Theory.ProofComplexity.SizeWidth`. Contents: `Charge`, `oddCharge`,
+     `edgeVar`, `tseitinCNF`, `tseitinCNF_unsat`, `tseitinCNF_refutable`,
+     complex lemmas, `tseitinWidthDiv`, `tseitin_expander_width_lower_bound`,
+     `tseitin_expander_size_lower_bound`,
+     `tseitin_petersen_width_beats_cnfWidth`.
+  3. `theory/Theory/ProofComplexity/CSExpansion.lean`
+     Imports: `Theory.ProofComplexity.Width`, `Theory.ProofComplexity.SizeWidth`.
+     Contents: `boundaryClauses`, `HasCSExpansion`, `csWidthDiv`,
+     `cs_expansion_width_lower_bound`, `cs_expansion_size_lower_bound`,
+     and later `exists_cs_expanding_3cnf`.
+
+  First formalize cluster (smallest, unblocks the rest): FinGraph API plus
+  `edgeBoundary` lemmas plus the explicit `petersenGraph` construction (not yet
+  the expansion enumeration if time is short; expansion check is cluster 1b).
+  Second cluster: `tseitinCNF` and `tseitinCNF_unsat`. Third: complex argument
+  and `tseitin_expander_width_lower_bound`. CS modules follow after Tseitin
+  width lands, reusing the complex pattern.
+
+  Accepted declarations are appended under a new R2 item 2 header in
+  scripts/accepted_declarations.txt only after merge_certified gates.
+
+  Artifacts: this rung memory entry only; no Lean and no test files written.
+  Status: success (complete pin; hard gaps remain but are named).
+  Pending human gate: accept_prose for the item 2 pin and module plan (recorded
+  in session jsonl; not awaited in chat per user blanket continue).
+  Next recommended action: formalize FinGraph.lean (FinEdge, FinGraph,
+  edgeBoundary, HasExpansion, petersenGraph).
