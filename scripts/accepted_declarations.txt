@@ -184,3 +184,14 @@ SATurday.ProofComplexity.matchingUnrenameσ_rename_pvar
 SATurday.ProofComplexity.unrename_matchingRenamePigeonClause
 SATurday.ProofComplexity.unrename_matchingRenameHoleClause
 SATurday.ProofComplexity.unrename_matchingRenameCNF
+# R1 BP96 Theorem 2 / G7g: injective rename derivation transport and PHP shrink step
+# (certified 2026-08-04, saturday formalize)
+SATurday.ProofComplexity.derivation_clauseVars_subset
+SATurday.ProofComplexity.renameClause_resolvent_of_pivot_inj
+SATurday.ProofComplexity.exists_derivation_renameInj
+SATurday.ProofComplexity.exists_refutation_of_cnf_eq
+SATurday.ProofComplexity.exists_derivation_of_concl_eq
+SATurday.ProofComplexity.mem_cnfVars_matchingRenameCNF
+SATurday.ProofComplexity.matchingUnrenameσ_injOn
+SATurday.ProofComplexity.php_shrink_step
+SATurday.ProofComplexity.php_shrink_le

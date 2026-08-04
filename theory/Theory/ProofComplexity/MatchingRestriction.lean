@@ -1353,4 +1353,173 @@ theorem unrename_matchingRenameCNF {k : ℕ}
         exact mem_image.mpr ⟨i2, mem_filter.mpr ⟨mem_univ _, hlt⟩, rfl⟩
       · exact unrename_matchingRenameHoleClause placed hole j' i1 i2
 
+/-! ## G7g: size preserving derivation transport along injective renames
+
+A rename that is injective on the variables of the hypothesis CNF transports
+derivations clause by clause with identical size. Applied to
+`matchingUnrenameσ` on `matchingRenameCNF` (whose variables are exactly the
+embedded grid variables) this turns a restricted PHP(k+2, k+1) refutation into
+a PHP(k+1, k) refutation of the same size, completing the shrink step.
+-/
+
+/-- Every clause in a derivation from `F` uses only variables of `F`. -/
+theorem derivation_clauseVars_subset {F : CNF} {C : Clause}
+    (d : Derivation F C) : clauseVars C ⊆ cnfVars F := by
+  induction d with
+  | hyp C hC => exact fun v hv => mem_biUnion.mpr ⟨C, hC, hv⟩
+  | res x dC dD hx hnx ihC ihD =>
+      intro v hv
+      obtain ⟨l, hl, rfl⟩ := mem_image.mp hv
+      rcases mem_union.mp hl with hlC | hlD
+      · exact ihC (mem_image_of_mem _ (mem_of_mem_erase hlC))
+      · exact ihD (mem_image_of_mem _ (mem_of_mem_erase hlD))
+
+/-- Rename commutes with erasing the pivot literal when the rename cannot
+identify a clause variable with the pivot without them being equal. -/
+private theorem renameClause_erase_pivot {σ : ℕ → ℕ} {S : Clause} {x : ℕ}
+    (b : Bool) (hS : ∀ l ∈ S, σ l.var = σ x → l.var = x) :
+    renameClause σ (S.erase ⟨x, b⟩) = (renameClause σ S).erase ⟨σ x, b⟩ := by
+  ext l'
+  simp only [renameClause, mem_image, mem_erase]
+  constructor
+  · rintro ⟨l, ⟨hlne, hlS⟩, rfl⟩
+    refine ⟨?_, ⟨l, hlS, rfl⟩⟩
+    intro heq
+    apply hlne
+    have hvar : σ l.var = σ x := congrArg Literal.var heq
+    have hpos : l.pos = b := congrArg Literal.pos heq
+    have hlx : l.var = x := hS l hlS hvar
+    calc l = ⟨l.var, l.pos⟩ := rfl
+      _ = ⟨x, b⟩ := by rw [hlx, hpos]
+  · rintro ⟨hne, l, hlS, rfl⟩
+    refine ⟨l, ⟨?_, hlS⟩, rfl⟩
+    rintro rfl
+    exact hne rfl
+
+/-- Rename commutes with resolvents under pivot local injectivity. -/
+theorem renameClause_resolvent_of_pivot_inj {σ : ℕ → ℕ} {C D : Clause} {x : ℕ}
+    (hCx : ∀ l ∈ C, σ l.var = σ x → l.var = x)
+    (hDx : ∀ l ∈ D, σ l.var = σ x → l.var = x) :
+    renameClause σ (resolvent C D x) =
+      resolvent (renameClause σ C) (renameClause σ D) (σ x) := by
+  show renameClause σ ((C.erase ⟨x, true⟩) ∪ (D.erase ⟨x, false⟩)) = _
+  rw [show renameClause σ ((C.erase ⟨x, true⟩) ∪ (D.erase ⟨x, false⟩)) =
+      renameClause σ (C.erase ⟨x, true⟩) ∪ renameClause σ (D.erase ⟨x, false⟩) from
+    image_union _ _,
+    renameClause_erase_pivot true hCx, renameClause_erase_pivot false hDx]
+  rfl
+
+/-- Derivations transport along renames injective on the hypothesis variables,
+with identical size. -/
+theorem exists_derivation_renameInj {σ : ℕ → ℕ} {F : CNF}
+    (hσ : ∀ v ∈ cnfVars F, ∀ w ∈ cnfVars F, σ v = σ w → v = w) :
+    ∀ {C : Clause} (d : Derivation F C),
+      ∃ d' : Derivation (renameCNF σ F) (renameClause σ C), d'.size = d.size := by
+  intro C d
+  induction d with
+  | hyp C hC => exact ⟨.hyp _ (mem_image_of_mem _ hC), rfl⟩
+  | @res x Cp Dp dC dD hx hnx ihC ihD =>
+      obtain ⟨dC', hsC⟩ := ihC
+      obtain ⟨dD', hsD⟩ := ihD
+      have hCsub := derivation_clauseVars_subset dC
+      have hDsub := derivation_clauseVars_subset dD
+      have hxF : x ∈ cnfVars F := hCsub (mem_image_of_mem _ hx)
+      have hCx : ∀ l ∈ Cp, σ l.var = σ x → l.var = x := fun l hl h =>
+        hσ l.var (hCsub (mem_image_of_mem _ hl)) x hxF h
+      have hDx : ∀ l ∈ Dp, σ l.var = σ x → l.var = x := fun l hl h =>
+        hσ l.var (hDsub (mem_image_of_mem _ hl)) x hxF h
+      have hres := renameClause_resolvent_of_pivot_inj hCx hDx
+      rw [hres]
+      have hx' : (⟨σ x, true⟩ : Literal) ∈ renameClause σ _ :=
+        mem_image_of_mem (renameLit σ) hx
+      have hnx' : (⟨σ x, false⟩ : Literal) ∈ renameClause σ _ :=
+        mem_image_of_mem (renameLit σ) hnx
+      exact ⟨.res (σ x) dC' dD' hx' hnx', by
+        simp [Derivation.size, hsC, hsD]⟩
+
+/-- Transport a refutation across a CNF equality, preserving size. -/
+theorem exists_refutation_of_cnf_eq {F G : CNF} (h : F = G)
+    (d : Derivation F (∅ : Clause)) :
+    ∃ d' : Derivation G (∅ : Clause), d'.size = d.size := by
+  subst h
+  exact ⟨d, rfl⟩
+
+/-- Transport a derivation across a conclusion equality, preserving size. -/
+theorem exists_derivation_of_concl_eq {F : CNF} {C C' : Clause} (h : C = C')
+    (d : Derivation F C) :
+    ∃ d' : Derivation F C', d'.size = d.size := by
+  subst h
+  exact ⟨d, rfl⟩
+
+/-- Variables of the rename CNF are exactly embedded grid variables. -/
+theorem mem_cnfVars_matchingRenameCNF {k : ℕ} {placed : Fin (k + 2)}
+    {hole : Fin (k + 1)} {v : ℕ}
+    (hv : v ∈ cnfVars (matchingRenameCNF k placed hole)) :
+    ∃ i' : Fin (k + 1), ∃ j' : Fin k, v = matchingEmbedVar k placed hole i' j' := by
+  obtain ⟨C, hC, hvC⟩ := mem_biUnion.mp hv
+  obtain ⟨l, hl, rfl⟩ := mem_image.mp hvC
+  rcases mem_union.mp hC with hpig | hhole
+  · obtain ⟨i', _, rfl⟩ := mem_image.mp hpig
+    obtain ⟨j', _, rfl⟩ := mem_image.mp hl
+    exact ⟨i', j', rfl⟩
+  · obtain ⟨j', _, hrest⟩ := mem_biUnion.mp hhole
+    obtain ⟨i1, _, hrest2⟩ := mem_biUnion.mp hrest
+    obtain ⟨i2, _, rfl⟩ := mem_image.mp hrest2
+    have hl' : l = ⟨matchingEmbedVar k placed hole i1 j', false⟩ ∨
+        l = ⟨matchingEmbedVar k placed hole i2 j', false⟩ := by
+      simpa [matchingRenameHoleClause, mem_insert, mem_singleton] using hl
+    rcases hl' with rfl | rfl
+    · exact ⟨i1, j', rfl⟩
+    · exact ⟨i2, j', rfl⟩
+
+/-- The unrename map is injective on the variables of the rename CNF. -/
+theorem matchingUnrenameσ_injOn {k : ℕ} (placed : Fin (k + 2)) (hole : Fin (k + 1)) :
+    ∀ v ∈ cnfVars (matchingRenameCNF k placed hole),
+      ∀ w ∈ cnfVars (matchingRenameCNF k placed hole),
+        matchingUnrenameσ k placed hole v = matchingUnrenameσ k placed hole w →
+          v = w := by
+  intro v hv w hw h
+  obtain ⟨i1, j1, rfl⟩ := mem_cnfVars_matchingRenameCNF hv
+  obtain ⟨i2, j2, rfl⟩ := mem_cnfVars_matchingRenameCNF hw
+  rw [matchingUnrenameσ_embed, matchingUnrenameσ_embed] at h
+  have hinj := pvar_inj h
+  rw [hinj.1, hinj.2]
+
+/-- BP96 shrink step: a PHP(k+2, k+1) refutation yields a PHP(k+1, k)
+refutation of at most the same size. -/
+theorem php_shrink_step {k : ℕ} (d : Derivation (phpCNF (k + 1)) (∅ : Clause)) :
+    ∃ d' : Derivation (phpCNF k) (∅ : Clause), d'.size ≤ d.size := by
+  classical
+  -- Restrict along the matching placing pigeon 0 in hole 0.
+  obtain ⟨d1, hs1⟩ :=
+    exists_matchingRestrict_refutation (0 : Fin (k + 2)) (0 : Fin (k + 1)) d
+  -- Identify the restricted CNF with the renamed smaller PHP.
+  obtain ⟨d2, hs2⟩ :=
+    exists_refutation_of_cnf_eq (matchingRestrict_phpCNF_eq_rename 0 0) d1
+  -- Unrename back onto the standard smaller PHP grid.
+  obtain ⟨d3, hs3⟩ := exists_derivation_renameInj (matchingUnrenameσ_injOn 0 0) d2
+  obtain ⟨d4, hs4⟩ := exists_derivation_of_concl_eq
+    (renameClause_empty (matchingUnrenameσ k 0 0)) d3
+  obtain ⟨d5, hs5⟩ :=
+    exists_refutation_of_cnf_eq (unrename_matchingRenameCNF 0 0) d4
+  exact ⟨d5, by omega⟩
+
+/-- Iterated shrink: PHP refutations transfer down to any smaller instance. -/
+theorem php_shrink_le (m : ℕ) :
+    ∀ n, m ≤ n → ∀ d : Derivation (phpCNF n) (∅ : Clause),
+      ∃ d' : Derivation (phpCNF m) (∅ : Clause), d'.size ≤ d.size := by
+  intro n
+  induction n with
+  | zero =>
+      intro h d
+      obtain rfl := Nat.le_zero.mp h
+      exact ⟨d, le_rfl⟩
+  | succ q ih =>
+      intro h d
+      rcases eq_or_lt_of_le h with rfl | hlt
+      · exact ⟨d, le_rfl⟩
+      · obtain ⟨d1, hs1⟩ := php_shrink_step d
+        obtain ⟨d2, hs2⟩ := ih (Nat.lt_succ_iff.mp hlt) d1
+        exact ⟨d2, hs2.trans hs1⟩
+
 end SATurday.ProofComplexity

@@ -531,3 +531,15 @@ above it.
   unrename_matchingRenameCNF) accepted into the accepted tree. Gate remains
   green. R1 stays active. Next: formalize G7g size preserving derivation
   unrename transport.
+- 2026-08-04 formalize (G7g: injective rename transport and PHP shrink step):
+  SUCCESS. Extended MatchingRestriction.lean. Certified:
+  derivation_clauseVars_subset; renameClause_resolvent_of_pivot_inj;
+  exists_derivation_renameInj (size equal transport along renames injective
+  on hypothesis variables); php_shrink_step (PHP(k+2,k+1) refutation yields
+  PHP(k+1,k) refutation of size at most the original); php_shrink_le
+  (iterated shrink to any smaller instance). Gate green (152 accepted decls).
+  Key learning: the unrename map is only injective on embedded grid
+  variables, so transport must carry the derivation variable support
+  invariant. Deferred: monotone semantic calculus for the kill counting,
+  Frontier close. Pending human gate merge_certified. Next after merge:
+  formalize G8a monotone semantic calculus and simulation.
