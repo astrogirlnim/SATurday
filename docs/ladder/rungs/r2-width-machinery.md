@@ -384,3 +384,22 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   width inequalities definitional rather than rewriting through Option.
   Pending human gate merge_certified. Next: formalize exists_popular_literal
   and the add_lit / graft width lemmas, or start SizeWidth.lean measures.
+
+- 2026-08-04 human gate merge_certified: APPROVED by session decision ("go").
+  Width.lean first cluster (24 declarations) accepted into the accepted tree.
+  Gate remains green. R2 stays prose_accepted. Next: formalize
+  exists_popular_literal then add_lit and graft_width.
+
+- 2026-08-04 formalize (popular literal, add_lit, graft_width): SUCCESS.
+  Closed the three remaining Width.lean structural gaps from the prove entry:
+  exists_popular_literal (via fatCardSum double counting),
+  exists_derivation_add_lit (subset invariant through complementary unit),
+  exists_derivation_graft_width (width-tracking derives_trans).
+  Ten new accepted declarations. Gate green. Width.lean module plan items
+  for measures, restrict-width, popular literal, add_lit, and graft are all
+  closed. SizeWidth.lean (fatShrink, fatSteps, bsw_width_of_fatCount) remains.
+  Most important thing learned: add_lit must keep the invariant
+  C' ⊆ insert complementary C rather than literally inserting into every
+  line, so preimage clauses of F can be used as hypotheses without
+  weakening. Pending human gate merge_certified. Next: formalize
+  SizeWidth.lean.

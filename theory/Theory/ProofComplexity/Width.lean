@@ -366,4 +366,288 @@ theorem exists_restrict_refutation_width (ρ : ℕ → Option Bool) {F : CNF}
   subst hD
   exact ⟨d', hsz, hwd, hfat⟩
 
+/-! ## Averaging: popular literal among fat nodes -/
+
+/-- Total cardinality mass of fat nodes (with multiplicity). -/
+def Derivation.fatCardSum (t : ℕ) {F : CNF} : {C : Clause} → Derivation F C → ℕ
+  | _, .hyp C _ => if C.card > t then C.card else 0
+  | _, .res x dC dD _ _ =>
+      dC.fatCardSum t + dD.fatCardSum t +
+        if (resolvent dC.conclusion dD.conclusion x).card > t then
+          (resolvent dC.conclusion dD.conclusion x).card
+        else
+          0
+
+theorem Derivation.fatCardSum_ge_fatCount_mul (t : ℕ) {F : CNF} {C : Clause}
+    (d : Derivation F C) :
+    (t + 1) * d.fatCount t ≤ d.fatCardSum t := by
+  induction d with
+  | hyp C _ =>
+      simp only [Derivation.fatCount, Derivation.fatCardSum]
+      by_cases hfat : C.card > t
+      · simp only [hfat, ↓reduceIte, Nat.mul_one]
+        exact Nat.succ_le_of_lt hfat
+      · simp [hfat]
+  | res x dC dD _ _ ihC ihD =>
+      simp only [Derivation.fatCount, Derivation.fatCardSum]
+      by_cases hfat : (resolvent dC.conclusion dD.conclusion x).card > t
+      · simp only [hfat, ↓reduceIte, Nat.mul_add, Nat.mul_one]
+        have hR : t + 1 ≤ (resolvent dC.conclusion dD.conclusion x).card :=
+          Nat.succ_le_of_lt hfat
+        omega
+      · simp only [hfat, ↓reduceIte, Nat.add_zero, Nat.mul_add]
+        exact Nat.add_le_add ihC ihD
+
+/-- Every literal of a derived clause lies in `cnfLits F`. -/
+theorem derivation_mem_cnfLits {F : CNF} {C : Clause} (d : Derivation F C)
+    {l : Literal} (hl : l ∈ C) : l ∈ cnfLits F := by
+  have hv : l.var ∈ cnfVars F :=
+    derivation_clauseVars_subset d (mem_image_of_mem Literal.var hl)
+  rcases l with ⟨v, p⟩
+  cases p <;> exact mem_biUnion.mpr ⟨v, hv, by simp [cnfLits]⟩
+
+private theorem sum_ite_mem_eq_card {α : Type*} [DecidableEq α] (C S : Finset α)
+    (h : C ⊆ S) :
+    ∑ x ∈ S, (if x ∈ C then (1 : ℕ) else 0) = C.card :=
+  (card_eq_sum_ite_mem C S h).symm
+
+theorem Derivation.fatLitCount_sum_eq_fatCardSum (t : ℕ) {F : CNF} {C : Clause}
+    (d : Derivation F C) :
+    ∑ l ∈ cnfLits F, d.fatLitCount t l = d.fatCardSum t := by
+  induction d with
+  | hyp C hC =>
+      simp only [Derivation.fatLitCount, Derivation.fatCardSum]
+      by_cases hfat : C.card > t
+      · have hsub : C ⊆ cnfLits F := fun l hl =>
+          derivation_mem_cnfLits (Derivation.hyp C hC) hl
+        simp only [hfat, ↓reduceIte, true_and]
+        refine Eq.trans ?_ (sum_ite_mem_eq_card C (cnfLits F) hsub)
+        refine sum_congr rfl fun l _ => ?_
+        by_cases hl : l ∈ C <;> simp [hl]
+      · simp only [hfat, ↓reduceIte, false_and]
+        exact sum_eq_zero fun _ _ => rfl
+  | res x dC dD hx hnx ihC ihD =>
+      -- Unfold and split the sum into three additive pieces.
+      let R := resolvent dC.conclusion dD.conclusion x
+      show ∑ l ∈ cnfLits F,
+          (dC.fatLitCount t l + dD.fatLitCount t l +
+            if R.card > t ∧ l ∈ R then 1 else 0) =
+        dC.fatCardSum t + dD.fatCardSum t + if R.card > t then R.card else 0
+      have hsplit :
+          ∑ l ∈ cnfLits F,
+              (dC.fatLitCount t l + dD.fatLitCount t l +
+                if R.card > t ∧ l ∈ R then 1 else 0) =
+            (∑ l ∈ cnfLits F, dC.fatLitCount t l) +
+              (∑ l ∈ cnfLits F, dD.fatLitCount t l) +
+              ∑ l ∈ cnfLits F, (if R.card > t ∧ l ∈ R then 1 else 0) := by
+        simp [sum_add_distrib]
+      rw [hsplit, ihC, ihD]
+      by_cases hfat : R.card > t
+      · have hsub : R ⊆ cnfLits F := fun l hl =>
+          derivation_mem_cnfLits (Derivation.res x dC dD hx hnx)
+            (by simpa [R, Derivation.conclusion] using hl)
+        simp only [hfat, true_and, ↓reduceIte]
+        rw [sum_ite_mem_eq_card R (cnfLits F) hsub]
+      · simp only [hfat, false_and, ↓reduceIte]
+        rw [sum_eq_zero fun _ _ => rfl]
+
+/-- BSW averaging: some literal hits at least `t * m / N + 1` fat nodes. -/
+theorem exists_popular_literal {F : CNF} {C : Clause} (d : Derivation F C)
+    (t : ℕ) (hm : 0 < d.fatCount t) :
+    ∃ l ∈ cnfLits F,
+      t * d.fatCount t / (cnfLits F).card + 1 ≤ d.fatLitCount t l := by
+  classical
+  set m := d.fatCount t with hm_def
+  set N := (cnfLits F).card with hN_def
+  have hsum := Derivation.fatLitCount_sum_eq_fatCardSum t d
+  have hge := Derivation.fatCardSum_ge_fatCount_mul t d
+  have hNpos : 0 < N := by
+    by_contra hN
+    have hempty : cnfLits F = ∅ := card_eq_zero.mp (Nat.eq_zero_of_not_pos hN)
+    have hmulpos : 0 < (t + 1) * m := Nat.mul_pos (Nat.succ_pos t) hm
+    have hmass : 0 < d.fatCardSum t := lt_of_lt_of_le hmulpos hge
+    have hsum0 : d.fatCardSum t = 0 := by
+      simpa [hempty, sum_empty] using hsum.symm
+    omega
+  have hne : (cnfLits F).Nonempty :=
+    nonempty_of_ne_empty (mt card_eq_zero.mpr (ne_of_gt hNpos))
+  obtain ⟨l, hl, hsup⟩ :=
+    exists_mem_eq_sup (cnfLits F) hne (fun l => d.fatLitCount t l)
+  have hmax :
+      ∑ u ∈ cnfLits F, d.fatLitCount t u ≤ N * d.fatLitCount t l := by
+    have := sum_le_card_nsmul (cnfLits F) (fun u => d.fatLitCount t u)
+      (d.fatLitCount t l) (fun u hu => by
+        have := le_sup (s := cnfLits F) (f := fun v => d.fatLitCount t v) hu
+        exact hsup ▸ this)
+    simpa [nsmul_eq_mul, N] using this
+  refine ⟨l, hl, ?_⟩
+  by_contra hlt
+  have hle : d.fatLitCount t l ≤ t * m / N :=
+    Nat.lt_succ_iff.mp (lt_of_not_ge hlt)
+  have hchain1 : d.fatCardSum t ≤ N * (t * m / N) := by
+    rw [← hsum]
+    exact hmax.trans (Nat.mul_le_mul_left N hle)
+  have hchain2 : N * (t * m / N) ≤ t * m := Nat.mul_div_le (t * m) N
+  have hgt : t * m < (t + 1) * m :=
+    Nat.mul_lt_mul_of_pos_right (Nat.lt_succ_self t) hm
+  have hge' : (t + 1) * m ≤ d.fatCardSum t := by simpa [m] using hge
+  omega
+
+/-! ## Reintroducing a complementary literal (add_lit) -/
+
+/-- Opposite polarity of a literal. -/
+def negLit (l : Literal) : Literal := ⟨l.var, !l.pos⟩
+
+theorem negLit_negLit (l : Literal) : negLit (negLit l) = l := by
+  cases l
+  simp [negLit]
+
+/-- A survivor under `assignOne x b` is recovered (up to the complementary
+unit) from its preimage clause in `F`. -/
+theorem assignOne_preimage_subset {x : ℕ} {b : Bool} {C0 C' : Clause}
+    (hres : restrictClause (assignOne x b) C0 = some C') :
+    C0 ⊆ insert ⟨x, !b⟩ C' := by
+  intro l hl
+  obtain ⟨hnsat, hC'eq⟩ := (restrictClause_eq_some_iff (assignOne x b) C0 C').mp hres
+  by_cases hvar : l.var = x
+  · have hbne : some b ≠ some l.pos := by
+      simpa [assignOne, hvar] using hnsat l hl
+    have hpos : l.pos = !b := by
+      cases b <;> cases lp : l.pos <;> simp_all
+    rcases l with ⟨v, p⟩
+    simp only at hvar hpos
+    subst hvar
+    simp [hpos]
+  · have : l ∈ C' := by
+      rw [hC'eq]
+      exact mem_filter.mpr ⟨hl, by simp [assignOne, hvar]⟩
+    exact mem_insert_of_mem this
+
+private theorem add_lit_subset_resolvent {x y : ℕ} {b : Bool}
+    {E1 E2 Cp Dp : Clause}
+    (h1 : E1 ⊆ insert ⟨x, !b⟩ Cp) (h2 : E2 ⊆ insert ⟨x, !b⟩ Dp) :
+    resolvent E1 E2 y ⊆ insert ⟨x, !b⟩ (resolvent Cp Dp y) := by
+  intro l hl
+  have hl' : l ∈ E1.erase ⟨y, true⟩ ∨ l ∈ E2.erase ⟨y, false⟩ :=
+    (mem_union).mp (by simpa [resolvent] using hl)
+  simp only [resolvent, mem_insert, mem_union, mem_erase]
+  rcases hl' with hL | hR
+  · obtain ⟨hlne, hl1⟩ := mem_erase.mp hL
+    have h := h1 hl1
+    simp only [mem_insert] at h
+    rcases h with rfl | hlC
+    · exact Or.inl rfl
+    · exact Or.inr (Or.inl ⟨hlne, hlC⟩)
+  · obtain ⟨hlne, hl2⟩ := mem_erase.mp hR
+    have h := h2 hl2
+    simp only [mem_insert] at h
+    rcases h with rfl | hlD
+    · exact Or.inl rfl
+    · exact Or.inr (Or.inr ⟨hlne, hlD⟩)
+
+/-- Lift a derivation over `restrictCNF (assignOne x b) F` back to `F`. -/
+theorem exists_derivation_add_lit {F : CNF} {x : ℕ} {b : Bool} {C : Clause}
+    (d : Derivation (restrictCNF (assignOne x b) F) C) :
+    ∃ C' : Clause, ∃ d' : Derivation F C',
+      C' ⊆ insert ⟨x, !b⟩ C ∧
+        d'.width ≤ max (cnfWidth F) (d.width + 1) := by
+  induction d with
+  | hyp C hC =>
+      obtain ⟨C0, hC0, hres⟩ := (mem_restrictCNF_iff (assignOne x b) F C).mp hC
+      refine ⟨C0, Derivation.hyp C0 hC0, assignOne_preimage_subset hres, ?_⟩
+      exact (Derivation.width_hyp_le_cnfWidth hC0).trans (le_max_left _ _)
+  | res y dC dD hy hny ihC ihD =>
+      obtain ⟨E1, d1, h1, hw1⟩ := ihC
+      obtain ⟨E2, d2, h2, hw2⟩ := ihD
+      have hy_ne : y ≠ x := by
+        intro hxy
+        have hv : y ∈ cnfVars (restrictCNF (assignOne x b) F) :=
+          derivation_clauseVars_subset dC (mem_image_of_mem Literal.var hy)
+        exact notMem_cnfVars_restrictCNF_of_assigned (by simp [assignOne])
+          (hxy ▸ hv)
+      by_cases hE1y : (⟨y, true⟩ : Literal) ∈ E1
+      · by_cases hE2y : (⟨y, false⟩ : Literal) ∈ E2
+        · refine ⟨resolvent E1 E2 y, Derivation.res y d1 d2 hE1y hE2y, ?sub, ?wd⟩
+          case sub =>
+            simpa [Derivation.conclusion] using
+              add_lit_subset_resolvent (x := x) (y := y) (b := b) h1 h2
+          case wd =>
+            have hsub :=
+              add_lit_subset_resolvent (x := x) (y := y) (b := b)
+                (Cp := dC.conclusion) (Dp := dD.conclusion) h1 h2
+            have hcard : (resolvent E1 E2 y).card ≤
+                (resolvent dC.conclusion dD.conclusion y).card + 1 :=
+              (card_le_card hsub).trans (card_insert_le _ _)
+            set R := (resolvent dC.conclusion dD.conclusion y).card
+            set M := max (max dC.width dD.width) R
+            have hw1' : d1.width ≤ max (cnfWidth F) (M + 1) := by
+              have : dC.width + 1 ≤ M + 1 :=
+                Nat.add_le_add_right ((le_max_left _ _).trans (le_max_left _ _)) 1
+              exact hw1.trans (max_le_max le_rfl this)
+            have hw2' : d2.width ≤ max (cnfWidth F) (M + 1) := by
+              have : dD.width + 1 ≤ M + 1 :=
+                Nat.add_le_add_right ((le_max_right _ _).trans (le_max_left _ _)) 1
+              exact hw2.trans (max_le_max le_rfl this)
+            have hR' : (resolvent E1 E2 y).card ≤ max (cnfWidth F) (M + 1) := by
+              have : R + 1 ≤ M + 1 := Nat.add_le_add_right (le_max_right _ _) 1
+              exact hcard.trans (this.trans (le_max_right _ _))
+            simp only [Derivation.width, M, R] at hw1' hw2' hR' ⊢
+            exact max_le (max_le hw1' hw2') hR'
+        · refine ⟨E2, d2, ?_, ?_⟩
+          · intro l hl
+            have h := h2 hl
+            simp only [mem_insert] at h ⊢
+            rcases h with rfl | hlD
+            · exact Or.inl rfl
+            · refine Or.inr (mem_union_right _ (mem_erase.mpr ⟨?_, hlD⟩))
+              exact fun heq => hE2y (heq ▸ hl)
+          · have : dD.width + 1 ≤
+                max (max dC.width dD.width)
+                    (resolvent dC.conclusion dD.conclusion y).card + 1 :=
+              Nat.add_le_add_right ((le_max_right _ _).trans (le_max_left _ _)) 1
+            exact hw2.trans (max_le_max le_rfl this)
+      · refine ⟨E1, d1, ?_, ?_⟩
+        · intro l hl
+          have h := h1 hl
+          simp only [mem_insert] at h ⊢
+          rcases h with rfl | hlC
+          · exact Or.inl rfl
+          · refine Or.inr (mem_union_left _ (mem_erase.mpr ⟨?_, hlC⟩))
+            exact fun heq => hE1y (heq ▸ hl)
+        · have : dC.width + 1 ≤
+              max (max dC.width dD.width)
+                  (resolvent dC.conclusion dD.conclusion y).card + 1 :=
+            Nat.add_le_add_right ((le_max_left _ _).trans (le_max_left _ _)) 1
+          exact hw1.trans (max_le_max le_rfl this)
+
+/-! ## Width-tracking hypothesis substitution (graft) -/
+
+/-- Width-aware `derives_trans`: substitute a width-`W` derivation for every
+hypothesis of `dG`. -/
+theorem exists_derivation_graft_width {F G : CNF} {E : Clause} (W : ℕ)
+    (hAll : ∀ C ∈ G, ∃ d : Derivation F C, d.width ≤ W)
+    (dG : Derivation G E) :
+    ∃ d : Derivation F E, d.width ≤ max W dG.width := by
+  induction dG with
+  | hyp C hC =>
+      obtain ⟨d, hd⟩ := hAll C hC
+      exact ⟨d, hd.trans (le_max_left _ _)⟩
+  | res x dC dD hx hnx ihC ihD =>
+      obtain ⟨eC, hwC⟩ := ihC
+      obtain ⟨eD, hwD⟩ := ihD
+      refine ⟨Derivation.res x eC eD hx hnx, ?_⟩
+      set Rcard := (resolvent dC.conclusion dD.conclusion x).card
+      set M := max (max dC.width dD.width) Rcard
+      have hCbound : eC.width ≤ max W M := by
+        have : dC.width ≤ M :=
+          (le_max_left dC.width dD.width).trans (le_max_left _ _)
+        exact hwC.trans (max_le_max le_rfl this)
+      have hDbound : eD.width ≤ max W M := by
+        have : dD.width ≤ M :=
+          (le_max_right dC.width dD.width).trans (le_max_left _ _)
+        exact hwD.trans (max_le_max le_rfl this)
+      have hRbound : Rcard ≤ max W M := le_max_of_le_right (le_max_right _ _)
+      simp only [Derivation.width, M, Rcard] at hCbound hDbound hRbound ⊢
+      exact max_le (max_le hCbound hDbound) hRbound
+
 end SATurday.ProofComplexity
