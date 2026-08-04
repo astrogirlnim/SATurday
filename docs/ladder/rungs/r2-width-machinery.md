@@ -403,3 +403,21 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   line, so preimage clauses of F can be used as hypotheses without
   weakening. Pending human gate merge_certified. Next: formalize
   SizeWidth.lean.
+
+- 2026-08-04 human gate merge_certified: APPROVED by session decision ("go").
+  Popular literal / add_lit / graft_width cluster accepted. R2 stays
+  prose_accepted. Next: formalize SizeWidth.lean.
+
+- 2026-08-04 formalize (SizeWidth.lean fatShrink fatSteps kill-lit drop): SUCCESS.
+  New module `theory/Theory/ProofComplexity/SizeWidth.lean` imported from
+  Theory.lean. Certified cluster (12 declarations): fatShrink, fatShrink_lt,
+  fatSteps, fatSteps_zero, fatSteps_of_pos, fatShrink_le_self,
+  Derivation.fatLitCount_le_fatCount, Derivation.concl_card_le_cnfLits,
+  Derivation.fatCount_eq_zero_of_lits_le, exists_derivation_restrict_kill_lit,
+  exists_restrict_refutation_kill_lit, fatCount_kill_le_fatShrink.
+  Gate green. Deferred to next cycle: bsw_width_of_fatCount induction,
+  fatSteps_le_log, bsw_size_lower_bound, chainCNF non vacuity.
+  Most important thing learned: kill-lit fat drop needs the outer Nat
+  subtraction rewritten additively with Nat.le_sub_iff_add_le; omega cannot
+  reason through a compound subtracted RHS as a single atom.
+  Pending human gate merge_certified. Next: formalize bsw_width_of_fatCount.

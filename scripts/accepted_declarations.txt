@@ -298,7 +298,7 @@ SATurday.ProofComplexity.resolvent_subset_of_subset
 SATurday.ProofComplexity.exists_derivation_restrict_width
 SATurday.ProofComplexity.exists_restrict_refutation_width
 # R2 BSW: popular literal, add_lit, graft_width
-# (certified 2026-08-04, saturday formalize; pending merge_certified)
+# (certified 2026-08-04, saturday formalize; merge_certified approved)
 SATurday.ProofComplexity.Derivation.fatCardSum
 SATurday.ProofComplexity.Derivation.fatCardSum_ge_fatCount_mul
 SATurday.ProofComplexity.derivation_mem_cnfLits
@@ -309,3 +309,17 @@ SATurday.ProofComplexity.negLit_negLit
 SATurday.ProofComplexity.assignOne_preimage_subset
 SATurday.ProofComplexity.exists_derivation_add_lit
 SATurday.ProofComplexity.exists_derivation_graft_width
+# R2 BSW: SizeWidth fatShrink, fatSteps, kill-lit fat drop
+# (certified 2026-08-04, saturday formalize; pending merge_certified)
+SATurday.ProofComplexity.fatShrink
+SATurday.ProofComplexity.fatShrink_lt
+SATurday.ProofComplexity.fatSteps
+SATurday.ProofComplexity.fatSteps_zero
+SATurday.ProofComplexity.fatSteps_of_pos
+SATurday.ProofComplexity.fatShrink_le_self
+SATurday.ProofComplexity.Derivation.fatLitCount_le_fatCount
+SATurday.ProofComplexity.Derivation.concl_card_le_cnfLits
+SATurday.ProofComplexity.Derivation.fatCount_eq_zero_of_lits_le
+SATurday.ProofComplexity.exists_derivation_restrict_kill_lit
+SATurday.ProofComplexity.exists_restrict_refutation_kill_lit
+SATurday.ProofComplexity.fatCount_kill_le_fatShrink
