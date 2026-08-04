@@ -388,7 +388,7 @@ SATurday.ProofComplexity.chainCNF_refutable
 SATurday.ProofComplexity.bsw_bound_beats_trivial
 
 # R2 item 2 cluster 1: FinGraph API and Petersen construction
-# (certified 2026-08-04, saturday formalize; expansion deferred)
+# (certified 2026-08-04, saturday formalize)
 SATurday.ProofComplexity.FinEdge
 SATurday.ProofComplexity.finEdgeOf
 SATurday.ProofComplexity.incident
@@ -410,8 +410,11 @@ SATurday.ProofComplexity.petersenGraph
 SATurday.ProofComplexity.petersenGraph_card
 SATurday.ProofComplexity.petersenGraph_regular
 
+# R2 item 2 cluster 1b: Petersen expansion at alpha = 1 (certified 2026-08-04)
+# Pin kept: alpha = 1 is tight (some 5-sets have cut size 5); alpha = 2 is false.
+SATurday.ProofComplexity.petersenGraph_expansion
+
 # R2 item 2 cluster 2 start: Tseitin CNF construction (certified 2026-08-04)
-# Unsat and expander width bound remain open.
 SATurday.ProofComplexity.Charge
 SATurday.ProofComplexity.oddCharge
 SATurday.ProofComplexity.oddCharge_single
@@ -423,3 +426,13 @@ SATurday.ProofComplexity.vertexParityClauses
 SATurday.ProofComplexity.tseitinCNF
 SATurday.ProofComplexity.mem_tseitinCNF_iff
 SATurday.ProofComplexity.clauseVars_parityForbidClause_subset
+
+# R2 item 2 cluster 2b: odd-charge Tseitin unsat (certified 2026-08-04)
+# Width lower bound and complex bridge remain open.
+SATurday.ProofComplexity.trueIncident
+SATurday.ProofComplexity.not_clauseSat_parityForbidClause
+SATurday.ProofComplexity.cnfSat_vertexParity_charge
+SATurday.ProofComplexity.sum_trueIncident_card
+SATurday.ProofComplexity.sum_charge_even_of_cnfSat
+SATurday.ProofComplexity.tseitinCNF_unsat
+SATurday.ProofComplexity.tseitinCNF_refutable

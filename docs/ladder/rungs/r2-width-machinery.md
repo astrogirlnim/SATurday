@@ -951,3 +951,27 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   scripts/accepted_declarations.txt.
   Next recommended action: formalize petersenGraph_expansion (cluster 1b) or
   tseitinCNF_unsat (cluster 2 remainder).
+
+- 2026-08-04 formalize (petersenGraph_expansion and tseitinCNF_unsat): SUCCESS.
+  Files verified before edits (no duplicates): FinGraph.lean, Tseitin.lean,
+  Width.lean, SizeWidth.lean, Resolution.lean, Theory.lean,
+  scripts/accepted_declarations.txt, this rung md. Ripgrep confirmed target
+  names petersenGraph_expansion and tseitinCNF_unsat were absent as theorems.
+  docs/file_structure.md absent; structure from live ProofComplexity tree.
+
+  Cluster 1b: `petersenGraph_expansion : HasExpansion petersenGraph 1` via
+  kernel `decide` over Fin 10 powersets (maxRecDepth raised; no native_decide).
+  Honest alpha note: pin alpha = 1 KEPT. Computational check shows min cut
+  ratios (3,2,5/3,1.5,1) by size 1..5; alpha = 2 has hundreds of violations,
+  so the prove-pin constant is tight and correct, not weakened.
+
+  Cluster 2b: `tseitinCNF_unsat` and `tseitinCNF_refutable` by double counting:
+  trueIncident fibers, local parity from forbidding clauses, sum of true
+  incident cards = 2 * true edges (even), hence total charge even, contradicting
+  oddCharge. Supporting decls: trueIncident, not_clauseSat_parityForbidClause,
+  cnfSat_vertexParity_charge, sum_trueIncident_card, sum_charge_even_of_cnfSat.
+
+  Axiom gate: PASS. merge_certified auto-recorded per user blanket.
+  Remaining gaps: tseitin_complex_* bridge, tseitin_expander_width_lower_bound,
+  size corollary, CSExpansion module, exists_3regular_expander.
+  Next recommended action: formalize tseitin complex / width lower bound.

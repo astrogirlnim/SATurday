@@ -10,10 +10,11 @@ Pinned API from docs/ladder/rungs/r2-width-machinery.md: `FinEdge`, `FinGraph`,
 `incident`, `degree`, `IsRegular`, `edgeBoundary`, `HasExpansion`, elementary
 lemmas, and the explicit Petersen graph.
 
-`petersenGraph_expansion` is deferred (finite but heavy enumeration; not claimed
-here). This cluster certifies the construction, edge count, and 3-regularity.
+Cluster 1b certifies `petersenGraph_expansion` at pinned alpha = 1. That factor
+is honest and tight on this encoding (some half-size sets have cut ratio exactly
+1; alpha = 2 is false).
 
-LOG: R2 FinGraph API and Petersen construction
+LOG: R2 FinGraph API Petersen construction and expansion
 -/
 
 namespace SATurday.ProofComplexity
@@ -156,5 +157,29 @@ theorem petersenGraph_card : petersenGraph.card = 15 := by decide
 theorem petersenGraph_regular : IsRegular petersenGraph 3 := by
   intro v
   fin_cases v <;> decide
+
+/-! ## Petersen expansion (alpha = 1) -/
+
+set_option maxRecDepth 100000
+set_option maxHeartbeats 8000000
+
+/-- Finite kernel check over all subsets of `Fin 10`: empty and size above 5 are
+exempt; every other set has cut size at least its cardinality. Uses `decide`
+(not `native_decide`). -/
+private theorem petersenGraph_expansion_decide :
+    ∀ S : Finset (Fin 10),
+      S.card = 0 ∨ 5 < S.card ∨
+        S.card ≤ (edgeBoundary petersenGraph S).card := by
+  decide
+
+/-- Petersen has integer edge expansion factor 1 (pinned; tight on some 5-sets). -/
+theorem petersenGraph_expansion : HasExpansion petersenGraph 1 := by
+  intro S hne hcard
+  rcases petersenGraph_expansion_decide S with h0 | hbig | hle
+  · have : S = ∅ := card_eq_zero.mp h0
+    exact (hne.ne_empty this).elim
+  · have : S.card ≤ 5 := by omega
+    exact (lt_irrefl _ (lt_of_le_of_lt this hbig)).elim
+  · simpa [one_mul] using hle
 
 end SATurday.ProofComplexity
