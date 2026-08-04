@@ -479,3 +479,13 @@ above it.
   exists_matchingRestrict_refutation) accepted into the accepted tree. Gate
   remains green. R1 stays active. Next: formalize G7d iterative large clause
   kill and smaller PHP isomorphism.
+- 2026-08-03 formalize (G7d: iterative large clause kill progress): PARTIAL
+  SUCCESS. Extended MatchingRestriction.lean. Certified: matchingLookup_row,
+  matchingLookup_col; mem_pigeonClause; pigeonClause_subset_gridPosLits;
+  restrictClause_pigeonClause_place; restrictClause_pigeonClause_other (axiom
+  shrinks to holes other than j); exists_matching_kills_one;
+  filter_not_killed_card_lt; large_survivors_lt (strict drop when
+  |Large| * W ≥ V); exists_matching_strict_progress. Gate green (120 accepted
+  decls). Deferred: renaming iso restrictCNF(matchingLookup)(phpCNF n) ≃
+  phpCNF (n−1); rate optimal iterative 9/10 shrink; Frontier close. Pending
+  human gate merge_certified. Next after merge: formalize G7e smaller PHP iso.

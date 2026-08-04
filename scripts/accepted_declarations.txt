@@ -145,3 +145,15 @@ SATurday.ProofComplexity.restrict_resolvent_of_both_some
 SATurday.ProofComplexity.derivation_restrict_sub
 SATurday.ProofComplexity.exists_restrict_refutation
 SATurday.ProofComplexity.exists_matchingRestrict_refutation
+# R1 BP96 Theorem 2 / G7d: iterative large-clause kill progress
+# (certified 2026-08-03, saturday formalize)
+SATurday.ProofComplexity.matchingLookup_row
+SATurday.ProofComplexity.matchingLookup_col
+SATurday.ProofComplexity.mem_pigeonClause
+SATurday.ProofComplexity.pigeonClause_subset_gridPosLits
+SATurday.ProofComplexity.restrictClause_pigeonClause_place
+SATurday.ProofComplexity.restrictClause_pigeonClause_other
+SATurday.ProofComplexity.exists_matching_kills_one
+SATurday.ProofComplexity.filter_not_killed_card_lt
+SATurday.ProofComplexity.large_survivors_lt
+SATurday.ProofComplexity.exists_matching_strict_progress

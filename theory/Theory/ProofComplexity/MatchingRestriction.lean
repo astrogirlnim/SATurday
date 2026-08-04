@@ -22,8 +22,9 @@ certified width ((n+1)/3)², so we set `largeThreshold` to that certified width.
 The exponential constant may need recalibration when the size assembly closes.
 
 G7b: semantic restriction transport. G7c: size-nonincreasing syntactic
-derivation surgery (`derivation_restrict_sub`, `exists_restrict_refutation`).
-Iterative shrink, smaller PHP isomorphism, and Frontier close are deferred.
+derivation surgery. G7d: iterative large-clause kill progress and PHP
+hypothesis restriction under a matching step (iso foundation). Full
+renaming iso to `phpCNF (n-1)` and Frontier close are deferred.
 
 LOG: R1 matching restriction module (BP96 Theorem 2 / G7)
 -/
@@ -676,5 +677,174 @@ theorem exists_matchingRestrict_refutation {n : ℕ} (i : Fin (n + 1)) (j : Fin 
     ∃ d' : Derivation (restrictCNF (matchingLookup n i j) (phpCNF n)) (∅ : Clause),
       d'.size ≤ d.size :=
   exists_restrict_refutation (matchingLookup n i j) d
+
+/-! ## Iterative large-clause kill and PHP restriction (G7d) -/
+
+theorem matchingLookup_row {n : ℕ} (i : Fin (n + 1)) {j j' : Fin n}
+    (hne : j' ≠ j) :
+    matchingLookup n i j (pvar n i j') = some false := by
+  have hex : ∃ b, (pvar n i j', b) ∈ matchingForced n i j :=
+    ⟨false, mem_matchingForced_row i hne⟩
+  simp only [matchingLookup, hex, ↓reduceDIte]
+  have hb := Classical.choose_spec hex
+  cases hbit : Classical.choose hex
+  · rfl
+  · have htrue : (pvar n i j', true) ∈ matchingForced n i j := by
+      simpa [hbit] using hb
+    simp only [matchingForced, mem_insert, mem_union, mem_image, mem_erase, mem_univ] at htrue
+    rcases htrue with hplace | hrow | hcol
+    · exact absurd (pvar_inj (Prod.mk.inj hplace).1).2 hne
+    · obtain ⟨_, _, hpair⟩ := hrow
+      exact Bool.noConfusion (Prod.mk.inj hpair).2
+    · obtain ⟨_, _, hpair⟩ := hcol
+      exact Bool.noConfusion (Prod.mk.inj hpair).2
+
+theorem matchingLookup_col {n : ℕ} {i i' : Fin (n + 1)} (j : Fin n)
+    (hne : i' ≠ i) :
+    matchingLookup n i j (pvar n i' j) = some false := by
+  have hex : ∃ b, (pvar n i' j, b) ∈ matchingForced n i j :=
+    ⟨false, mem_matchingForced_col j hne⟩
+  simp only [matchingLookup, hex, ↓reduceDIte]
+  have hb := Classical.choose_spec hex
+  cases hbit : Classical.choose hex
+  · rfl
+  · have htrue : (pvar n i' j, true) ∈ matchingForced n i j := by
+      simpa [hbit] using hb
+    simp only [matchingForced, mem_insert, mem_union, mem_image, mem_erase, mem_univ] at htrue
+    rcases htrue with hplace | hrow | hcol
+    · exact absurd (pvar_inj (Prod.mk.inj hplace).1).1 hne
+    · obtain ⟨_, _, hpair⟩ := hrow
+      exact Bool.noConfusion (Prod.mk.inj hpair).2
+    · obtain ⟨_, _, hpair⟩ := hcol
+      exact Bool.noConfusion (Prod.mk.inj hpair).2
+
+theorem mem_pigeonClause {n : ℕ} (i : Fin (n + 1)) (j : Fin n) :
+    (⟨pvar n i j, true⟩ : Literal) ∈ pigeonClause n i :=
+  mem_image_of_mem _ (mem_univ j)
+
+theorem pigeonClause_subset_gridPosLits (n : ℕ) (i : Fin (n + 1)) :
+    pigeonClause n i ⊆ gridPosLits n := by
+  intro l hl
+  simp only [pigeonClause, mem_image] at hl
+  obtain ⟨j, _, rfl⟩ := hl
+  exact (mem_gridPosLits_iff).mpr ⟨i, j, rfl⟩
+
+/-- Placing pigeon `i` kills its pigeon axiom. -/
+theorem restrictClause_pigeonClause_place {n : ℕ} (i : Fin (n + 1)) (j : Fin n) :
+    restrictClause (matchingLookup n i j) (pigeonClause n i) = none :=
+  restrictClause_none_of_killed i j (pigeonClause n i) (mem_pigeonClause i j)
+
+private theorem matchingLookup_off_grid {n : ℕ} {i i' : Fin (n + 1)}
+    {j j' : Fin n} (hi : i' ≠ i) (hj : j' ≠ j) :
+    matchingLookup n i j (pvar n i' j') = none := by
+  simp only [matchingLookup]
+  split_ifs with hex
+  · obtain ⟨b, hb⟩ := hex
+    simp only [matchingForced, mem_insert, mem_union, mem_image, mem_erase, mem_univ] at hb
+    rcases hb with hplace | hrow | hcol
+    · exact (hi (pvar_inj (Prod.mk.inj hplace).1).1).elim
+    · obtain ⟨_, _, hpair⟩ := hrow
+      exact (hi (pvar_inj (Prod.mk.inj hpair).1).1.symm).elim
+    · obtain ⟨_, _, hpair⟩ := hcol
+      exact (hj (pvar_inj (Prod.mk.inj hpair).1).2.symm).elim
+  · rfl
+
+/-- A non-placed pigeon's axiom restricts to positive lits on holes other than `j`. -/
+theorem restrictClause_pigeonClause_other {n : ℕ}
+    {i i' : Fin (n + 1)} (j : Fin n) (hne : i' ≠ i) :
+    restrictClause (matchingLookup n i j) (pigeonClause n i') =
+      some (((Finset.univ : Finset (Fin n)).erase j).image fun j' =>
+        (⟨pvar n i' j', true⟩ : Literal)) := by
+  set ρ := matchingLookup n i j
+  have hnsat : ∀ l ∈ pigeonClause n i', ρ l.var ≠ some l.pos := by
+    intro l hl hρ
+    obtain ⟨j', _, rfl⟩ := mem_image.mp (show l ∈ pigeonClause n i' from hl)
+    by_cases hj : j' = j
+    · -- Column force: other pigeon on hole j is set false, so not satisfied.
+      have hcol := matchingLookup_col (i := i) (i' := i') j hne
+      dsimp [ρ] at hρ
+      rw [hj, hcol] at hρ
+      exact Bool.noConfusion (Option.some.inj hρ)
+    · have hoff := matchingLookup_off_grid hne hj
+      dsimp [ρ] at hρ
+      rw [hoff] at hρ
+      exact (Option.some_ne_none true hρ.symm).elim
+  have hfilter :
+      (pigeonClause n i').filter (fun l => ρ l.var = none) =
+        ((Finset.univ : Finset (Fin n)).erase j).image fun j' =>
+          (⟨pvar n i' j', true⟩ : Literal) := by
+    ext l
+    constructor
+    · intro hl
+      obtain ⟨hlP, hun⟩ := mem_filter.mp hl
+      obtain ⟨j', _, rfl⟩ := mem_image.mp hlP
+      have hjne : j' ≠ j := by
+        intro heq
+        have hcol := matchingLookup_col (i := i) (i' := i') j hne
+        dsimp [ρ] at hun
+        rw [heq, hcol] at hun
+        exact (Option.some_ne_none false hun).elim
+      exact mem_image_of_mem _ (mem_erase.mpr ⟨hjne, mem_univ _⟩)
+    · intro hl
+      obtain ⟨j', hj, rfl⟩ := mem_image.mp hl
+      have hjne := (mem_erase.mp hj).1
+      exact mem_filter.mpr ⟨mem_pigeonClause i' j', matchingLookup_off_grid hne hjne⟩
+  exact (restrictClause_eq_some_iff ρ _ _).mpr ⟨hnsat, hfilter.symm⟩
+
+/-- Any nonempty Finset of nonempty positive grid clauses admits a matching
+that kills at least one member. -/
+theorem exists_matching_kills_one {n : ℕ} (_hn : 0 < n)
+    (Large : Finset Clause) (hne : Large.Nonempty)
+    (hsub : ∀ C ∈ Large, C ⊆ gridPosLits n)
+    (hnC : ∀ C ∈ Large, C.Nonempty) :
+    ∃ i : Fin (n + 1), ∃ j : Fin n,
+      (Large.filter (killedByMatching n i j)).Nonempty := by
+  obtain ⟨C, hC⟩ := hne
+  obtain ⟨l, hl⟩ := hnC C hC
+  obtain ⟨i, j, rfl⟩ := (mem_gridPosLits_iff).mp (hsub C hC hl)
+  exact ⟨i, j, ⟨C, mem_filter.mpr ⟨hC, hl⟩⟩⟩
+
+/-- One kill step strictly decreases the large-set cardinality. -/
+theorem filter_not_killed_card_lt {n : ℕ} (i : Fin (n + 1)) (j : Fin n)
+    (Large : Finset Clause)
+    (hkill : (Large.filter (killedByMatching n i j)).Nonempty) :
+    (Large.filter (fun C => ¬ killedByMatching n i j C)).card < Large.card := by
+  have hpos : 0 < (Large.filter (killedByMatching n i j)).card :=
+    card_pos.mpr hkill
+  have hLpos : 0 < Large.card := lt_of_lt_of_le hpos (card_filter_le _ _)
+  rw [filter_not_killed_card]
+  exact Nat.sub_lt hLpos hpos
+
+/-- Popular averaging gives a strict drop when `|Large| * W ≥ V`. -/
+theorem large_survivors_lt {n : ℕ} (hn : 0 < n)
+    (Large : Finset Clause)
+    (hwide : ∀ C ∈ Large, largeThreshold n ≤ C.card)
+    (hsub : ∀ C ∈ Large, C ⊆ gridPosLits n)
+    (hbig : (n + 1) * n ≤ Large.card * largeThreshold n) :
+    ∃ i : Fin (n + 1), ∃ j : Fin n,
+      (Large.filter (fun C => ¬ killedByMatching n i j C)).card < Large.card := by
+  obtain ⟨i, j, hle⟩ := large_survivors_le hn Large hwide hsub
+  refine ⟨i, j, ?_⟩
+  -- Averaging dividend is positive once |Large| * W ≥ V.
+  have hV : 0 < (n + 1) * n := Nat.mul_pos (Nat.succ_pos n) hn
+  have hdivPos : 0 < (Large.card * largeThreshold n) / ((n + 1) * n) :=
+    Nat.div_pos hbig hV
+  have hLpos : 0 < Large.card := by
+    refine Nat.pos_of_ne_zero fun h0 => ?_
+    rw [h0, Nat.zero_mul] at hbig
+    exact (not_le_of_gt hV) hbig
+  -- Survivors ≤ card − div < card.
+  exact lt_of_le_of_lt hle (Nat.sub_lt hLpos hdivPos)
+
+/-- Progress lemma for iteration: a nonempty positive grid set admits a matching
+whose unkilled subset is strictly smaller. -/
+theorem exists_matching_strict_progress {n : ℕ} (hn : 0 < n)
+    (Large : Finset Clause) (hne : Large.Nonempty)
+    (hsub : ∀ C ∈ Large, C ⊆ gridPosLits n)
+    (hnC : ∀ C ∈ Large, C.Nonempty) :
+    ∃ i : Fin (n + 1), ∃ j : Fin n,
+      (Large.filter (fun C => ¬ killedByMatching n i j C)).card < Large.card := by
+  obtain ⟨i, j, hkill⟩ := exists_matching_kills_one hn Large hne hsub hnC
+  exact ⟨i, j, filter_not_killed_card_lt i j Large hkill⟩
 
 end SATurday.ProofComplexity
