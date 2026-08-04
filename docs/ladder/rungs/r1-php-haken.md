@@ -578,3 +578,9 @@ above it.
   Deferred: monotone restriction under a matching, kill counting, Frontier
   close. Pending human gate merge_certified. Next after merge: formalize
   G8c monotone restriction.
+- 2026-08-04 human gate merge_certified: G8b monotone width cluster (7
+  declarations: MonoDeriv.concl_mem_lines, MonoDeriv.lines_card_le_size,
+  MonoDeriv.mem_lines_subset_grid, MonoDeriv.exists_intermediate_line,
+  pos_of_mem_gridPosLits, monotoneClause_of_pos, MonoDeriv.exists_wide_line)
+  accepted into the accepted tree. Gate remains green. R1 stays active.
+  Next: formalize G8c monotone restriction under a matching.
