@@ -37,9 +37,8 @@ ladder after the program audit (see docs/postmortems/).
       phpCNF_refutable certified.
 - [x] Prove the first nontrivial new lemma in Lean without new axioms
       (exists_intermediate_pigeonComplexity and the linear size bound).
-- [x] R1 honest exponential size lower bound certified (G8h):
-      php_resolution_size_lower_bound_honest at 2^((n-3n/4-36)/35) for n≥288;
-      Frontier 2^(n/20) remains open.
+- [x] R1 certified (honest exponential): php_resolution_size_lower_bound at
+      2^((n-3n/4-36)/35) for n≥288; paper 2^(n/20) not claimed; R2 and R5 opened.
 - [ ] Keep a hard rule: no paper-only dependency may sit on the critical path.
 
 ## 5) Adversarial Validation Loop

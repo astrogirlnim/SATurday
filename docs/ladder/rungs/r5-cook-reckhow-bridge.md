@@ -1,6 +1,6 @@
 # R5: Cook-Reckhow Bridge
 
-Status: proposed
+Status: active
 Lean home: theory/Theory/ProofComplexity/Bridge/ (created at adoption)
 
 ## Statement
@@ -37,3 +37,6 @@ Not applicable (no lower-bound claim).
 ## Session log (append-only)
 
 - 2026-08-03 reboot: rung proposed. Opens when R1 is certified.
+
+- 2026-08-04 adopt: rung opened to active by R1 certification
+  (path A honest-rate close). Next: prove cycle to pin the machine model and bridge theorem statements before Lean.

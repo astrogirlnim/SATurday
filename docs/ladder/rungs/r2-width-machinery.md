@@ -1,6 +1,6 @@
 # R2: Width Machinery and More Families
 
-Status: proposed
+Status: active
 Lean home: theory/Theory/ProofComplexity/ (module split decided at adoption)
 
 ## Statement
@@ -41,3 +41,6 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   explicit Ramanujan-style construction) before hardness curves mean anything;
   and the random 3-CNF density should rise toward 5.5 or n should grow before it
   is used as a hardness calibration family. Ledger: search/logs/falsifier_runs.jsonl.
+
+- 2026-08-04 adopt: rung opened to active by R1 certification
+  (path A honest-rate close). Next: prove cycle to pin the BSW size-width statement and Lean module split.

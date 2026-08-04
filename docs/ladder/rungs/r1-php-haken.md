@@ -1,13 +1,16 @@
 # R1: PHP Haken Lower Bound
 
-Status: active
-Lean home: theory/Theory/ProofComplexity/PHP.lean
+Status: certified
+Lean home: theory/Theory/ProofComplexity/MonotoneCalculus.lean
+  (family and non-vacuity: PHP.lean)
 
 ## Statement
 
 There is a constant c > 1 such that for all sufficiently large n, every resolution
 refutation of PHP(n+1, n) (pigeonhole: n+1 pigeons, n holes) has size at least c^n.
-Statement lives in a Frontier namespace until proved.
+Certified form: `php_resolution_size_lower_bound` gives
+`2^((n - 3n/4 - 36)/35) ≤ d.size` for `n ≥ 288` (also `2^(n/200)` for `n ≥ 480`).
+Paper rate `2^(n/20)` is not claimed.
 
 ## Why this rung
 
@@ -666,3 +669,13 @@ above it.
   php_resolution_size_lower_bound_honest, php_resolution_size_lower_bound_n200)
   accepted into the accepted tree. Gate remains green. R1 stays active
   (Frontier 2^(n/20) still open).
+
+- 2026-08-04 audit and adopt (path A: close R1 at honest rate): SUCCESS.
+  Removed Frontier `2^(n/20)` sorry from PHP.lean. Canonical theorem is
+  `php_resolution_size_lower_bound` in MonotoneCalculus.lean (alias
+  `_honest` retained). Gate green; accepted tree has zero sorries.
+  Human gate adopt_rung / certify approved by session decision ("go").
+  R1 status set to certified. R2 and R5 opened to active. Most important
+  thing learned: certifying the existential exponential claim unblocks the
+  ladder without waiting on the paper constant. Next: saturday on R2
+  (width machinery prove cycle) or R5 bridge scaffolding.

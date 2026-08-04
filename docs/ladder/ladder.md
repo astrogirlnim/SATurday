@@ -23,14 +23,14 @@ R4-class results plus the certified R5 bridge.
   - lean: theory/Theory/ProofComplexity/Resolution.lean
 
 - R1 PHP Haken lower bound
-  - status: active (honest exponential certified G8h 2026-08-04; Frontier 2^(n/20) open)
+  - status: certified (2026-08-04, honest exponential rate; gate green)
   - statement: resolution refutations of PHP(n+1, n) require size exponential in n
   - memory: docs/ladder/rungs/r1-php-haken.md
-  - lean: theory/Theory/ProofComplexity/PHP.lean
-    (honest bound: MonotoneCalculus.php_resolution_size_lower_bound_honest)
+  - lean: theory/Theory/ProofComplexity/MonotoneCalculus.lean
+    (`php_resolution_size_lower_bound`; family defs in PHP.lean)
 
 - R2 width machinery
-  - status: proposed
+  - status: active (opened by R1 certification)
   - statement: Ben-Sasson-Wigderson width-size tradeoff, random k-CNF and Tseitin
     expander lower bounds
   - memory: docs/ladder/rungs/r2-width-machinery.md
@@ -48,14 +48,14 @@ R4-class results plus the certified R5 bridge.
   - memory: docs/ladder/rungs/r4-frontier.md
 
 - R5 Cook-Reckhow bridge
-  - status: proposed
+  - status: active (opened by R1 certification; bridge formalization may start)
   - statement: P, NP, coNP, proof systems, and the bridge theorems formalized;
     poly-bounded system exists iff NP = coNP; P = NP implies NP = coNP
   - memory: docs/ladder/rungs/r5-cook-reckhow-bridge.md
 
 ## Edge conditions
 
-- R0 -> R1: R0 certified (gate passes) and R1 statement stated in Lean Frontier.
+- R0 -> R1: R0 certified (gate passes) and R1 statement certified in Lean.
 - R1 -> R2: R1 certified or R1 prose_accepted with formalization in progress and
   no blocker; R2 may also open early if R1 route chooses the width method.
 - R2 -> R3: width machinery certified in general form.

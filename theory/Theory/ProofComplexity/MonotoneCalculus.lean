@@ -1157,7 +1157,7 @@ uniformizer `V₀ = (n+1)*n`, and choose a sparse budget `s` covering the stuck
 term. Wipeout then contradicts `exists_wide_line` at scale `m` whenever the
 starting size is smaller than the dense-phase growth. The certified width
 `((m+1)/3)²` and the halved rate in `kill_step_mul` yield an honest exponential
-assembled in G8h as `2^((n-3n/4-36)/35)`, weaker than Frontier `2^(n/20)`.
+assembled in G8h as `2^((n-3n/4-36)/35)`. That rate is the certified R1 theorem.
 -/
 
 /-- Wide count never exceeds derivation size. -/
@@ -1266,8 +1266,8 @@ theorem volume_le_eighteen_threshold {n : ℕ} (hn : 200 ≤ n) :
 
 Pack the G8g infrastructure into a certified size lower bound. With width
 `largeThreshold (3n/4) = ((m+1)/3)^2` and the halved kill rate, the dense phase
-length is `t = (n - 3n/4) - 36`, giving growth `2^(t/35)`. This is weaker than
-the Frontier target `2^(n/20)` and is the honest rate supported by current lemmas.
+length is `t = (n - 3n/4) - 36`, giving growth `2^(t/35)`. This is the certified
+R1 rate supported by current width and kill lemmas (paper `2^(n/20)` not claimed).
 -/
 
 /-- Kernel decide seed: `(36/35)^35 ≥ 2`. Gate clean (no `native_decide`). -/
@@ -1441,19 +1441,26 @@ theorem monoDeriv_size_lower_bound {n : ℕ} (hn : 288 ≤ n)
         simpa [Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hSpow)
   exact wipeout_contradicts_wide_line hWpos hV0 hts huni md hafter hm hWterm
 
-/-- Resolution lift of the honest monotone size lower bound. -/
-theorem php_resolution_size_lower_bound_honest {n : ℕ} (hn : 288 ≤ n)
+/-- Canonical R1 theorem: every resolution refutation of PHP(n+1, n) has
+exponential size. Rate is the honest packing from G8h, not the paper `2^(n/20)`. -/
+theorem php_resolution_size_lower_bound {n : ℕ} (hn : 288 ≤ n)
     (d : Derivation (phpCNF n) (∅ : Clause)) :
     2 ^ ((n - 3 * n / 4 - 36) / 35) ≤ d.size := by
   have hn0 : 0 < n := by omega
   obtain ⟨md, hs⟩ := exists_monoDeriv_refutation hn0 d
   exact le_trans (monoDeriv_size_lower_bound hn md) hs
 
+/-- Alias kept for older session logs that name the `_honest` form. -/
+theorem php_resolution_size_lower_bound_honest {n : ℕ} (hn : 288 ≤ n)
+    (d : Derivation (phpCNF n) (∅ : Clause)) :
+    2 ^ ((n - 3 * n / 4 - 36) / 35) ≤ d.size :=
+  php_resolution_size_lower_bound hn d
+
 /-- Weaker clean form: `2^(n/200)` for `n ≥ 480`. -/
 theorem php_resolution_size_lower_bound_n200 {n : ℕ} (hn : 480 ≤ n)
     (d : Derivation (phpCNF n) (∅ : Clause)) :
     2 ^ (n / 200) ≤ d.size := by
-  have hmain := php_resolution_size_lower_bound_honest (by omega) d
+  have hmain := php_resolution_size_lower_bound (by omega) d
   have hexp : n / 200 ≤ (n - 3 * n / 4 - 36) / 35 := by
     have h3 : n / 200 * 35 ≤ n - 3 * n / 4 - 36 := by omega
     exact (Nat.le_div_iff_mul_le (by decide : 0 < 35)).mpr h3

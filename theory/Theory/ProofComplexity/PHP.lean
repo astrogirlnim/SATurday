@@ -9,11 +9,11 @@ the recorded non-vacuity witness demanded by the proof standards: together with
 refutational completeness (R0), it shows resolution refutations of PHP(n+1, n)
 exist, so the R1 lower bound quantifies over a nonempty set of derivations.
 
-The R1 target itself (Haken 1985: resolution refutations of PHP(n+1, n) require
-size exponential in n) is STATED in the quarantined `Frontier` namespace below
-and carries a `sorry`. It is not a result of this repo and is never imported by
-accepted modules or listed in scripts/accepted_declarations.txt until proved
-(docs/p-vs-np-proof-standards.md, frontier quarantine).
+The exponential R1 size lower bound is certified in
+`MonotoneCalculus.lean` as `php_resolution_size_lower_bound` (honest rate
+supported by the current width and kill lemmas). The stronger paper constant
+`2^(n/20)` is not claimed; recovering it is optional future work, not a
+blocker for R1 certification.
 
 Encoding: pigeon i in Fin (n+1), hole j in Fin n, variable index i * n + j.
 Clauses: every pigeon sits somewhere; no two pigeons share a hole.
@@ -110,24 +110,5 @@ theorem phpCNF_unsat (n : ℕ) : ¬Satisfiable (phpCNF n) := by
 This is the formal shape of the non-vacuity witness. -/
 theorem phpCNF_refutable (n : ℕ) : Refutable (phpCNF n) :=
   resolution_complete (phpCNF_unsat n)
-
-/-! ## The R1 target statement (quarantined frontier) -/
-
-namespace Frontier
-
-/-- R1 target (Haken 1985): every resolution refutation of PHP(n+1, n) has size
-at least 2 ^ (n / 20) for n at least 20.
-
-Proof is OPEN in this repo. Candidate routes are recorded in
-docs/ladder/rungs/r1-php-haken.md (Ben-Sasson-Wigderson width method, or
-Haken's bottleneck counting). This declaration lives in the Frontier namespace,
-carries a sorry, is reported separately by scripts/check_axioms.sh, and must
-never be imported by accepted modules or cited as a result. -/
-theorem php_resolution_size_lower_bound :
-    ∀ n : ℕ, 20 ≤ n → ∀ d : Derivation (phpCNF n) (∅ : Clause),
-      2 ^ (n / 20) ≤ d.size := by
-  sorry
-
-end Frontier
 
 end SATurday.ProofComplexity
