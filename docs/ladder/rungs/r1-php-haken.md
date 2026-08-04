@@ -550,3 +550,13 @@ above it.
   mem_cnfVars_matchingRenameCNF, matchingUnrenameσ_injOn, php_shrink_step,
   php_shrink_le) accepted into the accepted tree. Gate remains green. R1
   stays active. Next: formalize G8a monotone semantic calculus.
+- 2026-08-04 formalize (G8a: semantic monotone calculus and simulation):
+  SUCCESS. New module MonotoneCalculus.lean (imported by Theory.lean).
+  Certified: MonoDeriv (BP96 positive calculus over critical semantics:
+  ax lines dominated by a pigeon axiom, sem lines covered by two premises);
+  MonoDeriv.size; Fals_monotoneClause; Fals_holeClause_empty; grid support
+  lemmas; exists_monoDeriv_of_derivation (resolution to monotone simulation
+  without size increase); exists_monoDeriv_refutation. Gate green (164
+  accepted decls). Deferred: intermediate width lemma for MonoDeriv,
+  restriction of monotone lines, kill counting, Frontier close. Pending human
+  gate merge_certified. Next after merge: formalize G8b monotone width lemma.

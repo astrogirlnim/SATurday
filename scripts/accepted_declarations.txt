@@ -195,3 +195,17 @@ SATurday.ProofComplexity.mem_cnfVars_matchingRenameCNF
 SATurday.ProofComplexity.matchingUnrenameσ_injOn
 SATurday.ProofComplexity.php_shrink_step
 SATurday.ProofComplexity.php_shrink_le
+# R1 BP96 / G8a: semantic monotone calculus and positive simulation
+# (certified 2026-08-04, saturday formalize)
+SATurday.ProofComplexity.Fals_monotoneClause
+SATurday.ProofComplexity.Fals_holeClause_empty
+SATurday.ProofComplexity.L_subset_of_Fals_subset_union
+SATurday.ProofComplexity.L_subset_of_Fals_subset
+SATurday.ProofComplexity.phpCNF_lit_grid
+SATurday.ProofComplexity.derivation_lit_grid
+SATurday.ProofComplexity.monotoneClause_subset_gridPosLits
+SATurday.ProofComplexity.monotoneClause_empty
+SATurday.ProofComplexity.MonoDeriv.concl_subset
+SATurday.ProofComplexity.exists_monoDeriv_of_derivation
+SATurday.ProofComplexity.exists_monoDeriv_of_concl_eq
+SATurday.ProofComplexity.exists_monoDeriv_refutation
