@@ -628,3 +628,8 @@ above it.
   parameter packing and honest exponential size lower bound, Frontier close.
   Pending human gate merge_certified. Next after merge: formalize G8g final
   counting.
+- 2026-08-04 human gate merge_certified: G8f wipeout cluster (4 declarations:
+  exists_monoDeriv_of_scale_eq, exists_monoDeriv_iter, exists_monoDeriv_tail,
+  exists_monoDeriv_wipeout) accepted into the accepted tree. Gate remains
+  green. R1 stays active. Next: formalize G8g final counting and honest size
+  lower bound.
