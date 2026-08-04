@@ -643,3 +643,9 @@ above it.
   monoDeriv_size_lower_bound and lifting to Derivation / Frontier. Honest
   target remains weaker than Frontier 2^(n/20). Pending human gate
   merge_certified. Next after merge: formalize G8h growth seed and size close.
+- 2026-08-04 human gate merge_certified: G8g counting infrastructure cluster
+  (7 declarations: wideCount_le_size, gridVol_le, gridVol_lt_le,
+  wipeout_hyp_of_size_le, wipeout_contradicts_wide_line, growth_ratio_of_width,
+  volume_le_eighteen_threshold) accepted into the accepted tree. Gate remains
+  green. R1 stays active. Next: formalize G8h growth seed (36/35)^35 ≥ 2
+  without native_decide, then assemble honest size lower bound.
