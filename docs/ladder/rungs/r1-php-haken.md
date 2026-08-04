@@ -596,3 +596,8 @@ above it.
   restriction, kill counting, Frontier close. Pending human gate
   merge_certified. Next after merge: formalize G8d monotone derivation
   restriction.
+- 2026-08-04 human gate merge_certified: G8c critical extension cluster (18
+  declarations, from castSucc_succAbove_last through
+  critExtend_falsifies_pigeonClause_iff) accepted into the accepted tree.
+  Gate remains green. R1 stays active. Next: formalize G8d monotone
+  derivation restriction.
