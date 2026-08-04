@@ -252,3 +252,12 @@ SATurday.ProofComplexity.exists_monoDeriv_of_scale_eq
 SATurday.ProofComplexity.exists_monoDeriv_iter
 SATurday.ProofComplexity.exists_monoDeriv_tail
 SATurday.ProofComplexity.exists_monoDeriv_wipeout
+# R1 BP96 / G8g: final counting infrastructure (honest exponential deferred)
+# (certified 2026-08-04, saturday formalize)
+SATurday.ProofComplexity.wideCount_le_size
+SATurday.ProofComplexity.gridVol_le
+SATurday.ProofComplexity.gridVol_lt_le
+SATurday.ProofComplexity.wipeout_hyp_of_size_le
+SATurday.ProofComplexity.wipeout_contradicts_wide_line
+SATurday.ProofComplexity.growth_ratio_of_width
+SATurday.ProofComplexity.volume_le_eighteen_threshold

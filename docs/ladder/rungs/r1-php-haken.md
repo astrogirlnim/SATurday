@@ -633,3 +633,13 @@ above it.
   exists_monoDeriv_wipeout) accepted into the accepted tree. Gate remains
   green. R1 stays active. Next: formalize G8g final counting and honest size
   lower bound.
+- 2026-08-04 formalize (G8g: final counting infrastructure): PARTIAL SUCCESS.
+  Extended MonotoneCalculus.lean. Certified: wideCount_le_size; gridVol_le;
+  gridVol_lt_le; wipeout_hyp_of_size_le; wipeout_contradicts_wide_line;
+  growth_ratio_of_width; volume_le_eighteen_threshold (top volume ≤ 18 times
+  largeThreshold (3n/4) for n≥200). Gate green (206 accepted decls). Blocked
+  on assembling the honest exponential size lower bound: needs a
+  native_decide free proof that (36/35)^35 ≥ 2, then packing into
+  monoDeriv_size_lower_bound and lifting to Derivation / Frontier. Honest
+  target remains weaker than Frontier 2^(n/20). Pending human gate
+  merge_certified. Next after merge: formalize G8h growth seed and size close.

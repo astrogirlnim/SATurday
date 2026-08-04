@@ -1150,4 +1150,115 @@ theorem exists_monoDeriv_wipeout {W V₀ : ℕ} (hW : 0 < W) (hV₀ : 0 < V₀)
   simp only [wideCount, hl3] at hzero ⊢
   exact hzero
 
+/-! ## G8g: final counting and honest size lower bound
+
+Pin the width threshold at the terminal scale `m = n / 2`, take volume
+uniformizer `V₀ = (n+1)*n`, and choose a sparse budget `s` covering the stuck
+term. Wipeout then contradicts `exists_wide_line` at scale `m` whenever the
+starting size is smaller than the dense-phase growth. The certified width
+`((m+1)/3)²` and the halved rate in `kill_step_mul` yield an honest exponential
+`2^(n/50)`, weaker than the paper / Frontier `2^(n/20)`.
+-/
+
+/-- Wide count never exceeds derivation size. -/
+theorem wideCount_le_size (W : ℕ) {n : ℕ} {C : Clause} (md : MonoDeriv n C) :
+    wideCount W md ≤ md.size :=
+  (card_filter_le _ _).trans md.lines_card_le_size
+
+/-- Grid volumes are monotone in the scale. -/
+theorem gridVol_le {k n : ℕ} (hk : k ≤ n) :
+    (k + 1) * k ≤ (n + 1) * n := by
+  have h1 : k ≤ n := hk
+  have h2 : k + 1 ≤ n + 1 := by omega
+  exact Nat.mul_le_mul h2 h1
+
+/-- Every scale below `n` has volume at most `(n+1)*n`. -/
+theorem gridVol_lt_le (n : ℕ) {k : ℕ} (hk : k < n) :
+    (k + 2) * (k + 1) ≤ (n + 1) * n := by
+  have : k + 1 ≤ n := by omega
+  simpa [Nat.succ_mul] using gridVol_le (k := k + 1) this
+
+/-- Algebraic wipeout hypothesis from a size bound and a sparse budget. -/
+theorem wipeout_hyp_of_size_le {W V₀ S t s : ℕ}
+    (_hW : 0 < W) (_hV₀ : 0 < V₀)
+    (hs : 2 * V₀ ≤ s * W)
+    (hS : S * W * (2 * V₀ - W) ^ t ≤ V₀ * (2 * V₀) ^ t) :
+    (2 * V₀ - W) ^ t * (S * W) + (2 * V₀) ^ t * V₀ ≤
+      (2 * V₀) ^ t * (s * W) := by
+  have h1 : (2 * V₀ - W) ^ t * (S * W) ≤ (2 * V₀) ^ t * V₀ := by
+    -- rearrange hS
+    simpa [Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hS
+  have h2 : (2 * V₀) ^ t * V₀ + (2 * V₀) ^ t * V₀ ≤ (2 * V₀) ^ t * (s * W) := by
+    have : V₀ + V₀ ≤ s * W := by
+      have := hs
+      omega
+    calc (2 * V₀) ^ t * V₀ + (2 * V₀) ^ t * V₀
+        = (2 * V₀) ^ t * (V₀ + V₀) := by ring
+      _ ≤ (2 * V₀) ^ t * (s * W) := Nat.mul_le_mul_left _ this
+  calc (2 * V₀ - W) ^ t * (S * W) + (2 * V₀) ^ t * V₀
+      ≤ (2 * V₀) ^ t * V₀ + (2 * V₀) ^ t * V₀ := Nat.add_le_add_right h1 _
+    _ ≤ (2 * V₀) ^ t * (s * W) := h2
+
+/-- Wipeout to the terminal scale contradicts the forced wide line. -/
+theorem wipeout_contradicts_wide_line {W V₀ : ℕ} (hW : 0 < W) (hV₀ : 0 < V₀)
+    {t s n : ℕ} (hts : t + s ≤ n)
+    (huni : ∀ k, k < n → (k + 2) * (k + 1) ≤ V₀)
+    (md : MonoDeriv n (∅ : Clause))
+    (hafter : (2 * V₀ - W) ^ t * (wideCount W md * W) + (2 * V₀) ^ t * V₀ ≤
+      (2 * V₀) ^ t * (s * W))
+    (hm : 1 ≤ n - (t + s))
+    (hWterm : W = largeThreshold (n - (t + s))) :
+    False := by
+  obtain ⟨md', _, hzero⟩ :=
+    exists_monoDeriv_wipeout hW hV₀ hts huni md hafter
+  obtain ⟨C', hmem, hcard⟩ := MonoDeriv.exists_wide_line hm md'
+  have hwide : W ≤ C'.card := by
+    rw [hWterm]
+    exact hcard
+  have hpos : 0 < wideCount W md' := by
+    refine card_pos.mpr ⟨C', mem_filter.mpr ⟨hmem, hwide⟩⟩
+  omega
+
+/-- Ratio hypothesis `V₀ ≤ 18 W` yields the `36/35` growth factor on `2V` vs
+`2V−W`. -/
+theorem growth_ratio_of_width {V₀ W : ℕ} (_hV₀ : 0 < V₀)
+    (hwid : V₀ ≤ 18 * W) :
+    36 * (2 * V₀ - W) ≤ 35 * (2 * V₀) := by
+  omega
+
+/-- For `n ≥ 200`, the top grid volume is at most 18 times the terminal
+threshold at scale `3n/4`. -/
+theorem volume_le_eighteen_threshold {n : ℕ} (hn : 200 ≤ n) :
+    (n + 1) * n ≤ 18 * largeThreshold (3 * n / 4) := by
+  have hq' : 50 ≤ n / 4 := by omega
+  have hquot : n / 4 ≤ (3 * n / 4 + 1) / 3 := by omega
+  have hW : (n / 4) * (n / 4) ≤ largeThreshold (3 * n / 4) := by
+    simp only [largeThreshold]
+    exact Nat.mul_le_mul hquot hquot
+  have hnbound : n ≤ 4 * (n / 4) + 3 := by omega
+  have hprod : (n + 1) * n ≤ (4 * (n / 4) + 4) * (4 * (n / 4) + 3) :=
+    Nat.mul_le_mul (by omega) hnbound
+  have hexpand :
+      (4 * (n / 4) + 4) * (4 * (n / 4) + 3) =
+        16 * (n / 4) * (n / 4) + 28 * (n / 4) + 12 := by
+    ring
+  have hcalc :
+      16 * (n / 4) * (n / 4) + 28 * (n / 4) + 12 ≤ 18 * ((n / 4) * (n / 4)) := by
+    set q := n / 4
+    have hq50 : 50 ≤ q := hq'
+    have h2q : 100 ≤ 2 * q := by omega
+    have hsq : 100 * q ≤ 2 * q * q := Nat.mul_le_mul_right q h2q
+    have hlin : 28 * q + 12 ≤ 100 * q := by omega
+    have : 28 * q + 12 ≤ 2 * q * q := le_trans hlin hsq
+    -- 16q*q + 28q + 12 ≤ 16q*q + 2q*q = 18q*q
+    have hleft : 16 * q * q + 28 * q + 12 ≤ 16 * q * q + 2 * q * q := by omega
+    have hright : 16 * q * q + 2 * q * q = 18 * (q * q) := by ring
+    exact hleft.trans_eq hright
+  have hV : (n + 1) * n ≤ 18 * ((n / 4) * (n / 4)) := by
+    calc (n + 1) * n
+        ≤ (4 * (n / 4) + 4) * (4 * (n / 4) + 3) := hprod
+      _ = 16 * (n / 4) * (n / 4) + 28 * (n / 4) + 12 := hexpand
+      _ ≤ 18 * ((n / 4) * (n / 4)) := hcalc
+  exact le_trans hV (Nat.mul_le_mul_left _ hW)
+
 end SATurday.ProofComplexity
