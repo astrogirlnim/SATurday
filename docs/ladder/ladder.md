@@ -23,10 +23,11 @@ R4-class results plus the certified R5 bridge.
   - lean: theory/Theory/ProofComplexity/Resolution.lean
 
 - R1 PHP Haken lower bound
-  - status: active (opened by R0 certification)
+  - status: active (honest exponential certified G8h 2026-08-04; Frontier 2^(n/20) open)
   - statement: resolution refutations of PHP(n+1, n) require size exponential in n
   - memory: docs/ladder/rungs/r1-php-haken.md
   - lean: theory/Theory/ProofComplexity/PHP.lean
+    (honest bound: MonotoneCalculus.php_resolution_size_lower_bound_honest)
 
 - R2 width machinery
   - status: proposed

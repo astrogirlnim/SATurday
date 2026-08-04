@@ -1157,7 +1157,7 @@ uniformizer `V₀ = (n+1)*n`, and choose a sparse budget `s` covering the stuck
 term. Wipeout then contradicts `exists_wide_line` at scale `m` whenever the
 starting size is smaller than the dense-phase growth. The certified width
 `((m+1)/3)²` and the halved rate in `kill_step_mul` yield an honest exponential
-`2^(n/50)`, weaker than the paper / Frontier `2^(n/20)`.
+assembled in G8h as `2^((n-3n/4-36)/35)`, weaker than Frontier `2^(n/20)`.
 -/
 
 /-- Wide count never exceeds derivation size. -/
@@ -1260,5 +1260,203 @@ theorem volume_le_eighteen_threshold {n : ℕ} (hn : 200 ≤ n) :
       _ = 16 * (n / 4) * (n / 4) + 28 * (n / 4) + 12 := hexpand
       _ ≤ 18 * ((n / 4) * (n / 4)) := hcalc
   exact le_trans hV (Nat.mul_le_mul_left _ hW)
+
+
+/-! ## G8h: growth seed and honest exponential size lower bound
+
+Pack the G8g infrastructure into a certified size lower bound. With width
+`largeThreshold (3n/4) = ((m+1)/3)^2` and the halved kill rate, the dense phase
+length is `t = (n - 3n/4) - 36`, giving growth `2^(t/35)`. This is weaker than
+the Frontier target `2^(n/20)` and is the honest rate supported by current lemmas.
+-/
+
+/-- Kernel decide seed: `(36/35)^35 ≥ 2`. Gate clean (no `native_decide`). -/
+theorem growth_seed : (36 : ℕ) ^ 35 ≥ 2 * 35 ^ 35 := by
+  decide
+
+/-- One block of 35 kill steps doubles the volume ratio under width control. -/
+theorem growth_block {V₀ W : ℕ} (_hWle : W ≤ 2 * V₀)
+    (hratio : 36 * (2 * V₀ - W) ≤ 35 * (2 * V₀)) :
+    (2 * V₀) ^ 35 ≥ 2 * (2 * V₀ - W) ^ 35 := by
+  have h35 : (0 : ℕ) < 35 ^ 35 := Nat.pow_pos (by decide : (0 : ℕ) < 35)
+  have hpow : 36 ^ 35 * (2 * V₀ - W) ^ 35 ≤ 35 ^ 35 * (2 * V₀) ^ 35 := by
+    simpa [Nat.mul_pow] using Nat.pow_le_pow_left hratio 35
+  have hchain : 35 ^ 35 * (2 * (2 * V₀ - W) ^ 35) ≤ 35 ^ 35 * (2 * V₀) ^ 35 := by
+    calc 35 ^ 35 * (2 * (2 * V₀ - W) ^ 35)
+        = 2 * 35 ^ 35 * (2 * V₀ - W) ^ 35 := by ring
+      _ ≤ 36 ^ 35 * (2 * V₀ - W) ^ 35 := Nat.mul_le_mul_right _ growth_seed
+      _ ≤ 35 ^ 35 * (2 * V₀) ^ 35 := hpow
+  exact Nat.le_of_mul_le_mul_left hchain h35
+
+/-- Iterate growth blocks: `(2V)^t` dominates `(2V-W)^t` by `2^(t/35)`. -/
+theorem growth_pow {V₀ W t : ℕ} (hWle : W ≤ 2 * V₀)
+    (hratio : 36 * (2 * V₀ - W) ≤ 35 * (2 * V₀)) :
+    (2 * V₀) ^ t ≥ 2 ^ (t / 35) * (2 * V₀ - W) ^ t := by
+  have hblock := growth_block (V₀ := V₀) (W := W) hWle hratio
+  have hblocks : ∀ q : ℕ,
+      (2 * V₀) ^ (35 * q) ≥ 2 ^ q * (2 * V₀ - W) ^ (35 * q) := by
+    intro q
+    induction q with
+    | zero => simp
+    | succ q ih =>
+      have hmul := Nat.mul_le_mul ih hblock
+      have hRHS :
+          (2 ^ q * (2 * V₀ - W) ^ (35 * q)) * (2 * (2 * V₀ - W) ^ 35) =
+            2 ^ (q + 1) * (2 * V₀ - W) ^ (35 * (q + 1)) := by
+        have h2 : 2 ^ q * 2 = 2 ^ (q + 1) := by
+          rw [Nat.pow_succ, Nat.mul_comm]
+        calc (2 ^ q * (2 * V₀ - W) ^ (35 * q)) * (2 * (2 * V₀ - W) ^ 35)
+            = 2 ^ q * 2 * ((2 * V₀ - W) ^ (35 * q) * (2 * V₀ - W) ^ 35) := by
+                ring
+          _ = 2 ^ (q + 1) * (2 * V₀ - W) ^ (35 * q + 35) := by
+                rw [h2, ← Nat.pow_add (2 * V₀ - W)]
+          _ = 2 ^ (q + 1) * (2 * V₀ - W) ^ (35 * (q + 1)) := by
+                rw [Nat.mul_succ]
+      calc (2 * V₀) ^ (35 * (q + 1))
+          = (2 * V₀) ^ (35 * q + 35) := by rw [Nat.mul_succ]
+        _ = (2 * V₀) ^ (35 * q) * (2 * V₀) ^ 35 := Nat.pow_add _ _ _
+        _ ≥ (2 ^ q * (2 * V₀ - W) ^ (35 * q)) * (2 * (2 * V₀ - W) ^ 35) := hmul
+        _ = 2 ^ (q + 1) * (2 * V₀ - W) ^ (35 * (q + 1)) := hRHS
+  set q := t / 35
+  set r := t % 35
+  have ht : t = 35 * q + r := (Nat.div_add_mod t 35).symm
+  have hbase : 2 * V₀ - W ≤ 2 * V₀ := Nat.sub_le _ _
+  have hrem : (2 * V₀ - W) ^ r ≤ (2 * V₀) ^ r := Nat.pow_le_pow_left hbase r
+  calc (2 * V₀) ^ t
+      = (2 * V₀) ^ (35 * q + r) := by rw [ht]
+    _ = (2 * V₀) ^ (35 * q) * (2 * V₀) ^ r := Nat.pow_add _ _ _
+    _ ≥ (2 ^ q * (2 * V₀ - W) ^ (35 * q)) * (2 * V₀ - W) ^ r :=
+        Nat.mul_le_mul (hblocks q) hrem
+    _ = 2 ^ q * (2 * V₀ - W) ^ (35 * q + r) := by
+        rw [mul_assoc, ← Nat.pow_add]
+    _ = 2 ^ (t / 35) * (2 * V₀ - W) ^ t := by
+        simp only [q, ← ht]
+
+/-- Terminal width is at most the top grid volume for `n ≥ 200`. -/
+theorem largeThreshold_le_gridVol {n : ℕ} (_hn : 200 ≤ n) :
+    largeThreshold (3 * n / 4) ≤ (n + 1) * n := by
+  have hquot : (3 * n / 4 + 1) / 3 ≤ n / 4 + 1 := by omega
+  have hW : largeThreshold (3 * n / 4) ≤ (n / 4 + 1) * (n / 4 + 1) := by
+    simp only [largeThreshold]
+    exact Nat.mul_le_mul hquot hquot
+  have hsq : (n / 4 + 1) * (n / 4 + 1) ≤ (n + 1) * n := by
+    have h1 : (n / 4 + 1) * (n / 4 + 1) ≤ n * (n / 4 + 1) :=
+      Nat.mul_le_mul_right _ (by omega)
+    have h2 : n * (n / 4 + 1) ≤ n * (n + 1) :=
+      Nat.mul_le_mul_left _ (by omega)
+    have h3 : n * (n + 1) = (n + 1) * n := by ring
+    exact h1.trans (h2.trans_eq h3)
+  exact hW.trans hsq
+
+/-- For `n ≥ 288`, at least 72 pigeons are removed down to scale `3n/4`. -/
+theorem rem_three_quarters_ge {n : ℕ} (hn : 288 ≤ n) :
+    72 ≤ n - 3 * n / 4 := by
+  omega
+
+/-- Honest monotone size lower bound from wipeout packing.
+Parameters: `m = 3n/4`, `W = largeThreshold m`, `V0 = (n+1)n`, `s = 36`,
+`t = (n - m) - 36`. Requires `n ≥ 288` so `t ≥ 36`. -/
+theorem monoDeriv_size_lower_bound {n : ℕ} (hn : 288 ≤ n)
+    (md : MonoDeriv n (∅ : Clause)) :
+    2 ^ ((n - 3 * n / 4 - 36) / 35) ≤ md.size := by
+  set V0 : ℕ := (n + 1) * n
+  set m : ℕ := 3 * n / 4
+  set W : ℕ := largeThreshold m
+  set s : ℕ := 36
+  set rem : ℕ := n - m
+  set t : ℕ := rem - s
+  set k : ℕ := t / 35
+  have hrem_ge : 72 ≤ rem := by
+    simpa [rem, m] using rem_three_quarters_ge hn
+  have hts_eq : t + s = rem := by
+    simp only [t, s]
+    exact Nat.sub_add_cancel (le_trans (by decide : 36 ≤ 72) hrem_ge)
+  have hnm : n - (t + s) = m := by
+    rw [hts_eq]
+    -- rem = n - m, so n - rem = m
+    simp only [rem]
+    exact Nat.sub_sub_self (by omega : m ≤ n)
+  have hV0 : 0 < V0 := by
+    have : 0 < n := by omega
+    simp only [V0]
+    positivity
+  have hWpos : 0 < W := by
+    simp only [W, m, largeThreshold]
+    have : 1 ≤ (3 * n / 4 + 1) / 3 := by omega
+    exact Nat.mul_pos this this
+  have hWleV : W ≤ V0 := by
+    simpa [W, m, V0] using largeThreshold_le_gridVol (by omega : 200 ≤ n)
+  have hWle2V : W ≤ 2 * V0 :=
+    le_trans hWleV (Nat.le_mul_of_pos_left _ (by decide : 0 < 2))
+  have hvol : V0 ≤ 18 * W := by
+    simpa [V0, W, m] using volume_le_eighteen_threshold (by omega : 200 ≤ n)
+  have hratio : 36 * (2 * V0 - W) ≤ 35 * (2 * V0) :=
+    growth_ratio_of_width hV0 hvol
+  have hgrowth : (2 * V0) ^ t ≥ 2 ^ k * (2 * V0 - W) ^ t := by
+    simpa [k] using growth_pow (V₀ := V0) (W := W) (t := t) hWle2V hratio
+  have hsW : 2 * V0 ≤ s * W := by
+    have h : 2 * V0 ≤ 2 * (18 * W) := Nat.mul_le_mul_left 2 hvol
+    have h' : 2 * (18 * W) = 36 * W := by ring
+    simpa [s, h'] using h
+  have hts : t + s ≤ n := by
+    rw [hts_eq]
+    simp only [rem]
+    exact Nat.sub_le n m
+  have huni : ∀ j, j < n → (j + 2) * (j + 1) ≤ V0 := fun j hj => by
+    simpa [V0] using gridVol_lt_le n hj
+  have hm : 1 ≤ n - (t + s) := by
+    rw [hnm]
+    simp only [m]
+    omega
+  have hWterm : W = largeThreshold (n - (t + s)) := by
+    rw [hnm]
+  -- `set k` rewrites the goal exponent to `k` (defeq to `(n - 3n/4 - 36)/35`).
+  refine le_of_not_gt fun hlt => ?_
+  have hS : md.size ≤ 2 ^ k - 1 := by
+    have : 0 < 2 ^ k := Nat.pow_pos (by decide : (0 : ℕ) < 2)
+    omega
+  have hSw : md.size * W ≤ V0 * 2 ^ k := by
+    calc md.size * W
+        ≤ (2 ^ k - 1) * W := Nat.mul_le_mul_right _ hS
+      _ ≤ (2 ^ k - 1) * V0 := Nat.mul_le_mul_left _ hWleV
+      _ ≤ 2 ^ k * V0 := Nat.mul_le_mul_right _ (Nat.sub_le _ _)
+      _ = V0 * 2 ^ k := by ring
+  have hSineq : md.size * W * (2 * V0 - W) ^ t ≤ V0 * (2 * V0) ^ t := by
+    calc md.size * W * (2 * V0 - W) ^ t
+        ≤ (V0 * 2 ^ k) * (2 * V0 - W) ^ t := Nat.mul_le_mul_right _ hSw
+      _ = V0 * (2 ^ k * (2 * V0 - W) ^ t) := by ring
+      _ ≤ V0 * (2 * V0) ^ t := Nat.mul_le_mul_left _ hgrowth
+  have hwide_le : wideCount W md ≤ md.size := wideCount_le_size W md
+  have hS' : wideCount W md * W * (2 * V0 - W) ^ t ≤ V0 * (2 * V0) ^ t := by
+    calc wideCount W md * W * (2 * V0 - W) ^ t
+        ≤ md.size * W * (2 * V0 - W) ^ t :=
+          Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hwide_le)
+      _ ≤ V0 * (2 * V0) ^ t := hSineq
+  have hSpow : wideCount W md * W * (2 * V0 - W) ^ t ≤
+      V0 * (2 * V0) ^ t := hS'
+  have hafter :=
+    wipeout_hyp_of_size_le (W := W) (V₀ := V0) (S := wideCount W md)
+      (t := t) (s := s) hWpos hV0 hsW (by
+        -- hyp form is S * W * (2V-W)^t ≤ V0 * (2V)^t
+        simpa [Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hSpow)
+  exact wipeout_contradicts_wide_line hWpos hV0 hts huni md hafter hm hWterm
+
+/-- Resolution lift of the honest monotone size lower bound. -/
+theorem php_resolution_size_lower_bound_honest {n : ℕ} (hn : 288 ≤ n)
+    (d : Derivation (phpCNF n) (∅ : Clause)) :
+    2 ^ ((n - 3 * n / 4 - 36) / 35) ≤ d.size := by
+  have hn0 : 0 < n := by omega
+  obtain ⟨md, hs⟩ := exists_monoDeriv_refutation hn0 d
+  exact le_trans (monoDeriv_size_lower_bound hn md) hs
+
+/-- Weaker clean form: `2^(n/200)` for `n ≥ 480`. -/
+theorem php_resolution_size_lower_bound_n200 {n : ℕ} (hn : 480 ≤ n)
+    (d : Derivation (phpCNF n) (∅ : Clause)) :
+    2 ^ (n / 200) ≤ d.size := by
+  have hmain := php_resolution_size_lower_bound_honest (by omega) d
+  have hexp : n / 200 ≤ (n - 3 * n / 4 - 36) / 35 := by
+    have h3 : n / 200 * 35 ≤ n - 3 * n / 4 - 36 := by omega
+    exact (Nat.le_div_iff_mul_le (by decide : 0 < 35)).mpr h3
+  exact le_trans (Nat.pow_le_pow_right (by decide : (0 : ℕ) < 2) hexp) hmain
 
 end SATurday.ProofComplexity

@@ -649,3 +649,20 @@ above it.
   volume_le_eighteen_threshold) accepted into the accepted tree. Gate remains
   green. R1 stays active. Next: formalize G8h growth seed (36/35)^35 ≥ 2
   without native_decide, then assemble honest size lower bound.
+- 2026-08-04 formalize (G8h: growth seed and honest size close): SUCCESS.
+  Extended MonotoneCalculus.lean. Certified: growth_seed (36^35 ≥ 2·35^35 by
+  kernel decide, propext only); growth_block; growth_pow; largeThreshold_le_gridVol;
+  rem_three_quarters_ge; monoDeriv_size_lower_bound
+  (2^((n − 3n/4 − 36)/35) ≤ MonoDeriv.size for n ≥ 288); resolution lifts
+  php_resolution_size_lower_bound_honest and php_resolution_size_lower_bound_n200
+  (2^(n/200) for n ≥ 480). Gate green (214 accepted decls). Frontier
+  php_resolution_size_lower_bound at 2^(n/20) left with sorry on purpose:
+  current width ((m+1)/3)² and halved kill_step_mul do not support the paper
+  rate. Auto-merged per session decision. R1 stays active. Next: strengthen
+  width or kill rate toward Frontier, or restate Frontier to the honest constant.
+- 2026-08-04 human gate merge_certified (auto): G8h honest size cluster (8
+  declarations: growth_seed, growth_block, growth_pow, largeThreshold_le_gridVol,
+  rem_three_quarters_ge, monoDeriv_size_lower_bound,
+  php_resolution_size_lower_bound_honest, php_resolution_size_lower_bound_n200)
+  accepted into the accepted tree. Gate remains green. R1 stays active
+  (Frontier 2^(n/20) still open).

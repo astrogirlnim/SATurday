@@ -261,3 +261,13 @@ SATurday.ProofComplexity.wipeout_hyp_of_size_le
 SATurday.ProofComplexity.wipeout_contradicts_wide_line
 SATurday.ProofComplexity.growth_ratio_of_width
 SATurday.ProofComplexity.volume_le_eighteen_threshold
+# R1 BP96 / G8h: growth seed and honest exponential size lower bound
+# (certified 2026-08-04, saturday formalize)
+SATurday.ProofComplexity.growth_seed
+SATurday.ProofComplexity.growth_block
+SATurday.ProofComplexity.growth_pow
+SATurday.ProofComplexity.largeThreshold_le_gridVol
+SATurday.ProofComplexity.rem_three_quarters_ge
+SATurday.ProofComplexity.monoDeriv_size_lower_bound
+SATurday.ProofComplexity.php_resolution_size_lower_bound_honest
+SATurday.ProofComplexity.php_resolution_size_lower_bound_n200
