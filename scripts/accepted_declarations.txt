@@ -157,3 +157,15 @@ SATurday.ProofComplexity.exists_matching_kills_one
 SATurday.ProofComplexity.filter_not_killed_card_lt
 SATurday.ProofComplexity.large_survivors_lt
 SATurday.ProofComplexity.exists_matching_strict_progress
+# R1 BP96 Theorem 2 / G7e: matching restriction equals renamed smaller PHP
+# (certified 2026-08-03, saturday formalize)
+SATurday.ProofComplexity.univ_erase_eq_image_succAbove
+SATurday.ProofComplexity.matchingLookup_off_grid_succAbove
+SATurday.ProofComplexity.restrictClause_pigeonClause_succAbove
+SATurday.ProofComplexity.restrictClause_hole_on_matched_col
+SATurday.ProofComplexity.restrictClause_hole_on_matched_row
+SATurday.ProofComplexity.restrictClause_hole_with_place
+SATurday.ProofComplexity.restrictClause_hole_succAbove
+SATurday.ProofComplexity.matchingRenameCNF_subset_restrict
+SATurday.ProofComplexity.restrict_subset_matchingRenameCNF
+SATurday.ProofComplexity.matchingRestrict_phpCNF_eq_rename

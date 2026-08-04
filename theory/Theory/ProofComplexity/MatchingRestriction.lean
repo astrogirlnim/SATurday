@@ -1,6 +1,9 @@
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Data.Fin.SuccPred
 import Mathlib.Data.Finset.Card
+import Mathlib.Data.Fintype.Basic
 import Mathlib.Data.Fintype.Prod
+import Mathlib.Order.Fin.Basic
 import Theory.ProofComplexity.MonotoneWidth
 
 /-!
@@ -22,9 +25,9 @@ certified width ((n+1)/3)², so we set `largeThreshold` to that certified width.
 The exponential constant may need recalibration when the size assembly closes.
 
 G7b: semantic restriction transport. G7c: size-nonincreasing syntactic
-derivation surgery. G7d: iterative large-clause kill progress and PHP
-hypothesis restriction under a matching step (iso foundation). Full
-renaming iso to `phpCNF (n-1)` and Frontier close are deferred.
+derivation surgery. G7d: iterative large-clause kill progress. G7e: rename
+embedding of `phpCNF k` into the matching restriction of `phpCNF (k+1)`.
+Rate optimal iterative shrink and Frontier close remain deferred.
 
 LOG: R1 matching restriction module (BP96 Theorem 2 / G7)
 -/
@@ -846,5 +849,244 @@ theorem exists_matching_strict_progress {n : ℕ} (hn : 0 < n)
       (Large.filter (fun C => ¬ killedByMatching n i j C)).card < Large.card := by
   obtain ⟨i, j, hkill⟩ := exists_matching_kills_one hn Large hne hsub hnC
   exact ⟨i, j, filter_not_killed_card_lt i j Large hkill⟩
+
+/-! ## G7e: renaming iso foundation after a matching step
+
+After placing pigeon `i` into hole `j` in PHP(k+2, k+1), surviving PHP axioms
+are (after Fin.succAbove reindexing) exactly the axioms of PHP(k+1, k).
+Variable indices still change (`pvar` width drops from k+1 to k), so we embed
+rather than use identity on ℕ.
+-/
+
+/-- Dropping index `p` from `Fin (n+1)` is the image of `succAbove`. -/
+theorem univ_erase_eq_image_succAbove {n : ℕ} (p : Fin (n + 1)) :
+    (univ : Finset (Fin (n + 1))).erase p = univ.image p.succAbove := by
+  rw [← compl_singleton, (Fin.image_succAbove_univ p).symm]
+
+/-- Embed a PHP(k+1, k) grid variable into PHP(k+2, k+1) after removing `(i,j)`. -/
+def matchingEmbedVar (k : ℕ) (i : Fin (k + 2)) (j : Fin (k + 1))
+    (i' : Fin (k + 1)) (j' : Fin k) : ℕ :=
+  pvar (k + 1) (i.succAbove i') (j.succAbove j')
+
+/-- Renamed pigeon axiom of the smaller PHP, as a clause on the large grid. -/
+noncomputable def matchingRenamePigeonClause (k : ℕ) (i : Fin (k + 2)) (j : Fin (k + 1))
+    (i' : Fin (k + 1)) : Clause :=
+  (univ : Finset (Fin k)).image fun j' =>
+    (⟨matchingEmbedVar k i j i' j', true⟩ : Literal)
+
+/-- Renamed hole axiom forbidding two remaining pigeons from sharing a remaining hole. -/
+noncomputable def matchingRenameHoleClause (k : ℕ) (i : Fin (k + 2)) (j : Fin (k + 1))
+    (j' : Fin k) (i1 i2 : Fin (k + 1)) : Clause :=
+  ({⟨matchingEmbedVar k i j i1 j', false⟩,
+      ⟨matchingEmbedVar k i j i2 j', false⟩} : Clause)
+
+/-- Image of `phpCNF k` under the matching rename embedding. -/
+noncomputable def matchingRenameCNF (k : ℕ) (i : Fin (k + 2)) (j : Fin (k + 1)) : CNF :=
+  ((univ : Finset (Fin (k + 1))).image fun i' => matchingRenamePigeonClause k i j i') ∪
+    ((univ : Finset (Fin k)).biUnion fun j' =>
+      (univ : Finset (Fin (k + 1))).biUnion fun i1 =>
+        ((univ : Finset (Fin (k + 1))).filter fun i2 => i1 < i2).image fun i2 =>
+          matchingRenameHoleClause k i j j' i1 i2)
+
+theorem matchingLookup_off_grid_succAbove {k : ℕ}
+    (i : Fin (k + 2)) (j : Fin (k + 1)) (i' : Fin (k + 1)) (j' : Fin k) :
+    matchingLookup (k + 1) i j (matchingEmbedVar k i j i' j') = none :=
+  matchingLookup_off_grid (Fin.succAbove_ne i i') (Fin.succAbove_ne j j')
+
+/-- Surviving pigeon axiom after matching equals the renamed smaller pigeon axiom. -/
+theorem restrictClause_pigeonClause_succAbove {k : ℕ}
+    (i : Fin (k + 2)) (j : Fin (k + 1)) (i' : Fin (k + 1)) :
+    restrictClause (matchingLookup (k + 1) i j) (pigeonClause (k + 1) (i.succAbove i')) =
+      some (matchingRenamePigeonClause k i j i') := by
+  have h := restrictClause_pigeonClause_other (i := i) (i' := i.succAbove i') j
+    (Fin.succAbove_ne i i')
+  rw [h]
+  congr 1
+  -- erase j = image succAbove, then reindex literals.
+  rw [matchingRenamePigeonClause, univ_erase_eq_image_succAbove, image_image]
+  rfl
+
+/-- Hole axiom on the matched column is killed (column forced false). -/
+theorem restrictClause_hole_on_matched_col {k : ℕ}
+    (i : Fin (k + 2)) (j : Fin (k + 1))
+    {i1 i2 : Fin (k + 2)} (h1 : i1 ≠ i) (_h2 : i2 ≠ i) :
+    restrictClause (matchingLookup (k + 1) i j)
+      ({⟨pvar (k + 1) i1 j, false⟩, ⟨pvar (k + 1) i2 j, false⟩} : Clause) = none :=
+  (restrictClause_eq_none_iff _ _).mpr
+    ⟨⟨pvar (k + 1) i1 j, false⟩, mem_insert_self _ _,
+      matchingLookup_col (i := i) (i' := i1) j h1⟩
+
+/-- Hole axiom on the matched row is killed (row forced false). -/
+theorem restrictClause_hole_on_matched_row {k : ℕ}
+    (i : Fin (k + 2)) (j : Fin (k + 1))
+    {j' : Fin (k + 1)} (hj : j' ≠ j) {i' : Fin (k + 2)} (_hi : i' ≠ i) :
+    restrictClause (matchingLookup (k + 1) i j)
+      ({⟨pvar (k + 1) i j', false⟩, ⟨pvar (k + 1) i' j', false⟩} : Clause) = none :=
+  (restrictClause_eq_none_iff _ _).mpr
+    ⟨⟨pvar (k + 1) i j', false⟩, mem_insert_self _ _, matchingLookup_row i hj⟩
+
+/-- Hole axiom involving the placed cell polarity is killed by column force on the other pigeon. -/
+theorem restrictClause_hole_with_place {k : ℕ}
+    (i : Fin (k + 2)) (j : Fin (k + 1)) {i' : Fin (k + 2)} (hne : i' ≠ i) :
+    restrictClause (matchingLookup (k + 1) i j)
+      ({⟨pvar (k + 1) i j, false⟩, ⟨pvar (k + 1) i' j, false⟩} : Clause) = none :=
+  (restrictClause_eq_none_iff _ _).mpr
+    ⟨⟨pvar (k + 1) i' j, false⟩, mem_insert_of_mem (mem_singleton_self _),
+      matchingLookup_col (i := i) (i' := i') j hne⟩
+
+/-- Off-matching hole axiom restricts to the renamed smaller hole axiom. -/
+theorem restrictClause_hole_succAbove {k : ℕ}
+    (i : Fin (k + 2)) (j : Fin (k + 1))
+    (j' : Fin k) {i1 i2 : Fin (k + 1)} (_hlt : i1 < i2) :
+    restrictClause (matchingLookup (k + 1) i j)
+        ({⟨pvar (k + 1) (i.succAbove i1) (j.succAbove j'), false⟩,
+          ⟨pvar (k + 1) (i.succAbove i2) (j.succAbove j'), false⟩} : Clause) =
+      some (matchingRenameHoleClause k i j j' i1 i2) := by
+  set ρ := matchingLookup (k + 1) i j
+  set C : Clause :=
+    {⟨pvar (k + 1) (i.succAbove i1) (j.succAbove j'), false⟩,
+      ⟨pvar (k + 1) (i.succAbove i2) (j.succAbove j'), false⟩}
+  have hoff1 :
+      ρ (pvar (k + 1) (i.succAbove i1) (j.succAbove j')) = none :=
+    matchingLookup_off_grid (Fin.succAbove_ne i i1) (Fin.succAbove_ne j j')
+  have hoff2 :
+      ρ (pvar (k + 1) (i.succAbove i2) (j.succAbove j')) = none :=
+    matchingLookup_off_grid (Fin.succAbove_ne i i2) (Fin.succAbove_ne j j')
+  have hnsat : ∀ l ∈ C, ρ l.var ≠ some l.pos := by
+    intro l hl hρ
+    have hl' : l = ⟨pvar (k + 1) (i.succAbove i1) (j.succAbove j'), false⟩ ∨
+        l = ⟨pvar (k + 1) (i.succAbove i2) (j.succAbove j'), false⟩ := by
+      simpa [C, mem_insert, mem_singleton] using hl
+    rcases hl' with rfl | rfl
+    · simp only at hρ
+      rw [hoff1] at hρ
+      exact (Option.some_ne_none false hρ.symm).elim
+    · simp only at hρ
+      rw [hoff2] at hρ
+      exact (Option.some_ne_none false hρ.symm).elim
+  have hfilter : C.filter (fun l => ρ l.var = none) = matchingRenameHoleClause k i j j' i1 i2 := by
+    ext l
+    constructor
+    · intro hl
+      obtain ⟨hlC, hun⟩ := mem_filter.mp hl
+      have hl' : l = ⟨pvar (k + 1) (i.succAbove i1) (j.succAbove j'), false⟩ ∨
+          l = ⟨pvar (k + 1) (i.succAbove i2) (j.succAbove j'), false⟩ := by
+        simpa [C, mem_insert, mem_singleton] using hlC
+      rcases hl' with rfl | rfl
+      · exact mem_insert_self _ _
+      · exact mem_insert_of_mem (mem_singleton_self _)
+    · intro hl
+      have hl' : l = ⟨matchingEmbedVar k i j i1 j', false⟩ ∨
+          l = ⟨matchingEmbedVar k i j i2 j', false⟩ := by
+        simpa [matchingRenameHoleClause, mem_insert, mem_singleton] using hl
+      rcases hl' with rfl | rfl
+      · exact mem_filter.mpr ⟨by simp [C, matchingEmbedVar], hoff1⟩
+      · exact mem_filter.mpr ⟨by simp [C, matchingEmbedVar], hoff2⟩
+  exact (restrictClause_eq_some_iff ρ C _).mpr ⟨hnsat, hfilter.symm⟩
+
+/-- Every renamed smaller PHP clause appears in the matching restriction. -/
+theorem matchingRenameCNF_subset_restrict {k : ℕ}
+    (i : Fin (k + 2)) (j : Fin (k + 1)) :
+    matchingRenameCNF k i j ⊆
+      restrictCNF (matchingLookup (k + 1) i j) (phpCNF (k + 1)) := by
+  intro C hC
+  simp only [matchingRenameCNF, mem_union, mem_image, mem_biUnion] at hC
+  rcases hC with hpig | hhole
+  · obtain ⟨i', _, rfl⟩ := hpig
+    refine (mem_restrictCNF_iff _ _ _).mpr ?_
+    refine ⟨pigeonClause (k + 1) (i.succAbove i'), ?_, ?_⟩
+    · exact mem_union_left _ (mem_image_of_mem _ (mem_univ _))
+    · exact restrictClause_pigeonClause_succAbove i j i'
+  · obtain ⟨j', _, i1, _, i2, hi2, rfl⟩ := hhole
+    have hlt : i1 < i2 := (mem_filter.mp hi2).2
+    refine (mem_restrictCNF_iff _ _ _).mpr ?_
+    refine ⟨({⟨pvar (k + 1) (i.succAbove i1) (j.succAbove j'), false⟩,
+        ⟨pvar (k + 1) (i.succAbove i2) (j.succAbove j'), false⟩} : Clause), ?_, ?_⟩
+    · refine mem_union_right _ ?_
+      refine mem_biUnion.mpr ⟨j.succAbove j', mem_univ _, ?_⟩
+      refine mem_biUnion.mpr ⟨i.succAbove i1, mem_univ _, ?_⟩
+      refine mem_image.mpr ⟨i.succAbove i2, ?_, rfl⟩
+      refine mem_filter.mpr ⟨mem_univ _, ?_⟩
+      exact (Fin.strictMono_succAbove i).lt_iff_lt.mpr hlt
+    · exact restrictClause_hole_succAbove i j j' hlt
+
+/-- Matching restriction of PHP produces only renamed smaller PHP clauses. -/
+theorem restrict_subset_matchingRenameCNF {k : ℕ}
+    (placed : Fin (k + 2)) (hole : Fin (k + 1)) :
+    restrictCNF (matchingLookup (k + 1) placed hole) (phpCNF (k + 1)) ⊆
+      matchingRenameCNF k placed hole := by
+  intro C' hC'
+  obtain ⟨C, hC, hres⟩ := (mem_restrictCNF_iff _ _ _).mp hC'
+  rcases mem_union.mp hC with hpig | hhole
+  · -- Surviving pigeon axioms are renamed smaller pigeon axioms.
+    obtain ⟨i0, _, rfl⟩ := mem_image.mp hpig
+    by_cases hi0 : i0 = placed
+    · rw [hi0, restrictClause_pigeonClause_place placed hole] at hres
+      exact (Option.some_ne_none _ hres.symm).elim
+    · obtain ⟨i', rfl⟩ := Fin.exists_succAbove_eq hi0
+      rw [restrictClause_pigeonClause_succAbove placed hole i'] at hres
+      have hC'eq : C' = matchingRenamePigeonClause k placed hole i' :=
+        (Option.some.inj hres).symm
+      rw [hC'eq]
+      exact mem_union_left _ (mem_image_of_mem _ (mem_univ _))
+  · -- Surviving hole axioms are renamed smaller hole axioms.
+    obtain ⟨j0, _, hrest⟩ := mem_biUnion.mp hhole
+    obtain ⟨i1, _, hrest2⟩ := mem_biUnion.mp hrest
+    obtain ⟨i2, hi2f, rfl⟩ := mem_image.mp hrest2
+    have hlt : i1 < i2 := (mem_filter.mp hi2f).2
+    by_cases hj0 : j0 = hole
+    · -- Matched column: hole axiom is killed.
+      rw [hj0] at hres
+      by_cases h1 : i1 = placed
+      · rw [h1, restrictClause_hole_with_place placed hole (ne_of_gt (h1 ▸ hlt))] at hres
+        exact (Option.some_ne_none _ hres.symm).elim
+      · by_cases h2 : i2 = placed
+        · have hnone :
+              restrictClause (matchingLookup (k + 1) placed hole)
+                ({⟨pvar (k + 1) i1 hole, false⟩, ⟨pvar (k + 1) placed hole, false⟩} : Clause) =
+                  none :=
+            (restrictClause_eq_none_iff _ _).mpr
+              ⟨⟨pvar (k + 1) i1 hole, false⟩, mem_insert_self _ _,
+                matchingLookup_col (i := placed) (i' := i1) hole h1⟩
+          rw [h2, hnone] at hres
+          exact (Option.some_ne_none _ hres.symm).elim
+        · rw [restrictClause_hole_on_matched_col placed hole h1 h2] at hres
+          exact (Option.some_ne_none _ hres.symm).elim
+    · -- Off column: if either pigeon is the placed one, row force kills; else rename.
+      by_cases h1 : i1 = placed
+      · rw [h1, restrictClause_hole_on_matched_row placed hole hj0 (ne_of_gt (h1 ▸ hlt))] at hres
+        exact (Option.some_ne_none _ hres.symm).elim
+      · by_cases h2 : i2 = placed
+        · have hnone :
+              restrictClause (matchingLookup (k + 1) placed hole)
+                ({⟨pvar (k + 1) i1 j0, false⟩, ⟨pvar (k + 1) placed j0, false⟩} : Clause) =
+                  none :=
+            (restrictClause_eq_none_iff _ _).mpr
+              ⟨⟨pvar (k + 1) placed j0, false⟩, mem_insert_of_mem (mem_singleton_self _),
+                matchingLookup_row placed hj0⟩
+          rw [h2, hnone] at hres
+          exact (Option.some_ne_none _ hres.symm).elim
+        · obtain ⟨j', rfl⟩ := Fin.exists_succAbove_eq hj0
+          obtain ⟨i1', rfl⟩ := Fin.exists_succAbove_eq h1
+          obtain ⟨i2', rfl⟩ := Fin.exists_succAbove_eq h2
+          have hlt' : i1' < i2' :=
+            (Fin.strictMono_succAbove placed).lt_iff_lt.mp hlt
+          rw [restrictClause_hole_succAbove placed hole j' hlt'] at hres
+          have hC'eq : C' = matchingRenameHoleClause k placed hole j' i1' i2' :=
+            (Option.some.inj hres).symm
+          rw [hC'eq]
+          refine mem_union_right _ ?_
+          refine mem_biUnion.mpr ⟨j', mem_univ _, ?_⟩
+          refine mem_biUnion.mpr ⟨i1', mem_univ _, ?_⟩
+          exact mem_image.mpr
+            ⟨i2', mem_filter.mpr ⟨mem_univ _, hlt'⟩, rfl⟩
+
+/-- Matching restriction of `phpCNF (k+1)` equals the renamed `phpCNF k`. -/
+theorem matchingRestrict_phpCNF_eq_rename {k : ℕ}
+    (i : Fin (k + 2)) (j : Fin (k + 1)) :
+    restrictCNF (matchingLookup (k + 1) i j) (phpCNF (k + 1)) =
+      matchingRenameCNF k i j :=
+  Subset.antisymm (restrict_subset_matchingRenameCNF i j)
+    (matchingRenameCNF_subset_restrict i j)
 
 end SATurday.ProofComplexity

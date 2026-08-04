@@ -496,3 +496,11 @@ above it.
   filter_not_killed_card_lt, large_survivors_lt,
   exists_matching_strict_progress) accepted into the accepted tree. Gate
   remains green. R1 stays active. Next: formalize G7e smaller PHP isomorphism.
+- 2026-08-03 formalize (G7e: matching rename iso): SUCCESS. Extended
+  MatchingRestriction.lean. Certified: univ_erase_eq_image_succAbove;
+  matchingEmbedVar and matchingRenameCNF; pigeon and hole restrict lemmas
+  under succAbove; matchingRestrict_phpCNF_eq_rename
+  (restrictCNF(matchingLookup)(phpCNF (k+1)) = matchingRenameCNF k). Gate
+  green (130 accepted decls). Deferred: inverse rename derivation transport
+  onto phpCNF k, iterative shrink rate, Frontier close. Pending human gate
+  merge_certified. Next after merge: formalize G7f rename transport.
