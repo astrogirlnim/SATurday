@@ -209,3 +209,12 @@ SATurday.ProofComplexity.MonoDeriv.concl_subset
 SATurday.ProofComplexity.exists_monoDeriv_of_derivation
 SATurday.ProofComplexity.exists_monoDeriv_of_concl_eq
 SATurday.ProofComplexity.exists_monoDeriv_refutation
+# R1 BP96 / G8b: monotone derivation lines and width lemma
+# (certified 2026-08-04, saturday formalize)
+SATurday.ProofComplexity.MonoDeriv.concl_mem_lines
+SATurday.ProofComplexity.MonoDeriv.lines_card_le_size
+SATurday.ProofComplexity.MonoDeriv.mem_lines_subset_grid
+SATurday.ProofComplexity.MonoDeriv.exists_intermediate_line
+SATurday.ProofComplexity.pos_of_mem_gridPosLits
+SATurday.ProofComplexity.monotoneClause_of_pos
+SATurday.ProofComplexity.MonoDeriv.exists_wide_line

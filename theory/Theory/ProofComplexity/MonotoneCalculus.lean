@@ -191,4 +191,131 @@ theorem exists_monoDeriv_refutation {n : ℕ} (hn : 0 < n)
   obtain ⟨md', hs'⟩ := exists_monoDeriv_of_concl_eq (monotoneClause_empty hn) md
   exact ⟨md', by omega⟩
 
+/-! ## G8b: lines of a monotone derivation and the width lemma -/
+
+/-- All conclusions appearing in a monotone derivation. -/
+def MonoDeriv.lines {n : ℕ} : {C : Clause} → MonoDeriv n C → Finset Clause
+  | C, .ax _ _ _ _ => {C}
+  | C, .sem _ _ _ _ _ dA dB => insert C (dA.lines ∪ dB.lines)
+
+theorem MonoDeriv.concl_mem_lines {n : ℕ} {C : Clause} (md : MonoDeriv n C) :
+    C ∈ md.lines := by
+  cases md with
+  | ax _ _ _ _ => simp [MonoDeriv.lines]
+  | sem _ _ _ _ _ dA dB => simp [MonoDeriv.lines]
+
+/-- Line count is bounded by derivation size. -/
+theorem MonoDeriv.lines_card_le_size {n : ℕ} {C : Clause} (md : MonoDeriv n C) :
+    md.lines.card ≤ md.size := by
+  induction md with
+  | ax _ _ _ _ => simp [MonoDeriv.lines, MonoDeriv.size]
+  | sem A B C hC hw dA dB ihA ihB =>
+      simp only [MonoDeriv.lines, MonoDeriv.size]
+      have h1 := card_insert_le C (dA.lines ∪ dB.lines)
+      have h2 := card_union_le dA.lines dB.lines
+      omega
+
+/-- Every line of a monotone derivation is a positive grid clause. -/
+theorem MonoDeriv.mem_lines_subset_grid {n : ℕ} {C : Clause} (md : MonoDeriv n C) :
+    ∀ C' ∈ md.lines, C' ⊆ gridPosLits n := by
+  induction md with
+  | ax i C hC hw =>
+      intro C' hC'
+      simp only [MonoDeriv.lines, mem_singleton] at hC'
+      rw [hC']
+      exact hC
+  | sem A B C hC hw dA dB ihA ihB =>
+      intro C' hC'
+      simp only [MonoDeriv.lines, mem_insert, mem_union] at hC'
+      rcases hC' with rfl | h | h
+      · exact hC
+      · exact ihA C' h
+      · exact ihB C' h
+
+/-- BP96 width walk in the monotone calculus: a conclusion of high
+pigeonComplexity forces a line in the intermediate band. -/
+theorem MonoDeriv.exists_intermediate_line {n : ℕ} (hn : 1 ≤ n) :
+    ∀ {C : Clause} (md : MonoDeriv n C),
+      2 * (n + 1) / 3 < pigeonComplexity n C →
+      ∃ C' ∈ md.lines, (n + 1) / 3 < pigeonComplexity n C' ∧
+        pigeonComplexity n C' ≤ 2 * (n + 1) / 3 := by
+  intro C md
+  induction md with
+  | ax i C hC hw =>
+      intro hhigh
+      -- Axiom lines are dominated by a pigeon axiom, whose complexity is 1.
+      have hsub := L_subset_of_Fals_subset hw
+      have hone : (L n (pigeonClause n i)).card = 1 := by
+        simpa [pigeonComplexity] using pigeonComplexity_pigeonClause n i
+      have hle : pigeonComplexity n C ≤ 1 := by
+        have hcard := card_le_card hsub
+        rw [hone] at hcard
+        exact hcard
+      simp only [pigeonComplexity] at hle hhigh
+      omega
+  | sem A B C hC hw dA dB ihA ihB =>
+      intro hhigh
+      -- Semantic coverage gives subadditivity of pigeonComplexity.
+      have hle : pigeonComplexity n C ≤
+          pigeonComplexity n A + pigeonComplexity n B := by
+        have hsub := L_subset_of_Fals_subset_union hw
+        calc (L n C).card
+            ≤ (L n A ∪ L n B).card := card_le_card hsub
+          _ ≤ (L n A).card + (L n B).card := card_union_le _ _
+      by_cases hAh : 2 * (n + 1) / 3 < pigeonComplexity n A
+      · obtain ⟨C', hmem, h1, h2⟩ := ihA hAh
+        refine ⟨C', ?_, h1, h2⟩
+        simp only [MonoDeriv.lines]
+        exact mem_insert_of_mem (mem_union_left _ hmem)
+      · by_cases hBh : 2 * (n + 1) / 3 < pigeonComplexity n B
+        · obtain ⟨C', hmem, h1, h2⟩ := ihB hBh
+          refine ⟨C', ?_, h1, h2⟩
+          simp only [MonoDeriv.lines]
+          exact mem_insert_of_mem (mem_union_right _ hmem)
+        · by_cases hAmid : (n + 1) / 3 < pigeonComplexity n A
+          · refine ⟨A, ?_, hAmid, Nat.not_lt.mp hAh⟩
+            simp only [MonoDeriv.lines]
+            exact mem_insert_of_mem (mem_union_left _ dA.concl_mem_lines)
+          · by_cases hBmid : (n + 1) / 3 < pigeonComplexity n B
+            · refine ⟨B, ?_, hBmid, Nat.not_lt.mp hBh⟩
+              simp only [MonoDeriv.lines]
+              exact mem_insert_of_mem (mem_union_right _ dB.concl_mem_lines)
+            · have h1 : pigeonComplexity n A ≤ (n + 1) / 3 := Nat.not_lt.mp hAmid
+              have h2 : pigeonComplexity n B ≤ (n + 1) / 3 := Nat.not_lt.mp hBmid
+              omega
+
+theorem pos_of_mem_gridPosLits {n : ℕ} {l : Literal} (hl : l ∈ gridPosLits n) :
+    l.pos = true := by
+  obtain ⟨i, j, rfl⟩ := (mem_gridPosLits_iff).mp hl
+  rfl
+
+/-- The monotone transform fixes positive clauses. -/
+theorem monotoneClause_of_pos {n : ℕ} (hn : 0 < n) {C : Clause}
+    (hC : ∀ l ∈ C, l.pos = true) : monotoneClause n hn C = C := by
+  ext l'
+  simp only [monotoneClause, mem_biUnion]
+  constructor
+  · rintro ⟨l, hl, hl'⟩
+    simp only [monotoneLiteral, hC l hl, ↓reduceIte, mem_singleton] at hl'
+    rw [hl']
+    exact hl
+  · intro hl'
+    exact ⟨l', hl', by simp [monotoneLiteral, hC l' hl']⟩
+
+/-- Width lemma: every monotone refutation of PHP(n+1, n) with n ≥ 1 contains
+a line of width at least `largeThreshold n`. -/
+theorem MonoDeriv.exists_wide_line {n : ℕ} (hn : 1 ≤ n)
+    (md : MonoDeriv n (∅ : Clause)) :
+    ∃ C' ∈ md.lines, largeThreshold n ≤ C'.card := by
+  have hhigh : 2 * (n + 1) / 3 < pigeonComplexity n (∅ : Clause) := by
+    rw [pigeonComplexity_empty]
+    omega
+  obtain ⟨C', hmem, hlo, hhi⟩ := md.exists_intermediate_line hn hhigh
+  refine ⟨C', hmem, ?_⟩
+  have hpos : ∀ l ∈ C', l.pos = true := fun l hl =>
+    pos_of_mem_gridPosLits (md.mem_lines_subset_grid C' hmem hl)
+  have hn0 : 0 < n := hn
+  have hcard := monotoneClause_card_ge_largeThreshold hn0 C' hlo hhi
+  rwa [monotoneClause_of_pos hn0 hpos] at hcard
+
 end SATurday.ProofComplexity

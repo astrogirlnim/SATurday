@@ -568,3 +568,13 @@ above it.
   exists_monoDeriv_of_concl_eq, exists_monoDeriv_refutation) accepted into
   the accepted tree. Gate remains green. R1 stays active. Next: formalize
   G8b monotone width lemma.
+- 2026-08-04 formalize (G8b: monotone lines and width lemma): SUCCESS.
+  Extended MonotoneCalculus.lean. Certified: MonoDeriv.lines with
+  concl_mem_lines, lines_card_le_size, mem_lines_subset_grid;
+  MonoDeriv.exists_intermediate_line (BP96 width walk inside the monotone
+  calculus); monotoneClause_of_pos (transform fixes positive clauses);
+  MonoDeriv.exists_wide_line (every monotone refutation contains a line of
+  width at least largeThreshold n). Gate green (171 accepted decls).
+  Deferred: monotone restriction under a matching, kill counting, Frontier
+  close. Pending human gate merge_certified. Next after merge: formalize
+  G8c monotone restriction.
