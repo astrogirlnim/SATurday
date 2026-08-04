@@ -584,3 +584,15 @@ above it.
   pos_of_mem_gridPosLits, monotoneClause_of_pos, MonoDeriv.exists_wide_line)
   accepted into the accepted tree. Gate remains green. R1 stays active.
   Next: formalize G8c monotone restriction under a matching.
+- 2026-08-04 formalize (G8c: critical extension and monotone line
+  restriction): SUCCESS. Extended MonotoneCalculus.lean. Certified:
+  critExtend (extension of a PHP(k+1,k) critical permutation to PHP(k+2,k+1)
+  placing pigeon i in hole j, built from finSuccEquiv' on both sides) with
+  apply, last, and assignment lemmas; monoRestrict (drop forced literals,
+  rename survivors) with width and grid lemmas; falsifies_monoRestrict_iff
+  (falsification transports exactly along critExtend for unkilled lines);
+  killed lines never falsified by extensions; pigeon axiom transport. Gate
+  green (189 accepted decls). Deferred: wk constructor and derivation level
+  restriction, kill counting, Frontier close. Pending human gate
+  merge_certified. Next after merge: formalize G8d monotone derivation
+  restriction.

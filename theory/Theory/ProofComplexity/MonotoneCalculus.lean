@@ -318,4 +318,251 @@ theorem MonoDeriv.exists_wide_line {n : ℕ} (hn : 1 ≤ n)
   have hcard := monotoneClause_card_ge_largeThreshold hn0 C' hlo hhi
   rwa [monotoneClause_of_pos hn0 hpos] at hcard
 
+/-! ## G8c: matching restriction of monotone lines
+
+Placing pigeon `i` in hole `j` corresponds semantically to extending a
+critical permutation of PHP(k+1, k) to one of PHP(k+2, k+1) that places `i` in
+`j`. The extension `critExtend` is built from `finSuccEquiv'` on the pigeon
+side and on the slot side. The line restriction `monoRestrict` drops the row
+and column literals and renames survivors onto the small grid; falsification
+transports exactly along `critExtend` for unkilled lines.
+-/
+
+private theorem bool_eq_of_true_iff {a b : Bool} (h : (a = true) ↔ (b = true)) :
+    a = b := by
+  cases a <;> cases b <;> simp_all
+
+/-- Slot embedding sends the left out marker to the left out marker. -/
+theorem castSucc_succAbove_last {k : ℕ} (j : Fin (k + 1)) :
+    (Fin.castSucc j).succAbove (Fin.last k) = Fin.last (k + 1) := by
+  rw [Fin.succAbove_of_le_castSucc _ _ (by
+    simp [Fin.le_castSucc_iff, Fin.castSucc_lt_last])]
+  simp [Fin.succ_last]
+
+/-- Slot embedding commutes with hole embedding. -/
+theorem castSucc_succAbove_castSucc {k : ℕ} (j : Fin (k + 1)) (t : Fin k) :
+    (Fin.castSucc j).succAbove (Fin.castSucc t) = Fin.castSucc (j.succAbove t) := by
+  rcases lt_or_ge (Fin.castSucc t) j with h | h
+  · rw [Fin.succAbove_of_castSucc_lt _ _ (by simpa using h),
+      Fin.succAbove_of_castSucc_lt _ _ h]
+  · rw [Fin.succAbove_of_le_castSucc _ _ (by simpa using h),
+      Fin.succAbove_of_le_castSucc _ _ h, Fin.succ_castSucc]
+
+/-- Extend a PHP(k+1, k) critical permutation to PHP(k+2, k+1) by placing
+pigeon `i` in hole `j` and reindexing everything else. -/
+def critExtend (k : ℕ) (i : Fin (k + 2)) (j : Fin (k + 1))
+    (pi' : Crit k) : Crit (k + 1) :=
+  (finSuccEquiv' i).trans (pi'.optionCongr.trans (finSuccEquiv' (Fin.castSucc j)).symm)
+
+theorem critExtend_apply_placed {k : ℕ} (i : Fin (k + 2)) (j : Fin (k + 1))
+    (pi' : Crit k) : critExtend k i j pi' i = Fin.castSucc j := by
+  simp [critExtend]
+
+theorem critExtend_apply_succAbove {k : ℕ} (i : Fin (k + 2)) (j : Fin (k + 1))
+    (pi' : Crit k) (i' : Fin (k + 1)) :
+    critExtend k i j pi' (i.succAbove i') = (Fin.castSucc j).succAbove (pi' i') := by
+  simp [critExtend]
+
+/-- The extended permutation never leaves out a reindexed pigeon unless the
+small permutation does. -/
+theorem critExtend_last_iff {k : ℕ} (i : Fin (k + 2)) (j : Fin (k + 1))
+    (pi' : Crit k) (i' : Fin (k + 1)) :
+    critExtend k i j pi' (i.succAbove i') = Fin.last (k + 1) ↔
+      pi' i' = Fin.last k := by
+  rw [critExtend_apply_succAbove]
+  constructor
+  · intro h
+    rcases Fin.eq_castSucc_or_eq_last (pi' i') with ⟨t, ht⟩ | ht
+    · rw [ht, castSucc_succAbove_castSucc] at h
+      exact absurd h (Fin.castSucc_lt_last _).ne
+    · exact ht
+  · intro h
+    rw [h, castSucc_succAbove_last]
+
+/-- The extension places pigeon `i` in hole `j`. -/
+theorem critExtend_assign_place {k : ℕ} (i : Fin (k + 2)) (j : Fin (k + 1))
+    (pi' : Crit k) :
+    criticalAssignment (k + 1) (critExtend k i j pi') (pvar (k + 1) i j) = true :=
+  (criticalAssignment_pvar _ i j).mpr (critExtend_apply_placed i j pi')
+
+/-- On embedded grid variables the extension agrees with the small critical
+assignment. -/
+theorem critExtend_assign_embed {k : ℕ} (i : Fin (k + 2)) (j : Fin (k + 1))
+    (pi' : Crit k) (i' : Fin (k + 1)) (j' : Fin k) :
+    criticalAssignment (k + 1) (critExtend k i j pi')
+        (matchingEmbedVar k i j i' j') =
+      criticalAssignment k pi' (pvar k i' j') := by
+  refine bool_eq_of_true_iff ?_
+  rw [show matchingEmbedVar k i j i' j' =
+      pvar (k + 1) (i.succAbove i') (j.succAbove j') from rfl,
+    criticalAssignment_pvar, criticalAssignment_pvar, critExtend_apply_succAbove,
+    ← castSucc_succAbove_castSucc, Fin.succAbove_right_inj]
+
+/-- Matching restriction of a monotone line: drop forced literals and rename
+survivors onto the smaller grid. -/
+noncomputable def monoRestrict (k : ℕ) (i : Fin (k + 2)) (j : Fin (k + 1))
+    (C : Clause) : Clause :=
+  renameClause (matchingUnrenameσ k i j)
+    (C.filter fun l => matchingLookup (k + 1) i j l.var = none)
+
+theorem monoRestrict_empty (k : ℕ) (i : Fin (k + 2)) (j : Fin (k + 1)) :
+    monoRestrict k i j (∅ : Clause) = ∅ := by
+  simp [monoRestrict, renameClause]
+
+/-- Restriction never increases the width of a line. -/
+theorem monoRestrict_card_le (k : ℕ) (i : Fin (k + 2)) (j : Fin (k + 1))
+    (C : Clause) : (monoRestrict k i j C).card ≤ C.card :=
+  le_trans (card_image_le) (card_filter_le _ _)
+
+/-- Unforced grid variables sit strictly off the matched row and column. -/
+theorem offgrid_of_matchingLookup_none {k : ℕ} {i : Fin (k + 2)}
+    {j : Fin (k + 1)} {a : Fin (k + 2)} {b : Fin (k + 1)}
+    (h : matchingLookup (k + 1) i j (pvar (k + 1) a b) = none) :
+    a ≠ i ∧ b ≠ j := by
+  constructor
+  · rintro rfl
+    by_cases hb : b = j
+    · rw [hb, matchingLookup_place] at h
+      exact Option.some_ne_none _ h
+    · rw [matchingLookup_row a hb] at h
+      exact Option.some_ne_none _ h
+  · rintro rfl
+    by_cases ha : a = i
+    · rw [ha, matchingLookup_place] at h
+      exact Option.some_ne_none _ h
+    · rw [matchingLookup_col b ha] at h
+      exact Option.some_ne_none _ h
+
+/-- Restricted lines are positive grid clauses of the smaller PHP. -/
+theorem monoRestrict_subset_grid {k : ℕ} (i : Fin (k + 2)) (j : Fin (k + 1))
+    {C : Clause} (hC : C ⊆ gridPosLits (k + 1)) :
+    monoRestrict k i j C ⊆ gridPosLits k := by
+  intro l' hl'
+  obtain ⟨l, hlf, rfl⟩ := (mem_renameClause_iff _ _ _).mp hl'
+  obtain ⟨hlC, hnone⟩ := mem_filter.mp hlf
+  obtain ⟨a, b, rfl⟩ := (mem_gridPosLits_iff).mp (hC hlC)
+  obtain ⟨ha, hb⟩ := offgrid_of_matchingLookup_none hnone
+  obtain ⟨i'', rfl⟩ := Fin.exists_succAbove_eq ha
+  obtain ⟨b'', rfl⟩ := Fin.exists_succAbove_eq hb
+  refine (mem_gridPosLits_iff).mpr ⟨i'', b'', ?_⟩
+  show (⟨matchingUnrenameσ k i j (matchingEmbedVar k i j i'' b''), true⟩ : Literal) = _
+  rw [matchingUnrenameσ_embed]
+
+/-- Killed lines are satisfied by every extended critical assignment. -/
+theorem clauseSat_critExtend_of_killed {k : ℕ} {i : Fin (k + 2)}
+    {j : Fin (k + 1)} {C : Clause}
+    (hkill : (⟨pvar (k + 1) i j, true⟩ : Literal) ∈ C) (pi' : Crit k) :
+    clauseSat (criticalAssignment (k + 1) (critExtend k i j pi')) C :=
+  ⟨⟨pvar (k + 1) i j, true⟩, hkill, critExtend_assign_place i j pi'⟩
+
+/-- Falsification correspondence: for an unkilled positive grid line, the
+restricted line is falsified by `pi'` exactly when the original line is
+falsified by the extension of `pi'`. -/
+theorem falsifies_monoRestrict_iff {k : ℕ} {i : Fin (k + 2)} {j : Fin (k + 1)}
+    {C : Clause} (hC : C ⊆ gridPosLits (k + 1))
+    (hkill : (⟨pvar (k + 1) i j, true⟩ : Literal) ∉ C) (pi' : Crit k) :
+    falsifies k (monoRestrict k i j C) pi' ↔
+      falsifies (k + 1) C (critExtend k i j pi') := by
+  unfold falsifies
+  rw [not_iff_not]
+  constructor
+  · -- A satisfied restricted literal pulls back to a satisfied original one.
+    rintro ⟨l', hl', hsat'⟩
+    obtain ⟨l, hlf, rfl⟩ := (mem_renameClause_iff _ _ _).mp hl'
+    obtain ⟨hlC, hnone⟩ := mem_filter.mp hlf
+    obtain ⟨a, b, rfl⟩ := (mem_gridPosLits_iff).mp (hC hlC)
+    obtain ⟨ha, hb⟩ := offgrid_of_matchingLookup_none hnone
+    obtain ⟨i'', rfl⟩ := Fin.exists_succAbove_eq ha
+    obtain ⟨b'', rfl⟩ := Fin.exists_succAbove_eq hb
+    refine ⟨_, hlC, ?_⟩
+    show criticalAssignment (k + 1) (critExtend k i j pi')
+      (pvar (k + 1) (i.succAbove i'') (j.succAbove b'')) = true
+    rw [show pvar (k + 1) (i.succAbove i'') (j.succAbove b'') =
+        matchingEmbedVar k i j i'' b'' from rfl, critExtend_assign_embed]
+    have hlit : renameLit (matchingUnrenameσ k i j)
+        (⟨pvar (k + 1) (i.succAbove i'') (j.succAbove b''), true⟩ : Literal) =
+        (⟨pvar k i'' b'', true⟩ : Literal) := by
+      show (⟨matchingUnrenameσ k i j (matchingEmbedVar k i j i'' b''), true⟩ :
+        Literal) = _
+      rw [matchingUnrenameσ_embed]
+    rw [hlit] at hsat'
+    exact hsat'
+  · -- A satisfied original literal survives restriction and stays satisfied.
+    rintro ⟨l, hlC, hsat⟩
+    obtain ⟨a, b, rfl⟩ := (mem_gridPosLits_iff).mp (hC hlC)
+    have hab : critExtend k i j pi' a = Fin.castSucc b :=
+      (criticalAssignment_pvar _ a b).mp hsat
+    by_cases hai : a = i
+    · -- The satisfied literal would be the placed one, which is excluded.
+      subst hai
+      rw [critExtend_apply_placed] at hab
+      have hbj : b = j := (Fin.castSucc_injective _ hab.symm)
+      rw [hbj] at hlC
+      exact absurd hlC hkill
+    · obtain ⟨i'', rfl⟩ := Fin.exists_succAbove_eq hai
+      rw [critExtend_apply_succAbove] at hab
+      rcases Fin.eq_castSucc_or_eq_last (pi' i'') with ⟨b'', hb''⟩ | hlast
+      · rw [hb'', castSucc_succAbove_castSucc] at hab
+        have hbeq : j.succAbove b'' = b := Fin.castSucc_injective _ hab
+        refine ⟨renameLit (matchingUnrenameσ k i j)
+          (⟨pvar (k + 1) (i.succAbove i'') b, true⟩ : Literal), ?_, ?_⟩
+        · refine (mem_renameClause_iff _ _ _).mpr
+            ⟨_, mem_filter.mpr ⟨hlC, ?_⟩, rfl⟩
+          rw [← hbeq]
+          exact matchingLookup_off_grid_succAbove i j i'' b''
+        · have hlit : renameLit (matchingUnrenameσ k i j)
+              (⟨pvar (k + 1) (i.succAbove i'') b, true⟩ : Literal) =
+              (⟨pvar k i'' b'', true⟩ : Literal) := by
+            rw [← hbeq]
+            show (⟨matchingUnrenameσ k i j (matchingEmbedVar k i j i'' b''), true⟩ :
+              Literal) = _
+            rw [matchingUnrenameσ_embed]
+          rw [hlit]
+          show criticalAssignment k pi' (pvar k i'' b'') = true
+          exact (criticalAssignment_pvar _ i'' b'').mpr hb''
+      · rw [hlast, castSucc_succAbove_last] at hab
+        exact absurd hab.symm (Fin.castSucc_lt_last b).ne
+
+/-- Fals form of the correspondence, forward direction. -/
+theorem critExtend_mem_Fals_of_monoRestrict {k : ℕ} {i : Fin (k + 2)}
+    {j : Fin (k + 1)} {C : Clause} (hC : C ⊆ gridPosLits (k + 1))
+    (hkill : (⟨pvar (k + 1) i j, true⟩ : Literal) ∉ C) {pi' : Crit k}
+    (h : pi' ∈ Fals k (monoRestrict k i j C)) :
+    critExtend k i j pi' ∈ Fals (k + 1) C := by
+  rw [Fals, mem_filter] at h ⊢
+  exact ⟨mem_univ _, (falsifies_monoRestrict_iff hC hkill pi').mp h.2⟩
+
+/-- Fals form of the correspondence, backward direction. -/
+theorem monoRestrict_mem_Fals_of_critExtend {k : ℕ} {i : Fin (k + 2)}
+    {j : Fin (k + 1)} {C : Clause} (hC : C ⊆ gridPosLits (k + 1))
+    (hkill : (⟨pvar (k + 1) i j, true⟩ : Literal) ∉ C) {pi' : Crit k}
+    (h : critExtend k i j pi' ∈ Fals (k + 1) C) :
+    pi' ∈ Fals k (monoRestrict k i j C) := by
+  rw [Fals, mem_filter] at h ⊢
+  exact ⟨mem_univ _, (falsifies_monoRestrict_iff hC hkill pi').mpr h.2⟩
+
+/-- Killed lines never appear in the falsifying set of an extension. -/
+theorem critExtend_notMem_Fals_of_killed {k : ℕ} {i : Fin (k + 2)}
+    {j : Fin (k + 1)} {C : Clause}
+    (hkill : (⟨pvar (k + 1) i j, true⟩ : Literal) ∈ C) (pi' : Crit k) :
+    critExtend k i j pi' ∉ Fals (k + 1) C := by
+  rw [Fals, mem_filter]
+  rintro ⟨-, hf⟩
+  exact hf (clauseSat_critExtend_of_killed hkill pi')
+
+/-- The placed pigeon's axiom is never falsified by an extension. -/
+theorem critExtend_notMem_Fals_pigeonClause_placed {k : ℕ} (i : Fin (k + 2))
+    (j : Fin (k + 1)) (pi' : Crit k) :
+    critExtend k i j pi' ∉ Fals (k + 1) (pigeonClause (k + 1) i) :=
+  critExtend_notMem_Fals_of_killed (mem_pigeonClause i j) pi'
+
+/-- Reindexed pigeon axioms transport falsification along the extension. -/
+theorem critExtend_falsifies_pigeonClause_iff {k : ℕ} (i : Fin (k + 2))
+    (j : Fin (k + 1)) (pi' : Crit k) (i'' : Fin (k + 1)) :
+    falsifies (k + 1) (pigeonClause (k + 1) (i.succAbove i''))
+        (critExtend k i j pi') ↔
+      falsifies k (pigeonClause k i'') pi' := by
+  rw [falsifies_pigeonClause_iff, falsifies_pigeonClause_iff]
+  exact critExtend_last_iff i j pi' i''
+
 end SATurday.ProofComplexity
