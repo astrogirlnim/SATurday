@@ -246,3 +246,9 @@ SATurday.ProofComplexity.exists_popular_grid_literal_W
 SATurday.ProofComplexity.wide_survivors_le_W
 SATurday.ProofComplexity.exists_monoDeriv_kill_step
 SATurday.ProofComplexity.kill_step_mul
+# R1 BP96 / G8f: kill iteration wipeout
+# (certified 2026-08-04, saturday formalize)
+SATurday.ProofComplexity.exists_monoDeriv_of_scale_eq
+SATurday.ProofComplexity.exists_monoDeriv_iter
+SATurday.ProofComplexity.exists_monoDeriv_tail
+SATurday.ProofComplexity.exists_monoDeriv_wipeout

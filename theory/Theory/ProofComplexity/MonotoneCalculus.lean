@@ -969,4 +969,185 @@ theorem kill_step_mul {V W L L' : ℕ} (hV : 0 < V)
     _ = 2 * V * L - 2 * V * q := hexp
     _ ≤ 2 * V * L - L * W := hfinal
 
+/-! ## G8f: iterating the kill step
+
+The dense phase decays the wide count geometrically (multiplicative invariant
+with a stuck term `V₀`); the sparse tail kills at least one wide line per
+step. Composing wipes out every `W` wide line while shrinking PHP by
+`t + s` pigeons.
+-/
+
+/-- Transport a monotone refutation across a scale equality. -/
+theorem exists_monoDeriv_of_scale_eq {n n' : ℕ} (h : n = n')
+    (md : MonoDeriv n (∅ : Clause)) :
+    ∃ md' : MonoDeriv n' (∅ : Clause),
+      md'.size = md.size ∧ md'.lines = md.lines := by
+  subst h
+  exact ⟨md, rfl, rfl⟩
+
+/-- Number of `W` wide lines of a monotone derivation. -/
+noncomputable def wideCount (W : ℕ) {n : ℕ} {C : Clause} (md : MonoDeriv n C) : ℕ :=
+  (md.lines.filter fun D => W ≤ D.card).card
+
+/-- Dense phase invariant: after `t` kill steps the wide count decays
+geometrically up to a stuck term of size `V₀`. -/
+theorem exists_monoDeriv_iter {W V₀ : ℕ} (hW : 0 < W) (hV₀ : 0 < V₀) :
+    ∀ (t n : ℕ), t ≤ n →
+      (∀ k, k < n → (k + 2) * (k + 1) ≤ V₀) →
+      ∀ (md : MonoDeriv n (∅ : Clause)),
+        ∃ md' : MonoDeriv (n - t) (∅ : Clause),
+          md'.size ≤ md.size ∧
+          (2 * V₀) ^ t * (wideCount W md' * W) ≤
+            (2 * V₀ - W) ^ t * (wideCount W md * W) + (2 * V₀) ^ t * V₀ := by
+  intro t
+  induction t with
+  | zero =>
+      intro n _ _ md
+      refine ⟨md, le_rfl, ?_⟩
+      simp only [pow_zero, Nat.one_mul]
+      omega
+  | succ t ih =>
+      intro n ht huni md
+      -- Run t steps first, landing at scale n - t ≥ 1.
+      obtain ⟨md1, hs1, hinv⟩ := ih n (by omega) huni md
+      have hpos : 1 ≤ n - t := by omega
+      obtain ⟨k, hk⟩ : ∃ k, n - t = k + 1 := ⟨n - t - 1, by omega⟩
+      obtain ⟨md2, hs2, hl2⟩ := exists_monoDeriv_of_scale_eq hk md1
+      -- One more kill step at scale k + 1.
+      obtain ⟨md3, hs3, hcut, _⟩ := exists_monoDeriv_kill_step W hW md2
+      -- Return to the n - (t+1) indexing.
+      have hk' : k = n - (t + 1) := by omega
+      obtain ⟨md4, hs4, hl4⟩ := exists_monoDeriv_of_scale_eq hk' md3
+      refine ⟨md4, by omega, ?_⟩
+      -- Uniformize the volume at the current scale.
+      set L := wideCount W md1 with hL
+      set L' := wideCount W md4 with hL'
+      have hLmd2 : wideCount W md2 = L := by
+        simp only [wideCount, hl2, hL]
+      have hL'md3 : wideCount W md3 = L' := by
+        simp only [wideCount, hL', hl4]
+      have hVscale : (k + 2) * (k + 1) ≤ V₀ := huni k (by omega)
+      have hVscale_pos : 0 < (k + 2) * (k + 1) := by positivity
+      have hdivmono : L * W / V₀ ≤ L * W / ((k + 2) * (k + 1)) :=
+        Nat.div_le_div_left hVscale hVscale_pos
+      have hstep : L' ≤ L - L * W / V₀ := by
+        have e2 : (md2.lines.filter fun C => W ≤ C.card).card = L := hLmd2
+        have e3 : (md3.lines.filter fun C => W ≤ C.card).card = L' := hL'md3
+        calc L' = (md3.lines.filter fun C => W ≤ C.card).card := e3.symm
+          _ ≤ (md2.lines.filter fun C => W ≤ C.card).card -
+              (md2.lines.filter fun C => W ≤ C.card).card * W /
+                ((k + 2) * (k + 1)) := hcut
+          _ = L - L * W / ((k + 2) * (k + 1)) := by rw [e2]
+          _ ≤ L - L * W / V₀ := Nat.sub_le_sub_left hdivmono L
+      by_cases hdense : V₀ ≤ L * W
+      · -- Dense: multiplicative decay via the halved rate step.
+        have hmul : 2 * V₀ * L' ≤ (2 * V₀ - W) * L :=
+          kill_step_mul hV₀ hdense hstep
+        calc (2 * V₀) ^ (t + 1) * (L' * W)
+            = (2 * V₀) ^ t * ((2 * V₀ * L') * W) := by ring
+          _ ≤ (2 * V₀) ^ t * (((2 * V₀ - W) * L) * W) := by
+              refine Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hmul)
+          _ = (2 * V₀ - W) * ((2 * V₀) ^ t * (L * W)) := by ring
+          _ ≤ (2 * V₀ - W) *
+              ((2 * V₀ - W) ^ t * (wideCount W md * W) + (2 * V₀) ^ t * V₀) :=
+              Nat.mul_le_mul_left _ hinv
+          _ = (2 * V₀ - W) ^ (t + 1) * (wideCount W md * W) +
+              (2 * V₀ - W) * ((2 * V₀) ^ t * V₀) := by ring
+          _ ≤ (2 * V₀ - W) ^ (t + 1) * (wideCount W md * W) +
+              (2 * V₀) ^ (t + 1) * V₀ := by
+              refine Nat.add_le_add_left ?_ _
+              calc (2 * V₀ - W) * ((2 * V₀) ^ t * V₀)
+                  ≤ 2 * V₀ * ((2 * V₀) ^ t * V₀) :=
+                    Nat.mul_le_mul_right _ (Nat.sub_le _ _)
+                _ = (2 * V₀) ^ (t + 1) * V₀ := by ring
+      · -- Sparse: the wide count is already below the stuck term.
+        have hsparse : L * W < V₀ := Nat.not_le.mp hdense
+        have hL'le : L' * W ≤ V₀ := by
+          have h1 : L' ≤ L := le_trans hstep (Nat.sub_le _ _)
+          have h2 : L' * W ≤ L * W := Nat.mul_le_mul_right _ h1
+          exact le_of_lt (lt_of_le_of_lt h2 hsparse)
+        calc (2 * V₀) ^ (t + 1) * (L' * W)
+            ≤ (2 * V₀) ^ (t + 1) * V₀ := Nat.mul_le_mul_left _ hL'le
+          _ ≤ (2 * V₀ - W) ^ (t + 1) * (wideCount W md * W) +
+              (2 * V₀) ^ (t + 1) * V₀ := Nat.le_add_left _ _
+
+/-- Sparse tail: with at most `s` wide lines left, `s` further kill steps
+remove them all. -/
+theorem exists_monoDeriv_tail {W : ℕ} (hW : 0 < W) :
+    ∀ (s n : ℕ), s ≤ n →
+      ∀ (md : MonoDeriv n (∅ : Clause)), wideCount W md ≤ s →
+        ∃ md' : MonoDeriv (n - s) (∅ : Clause),
+          md'.size ≤ md.size ∧ wideCount W md' = 0 := by
+  intro s
+  induction s with
+  | zero =>
+      intro n _ md hcount
+      exact ⟨md, le_rfl, by omega⟩
+  | succ s ih =>
+      intro n hs md hcount
+      have hpos : 1 ≤ n := by omega
+      obtain ⟨k, hk⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
+      obtain ⟨md1, hs1, hl1⟩ := exists_monoDeriv_of_scale_eq hk md
+      obtain ⟨md2, hs2, hcut, hstrict⟩ := exists_monoDeriv_kill_step W hW md1
+      have hcount1 : wideCount W md1 = wideCount W md := by
+        simp only [wideCount, hl1]
+      have e1 : wideCount W md1 = (md1.lines.filter fun C => W ≤ C.card).card := rfl
+      have e2 : wideCount W md2 = (md2.lines.filter fun C => W ≤ C.card).card := rfl
+      -- Either a wide line dies or none existed; both leave at most s.
+      have hcount2 : wideCount W md2 ≤ s := by
+        rcases Nat.eq_zero_or_pos (wideCount W md1) with h0 | h0
+        · -- Nothing wide: the restriction keeps the count at zero.
+          have hz : (md1.lines.filter fun C => W ≤ C.card).card = 0 := by
+            rw [← e1]
+            exact h0
+          have hle0 : (md2.lines.filter fun C => W ≤ C.card).card ≤ 0 := by
+            have h' := hcut
+            rw [hz] at h'
+            simpa using h'
+          rw [e2]
+          exact le_trans hle0 (Nat.zero_le s)
+        · -- Something wide dies, leaving at most s.
+          have h0' : 0 < (md1.lines.filter fun C => W ≤ C.card).card := by
+            rw [← e1]
+            exact h0
+          have hst := hstrict h0'
+          have hle : (md1.lines.filter fun C => W ≤ C.card).card ≤ s + 1 := by
+            rw [← e1, hcount1]
+            exact hcount
+          rw [e2]
+          exact Nat.lt_succ_iff.mp (lt_of_lt_of_le hst hle)
+      obtain ⟨md3, hs3, hcount3⟩ := ih k (by omega) md2 hcount2
+      have hk' : k - s = n - (s + 1) := by omega
+      obtain ⟨md4, hs4, hl4⟩ := exists_monoDeriv_of_scale_eq hk' md3
+      refine ⟨md4, by omega, ?_⟩
+      simp only [wideCount, hl4] at hcount3 ⊢
+      exact hcount3
+
+/-- Wipeout: enough dense steps followed by a sparse tail remove every `W`
+wide line, shrinking PHP by `t + s` pigeons and never growing the size. -/
+theorem exists_monoDeriv_wipeout {W V₀ : ℕ} (hW : 0 < W) (hV₀ : 0 < V₀)
+    {t s n : ℕ} (hts : t + s ≤ n)
+    (huni : ∀ k, k < n → (k + 2) * (k + 1) ≤ V₀)
+    (md : MonoDeriv n (∅ : Clause))
+    (hafter : (2 * V₀ - W) ^ t * (wideCount W md * W) + (2 * V₀) ^ t * V₀ ≤
+      (2 * V₀) ^ t * (s * W)) :
+    ∃ md' : MonoDeriv (n - (t + s)) (∅ : Clause),
+      md'.size ≤ md.size ∧ wideCount W md' = 0 := by
+  obtain ⟨md1, hs1, hinv⟩ := exists_monoDeriv_iter hW hV₀ t n (by omega) huni md
+  -- Cancel the positive factors to bound the surviving wide count by s.
+  have hcount : wideCount W md1 ≤ s := by
+    have hchain : (2 * V₀) ^ t * (wideCount W md1 * W) ≤
+        (2 * V₀) ^ t * (s * W) := le_trans hinv hafter
+    have hpow : 0 < (2 * V₀) ^ t := by positivity
+    have h1 : wideCount W md1 * W ≤ s * W :=
+      Nat.le_of_mul_le_mul_left hchain hpow
+    exact Nat.le_of_mul_le_mul_right h1 hW
+  obtain ⟨md2, hs2, hzero⟩ :=
+    exists_monoDeriv_tail hW s (n - t) (by omega) md1 hcount
+  have heq : n - t - s = n - (t + s) := by omega
+  obtain ⟨md3, hs3, hl3⟩ := exists_monoDeriv_of_scale_eq heq md2
+  refine ⟨md3, by omega, ?_⟩
+  simp only [wideCount, hl3] at hzero ⊢
+  exact hzero
+
 end SATurday.ProofComplexity

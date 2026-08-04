@@ -621,3 +621,10 @@ above it.
   wide_survivors_le_W, exists_monoDeriv_kill_step, kill_step_mul) accepted
   into the accepted tree. Gate remains green. R1 stays active. Next:
   formalize G8f kill iteration and final counting.
+- 2026-08-04 formalize (G8f: kill iteration wipeout): SUCCESS. Fixed sparse
+  branch arithmetic in exists_monoDeriv_iter; certified
+  exists_monoDeriv_of_scale_eq, exists_monoDeriv_iter, exists_monoDeriv_tail,
+  exists_monoDeriv_wipeout. Gate green (199 accepted decls). Deferred: final
+  parameter packing and honest exponential size lower bound, Frontier close.
+  Pending human gate merge_certified. Next after merge: formalize G8g final
+  counting.
