@@ -504,3 +504,12 @@ above it.
   green (130 accepted decls). Deferred: inverse rename derivation transport
   onto phpCNF k, iterative shrink rate, Frontier close. Pending human gate
   merge_certified. Next after merge: formalize G7f rename transport.
+- 2026-08-03 human gate merge_certified: G7e matching rename iso cluster
+  (10 declarations: univ_erase_eq_image_succAbove,
+  matchingLookup_off_grid_succAbove, restrictClause_pigeonClause_succAbove,
+  restrictClause_hole_on_matched_col, restrictClause_hole_on_matched_row,
+  restrictClause_hole_with_place, restrictClause_hole_succAbove,
+  matchingRenameCNF_subset_restrict, restrict_subset_matchingRenameCNF,
+  matchingRestrict_phpCNF_eq_rename) accepted into the accepted tree. Gate
+  remains green. R1 stays active. Next: formalize G7f inverse rename
+  derivation transport onto phpCNF k.
