@@ -465,3 +465,28 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   per step drop lower bound; the t = N wipe is a one line separate case.
   Pending human gate merge_certified. Next: finish bsw_size_lower_bound at
   bswRateConst = 24, or ship chainCNF non vacuity.
+
+- 2026-08-04 human gate merge_certified: APPROVED by session decision ("go").
+  SizeWidth fatSteps_le_log cluster (12 declarations, commit 5a8b14f) accepted
+  into the accepted tree: fatBlock, le_mul_fatBlock, div_fatBlock_le_mul_div,
+  iterate_fatShrink_le, iterate_fatShrink_anti, fatSteps_le_add_iterate,
+  fatBlock_mul_half_succ_div_ge, fatShrink_iterate_fatBlock_le_half,
+  fatSteps_le_log, bswRateConst, Derivation.size_pos, bsw_width_log_bound.
+  R2 stays prose_accepted. Next: formalize bsw_size_lower_bound at
+  bswRateConst = 24, or chainCNF non vacuity.
+
+- 2026-08-04 formalize (bsw_size_lower_bound at bswRateConst = 24): SUCCESS.
+  Closed the pinned rate corollary in SizeWidth.lean. New accepted declarations
+  (4): Derivation.width_le_cnfLits_card, delta_mul_fatBlock_le,
+  bsw_delta_sq_le_of_width_log, bsw_size_lower_bound. Gate green. Pinned
+  constant c = bswRateConst = 24. Packaging: half-gap t = Δ/2 into
+  bsw_width_log_bound yields Δ^2 ≤ 16 n (log2 S + 1); case split on log lands
+  the floor quotient Δ^2/(24 n) at most log2 S, hence 2^(...) ≤ S via
+  Nat.le_log_iff_pow_le. Verified cnfLits_card = 2 * (cnfVars).card.
+  Remaining SizeWidth gaps: chainCNF and bsw_bound_beats_trivial (non vacuity
+  witness). Most important thing learned: the odd-gap Nat loss that blocked the
+  prior cycle is absorbed by the log case split (log ≤ 1 forces e ≤ 1; log ≥ 2
+  recovers the factor-two slack against 24), so c = 24 compiles without
+  weakening the pinned statement shape.
+  Pending human gate merge_certified. Next: formalize chainCNF and
+  bsw_bound_beats_trivial.

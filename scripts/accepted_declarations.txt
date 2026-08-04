@@ -335,7 +335,7 @@ SATurday.ProofComplexity.exists_derivation_false_branch_clause
 SATurday.ProofComplexity.bsw_width_of_fatCount_aux
 SATurday.ProofComplexity.bsw_width_of_fatCount
 # R2 BSW: fatSteps_le_log rate arithmetic
-# (certified 2026-08-04, saturday formalize; pending merge_certified)
+# (certified 2026-08-04, saturday formalize; merge_certified approved)
 SATurday.ProofComplexity.fatBlock
 SATurday.ProofComplexity.le_mul_fatBlock
 SATurday.ProofComplexity.div_fatBlock_le_mul_div
@@ -348,3 +348,9 @@ SATurday.ProofComplexity.fatSteps_le_log
 SATurday.ProofComplexity.bswRateConst
 SATurday.ProofComplexity.Derivation.size_pos
 SATurday.ProofComplexity.bsw_width_log_bound
+# R2 BSW: bsw_size_lower_bound rate corollary at c = 24
+# (certified 2026-08-04, saturday formalize; pending merge_certified)
+SATurday.ProofComplexity.Derivation.width_le_cnfLits_card
+SATurday.ProofComplexity.delta_mul_fatBlock_le
+SATurday.ProofComplexity.bsw_delta_sq_le_of_width_log
+SATurday.ProofComplexity.bsw_size_lower_bound

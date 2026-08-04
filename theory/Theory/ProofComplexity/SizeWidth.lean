@@ -897,4 +897,171 @@ theorem bsw_width_log_bound (F : CNF) (W : ℕ)
     hlog.trans (Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right hfat)))
   exact h1.trans (Nat.add_le_add_left hlogS _)
 
+/-! ## Size lower bound rate corollary -/
+
+/-- Every line of a derivation uses only literals from `cnfLits F`. -/
+theorem Derivation.width_le_cnfLits_card {F : CNF} {C : Clause}
+    (d : Derivation F C) : d.width ≤ (cnfLits F).card := by
+  induction d with
+  | hyp C hC =>
+      simpa [Derivation.width] using
+        Derivation.concl_card_le_cnfLits (Derivation.hyp C hC)
+  | res x dC dD hx hnx ihC ihD =>
+      have hres :=
+        Derivation.concl_card_le_cnfLits (Derivation.res x dC dD hx hnx)
+      simp only [Derivation.width]
+      exact max_le (max_le ihC ihD) hres
+
+/-- With `t = Δ / 2` and `Δ ≤ N`, the packed literal budget is at most `4 N`. -/
+theorem delta_mul_fatBlock_le {N Δ : ℕ} (hΔN : Δ ≤ N) (ht : 0 < Δ / 2) :
+    Δ * fatBlock N (Δ / 2) ≤ 4 * N := by
+  set t := Δ / 2
+  have htpos : 0 < t := ht
+  have hmul_div : t * (N / t) ≤ N := Nat.mul_div_le N t
+  have hcases : Δ = 2 * t ∨ Δ = 2 * t + 1 := by omega
+  simp only [fatBlock]
+  rcases hcases with hEq | hEq
+  · -- Even gap: `Δ * (N/t + 1) ≤ 3 N ≤ 4 N`.
+    have hrewrite : Δ * (N / t + 1) = 2 * (t * (N / t)) + 2 * t := by
+      rw [hEq]; ring
+    have hstep :
+        2 * (t * (N / t)) + 2 * t ≤ 2 * N + Δ := by
+      have h2 : 2 * (t * (N / t)) ≤ 2 * N := Nat.mul_le_mul_left 2 hmul_div
+      have hΔ : 2 * t = Δ := by omega
+      omega
+    have h3 : 2 * N + Δ ≤ 3 * N := by omega
+    exact (hrewrite.le.trans hstep).trans (h3.trans (by omega))
+  · -- Odd gap: one extra `N / t ≤ N`.
+    have hNt : N / t ≤ N := Nat.div_le_self N t
+    have hrewrite :
+        Δ * (N / t + 1) = 2 * (t * (N / t)) + N / t + (2 * t + 1) := by
+      rw [hEq]; ring
+    have hstep :
+        2 * (t * (N / t)) + N / t + (2 * t + 1) ≤ 3 * N + Δ := by
+      have h2 : 2 * (t * (N / t)) ≤ 2 * N := Nat.mul_le_mul_left 2 hmul_div
+      have hΔ : 2 * t + 1 = Δ := by omega
+      omega
+    have h4 : 3 * N + Δ ≤ 4 * N := by omega
+    exact (hrewrite.le.trans hstep).trans h4
+
+/-- From the width-log inequality at half gap: `Δ^2 ≤ 8 N L`. -/
+theorem bsw_delta_sq_le_of_width_log {N Δ L : ℕ}
+    (hΔN : Δ ≤ N) (ht : 0 < Δ / 2)
+    (hmain : Δ ≤ Δ / 2 + fatBlock N (Δ / 2) * L) :
+    Δ * Δ ≤ 8 * N * L := by
+  set t := Δ / 2
+  have hdt : Δ - t ≤ fatBlock N t * L := by omega
+  have hprod : Δ * (Δ - t) ≤ Δ * (fatBlock N t * L) :=
+    Nat.mul_le_mul_left Δ hdt
+  have hpack : Δ * fatBlock N t ≤ 4 * N :=
+    delta_mul_fatBlock_le (N := N) (Δ := Δ) hΔN ht
+  have hbound : Δ * (Δ - t) ≤ 4 * N * L := by
+    calc
+      Δ * (Δ - t) ≤ Δ * (fatBlock N t * L) := hprod
+      _ = (Δ * fatBlock N t) * L := by ring
+      _ ≤ (4 * N) * L := Nat.mul_le_mul_right L hpack
+  have hdouble : Δ * Δ ≤ 2 * (Δ * (Δ - t)) := by
+    have hle : Δ ≤ 2 * (Δ - t) := by omega
+    calc
+      Δ * Δ ≤ Δ * (2 * (Δ - t)) := Nat.mul_le_mul_left Δ hle
+      _ = 2 * (Δ * (Δ - t)) := by ring
+  calc
+    Δ * Δ ≤ 2 * (Δ * (Δ - t)) := hdouble
+    _ ≤ 2 * (4 * N * L) := Nat.mul_le_mul_left 2 hbound
+    _ = 8 * N * L := by ring
+
+/-- Rate corollary: width lower bound implies exponential size at `bswRateConst = 24`. -/
+theorem bsw_size_lower_bound (F : CNF) (W : ℕ)
+    (hW : ∀ d : Derivation F (∅ : Clause), W ≤ d.width)
+    (d : Derivation F (∅ : Clause)) :
+    2 ^ ((W - cnfWidth F) * (W - cnfWidth F) /
+          (bswRateConst * (cnfVars F).card)) ≤ d.size := by
+  set n := (cnfVars F).card
+  set N := 2 * n
+  set Δ := W - cnfWidth F
+  set S := d.size
+  set L := Nat.log 2 S + 1
+  set e := Δ * Δ / (bswRateConst * n)
+  have hSpos : 0 < S := d.size_pos
+  have hSne : S ≠ 0 := Nat.pos_iff_ne_zero.mp hSpos
+  by_cases he0 : e = 0
+  · -- Exponent zero: claim is `1 ≤ S`.
+    simpa [e, he0] using Nat.succ_le_of_lt hSpos
+  -- Nontrivial exponent forces `Δ ≥ 2` and a positive half-gap.
+  have hΔge : 2 ≤ Δ := by
+    by_contra hlt
+    have hΔle : Δ ≤ 1 := by omega
+    have : e = 0 := by
+      by_cases hn0 : n = 0
+      · simp [e, bswRateConst, hn0]
+      · have hnum : Δ * Δ ≤ 1 := Nat.mul_le_mul hΔle hΔle
+        have hlt' : Δ * Δ < bswRateConst * n := by
+          simp only [bswRateConst]
+          omega
+        exact Nat.div_eq_of_lt hlt'
+    exact he0 this
+  have ht : 0 < Δ / 2 := by omega
+  have hwcard : d.width ≤ N := by
+    simpa [N, n, cnfLits_card] using d.width_le_cnfLits_card
+  have hW_le_N : W ≤ N := (hW d).trans hwcard
+  have hΔN : Δ ≤ N := (Nat.sub_le W (cnfWidth F)).trans hW_le_N
+  have htN : Δ / 2 ≤ N := (Nat.div_le_self Δ 2).trans hΔN
+  have hlog :=
+    bsw_width_log_bound F W hW d (Δ / 2) ht (by simpa [N] using htN)
+  have hmain : Δ ≤ Δ / 2 + fatBlock N (Δ / 2) * L := by
+    have : W ≤ cnfWidth F + Δ / 2 + fatBlock N (Δ / 2) * L := by
+      simpa [N, L, S] using hlog
+    omega
+  have hsq : Δ * Δ ≤ 8 * N * L :=
+    bsw_delta_sq_le_of_width_log (N := N) (Δ := Δ) (L := L) hΔN ht hmain
+  have hsq' : Δ * Δ ≤ 16 * n * L := by
+    have : 8 * N * L = 16 * n * L := by simp only [N]; ring
+    simpa [this] using hsq
+  have hnpos : 0 < n := by
+    have : 2 ≤ N := hΔge.trans hΔN
+    omega
+  have hden : bswRateConst * n = 24 * n := by simp [bswRateConst]
+  have he_le_log : e ≤ Nat.log 2 S := by
+    by_cases hlog2 : 2 ≤ Nat.log 2 S
+    · -- Large log: `16 (log + 1) ≤ 24 log`.
+      have hcoeff : 16 * L ≤ 24 * Nat.log 2 S := by
+        simp only [L]; omega
+      have hnum24 : Δ * Δ ≤ (24 * n) * Nat.log 2 S := by
+        calc
+          Δ * Δ ≤ 16 * n * L := hsq'
+          _ = n * (16 * L) := by ring
+          _ ≤ n * (24 * Nat.log 2 S) := Nat.mul_le_mul_left n hcoeff
+          _ = (24 * n) * Nat.log 2 S := by ring
+      -- `div_le_of_le_mul`: `m ≤ k * q → m / k ≤ q` with `k = 24 n`.
+      have := Nat.div_le_of_le_mul hnum24
+      simpa [e, hden] using this
+    · -- Small log (`≤ 1`): `Δ^2 ≤ 32 n` forces `e ≤ 1`, and `e ≠ 0` forces `log = 1`.
+      have hlogle : Nat.log 2 S ≤ 1 := by omega
+      have hLle : L ≤ 2 := by simp only [L]; omega
+      have hnum32 : Δ * Δ ≤ 32 * n := by
+        calc
+          Δ * Δ ≤ 16 * n * L := hsq'
+          _ ≤ 16 * n * 2 := Nat.mul_le_mul_left _ hLle
+          _ = 32 * n := by ring
+      have he_le1 : e ≤ 1 := by
+        have hdiv : Δ * Δ / (24 * n) ≤ 32 * n / (24 * n) :=
+          Nat.div_le_div_right hnum32
+        have h32 : 32 * n / (24 * n) = 1 := by
+          calc
+            32 * n / (24 * n) = n * 32 / (n * 24) := by ring_nf
+            _ = 32 / 24 := Nat.mul_div_mul_left 32 24 hnpos
+            _ = 1 := by decide
+        simpa [e, hden] using hdiv.trans_eq h32
+      have hlogge1 : 1 ≤ Nat.log 2 S := by
+        by_contra h
+        have hlog0 : Nat.log 2 S = 0 := by omega
+        have hL1 : L = 1 := by simp [L, hlog0]
+        have hnum16 : Δ * Δ ≤ 16 * n := by simpa [hL1] using hsq'
+        have hlt : Δ * Δ < 24 * n := by omega
+        have : e = 0 := by
+          simpa [e, hden] using Nat.div_eq_of_lt hlt
+        exact he0 this
+      omega
+  exact (Nat.le_log_iff_pow_le (by decide : 1 < 2) hSne).1 he_le_log
+
 end SATurday.ProofComplexity
