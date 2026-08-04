@@ -601,3 +601,17 @@ above it.
   critExtend_falsifies_pigeonClause_iff) accepted into the accepted tree.
   Gate remains green. R1 stays active. Next: formalize G8d monotone
   derivation restriction.
+- 2026-08-04 formalize (G8d G8e: monotone derivation restriction and kill
+  step): SUCCESS. Extended MonotoneCalculus.lean. Added a wk (one premise
+  weakening) rule to MonoDeriv, needed because killed premises drop out of
+  restricted derivations; updated size, lines, walk. Certified:
+  exists_monoDeriv_restrict (restriction of a whole monotone derivation
+  along a matching, size nonincreasing, lines are restrictions of unkilled
+  lines); exists_monoDeriv_refutation_restrict;
+  exists_popular_grid_literal_W and wide_survivors_le_W (threshold generic
+  averaging with a strict progress clause); exists_monoDeriv_kill_step (one
+  full BP96 kill step at the derivation level); kill_step_mul (halved rate
+  multiplicative decay while the wide family is dense). Gate green (195
+  accepted decls). Deferred: iteration of the kill step, final counting,
+  Frontier close with an honest constant. Pending human gate merge_certified.
+  Next after merge: formalize G8f kill iteration and final counting.

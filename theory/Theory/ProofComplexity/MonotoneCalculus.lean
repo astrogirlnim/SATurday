@@ -121,18 +121,22 @@ theorem monotoneClause_empty {n : ℕ} (hn : 0 < n) :
 /-! ## The semantic monotone calculus -/
 
 /-- BP96 positive calculus over critical semantics. An `ax` line is dominated
-by a pigeon axiom; a `sem` line is covered by two premises. -/
+by a pigeon axiom; a `sem` line is covered by two premises; a `wk` line is
+covered by one premise (needed when a premise is killed by a restriction). -/
 inductive MonoDeriv (n : ℕ) : Clause → Type where
   | ax (i : Fin (n + 1)) (C : Clause) (hC : C ⊆ gridPosLits n)
       (hw : Fals n C ⊆ Fals n (pigeonClause n i)) : MonoDeriv n C
   | sem (A B : Clause) (C : Clause) (hC : C ⊆ gridPosLits n)
       (hw : Fals n C ⊆ Fals n A ∪ Fals n B)
       (dA : MonoDeriv n A) (dB : MonoDeriv n B) : MonoDeriv n C
+  | wk (A : Clause) (C : Clause) (hC : C ⊆ gridPosLits n)
+      (hw : Fals n C ⊆ Fals n A) (dA : MonoDeriv n A) : MonoDeriv n C
 
 /-- Size of a monotone derivation: number of lines counted with multiplicity. -/
 def MonoDeriv.size {n : ℕ} : {C : Clause} → MonoDeriv n C → ℕ
   | _, .ax _ _ _ _ => 1
   | _, .sem _ _ _ _ _ dA dB => dA.size + dB.size + 1
+  | _, .wk _ _ _ _ dA => dA.size + 1
 
 /-- Every line of a monotone derivation is a positive grid clause. -/
 theorem MonoDeriv.concl_subset {n : ℕ} {C : Clause} (md : MonoDeriv n C) :
@@ -140,6 +144,7 @@ theorem MonoDeriv.concl_subset {n : ℕ} {C : Clause} (md : MonoDeriv n C) :
   cases md with
   | ax _ _ hC _ => exact hC
   | sem _ _ _ hC _ _ _ => exact hC
+  | wk _ _ hC _ _ => exact hC
 
 /-! ## Simulation from resolution -/
 
@@ -176,33 +181,20 @@ theorem exists_monoDeriv_of_derivation {n : ℕ} (hn : 0 < n) {C : Clause}
       · show mC.size + mD.size + 1 ≤ dC.size + dD.size + 1
         omega
 
-/-- Transport a monotone derivation across a conclusion equality. -/
-theorem exists_monoDeriv_of_concl_eq {n : ℕ} {C C' : Clause} (h : C = C')
-    (md : MonoDeriv n C) : ∃ md' : MonoDeriv n C', md'.size = md.size := by
-  subst h
-  exact ⟨md, rfl⟩
-
-/-- A resolution refutation of PHP yields a monotone refutation of no larger
-size. -/
-theorem exists_monoDeriv_refutation {n : ℕ} (hn : 0 < n)
-    (d : Derivation (phpCNF n) (∅ : Clause)) :
-    ∃ md : MonoDeriv n (∅ : Clause), md.size ≤ d.size := by
-  obtain ⟨md, hs⟩ := exists_monoDeriv_of_derivation hn d
-  obtain ⟨md', hs'⟩ := exists_monoDeriv_of_concl_eq (monotoneClause_empty hn) md
-  exact ⟨md', by omega⟩
-
 /-! ## G8b: lines of a monotone derivation and the width lemma -/
 
 /-- All conclusions appearing in a monotone derivation. -/
 def MonoDeriv.lines {n : ℕ} : {C : Clause} → MonoDeriv n C → Finset Clause
   | C, .ax _ _ _ _ => {C}
   | C, .sem _ _ _ _ _ dA dB => insert C (dA.lines ∪ dB.lines)
+  | C, .wk _ _ _ _ dA => insert C dA.lines
 
 theorem MonoDeriv.concl_mem_lines {n : ℕ} {C : Clause} (md : MonoDeriv n C) :
     C ∈ md.lines := by
   cases md with
   | ax _ _ _ _ => simp [MonoDeriv.lines]
   | sem _ _ _ _ _ dA dB => simp [MonoDeriv.lines]
+  | wk _ _ _ _ dA => simp [MonoDeriv.lines]
 
 /-- Line count is bounded by derivation size. -/
 theorem MonoDeriv.lines_card_le_size {n : ℕ} {C : Clause} (md : MonoDeriv n C) :
@@ -213,6 +205,10 @@ theorem MonoDeriv.lines_card_le_size {n : ℕ} {C : Clause} (md : MonoDeriv n C)
       simp only [MonoDeriv.lines, MonoDeriv.size]
       have h1 := card_insert_le C (dA.lines ∪ dB.lines)
       have h2 := card_union_le dA.lines dB.lines
+      omega
+  | wk A C hC hw dA ihA =>
+      simp only [MonoDeriv.lines, MonoDeriv.size]
+      have h1 := card_insert_le C dA.lines
       omega
 
 /-- Every line of a monotone derivation is a positive grid clause. -/
@@ -231,6 +227,29 @@ theorem MonoDeriv.mem_lines_subset_grid {n : ℕ} {C : Clause} (md : MonoDeriv n
       · exact hC
       · exact ihA C' h
       · exact ihB C' h
+  | wk A C hC hw dA ihA =>
+      intro C' hC'
+      simp only [MonoDeriv.lines, mem_insert] at hC'
+      rcases hC' with rfl | h
+      · exact hC
+      · exact ihA C' h
+
+/-- Transport a monotone derivation across a conclusion equality, preserving
+size and lines. -/
+theorem exists_monoDeriv_of_concl_eq {n : ℕ} {C C' : Clause} (h : C = C')
+    (md : MonoDeriv n C) :
+    ∃ md' : MonoDeriv n C', md'.size = md.size ∧ md'.lines = md.lines := by
+  subst h
+  exact ⟨md, rfl, rfl⟩
+
+/-- A resolution refutation of PHP yields a monotone refutation of no larger
+size. -/
+theorem exists_monoDeriv_refutation {n : ℕ} (hn : 0 < n)
+    (d : Derivation (phpCNF n) (∅ : Clause)) :
+    ∃ md : MonoDeriv n (∅ : Clause), md.size ≤ d.size := by
+  obtain ⟨md, hs⟩ := exists_monoDeriv_of_derivation hn d
+  obtain ⟨md', hs', -⟩ := exists_monoDeriv_of_concl_eq (monotoneClause_empty hn) md
+  exact ⟨md', by omega⟩
 
 /-- BP96 width walk in the monotone calculus: a conclusion of high
 pigeonComplexity forces a line in the intermediate band. -/
@@ -283,6 +302,15 @@ theorem MonoDeriv.exists_intermediate_line {n : ℕ} (hn : 1 ≤ n) :
             · have h1 : pigeonComplexity n A ≤ (n + 1) / 3 := Nat.not_lt.mp hAmid
               have h2 : pigeonComplexity n B ≤ (n + 1) / 3 := Nat.not_lt.mp hBmid
               omega
+  | wk A C hC hw dA ihA =>
+      intro hhigh
+      -- Coverage by one premise: complexity can only go up toward the premise.
+      have hle : pigeonComplexity n C ≤ pigeonComplexity n A :=
+        card_le_card (L_subset_of_Fals_subset hw)
+      obtain ⟨C', hmem, h1, h2⟩ := ihA (by omega)
+      refine ⟨C', ?_, h1, h2⟩
+      simp only [MonoDeriv.lines]
+      exact mem_insert_of_mem hmem
 
 theorem pos_of_mem_gridPosLits {n : ℕ} {l : Literal} (hl : l ∈ gridPosLits n) :
     l.pos = true := by
@@ -564,5 +592,381 @@ theorem critExtend_falsifies_pigeonClause_iff {k : ℕ} (i : Fin (k + 2))
       falsifies k (pigeonClause k i'') pi' := by
   rw [falsifies_pigeonClause_iff, falsifies_pigeonClause_iff]
   exact critExtend_last_iff i j pi' i''
+
+/-! ## G8d: restriction of monotone derivations -/
+
+/-- The kill predicate for a matching step on monotone lines. -/
+def monoKilled (k : ℕ) (i : Fin (k + 2)) (j : Fin (k + 1)) (C : Clause) : Prop :=
+  (⟨pvar (k + 1) i j, true⟩ : Literal) ∈ C
+
+instance monoKilled_decidable {k : ℕ} (i : Fin (k + 2)) (j : Fin (k + 1))
+    (C : Clause) : Decidable (monoKilled k i j C) :=
+  inferInstanceAs (Decidable (_ ∈ _))
+
+private theorem image_filter_lines_mono {k : ℕ} {i : Fin (k + 2)}
+    {j : Fin (k + 1)} {s t : Finset Clause} (h : s ⊆ t) :
+    (s.filter fun D => ¬ monoKilled k i j D).image (monoRestrict k i j) ⊆
+      (t.filter fun D => ¬ monoKilled k i j D).image (monoRestrict k i j) :=
+  image_subset_image (filter_subset_filter _ h)
+
+/-- BP96 restriction step at the derivation level: an unkilled conclusion of a
+monotone derivation over PHP(k+2, k+1) restricts to a monotone derivation over
+PHP(k+1, k) of no larger size, whose lines are restrictions of unkilled lines
+of the original. -/
+theorem exists_monoDeriv_restrict {k : ℕ} (i : Fin (k + 2)) (j : Fin (k + 1)) :
+    ∀ {C : Clause} (md : MonoDeriv (k + 1) C),
+      ¬ monoKilled k i j C →
+      ∃ md' : MonoDeriv k (monoRestrict k i j C),
+        md'.size ≤ md.size ∧
+        md'.lines ⊆
+          (md.lines.filter fun D => ¬ monoKilled k i j D).image
+            (monoRestrict k i j) := by
+  intro C md
+  induction md with
+  | ax i0 C hC hw =>
+      intro hkill
+      have hC' : monoRestrict k i j C ⊆ gridPosLits k :=
+        monoRestrict_subset_grid i j hC
+      by_cases hplace : i0 = i
+      · -- Dominated by the placed pigeon's axiom: falsifying set collapses.
+        refine ⟨.ax 0 _ hC' ?_, ?_, ?_⟩
+        · intro pi' hpi'
+          have hmem := critExtend_mem_Fals_of_monoRestrict hC hkill hpi'
+          rw [hplace] at hw
+          exact ((critExtend_notMem_Fals_pigeonClause_placed i j pi')
+            (hw hmem)).elim
+        · simp [MonoDeriv.size]
+        · intro C' hC'mem
+          simp only [MonoDeriv.lines, mem_singleton] at hC'mem
+          rw [hC'mem]
+          refine mem_image_of_mem _ (mem_filter.mpr ⟨?_, hkill⟩)
+          simp [MonoDeriv.lines]
+      · -- Dominated by a surviving pigeon's axiom: transport the domination.
+        obtain ⟨i0', rfl⟩ := Fin.exists_succAbove_eq hplace
+        refine ⟨.ax i0' _ hC' ?_, ?_, ?_⟩
+        · intro pi' hpi'
+          have hmem := critExtend_mem_Fals_of_monoRestrict hC hkill hpi'
+          have hfals := (mem_filter.mp (hw hmem)).2
+          have hfals' := (critExtend_falsifies_pigeonClause_iff i j pi' i0').mp hfals
+          exact mem_filter.mpr ⟨mem_univ _, hfals'⟩
+        · simp [MonoDeriv.size]
+        · intro C' hC'mem
+          simp only [MonoDeriv.lines, mem_singleton] at hC'mem
+          rw [hC'mem]
+          refine mem_image_of_mem _ (mem_filter.mpr ⟨?_, hkill⟩)
+          simp [MonoDeriv.lines]
+  | sem A B C hC hw dA dB ihA ihB =>
+      intro hkill
+      have hC' : monoRestrict k i j C ⊆ gridPosLits k :=
+        monoRestrict_subset_grid i j hC
+      have hAgrid := dA.concl_subset
+      have hBgrid := dB.concl_subset
+      have hconclmem : monoRestrict k i j C ∈
+          ((MonoDeriv.sem A B C hC hw dA dB).lines.filter
+            fun D => ¬ monoKilled k i j D).image (monoRestrict k i j) := by
+        refine mem_image_of_mem _ (mem_filter.mpr ⟨?_, hkill⟩)
+        simp [MonoDeriv.lines]
+      have hsubA : dA.lines ⊆ (MonoDeriv.sem A B C hC hw dA dB).lines := by
+        intro D hD
+        simp only [MonoDeriv.lines]
+        exact mem_insert_of_mem (mem_union_left _ hD)
+      have hsubB : dB.lines ⊆ (MonoDeriv.sem A B C hC hw dA dB).lines := by
+        intro D hD
+        simp only [MonoDeriv.lines]
+        exact mem_insert_of_mem (mem_union_right _ hD)
+      by_cases hkA : monoKilled k i j A
+      · by_cases hkB : monoKilled k i j B
+        · -- Both premises killed: the conclusion's falsifying set collapses.
+          refine ⟨.ax 0 _ hC' ?_, ?_, ?_⟩
+          · intro pi' hpi'
+            have hmem := critExtend_mem_Fals_of_monoRestrict hC hkill hpi'
+            rcases mem_union.mp (hw hmem) with h | h
+            · exact ((critExtend_notMem_Fals_of_killed hkA pi') h).elim
+            · exact ((critExtend_notMem_Fals_of_killed hkB pi') h).elim
+          · simp only [MonoDeriv.size]
+            omega
+          · intro C' hC'mem
+            simp only [MonoDeriv.lines, mem_singleton] at hC'mem
+            rw [hC'mem]
+            exact hconclmem
+        · -- Left premise killed: weaken from the surviving right premise.
+          obtain ⟨mB, hsB, hlB⟩ := ihB hkB
+          refine ⟨.wk _ _ hC' ?_ mB, ?_, ?_⟩
+          · intro pi' hpi'
+            have hmem := critExtend_mem_Fals_of_monoRestrict hC hkill hpi'
+            rcases mem_union.mp (hw hmem) with h | h
+            · exact ((critExtend_notMem_Fals_of_killed hkA pi') h).elim
+            · exact monoRestrict_mem_Fals_of_critExtend hBgrid hkB h
+          · simp only [MonoDeriv.size]
+            omega
+          · intro C' hC'mem
+            simp only [MonoDeriv.lines, mem_insert] at hC'mem
+            rcases hC'mem with rfl | h
+            · exact hconclmem
+            · exact image_filter_lines_mono hsubB (hlB h)
+      · by_cases hkB : monoKilled k i j B
+        · -- Right premise killed: weaken from the surviving left premise.
+          obtain ⟨mA, hsA, hlA⟩ := ihA hkA
+          refine ⟨.wk _ _ hC' ?_ mA, ?_, ?_⟩
+          · intro pi' hpi'
+            have hmem := critExtend_mem_Fals_of_monoRestrict hC hkill hpi'
+            rcases mem_union.mp (hw hmem) with h | h
+            · exact monoRestrict_mem_Fals_of_critExtend hAgrid hkA h
+            · exact ((critExtend_notMem_Fals_of_killed hkB pi') h).elim
+          · simp only [MonoDeriv.size]
+            omega
+          · intro C' hC'mem
+            simp only [MonoDeriv.lines, mem_insert] at hC'mem
+            rcases hC'mem with rfl | h
+            · exact hconclmem
+            · exact image_filter_lines_mono hsubA (hlA h)
+        · -- Both premises survive: transport the two premise coverage.
+          obtain ⟨mA, hsA, hlA⟩ := ihA hkA
+          obtain ⟨mB, hsB, hlB⟩ := ihB hkB
+          refine ⟨.sem _ _ _ hC' ?_ mA mB, ?_, ?_⟩
+          · intro pi' hpi'
+            have hmem := critExtend_mem_Fals_of_monoRestrict hC hkill hpi'
+            rcases mem_union.mp (hw hmem) with h | h
+            · exact mem_union_left _
+                (monoRestrict_mem_Fals_of_critExtend hAgrid hkA h)
+            · exact mem_union_right _
+                (monoRestrict_mem_Fals_of_critExtend hBgrid hkB h)
+          · simp only [MonoDeriv.size]
+            omega
+          · intro C' hC'mem
+            simp only [MonoDeriv.lines, mem_insert, mem_union] at hC'mem
+            rcases hC'mem with rfl | h | h
+            · exact hconclmem
+            · exact image_filter_lines_mono hsubA (hlA h)
+            · exact image_filter_lines_mono hsubB (hlB h)
+  | wk A C hC hw dA ihA =>
+      intro hkill
+      have hC' : monoRestrict k i j C ⊆ gridPosLits k :=
+        monoRestrict_subset_grid i j hC
+      have hAgrid := dA.concl_subset
+      have hconclmem : monoRestrict k i j C ∈
+          ((MonoDeriv.wk A C hC hw dA).lines.filter
+            fun D => ¬ monoKilled k i j D).image (monoRestrict k i j) := by
+        refine mem_image_of_mem _ (mem_filter.mpr ⟨?_, hkill⟩)
+        simp [MonoDeriv.lines]
+      have hsubA : dA.lines ⊆ (MonoDeriv.wk A C hC hw dA).lines := by
+        intro D hD
+        simp only [MonoDeriv.lines]
+        exact mem_insert_of_mem hD
+      by_cases hkA : monoKilled k i j A
+      · -- The only premise is killed: the falsifying set collapses.
+        refine ⟨.ax 0 _ hC' ?_, ?_, ?_⟩
+        · intro pi' hpi'
+          have hmem := critExtend_mem_Fals_of_monoRestrict hC hkill hpi'
+          exact ((critExtend_notMem_Fals_of_killed hkA pi') (hw hmem)).elim
+        · simp only [MonoDeriv.size]
+          omega
+        · intro C' hC'mem
+          simp only [MonoDeriv.lines, mem_singleton] at hC'mem
+          rw [hC'mem]
+          exact hconclmem
+      · -- The premise survives: weaken from its restriction.
+        obtain ⟨mA, hsA, hlA⟩ := ihA hkA
+        refine ⟨.wk _ _ hC' ?_ mA, ?_, ?_⟩
+        · intro pi' hpi'
+          have hmem := critExtend_mem_Fals_of_monoRestrict hC hkill hpi'
+          exact monoRestrict_mem_Fals_of_critExtend hAgrid hkA (hw hmem)
+        · simp only [MonoDeriv.size]
+          omega
+        · intro C' hC'mem
+          simp only [MonoDeriv.lines, mem_insert] at hC'mem
+          rcases hC'mem with rfl | h
+          · exact hconclmem
+          · exact image_filter_lines_mono hsubA (hlA h)
+
+/-- Restriction of a monotone refutation is a monotone refutation of the
+smaller PHP with no larger size, and its lines restrict unkilled lines. -/
+theorem exists_monoDeriv_refutation_restrict {k : ℕ} (i : Fin (k + 2))
+    (j : Fin (k + 1)) (md : MonoDeriv (k + 1) (∅ : Clause)) :
+    ∃ md' : MonoDeriv k (∅ : Clause),
+      md'.size ≤ md.size ∧
+      md'.lines ⊆
+        (md.lines.filter fun D => ¬ monoKilled k i j D).image
+          (monoRestrict k i j) := by
+  have hkill : ¬ monoKilled k i j (∅ : Clause) := by
+    simp [monoKilled]
+  obtain ⟨md', hs, hl⟩ := exists_monoDeriv_restrict i j md hkill
+  obtain ⟨md'', hs'', hl''⟩ :=
+    exists_monoDeriv_of_concl_eq (monoRestrict_empty k i j) md'
+  refine ⟨md'', by omega, ?_⟩
+  rw [hl'']
+  exact hl
+
+/-! ## G8e: threshold generic averaging and the kill step
+
+The accepted averaging lemmas fix the threshold at `largeThreshold n`. The
+iteration needs a fixed final threshold `W` across shrinking scales, so we
+recertify the double counting with `W` as a parameter and package one full
+kill step at the derivation level.
+-/
+
+/-- Threshold generic double counting: some grid literal hits an average
+share of any family of `W` wide positive grid clauses. -/
+theorem exists_popular_grid_literal_W {n : ℕ} (hn : 0 < n) (W : ℕ)
+    (Large : Finset Clause)
+    (hwide : ∀ C ∈ Large, W ≤ C.card)
+    (hsub : ∀ C ∈ Large, C ⊆ gridPosLits n) :
+    ∃ i : Fin (n + 1), ∃ j : Fin n,
+      Large.card * W ≤
+        (n + 1) * n * (Large.filter (killedByMatching n i j)).card := by
+  classical
+  by_cases hL : Large = ∅
+  · refine ⟨⟨0, by omega⟩, ⟨0, hn⟩, ?_⟩
+    simp [hL]
+  have hsum_ge : Large.card * W ≤ ∑ C ∈ Large, C.card := by
+    have := card_nsmul_le_sum (s := Large) (f := fun C => C.card)
+      (n := W) (fun C hC => hwide C hC)
+    simpa [nsmul_eq_mul] using this
+  have hsum_eq := sum_card_eq_sum_hitCount n Large hsub
+  have hV : (gridPosLits n).card = (n + 1) * n := gridPosLits_card n
+  have hne : (gridPosLits n).Nonempty := by
+    rw [nonempty_iff_ne_empty]
+    intro hempty
+    simp [hempty] at hV
+    omega
+  obtain ⟨l, hl, hsup⟩ :=
+    exists_mem_eq_sup (gridPosLits n) hne (fun l => hitCount Large l)
+  have hmax : ∑ t ∈ gridPosLits n, hitCount Large t ≤
+      (gridPosLits n).card * hitCount Large l := by
+    have := sum_le_card_nsmul (gridPosLits n) (fun t => hitCount Large t)
+      (hitCount Large l)
+      (fun t ht => hsup ▸ le_sup (f := fun u => hitCount Large u) ht)
+    simpa [nsmul_eq_mul] using this
+  have hbound : Large.card * W ≤ (n + 1) * n * hitCount Large l := by
+    calc Large.card * W
+        ≤ ∑ C ∈ Large, C.card := hsum_ge
+      _ = ∑ t ∈ gridPosLits n, hitCount Large t := hsum_eq
+      _ ≤ (gridPosLits n).card * hitCount Large l := hmax
+      _ = (n + 1) * n * hitCount Large l := by rw [hV]
+  obtain ⟨i, j, rfl⟩ := (mem_gridPosLits_iff).mp hl
+  refine ⟨i, j, ?_⟩
+  simpa [hitCount, killedByMatching] using hbound
+
+/-- Threshold generic survivor bound: some matching leaves at most
+`L - L * W / V` of the wide clauses unkilled, and strictly fewer when the
+family is nonempty and the threshold positive. -/
+theorem wide_survivors_le_W {n : ℕ} (hn : 0 < n) (W : ℕ)
+    (Large : Finset Clause)
+    (hwide : ∀ C ∈ Large, W ≤ C.card)
+    (hsub : ∀ C ∈ Large, C ⊆ gridPosLits n) :
+    ∃ i : Fin (n + 1), ∃ j : Fin n,
+      (Large.filter fun C => ¬ killedByMatching n i j C).card ≤
+        Large.card - Large.card * W / ((n + 1) * n) ∧
+      (0 < Large.card → 0 < W →
+        (Large.filter fun C => ¬ killedByMatching n i j C).card < Large.card) := by
+  obtain ⟨i, j, hpop⟩ := exists_popular_grid_literal_W hn W Large hwide hsub
+  refine ⟨i, j, ?_, ?_⟩
+  · have hdiv : Large.card * W / ((n + 1) * n) ≤
+        (Large.filter (killedByMatching n i j)).card :=
+      Nat.div_le_of_le_mul hpop
+    rw [filter_not_killed_card]
+    exact Nat.sub_le_sub_left hdiv _
+  · intro hL hW
+    have hkillpos : 0 < (Large.filter (killedByMatching n i j)).card := by
+      by_contra h0
+      have : (Large.filter (killedByMatching n i j)).card = 0 := by omega
+      rw [this, Nat.mul_zero] at hpop
+      have : Large.card * W = 0 := Nat.le_zero.mp hpop
+      have := Nat.mul_pos hL hW
+      omega
+    rw [filter_not_killed_card]
+    exact Nat.sub_lt hL hkillpos
+
+/-- One full BP96 kill step at the derivation level: restrict along a popular
+matching, shrinking the scale by one, never growing the size, and cutting the
+`W` wide line count by its average share. -/
+theorem exists_monoDeriv_kill_step {k : ℕ} (W : ℕ) (hW : 0 < W)
+    (md : MonoDeriv (k + 1) (∅ : Clause)) :
+    ∃ md' : MonoDeriv k (∅ : Clause),
+      md'.size ≤ md.size ∧
+      (md'.lines.filter fun C => W ≤ C.card).card ≤
+        (md.lines.filter fun C => W ≤ C.card).card -
+          (md.lines.filter fun C => W ≤ C.card).card * W /
+            ((k + 2) * (k + 1)) ∧
+      (0 < (md.lines.filter fun C => W ≤ C.card).card →
+        (md'.lines.filter fun C => W ≤ C.card).card <
+          (md.lines.filter fun C => W ≤ C.card).card) := by
+  classical
+  set Wide := md.lines.filter fun C => W ≤ C.card with hWide
+  have hwide : ∀ C ∈ Wide, W ≤ C.card := fun C hC => (mem_filter.mp hC).2
+  have hsub : ∀ C ∈ Wide, C ⊆ gridPosLits (k + 1) := fun C hC =>
+    md.mem_lines_subset_grid C (mem_filter.mp hC).1
+  obtain ⟨i, j, hle, hlt⟩ :=
+    wide_survivors_le_W (Nat.succ_pos k) W Wide hwide hsub
+  obtain ⟨md', hs, hl⟩ := exists_monoDeriv_refutation_restrict i j md
+  refine ⟨md', hs, ?_, ?_⟩
+  · -- Wide restricted lines come from unkilled wide originals.
+    have hincl : md'.lines.filter (fun C => W ≤ C.card) ⊆
+        (Wide.filter fun C => ¬ killedByMatching (k + 1) i j C).image
+          (monoRestrict k i j) := by
+      intro C' hC'
+      obtain ⟨hC'mem, hC'wide⟩ := mem_filter.mp hC'
+      obtain ⟨D, hD, rfl⟩ := mem_image.mp (hl hC'mem)
+      obtain ⟨hDmem, hDunkilled⟩ := mem_filter.mp hD
+      have hDwide : W ≤ D.card :=
+        le_trans hC'wide (monoRestrict_card_le k i j D)
+      refine mem_image_of_mem _ (mem_filter.mpr ⟨?_, hDunkilled⟩)
+      exact mem_filter.mpr ⟨hDmem, hDwide⟩
+    calc (md'.lines.filter fun C => W ≤ C.card).card
+        ≤ ((Wide.filter fun C => ¬ killedByMatching (k + 1) i j C).image
+            (monoRestrict k i j)).card := card_le_card hincl
+      _ ≤ (Wide.filter fun C => ¬ killedByMatching (k + 1) i j C).card :=
+          card_image_le
+      _ ≤ Wide.card - Wide.card * W / ((k + 2) * (k + 1)) := hle
+  · intro hpos
+    have hincl : md'.lines.filter (fun C => W ≤ C.card) ⊆
+        (Wide.filter fun C => ¬ killedByMatching (k + 1) i j C).image
+          (monoRestrict k i j) := by
+      intro C' hC'
+      obtain ⟨hC'mem, hC'wide⟩ := mem_filter.mp hC'
+      obtain ⟨D, hD, rfl⟩ := mem_image.mp (hl hC'mem)
+      obtain ⟨hDmem, hDunkilled⟩ := mem_filter.mp hD
+      have hDwide : W ≤ D.card :=
+        le_trans hC'wide (monoRestrict_card_le k i j D)
+      refine mem_image_of_mem _ (mem_filter.mpr ⟨?_, hDunkilled⟩)
+      exact mem_filter.mpr ⟨hDmem, hDwide⟩
+    calc (md'.lines.filter fun C => W ≤ C.card).card
+        ≤ ((Wide.filter fun C => ¬ killedByMatching (k + 1) i j C).image
+            (monoRestrict k i j)).card := card_le_card hincl
+      _ ≤ (Wide.filter fun C => ¬ killedByMatching (k + 1) i j C).card :=
+          card_image_le
+      _ < Wide.card := hlt hpos hW
+
+/-- Halved rate multiplicative form of one kill step: while the wide family is
+dense (`V ≤ L * W`), the survivor count decays geometrically with denominator
+`2 * V`. -/
+theorem kill_step_mul {V W L L' : ℕ} (hV : 0 < V)
+    (hdense : V ≤ L * W) (h : L' ≤ L - L * W / V) :
+    2 * V * L' ≤ (2 * V - W) * L := by
+  set q := L * W / V with hqdef
+  have hdm : V * q + L * W % V = L * W := Nat.div_add_mod (L * W) V
+  have hmod : L * W % V < V := Nat.mod_lt _ hV
+  have hq1 : 1 ≤ q := (Nat.one_le_div_iff hV).mpr hdense
+  have hVq : V ≤ V * q := by
+    calc V = V * 1 := (Nat.mul_one V).symm
+      _ ≤ V * q := Nat.mul_le_mul_left V hq1
+  -- Floor recovery: since V ≤ L * W, twice the floored product dominates it.
+  have hrecover : L * W ≤ 2 * V * q := by
+    calc L * W = V * q + L * W % V := hdm.symm
+      _ ≤ V * q + V := Nat.add_le_add_left (le_of_lt hmod) _
+      _ ≤ V * q + V * q := Nat.add_le_add_left hVq _
+      _ = 2 * V * q := by ring
+  -- Multiply the survivor bound by 2V and cancel the floor.
+  have hstep : 2 * V * L' ≤ 2 * V * (L - q) := Nat.mul_le_mul_left (2 * V) h
+  have hexp : 2 * V * (L - q) = 2 * V * L - 2 * V * q := by
+    rw [Nat.mul_comm (2 * V) (L - q), Nat.sub_mul, Nat.mul_comm L (2 * V),
+      Nat.mul_comm q (2 * V)]
+  have hfinal : 2 * V * L - 2 * V * q ≤ 2 * V * L - L * W :=
+    Nat.sub_le_sub_left hrecover _
+  have hgoal_exp : (2 * V - W) * L = 2 * V * L - W * L := Nat.sub_mul _ _ _
+  rw [hgoal_exp, Nat.mul_comm W L]
+  calc 2 * V * L' ≤ 2 * V * (L - q) := hstep
+    _ = 2 * V * L - 2 * V * q := hexp
+    _ ≤ 2 * V * L - L * W := hfinal
 
 end SATurday.ProofComplexity

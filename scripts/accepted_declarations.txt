@@ -238,3 +238,11 @@ SATurday.ProofComplexity.monoRestrict_mem_Fals_of_critExtend
 SATurday.ProofComplexity.critExtend_notMem_Fals_of_killed
 SATurday.ProofComplexity.critExtend_notMem_Fals_pigeonClause_placed
 SATurday.ProofComplexity.critExtend_falsifies_pigeonClause_iff
+# R1 BP96 / G8d G8e: monotone derivation restriction and kill step
+# (certified 2026-08-04, saturday formalize)
+SATurday.ProofComplexity.exists_monoDeriv_restrict
+SATurday.ProofComplexity.exists_monoDeriv_refutation_restrict
+SATurday.ProofComplexity.exists_popular_grid_literal_W
+SATurday.ProofComplexity.wide_survivors_le_W
+SATurday.ProofComplexity.exists_monoDeriv_kill_step
+SATurday.ProofComplexity.kill_step_mul
