@@ -1064,4 +1064,292 @@ theorem bsw_size_lower_bound (F : CNF) (W : ℕ)
       omega
   exact (Nat.le_log_iff_pow_le (by decide : 1 < 2) hSne).1 he_le_log
 
+/-! ## Non vacuity witness: implication chain family -/
+
+/-- Positive unit clause `{x k}`. -/
+def chainUnitPos (k : ℕ) : Clause := {⟨k, true⟩}
+
+/-- Negative unit clause `{¬x k}`. -/
+def chainUnitNeg (k : ℕ) : Clause := {⟨k, false⟩}
+
+/-- Implication step `{¬x k, x (k+1)}`. -/
+def chainImpl (k : ℕ) : Clause := {⟨k, false⟩, ⟨k + 1, true⟩}
+
+/-- Implication chain CNF on variables `0..n`:
+`{x0}`, `{¬x0,x1}`, ..., `{¬x(n-1),xn}`, `{¬xn}`. -/
+def chainCNF (n : ℕ) : CNF :=
+  insert (chainUnitPos 0)
+    (insert (chainUnitNeg n) ((Finset.range n).image chainImpl))
+
+theorem chainUnitPos_mem (n : ℕ) : chainUnitPos 0 ∈ chainCNF n :=
+  mem_insert_self _ _
+
+theorem chainUnitNeg_mem (n : ℕ) : chainUnitNeg n ∈ chainCNF n :=
+  mem_insert_of_mem (mem_insert_self _ _)
+
+theorem chainImpl_mem (n k : ℕ) (hk : k < n) : chainImpl k ∈ chainCNF n := by
+  refine mem_insert_of_mem (mem_insert_of_mem ?_)
+  exact mem_image.mpr ⟨k, mem_range.mpr hk, rfl⟩
+
+theorem resolvent_chain_step (k : ℕ) :
+    resolvent (chainUnitPos k) (chainImpl k) k = chainUnitPos (k + 1) := by
+  ext l
+  simp only [resolvent, chainUnitPos, chainImpl, mem_union, mem_erase, mem_insert,
+    mem_singleton]
+  constructor
+  · intro h
+    rcases h with ⟨hne, rfl⟩ | ⟨hne, h⟩
+    · exact absurd rfl hne
+    · rcases h with rfl | rfl
+      · exact absurd rfl hne
+      · rfl
+  · intro h
+    subst h
+    right
+    exact ⟨by
+      intro heq
+      exact Bool.noConfusion (congrArg Literal.pos heq), Or.inr rfl⟩
+
+theorem resolvent_chain_end (n : ℕ) :
+    resolvent (chainUnitPos n) (chainUnitNeg n) n = (∅ : Clause) := by
+  ext l
+  simp [resolvent, chainUnitPos, chainUnitNeg]
+
+/-- Unit propagation derives `{x k}` from `chainCNF n` for every `k ≤ n`. -/
+def chainDeriveUnitPos (n : ℕ) :
+    (k : ℕ) → k ≤ n → Derivation (chainCNF n) (chainUnitPos k)
+  | 0, _ => Derivation.hyp (chainUnitPos 0) (chainUnitPos_mem n)
+  | k + 1, hk =>
+      have hk' : k ≤ n := Nat.le_of_succ_le hk
+      have hkn : k < n := Nat.lt_of_succ_le hk
+      let dPrev := chainDeriveUnitPos n k hk'
+      let dImpl := Derivation.hyp (chainImpl k) (chainImpl_mem n k hkn)
+      have hx : (⟨k, true⟩ : Literal) ∈ chainUnitPos k := by
+        simp [chainUnitPos]
+      have hnx : (⟨k, false⟩ : Literal) ∈ chainImpl k := by
+        simp [chainImpl]
+      (resolvent_chain_step k) ▸ Derivation.res k dPrev dImpl hx hnx
+
+/-- Explicit unit propagation refutation of `chainCNF n`. -/
+def chainRefutation (n : ℕ) : Derivation (chainCNF n) (∅ : Clause) :=
+  let dPos := chainDeriveUnitPos n n le_rfl
+  let dNeg := Derivation.hyp (chainUnitNeg n) (chainUnitNeg_mem n)
+  have hx : (⟨n, true⟩ : Literal) ∈ chainUnitPos n := by
+    simp [chainUnitPos]
+  have hnx : (⟨n, false⟩ : Literal) ∈ chainUnitNeg n := by
+    simp [chainUnitNeg]
+  (resolvent_chain_end n) ▸ Derivation.res n dPos dNeg hx hnx
+
+theorem chainUnitPos_card (k : ℕ) : (chainUnitPos k).card = 1 := by
+  simp [chainUnitPos]
+
+theorem chainUnitNeg_card (k : ℕ) : (chainUnitNeg k).card = 1 := by
+  simp [chainUnitNeg]
+
+theorem chainImpl_card (k : ℕ) : (chainImpl k).card = 2 := by
+  have hne : (⟨k, false⟩ : Literal) ≠ ⟨k + 1, true⟩ := by
+    intro h
+    exact Nat.ne_of_lt (Nat.lt_succ_self k) (congrArg Literal.var h)
+  simp [chainImpl, card_insert_of_notMem, hne]
+
+/-- Casting a derivation along an equality of conclusions preserves width. -/
+theorem Derivation.width_eq_cast {F : CNF} {C D : Clause}
+    (h : C = D) (d : Derivation F C) :
+    (h ▸ d).width = d.width := by
+  cases h
+  rfl
+
+/-- Casting preserves fat counts. -/
+theorem Derivation.fatCount_eq_cast {F : CNF} {C D : Clause}
+    (h : C = D) (d : Derivation F C) (t : ℕ) :
+    (h ▸ d).fatCount t = d.fatCount t := by
+  cases h
+  rfl
+
+theorem chainDeriveUnitPos_width (n k : ℕ) (hk : k ≤ n) :
+    (chainDeriveUnitPos n k hk).width ≤ 2 := by
+  induction k with
+  | zero =>
+      simp only [chainDeriveUnitPos, Derivation.width, chainUnitPos_card]
+      norm_num
+  | succ k ih =>
+      have hk' : k ≤ n := Nat.le_of_succ_le hk
+      have hkn : k < n := Nat.lt_of_succ_le hk
+      -- Unfold the succ clause of the definition.
+      change
+          ((resolvent_chain_step k) ▸
+            Derivation.res k (chainDeriveUnitPos n k hk')
+              (Derivation.hyp (chainImpl k) (chainImpl_mem n k hkn))
+              (by simp [chainUnitPos]) (by simp [chainImpl])).width ≤ 2
+      rw [Derivation.width_eq_cast]
+      simp only [Derivation.width]
+      have hwPrev := ih hk'
+      have hwImpl : (Derivation.hyp (chainImpl k) (chainImpl_mem n k hkn)).width ≤ 2 := by
+        simp [Derivation.width, chainImpl_card]
+      have hRes : (resolvent (chainUnitPos k) (chainImpl k) k).card ≤ 2 := by
+        rw [resolvent_chain_step, chainUnitPos_card]
+        norm_num
+      exact max_le (max_le hwPrev hwImpl) hRes
+
+theorem chainRefutation_width_le (n : ℕ) : (chainRefutation n).width ≤ 2 := by
+  simp only [chainRefutation]
+  rw [Derivation.width_eq_cast]
+  simp only [Derivation.width]
+  have hwPos := chainDeriveUnitPos_width n n le_rfl
+  have hwNeg : (Derivation.hyp (chainUnitNeg n) (chainUnitNeg_mem n)).width ≤ 2 := by
+    simp [Derivation.width, chainUnitNeg_card]
+  have hRes : (resolvent (chainUnitPos n) (chainUnitNeg n) n).card ≤ 2 := by
+    rw [resolvent_chain_end]
+    simp
+  exact max_le (max_le hwPos hwNeg) hRes
+
+/-- Width at most `t` forces zero fat count above `t`. -/
+theorem Derivation.fatCount_eq_zero_of_width_le {F : CNF} {C : Clause}
+    (d : Derivation F C) {t : ℕ} (h : d.width ≤ t) : d.fatCount t = 0 := by
+  induction d with
+  | hyp C hC =>
+      simp only [Derivation.fatCount, Derivation.width] at h ⊢
+      have : ¬ C.card > t := Nat.not_lt.mpr h
+      simp [this]
+  | res x dC dD hx hnx ihC ihD =>
+      simp only [Derivation.fatCount, Derivation.width] at h ⊢
+      have hC : dC.width ≤ t := le_trans (le_max_left _ _) (le_trans (le_max_left _ _) h)
+      have hD : dD.width ≤ t :=
+        le_trans (le_max_right _ _) (le_trans (le_max_left _ _) h)
+      have hR : (resolvent dC.conclusion dD.conclusion x).card ≤ t :=
+        le_trans (le_max_right _ _) h
+      simp [ihC hC, ihD hD, Nat.not_lt.mpr hR]
+
+theorem chainRefutation_fatCount_eq_zero (n t : ℕ) (ht : 2 ≤ t) :
+    (chainRefutation n).fatCount t = 0 :=
+  Derivation.fatCount_eq_zero_of_width_le (chainRefutation n)
+    ((chainRefutation_width_le n).trans ht)
+
+theorem chainCNF_clause_card_le (n : ℕ) {C : Clause} (hC : C ∈ chainCNF n) :
+    C.card ≤ 2 := by
+  simp only [chainCNF] at hC
+  rcases mem_insert.mp hC with hEq | hC
+  · rw [hEq, chainUnitPos_card]; norm_num
+  · rcases mem_insert.mp hC with hEq | hC
+    · rw [hEq, chainUnitNeg_card]; norm_num
+    · obtain ⟨k, _, rfl⟩ := mem_image.mp hC
+      exact (chainImpl_card k).le
+
+theorem chainCNF_cnfWidth_le (n : ℕ) : cnfWidth (chainCNF n) ≤ 2 :=
+  Finset.sup_le fun C hC => chainCNF_clause_card_le n hC
+
+theorem chainCNF_cnfWidth_of_pos (n : ℕ) (hn : 1 ≤ n) :
+    cnfWidth (chainCNF n) = 2 := by
+  refine le_antisymm (chainCNF_cnfWidth_le n) ?_
+  have hmem : chainImpl 0 ∈ chainCNF n := chainImpl_mem n 0 hn
+  exact (chainImpl_card 0).ge.trans (le_sup (f := Finset.card) hmem)
+
+theorem mem_range_of_mem_cnfVars_chainCNF {n v : ℕ}
+    (hv : v ∈ cnfVars (chainCNF n)) : v < n + 1 := by
+  obtain ⟨C, hC, l, hl, rfl⟩ := mem_cnfVars.mp hv
+  simp only [chainCNF] at hC
+  rcases mem_insert.mp hC with hEq | hC
+  · subst hEq
+    simp only [chainUnitPos, mem_singleton] at hl
+    cases hl
+    exact Nat.succ_pos _
+  · rcases mem_insert.mp hC with hEq | hC
+    · subst hEq
+      simp only [chainUnitNeg, mem_singleton] at hl
+      cases hl
+      exact Nat.lt_succ_self n
+    · obtain ⟨k, hk, rfl⟩ := mem_image.mp hC
+      have hk' : k < n := mem_range.mp hk
+      simp only [chainImpl, mem_insert, mem_singleton] at hl
+      rcases hl with hEq | hEq
+      · cases hEq; exact Nat.lt_succ_of_lt hk'
+      · cases hEq; exact Nat.succ_lt_succ hk'
+
+theorem mem_cnfVars_chainCNF_of_le (n v : ℕ) (hv : v ≤ n) :
+    v ∈ cnfVars (chainCNF n) := by
+  by_cases hv0 : v = 0
+  · rw [hv0]
+    exact mem_cnfVars.mpr
+      ⟨chainUnitPos 0, chainUnitPos_mem n, ⟨0, true⟩, by simp [chainUnitPos], rfl⟩
+  · by_cases hvn : v = n
+    · rw [hvn]
+      exact mem_cnfVars.mpr
+        ⟨chainUnitNeg n, chainUnitNeg_mem n, ⟨n, false⟩, by simp [chainUnitNeg], rfl⟩
+    · have hpred : v - 1 < n := by omega
+      have hvEq : v = (v - 1) + 1 := by omega
+      refine mem_cnfVars.mpr
+        ⟨chainImpl (v - 1), chainImpl_mem n (v - 1) hpred, ⟨v, true⟩, ?_, rfl⟩
+      simp only [chainImpl, mem_insert, mem_singleton]
+      right
+      exact congrArg (fun x => (⟨x, true⟩ : Literal)) hvEq ▸ rfl
+
+theorem cnfVars_chainCNF (n : ℕ) :
+    cnfVars (chainCNF n) = Finset.range (n + 1) := by
+  ext v
+  constructor
+  · intro hv
+    exact mem_range.mpr (mem_range_of_mem_cnfVars_chainCNF hv)
+  · intro hv
+    exact mem_cnfVars_chainCNF_of_le n v (Nat.lt_succ_iff.mp (mem_range.mp hv))
+
+theorem cnfVars_chainCNF_card (n : ℕ) :
+    (cnfVars (chainCNF n)).card = n + 1 := by
+  simp [cnfVars_chainCNF]
+
+/-- Satisfying assignment forces every chain variable true, contradicting the end unit. -/
+theorem chainCNF_unsat (n : ℕ) : ¬Satisfiable (chainCNF n) := by
+  rintro ⟨a, ha⟩
+  have hforce : ∀ k ≤ n, a k = true := by
+    intro k hk
+    induction k with
+    | zero =>
+      obtain ⟨l, hl, hla⟩ := ha _ (chainUnitPos_mem n)
+      simp only [chainUnitPos, mem_singleton] at hl
+      cases hl
+      simpa [litSat] using hla
+    | succ k ih =>
+      have hk' : k ≤ n := Nat.le_of_succ_le hk
+      have hkn : k < n := Nat.lt_of_succ_le hk
+      have hak : a k = true := ih hk'
+      obtain ⟨l, hl, hla⟩ := ha _ (chainImpl_mem n k hkn)
+      simp only [chainImpl, mem_insert, mem_singleton] at hl
+      rcases hl with hEq | hEq
+      · cases hEq
+        simp only [litSat] at hla
+        exact False.elim (Bool.noConfusion (hla.symm.trans hak))
+      · cases hEq
+        simpa [litSat] using hla
+  obtain ⟨l, hl, hla⟩ := ha _ (chainUnitNeg_mem n)
+  simp only [chainUnitNeg, mem_singleton] at hl
+  cases hl
+  simp only [litSat] at hla
+  exact Bool.noConfusion ((hforce n le_rfl).symm.trans hla)
+
+theorem chainCNF_refutable (n : ℕ) : Refutable (chainCNF n) :=
+  ⟨chainRefutation n⟩
+
+/-- The BSW width bound on the chain witness is strictly below the trivial
+`2 * |vars|` width ceiling for every `n ≥ 2`. -/
+theorem bsw_bound_beats_trivial (n : ℕ) (hn : 2 ≤ n) :
+    cnfWidth (chainCNF n) + (cnfVars (chainCNF n)).card +
+        fatSteps (2 * (cnfVars (chainCNF n)).card) ((cnfVars (chainCNF n)).card)
+          ((chainRefutation n).fatCount ((cnfVars (chainCNF n)).card)) <
+      2 * (cnfVars (chainCNF n)).card := by
+  have hvars : (cnfVars (chainCNF n)).card = n + 1 := cnfVars_chainCNF_card n
+  have hw : cnfWidth (chainCNF n) = 2 :=
+    chainCNF_cnfWidth_of_pos n (Nat.le_trans (by decide : 1 ≤ 2) hn)
+  have ht2 : 2 ≤ n + 1 := by omega
+  have hfat : (chainRefutation n).fatCount (n + 1) = 0 :=
+    chainRefutation_fatCount_eq_zero n (n + 1) ht2
+  have hbound :
+      cnfWidth (chainCNF n) + (cnfVars (chainCNF n)).card +
+          fatSteps (2 * (cnfVars (chainCNF n)).card) ((cnfVars (chainCNF n)).card)
+            ((chainRefutation n).fatCount ((cnfVars (chainCNF n)).card)) =
+        n + 3 := by
+    rw [hw, hvars, hfat, fatSteps_zero]
+    ring
+  have hlt : n + 3 < 2 * (n + 1) := by omega
+  have hR : 2 * (cnfVars (chainCNF n)).card = 2 * (n + 1) := by rw [hvars]
+  exact hbound.symm ▸ (hR.symm ▸ hlt)
+
 end SATurday.ProofComplexity

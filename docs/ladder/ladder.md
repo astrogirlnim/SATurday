@@ -34,7 +34,8 @@ R4-class results plus the certified R5 bridge.
   - statement: Ben-Sasson-Wigderson width-size tradeoff, random k-CNF and Tseitin
     expander lower bounds
   - memory: docs/ladder/rungs/r2-width-machinery.md
-  - lean: theory/Theory/ProofComplexity/Width.lean (in progress)
+  - lean: Width.lean and SizeWidth.lean; item 1 BSW core, rate (c=24), and
+    chainCNF non vacuity merged; item 2 width lower bounds still open
 
 - R3 stronger systems
   - status: proposed

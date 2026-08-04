@@ -497,3 +497,32 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   delta_mul_fatBlock_le, bsw_delta_sq_le_of_width_log, bsw_size_lower_bound.
   Pinned rate constant c = bswRateConst = 24. R2 stays prose_accepted.
   Next: formalize chainCNF and bsw_bound_beats_trivial.
+
+- 2026-08-04 formalize (chainCNF non vacuity and bsw_bound_beats_trivial):
+  SUCCESS. Closed the pinned SizeWidth non vacuity witness in SizeWidth.lean.
+  New accepted declarations (30): chainUnitPos, chainUnitNeg, chainImpl,
+  chainCNF, membership and resolvent lemmas, chainDeriveUnitPos,
+  chainRefutation, card and width lemmas, Derivation.width_eq_cast,
+  Derivation.fatCount_eq_cast, Derivation.fatCount_eq_zero_of_width_le,
+  chainRefutation_fatCount_eq_zero, chainCNF width and vars lemmas,
+  chainCNF_unsat, chainCNF_refutable, bsw_bound_beats_trivial.
+  Gate green. For every n ≥ 2 the BSW bound on chainRefutation is n+3,
+  strictly below the trivial ceiling 2*(n+1). Pinned witness is the
+  implication chain (not PHP), matching the prove entry adversarial note that
+  the rate corollary is vacuous on PHP. Item 1 of the rung statement (BSW
+  size-width tradeoff plus non vacuity) is now fully formalized. Item 2
+  (width lower bounds for expander Tseitin and random k CNF) remains open.
+  Most important thing learned: an explicit width-2 unit propagation term
+  makes fatCount zero at t = |vars|, so the informativeness check is a pure
+  arithmetic comparison once cnfWidth and cnfVars are computed.
+  Pending human gate merge_certified. Next: merge then prove or audit for
+  item 2 width lower bounds scaffolding.
+
+- 2026-08-04 human gate merge_certified: APPROVED by session decision ("go").
+  SizeWidth chainCNF non vacuity cluster (30 declarations) accepted into the
+  accepted tree. R2 item 1 (BSW core, rate at c=24, non vacuity) is merged.
+  Rung status stays prose_accepted because item 2 (expander Tseitin and
+  random k CNF width lower bounds) is not yet pinned or formalized.
+  Next recommended action: prove (pin width lower bound statements and Lean
+  module plan for genuine expanders / random k CNF), or audit the completed
+  BSW package before opening item 2.
