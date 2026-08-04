@@ -615,3 +615,9 @@ above it.
   accepted decls). Deferred: iteration of the kill step, final counting,
   Frontier close with an honest constant. Pending human gate merge_certified.
   Next after merge: formalize G8f kill iteration and final counting.
+- 2026-08-04 human gate merge_certified: G8d G8e restriction and kill step
+  cluster (6 declarations: exists_monoDeriv_restrict,
+  exists_monoDeriv_refutation_restrict, exists_popular_grid_literal_W,
+  wide_survivors_le_W, exists_monoDeriv_kill_step, kill_step_mul) accepted
+  into the accepted tree. Gate remains green. R1 stays active. Next:
+  formalize G8f kill iteration and final counting.
