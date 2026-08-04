@@ -471,3 +471,11 @@ above it.
   exists_matchingRestrict_refutation. Gate green (110 accepted decls). Pending
   human gate merge_certified. Next after merge: formalize G7d iterative large
   clause kill and smaller PHP isomorphism toward Frontier close.
+- 2026-08-03 human gate merge_certified: G7c size-preserving restriction cluster
+  (9 declarations: restrictClause_eq_none_iff, mem_of_mem_restrictClause,
+  restrictClause_resolvent_none_of_parents_none, restrict_sub_of_left_killed,
+  restrict_sub_of_right_killed, restrict_resolvent_of_both_some,
+  derivation_restrict_sub, exists_restrict_refutation,
+  exists_matchingRestrict_refutation) accepted into the accepted tree. Gate
+  remains green. R1 stays active. Next: formalize G7d iterative large clause
+  kill and smaller PHP isomorphism.
