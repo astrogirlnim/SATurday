@@ -1014,3 +1014,25 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   into the accepted tree. R2 stays prose_accepted. Next: formalize cutCovered for
   intermediate lines and tseitin_complex_eq_univ toward
   tseitin_expander_width_lower_bound.
+
+- 2026-08-04 formalize (semantic complexes, cutCovered, complex=univ, width LB):
+  SUCCESS. Kept FinGraph adjEdge helpers; rewrote Tseitin complexes as semantic
+  erase-minimal vertex sets (Derivation.tseitinComplex) so cutCovered holds on
+  every derived line via BSW flip (cutCovered_of_eraseMinimal,
+  tseitin_complex_cutCovered). Proved tseitin_complex_eq_univ on connected graphs
+  by cut-edge repair: proper sets have nonempty boundary and are parity-sat
+  (exists_vertexParitySat_of_ne_univ), so only univ implies empty.
+  Assembled tseitin_expander_width_lower_bound and size corollary from expansion
+  (alpha ≥ 1 ⇒ connected). Honest form α * (n / tseitinWidthDiv) with
+  tseitinWidthDiv = 4. Petersen floor 2 does not beat cnfWidth 3
+  (tseitin_petersen_floor_not_gt_cnfWidth3). Zero sorry. Axiom gate PASS.
+  Most important thing learned: syntactic hyp-union complexes break cutCovered
+  under resolution; erase-minimal semantic complexes restore it and close univ.
+  Pending human gate merge_certified (auto per user blanket after green gate).
+  Next: CSExpansion random k-CNF width or sharper medium extraction if a
+  Petersen beats-width claim is desired.
+
+- 2026-08-04 human gate merge_certified: APPROVED by session decision (user blanket
+  continue, auto after axiom gate PASS). Semantic Tseitin width LB cluster
+  accepted into the accepted tree. R2 stays prose_accepted. Next: CSExpansion
+  or audit the divisor-4 honesty gap versus pin form (α*n)/div.

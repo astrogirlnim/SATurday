@@ -232,6 +232,43 @@ theorem HasExpansion.isConnected {n : ℕ} {G : FinGraph n} {α : ℕ}
     have hc : 1 ≤ T.card := Nat.succ_le_of_lt (card_pos.mpr hTne)
     exact absurd hge (Nat.not_le.mpr (Nat.mul_pos (lt_of_lt_of_le Nat.zero_lt_one hα) (lt_of_lt_of_le Nat.zero_lt_one hc)))
 
+/-! ## Adjacency edge choice (for Tseitin parity repairs) -/
+
+/-- Choose an edge witnessing `G.Adj u v`. -/
+noncomputable def FinGraph.adjEdge {n : ℕ} (G : FinGraph n) {u v : Fin n}
+    (h : G.Adj u v) : FinEdge n :=
+  Classical.choose h
+
+theorem FinGraph.adjEdge_spec {n : ℕ} (G : FinGraph n) {u v : Fin n}
+    (h : G.Adj u v) :
+    G.adjEdge h ∈ G ∧
+      ((G.adjEdge h).val.1 = u ∧ (G.adjEdge h).val.2 = v ∨
+        (G.adjEdge h).val.1 = v ∧ (G.adjEdge h).val.2 = u) :=
+  Classical.choose_spec h
+
+theorem FinGraph.adjEdge_mem {n : ℕ} (G : FinGraph n) {u v : Fin n}
+    (h : G.Adj u v) : G.adjEdge h ∈ G :=
+  (G.adjEdge_spec h).1
+
+/-- The chosen adjacency edge is incident to both endpoints. -/
+theorem FinGraph.adjEdge_mem_incident {n : ℕ} (G : FinGraph n) {u v : Fin n}
+    (h : G.Adj u v) :
+    G.adjEdge h ∈ incident G u ∧ G.adjEdge h ∈ incident G v := by
+  have heG := (G.adjEdge_spec h).1
+  rcases (G.adjEdge_spec h).2 with hdir | hdir
+  · exact ⟨mem_incident_iff.mpr ⟨heG, Or.inl hdir.1⟩,
+      mem_incident_iff.mpr ⟨heG, Or.inr hdir.2⟩⟩
+  · exact ⟨mem_incident_iff.mpr ⟨heG, Or.inr hdir.2⟩,
+      mem_incident_iff.mpr ⟨heG, Or.inl hdir.1⟩⟩
+
+/-- Adjacent vertices are distinct. -/
+theorem FinGraph.Adj.ne {n : ℕ} {G : FinGraph n} {u v : Fin n}
+    (h : G.Adj u v) : u ≠ v := by
+  rcases h with ⟨e, _, hdir⟩
+  rcases hdir with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · exact e.ne_endpoints
+  · exact e.ne_endpoints.symm
+
 /-! ## Petersen graph (outer 5-cycle, spokes, inner pentagram) -/
 
 /-- Helper: edge on `Fin 10` from concrete naturals (proofs filled by `decide`). -/
