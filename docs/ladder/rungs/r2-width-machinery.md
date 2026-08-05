@@ -975,3 +975,42 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Remaining gaps: tseitin_complex_* bridge, tseitin_expander_width_lower_bound,
   size corollary, CSExpansion module, exists_3regular_expander.
   Next recommended action: formalize tseitin complex / width lower bound.
+
+- 2026-08-04 formalize (Tseitin complex bridge cluster 3): PARTIAL SUCCESS.
+  Files verified before edits (no duplicates): FinGraph.lean, Tseitin.lean,
+  Width.lean, SizeWidth.lean, Resolution.lean, MatchingRestriction.lean,
+  Theory.lean, scripts/accepted_declarations.txt, this rung md. Ripgrep found
+  no prior tseitin_complex_*, tseitinWidthDiv, cutCovered modules. Extended
+  existing Tseitin.lean and FinGraph.lean only.
+
+  FinGraph: connectivity API FinGraph.Adj, Reachable, IsConnected, component,
+  edgeBoundary_component, HasExpansion.isConnected (alpha ≥ 1 ⇒ connected).
+
+  Tseitin complex cluster: tseitinWidthDiv := 4 (pin started at 2; raised
+  explicitly because set-union growth extracts medium complexes of size at
+  least n/4), chargeParity, clauseEdges, clauseFalsify, vertexParitySat,
+  cutParity, hypVertex, Derivation.tseitinComplex, pinned
+  tseitin_complex_res_subset, tseitin_complex_entails, hyp boundary and
+  cutCovered lemmas, tseitin_medium_complex_expands (uses HasExpansion for
+  real), exists_medium_tseitin_complex (from full-complex refutations),
+  tseitin_width_ge_alpha_mul_quot (bridge: medium + cutCovered ⇒
+  α * (n / tseitinWidthDiv) ≤ width).
+
+  Axiom gate: PASS. Full pinned tseitin_expander_width_lower_bound NOT closed:
+  still need (1) refutation complex = univ, (2) cutCovered on medium lines
+  (not just hypotheses), (3) assemble into the named width LB. With divisor 4,
+  Petersen floor is 2 which does not beat cnfWidth 3, so
+  tseitin_petersen_width_beats_cnfWidth stays open pending sharper extraction
+  or an honest divisor-2 argument.
+  Most important thing learned: derivation-support complexes give clean
+  res_subset and medium extraction; the hard gap is cut coverage for
+  intermediate resolvents, not the growth arithmetic.
+  Pending human gate merge_certified (auto per user blanket after green gate).
+  Next: prove or formalize cutCovered for derived lines, then
+  tseitin_complex_eq_univ, then tseitin_expander_width_lower_bound.
+
+- 2026-08-04 human gate merge_certified: APPROVED by session decision (user blanket
+  continue, auto after axiom gate PASS). Tseitin complex bridge cluster accepted
+  into the accepted tree. R2 stays prose_accepted. Next: formalize cutCovered for
+  intermediate lines and tseitin_complex_eq_univ toward
+  tseitin_expander_width_lower_bound.

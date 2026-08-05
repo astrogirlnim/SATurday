@@ -428,7 +428,6 @@ SATurday.ProofComplexity.mem_tseitinCNF_iff
 SATurday.ProofComplexity.clauseVars_parityForbidClause_subset
 
 # R2 item 2 cluster 2b: odd-charge Tseitin unsat (certified 2026-08-04)
-# Width lower bound and complex bridge remain open.
 SATurday.ProofComplexity.trueIncident
 SATurday.ProofComplexity.not_clauseSat_parityForbidClause
 SATurday.ProofComplexity.cnfSat_vertexParity_charge
@@ -436,3 +435,49 @@ SATurday.ProofComplexity.sum_trueIncident_card
 SATurday.ProofComplexity.sum_charge_even_of_cnfSat
 SATurday.ProofComplexity.tseitinCNF_unsat
 SATurday.ProofComplexity.tseitinCNF_refutable
+
+# R2 item 2 cluster 3: Tseitin complex bridge (certified 2026-08-04)
+# FinGraph connectivity from expansion
+SATurday.ProofComplexity.FinGraph.Adj
+SATurday.ProofComplexity.FinGraph.Reachable
+SATurday.ProofComplexity.FinGraph.IsConnected
+SATurday.ProofComplexity.FinGraph.component
+SATurday.ProofComplexity.FinGraph.mem_component_iff
+SATurday.ProofComplexity.FinGraph.self_mem_component
+SATurday.ProofComplexity.FinGraph.component_nonempty
+SATurday.ProofComplexity.FinGraph.edgeBoundary_component
+SATurday.ProofComplexity.HasExpansion.isConnected
+# Complex measures, structural lemmas, medium extraction, width bridge
+SATurday.ProofComplexity.tseitinWidthDiv
+SATurday.ProofComplexity.chargeParity
+SATurday.ProofComplexity.chargeParity_univ
+SATurday.ProofComplexity.clauseEdges
+SATurday.ProofComplexity.mem_clauseEdges_iff
+SATurday.ProofComplexity.clauseFalsify
+SATurday.ProofComplexity.vertexParitySat
+SATurday.ProofComplexity.vertexParitySat_of_cnfSat
+SATurday.ProofComplexity.cutParity
+SATurday.ProofComplexity.hypVertex
+SATurday.ProofComplexity.hypVertex_spec
+SATurday.ProofComplexity.Derivation.tseitinComplex
+SATurday.ProofComplexity.tseitin_complex_hyp_card_le_one
+SATurday.ProofComplexity.tseitin_complex_res_subset
+SATurday.ProofComplexity.tseitin_complex_res_eq
+SATurday.ProofComplexity.tseitin_complex_hyp_eq
+SATurday.ProofComplexity.tseitin_complex_entails
+SATurday.ProofComplexity.clauseVars_mem_vertexParityClauses
+SATurday.ProofComplexity.injective_parityForbidLiteral
+SATurday.ProofComplexity.card_parityForbidClause
+SATurday.ProofComplexity.tseitin_complex_hyp_boundary_le_card
+SATurday.ProofComplexity.tseitin_complex_card_le_n
+SATurday.ProofComplexity.tseitin_complex_hyp_card
+SATurday.ProofComplexity.Derivation.concl_card_le_width
+SATurday.ProofComplexity.cutCovered
+SATurday.ProofComplexity.edgeBoundary_card_le_of_cutCovered
+SATurday.ProofComplexity.tseitin_complex_hyp_cutCovered
+SATurday.ProofComplexity.tseitin_medium_complex_expands
+SATurday.ProofComplexity.tseitin_width_ge_alpha_mul_quot
+SATurday.ProofComplexity.tseitinWidthDiv_eq
+SATurday.ProofComplexity.tseitin_petersen_width_floor
+SATurday.ProofComplexity.exists_medium_tseitin_complex_of_large
+SATurday.ProofComplexity.exists_medium_tseitin_complex

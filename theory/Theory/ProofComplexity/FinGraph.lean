@@ -136,6 +136,102 @@ theorem HasExpansion.degree_ge {n : ℕ} {G : FinGraph n} {α : ℕ}
   have hbd := h ({v} : Finset (Fin n)) hS hcard
   simpa [edgeBoundary_singleton, card_singleton, mul_one] using hbd
 
+/-! ## Walks, reachability, and expansion implies connectivity -/
+
+/-- Adjacent vertices along an edge of `G`. -/
+def FinGraph.Adj {n : ℕ} (G : FinGraph n) (u v : Fin n) : Prop :=
+  ∃ e ∈ G, (e.val.1 = u ∧ e.val.2 = v) ∨ (e.val.1 = v ∧ e.val.2 = u)
+
+/-- Undirected reachability in `G`. -/
+def FinGraph.Reachable {n : ℕ} (G : FinGraph n) (u v : Fin n) : Prop :=
+  Relation.ReflTransGen G.Adj u v
+
+/-- Every pair of vertices is reachable. -/
+def FinGraph.IsConnected {n : ℕ} (G : FinGraph n) : Prop :=
+  ∀ u v : Fin n, G.Reachable u v
+
+/-- Reachable component of a vertex. -/
+noncomputable def FinGraph.component {n : ℕ} (G : FinGraph n) (u : Fin n) :
+    Finset (Fin n) :=
+  univ.filter fun v => G.Reachable u v
+
+theorem FinGraph.mem_component_iff {n : ℕ} {G : FinGraph n} {u v : Fin n} :
+    v ∈ G.component u ↔ G.Reachable u v := by
+  simp [FinGraph.component]
+
+theorem FinGraph.self_mem_component {n : ℕ} (G : FinGraph n) (u : Fin n) :
+    u ∈ G.component u := by
+  simp [FinGraph.mem_component_iff, FinGraph.Reachable, Relation.ReflTransGen.refl]
+
+theorem FinGraph.component_nonempty {n : ℕ} (G : FinGraph n) (u : Fin n) :
+    (G.component u).Nonempty :=
+  ⟨u, G.self_mem_component u⟩
+
+/-- No edge leaves a reachable component. -/
+theorem FinGraph.edgeBoundary_component {n : ℕ} (G : FinGraph n) (u : Fin n) :
+    edgeBoundary G (G.component u) = ∅ := by
+  ext e
+  simp only [mem_edgeBoundary_iff, Finset.notMem_empty, iff_false]
+  rintro ⟨heG, hcut⟩
+  have hadj : G.Adj e.val.1 e.val.2 := ⟨e, heG, Or.inl ⟨rfl, rfl⟩⟩
+  have hadj' : G.Adj e.val.2 e.val.1 := ⟨e, heG, Or.inr ⟨rfl, rfl⟩⟩
+  rcases hcut with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · -- e.1 in component, e.2 not: but adjacency extends reachability
+    have r1 : G.Reachable u e.val.1 := (G.mem_component_iff).mp h1
+    have r2 : G.Reachable u e.val.2 :=
+      Relation.ReflTransGen.tail r1 hadj
+    exact h2 ((G.mem_component_iff).mpr r2)
+  · have r2 : G.Reachable u e.val.2 := (G.mem_component_iff).mp h2
+    have r1 : G.Reachable u e.val.1 :=
+      Relation.ReflTransGen.tail r2 hadj'
+    exact h1 ((G.mem_component_iff).mpr r1)
+
+/-- Positive expansion forbids a proper nonempty component with empty cut, so
+`G` is connected whenever `α ≥ 1`. -/
+theorem HasExpansion.isConnected {n : ℕ} {G : FinGraph n} {α : ℕ}
+    (h : HasExpansion G α) (hα : 1 ≤ α) : G.IsConnected := by
+  intro u v
+  by_contra huv
+  set S := G.component u with hSdef
+  have hne : S.Nonempty := G.component_nonempty u
+  have hbd : edgeBoundary G S = ∅ := G.edgeBoundary_component u
+  have hvS : v ∉ S := by
+    intro hv
+    exact huv ((G.mem_component_iff).mp hv)
+  have hSneUniv : S ≠ (univ : Finset (Fin n)) := by
+    intro hSu
+    exact hvS (hSu ▸ mem_univ v)
+  by_cases hHalf : 2 * S.card ≤ n
+  · have hge := h S hne hHalf
+    rw [hbd, card_empty] at hge
+    -- hge : α * S.card ≤ 0, with α ≥ 1 and S nonempty
+    have hc : 1 ≤ S.card := Nat.succ_le_of_lt (card_pos.mpr hne)
+    exact absurd hge (Nat.not_le.mpr (Nat.mul_pos (lt_of_lt_of_le Nat.zero_lt_one hα) (lt_of_lt_of_le Nat.zero_lt_one hc)))
+  · set T := (univ : Finset (Fin n)) \ S
+    have hTne : T.Nonempty := by
+      rw [Finset.nonempty_iff_ne_empty]
+      intro hTempty
+      apply hSneUniv
+      exact eq_univ_of_forall fun x => by
+        by_contra hx
+        have hxT : x ∈ T := mem_sdiff.mpr ⟨mem_univ x, hx⟩
+        simp [hTempty] at hxT
+    have hsum : S.card + T.card = n := by
+      have hd : Disjoint S T := disjoint_sdiff
+      have hu : S ∪ T = (univ : Finset (Fin n)) := by
+        ext x; simp [T]
+      calc
+        S.card + T.card = (S ∪ T).card := (card_union_of_disjoint hd).symm
+        _ = (univ : Finset (Fin n)).card := by rw [hu]
+        _ = n := by simp
+    have hTcard : 2 * T.card ≤ n := by omega
+    have hbdT : edgeBoundary G T = ∅ := by
+      rw [← edgeBoundary_sdiff_univ G S, hbd]
+    have hge := h T hTne hTcard
+    rw [hbdT, card_empty] at hge
+    have hc : 1 ≤ T.card := Nat.succ_le_of_lt (card_pos.mpr hTne)
+    exact absurd hge (Nat.not_le.mpr (Nat.mul_pos (lt_of_lt_of_le Nat.zero_lt_one hα) (lt_of_lt_of_le Nat.zero_lt_one hc)))
+
 /-! ## Petersen graph (outer 5-cycle, spokes, inner pentagram) -/
 
 /-- Helper: edge on `Fin 10` from concrete naturals (proofs filled by `decide`). -/
