@@ -2,8 +2,8 @@
 
 Status: prose_accepted
 Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (item 1
-merged); FinGraph.lean and Tseitin.lean (item 2 start merged); CSExpansion.lean
-planned
+merged); FinGraph.lean and Tseitin.lean (item 2 width machine merged);
+CSExpansion.lean (item 2 API cluster merged; full width LB open)
 
 ## Statement
 
@@ -1036,3 +1036,37 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   continue, auto after axiom gate PASS). Semantic Tseitin width LB cluster
   accepted into the accepted tree. R2 stays prose_accepted. Next: CSExpansion
   or audit the divisor-4 honesty gap versus pin form (α*n)/div.
+
+- 2026-08-06 formalize (sharp medium floor, Heawood scaffold, CSExpansion API):
+  SUCCESS (partial on full non-vacuity). Files verified before edits (no
+  duplicates): FinGraph.lean, Tseitin.lean, Width.lean, SizeWidth.lean,
+  Theory.lean, this rung md; CSExpansion.lean did not exist and was created per
+  pin. Ripgrep confirmed no prior HasCSExpansion, boundaryClauses, csWidthDiv,
+  heawoodGraph, tseitinMediumFloor.
+
+  Tseitin: sharpened medium extraction to tseitinMediumFloor n = (n/2+2)/2;
+  width and size LBs now use the sharp floor; coarse α*(n/tseitinWidthDiv)
+  kept as corollary. Regular-degree cnfWidth lemmas certified.
+  FinGraph: heawoodGraph (GP(7,2)) construction, card 21, 3-regular, singleton
+  boundary. HasExpansion heawoodGraph 1 deferred: kernel decide over Fin 14
+  stalled (16+ min); no fake claim. Numeric non-vacuity:
+  tseitin_heawood_width_beats_cnfWidth (floor 4 > cnfWidth 3); coarse Heawood
+  and Petersen floors still do not beat under div 4. Conditional
+  tseitin_heawood_width_ge_four_of_expansion recorded.
+
+  CSExpansion.lean first cluster: clauseSupport, cnfSupport, boundaryClauses,
+  HasCSExpansion, csWidthDiv, csWidthFloor, statement shapes
+  CSExpansionWidthLowerBoundStatement / Size, floor-zero trivial case,
+  singleton_mem_boundaryClauses. Full cs_expansion_width_lower_bound (complex
+  growth) not closed this cycle.
+
+  Axiom gate PASS. Zero sorry. merge_certified auto per user blanket.
+  Most important thing learned: sharp BSW union floor lifts Heawood numeric
+  beat to 4>3, but full expander non-vacuity still needs a finishing
+  HasExpansion proof on n≥14 (decide too heavy as written).
+  Next: heawoodGraph_expansion (combinatorial or lighter kernel) then
+  cs_expansion_width_lower_bound complex bridge.
+
+- 2026-08-06 human gate merge_certified: APPROVED by session decision (user
+  blanket continue, auto after axiom gate PASS). Sharp medium floor, Heawood
+  scaffold, and CSExpansion API cluster accepted. R2 stays prose_accepted.

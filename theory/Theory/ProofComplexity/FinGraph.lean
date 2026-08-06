@@ -315,4 +315,39 @@ theorem petersenGraph_expansion : HasExpansion petersenGraph 1 := by
     exact (lt_irrefl _ (lt_of_le_of_lt this hbig)).elim
   · simpa [one_mul] using hle
 
+/-! ## Heawood graph (generalized Petersen GP(7,2), n = 14) -/
+
+/-- Helper: edge on `Fin 14` from concrete naturals. -/
+private def hEdge (i j : ℕ) (hij : i < j := by decide) (hj : j < 14 := by decide) :
+    FinEdge 14 :=
+  finEdgeOf i j (lt_trans hij hj) hj hij
+
+/-- The Heawood graph as GP(7,2): outer 7-cycle on `0..6`, spokes to `7..13`,
+inner connections `i+7 -- (i+2 mod 7)+7`. Cubic cage on 14 vertices (21 edges). -/
+def heawoodGraph : FinGraph 14 :=
+  { hEdge 0 1, hEdge 1 2, hEdge 2 3, hEdge 3 4, hEdge 4 5, hEdge 5 6, hEdge 0 6,
+    hEdge 0 7, hEdge 1 8, hEdge 2 9, hEdge 3 10, hEdge 4 11, hEdge 5 12, hEdge 6 13,
+    hEdge 7 9, hEdge 8 10, hEdge 9 11, hEdge 10 12, hEdge 11 13, hEdge 7 12, hEdge 8 13 }
+
+/-- Heawood has exactly 21 edges. -/
+theorem heawoodGraph_card : heawoodGraph.card = 21 := by decide
+
+/-- Heawood is 3-regular. -/
+theorem heawoodGraph_regular : IsRegular heawoodGraph 3 := by
+  intro v
+  fin_cases v <;> decide
+
+/-- Card-1 cuts are stars; regularity gives cut size 3 (seed for expansion). -/
+theorem heawoodGraph_singleton_boundary (v : Fin 14) :
+    (edgeBoundary heawoodGraph ({v} : Finset (Fin 14))).card = 3 := by
+  simpa [edgeBoundary_singleton] using heawoodGraph_regular v
+
+/-
+Heawood `HasExpansion _ 1` is true combinatorially (verified externally on all
+subsets of size 1..7) but the Lean kernel `decide` over `Fin 14` powersets did
+not finish in-session. Expansion certification is deferred; construction and
+3-regularity are certified above. Do not claim `heawoodGraph_expansion` until
+a finishing kernel or combinatorial proof lands.
+-/
+
 end SATurday.ProofComplexity

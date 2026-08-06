@@ -15,12 +15,16 @@ the charge `χ v`.
 Complex packaging: derivation-indexed semantic erase-minimal vertex sets
 `Derivation.tseitinComplex` (minimal `S` such that parity axioms on `S` imply
 the conclusion, chosen inside the parent union at resolution steps). Pin target
-`tseitin_complex_res_subset` holds by that choice. Width divisor is
-`tseitinWidthDiv = 4` (raised from pin start 2): medium extraction uses `n / 4`.
-Honest width form is `α * (n / tseitinWidthDiv)` (Nat quotients). Petersen floor
-is then 2, which does not beat `cnfWidth = 3` for 3-regular axioms.
+`tseitin_complex_res_subset` holds by that choice. Coarse divisor
+`tseitinWidthDiv = 4` remains; sharp medium floor is
+`tseitinMediumFloor n = (n / 2 + 2) / 2` (Nat form of ceil of half the
+exceeding half-size union). Width LB uses the sharp floor. Coarse form
+`α * (n / tseitinWidthDiv)` is a weaker corollary. Petersen coarse floor 2 and
+sharp floor 3 do not beat `cnfWidth = 3`. Heawood sharp floor 4 beats width 3
+numerically under regularity; full `HasExpansion heawoodGraph 1` is deferred
+(kernel decide over Fin 14 did not finish).
 
-LOG: R2 Tseitin semantic complex cutCovered and width lower bound
+LOG: R2 Tseitin sharp medium floor and Heawood numeric non-vacuity
 -/
 
 namespace SATurday.ProofComplexity
@@ -311,10 +315,15 @@ theorem tseitinCNF_refutable {n : ℕ} (G : FinGraph n) (χ : Charge n)
 
 /-! ## Width divisor and charge helpers -/
 
-/-- Reserved width divisor for the expander Tseitin bound.
-Pin started at 2; raised to 4 because set-union complex growth extracts a
-medium complex of size at least `n / 4` (pin bookkeeping allows an explicit raise). -/
+/-- Reserved coarse width divisor for the expander Tseitin bound.
+Pin started at 2; raised to 4 for the weak `n / 4` packaging. The certified
+width theorem uses the sharper `tseitinMediumFloor`. -/
 def tseitinWidthDiv : ℕ := 4
+
+/-- Sharp medium-complex cardinality floor from BSW union arithmetic:
+if `n/2 < a + b` then `(n/2 + 2) / 2 ≤ max a b`, since
+`max ≥ ceil((a+b)/2)` and `a+b ≥ n/2 + 1`. -/
+def tseitinMediumFloor (n : ℕ) : ℕ := (n / 2 + 2) / 2
 
 /-- Parity of the total charge on a vertex set (`true` means odd). -/
 def chargeParity {n : ℕ} (χ : Charge n) (S : Finset (Fin n)) : Bool :=
@@ -931,46 +940,65 @@ theorem tseitin_medium_complex_expands {n : ℕ} {G : FinGraph n} {α : ℕ}
   have h2 : 2 * S.card ≤ n := by omega
   exact hα S hne h2
 
-/-- Honest width floor from a covered medium complex (uses `α * (n / div)`). -/
+/-- Width floor from a covered medium complex at the sharp medium threshold. -/
 theorem tseitin_width_ge_alpha_mul_quot {n : ℕ} {G : FinGraph n} {χ : Charge n}
     {α : ℕ} (hα : HasExpansion G α)
     {C : Clause} (dC : Derivation (tseitinCNF G χ) C)
     (hHalf : dC.tseitinComplex.card ≤ n / 2)
-    (hMed : n / tseitinWidthDiv ≤ dC.tseitinComplex.card)
+    (hMed : tseitinMediumFloor n ≤ dC.tseitinComplex.card)
     (hne : dC.tseitinComplex.Nonempty)
     (hCov : cutCovered G dC.tseitinComplex C)
     (hn : 0 < n) :
-    α * (n / tseitinWidthDiv) ≤ dC.width := by
+    α * tseitinMediumFloor n ≤ dC.width := by
   have hBd := edgeBoundary_card_le_of_cutCovered hCov hn
   have hexp := tseitin_medium_complex_expands hα hne hHalf
   have hαS : α * dC.tseitinComplex.card ≤ C.card := hexp.trans hBd
-  have hαn : α * (n / tseitinWidthDiv) ≤ α * dC.tseitinComplex.card :=
+  have hαn : α * tseitinMediumFloor n ≤ α * dC.tseitinComplex.card :=
     Nat.mul_le_mul_left _ hMed
   exact (hαn.trans hαS).trans dC.concl_card_le_width
 
 /-- Non-vacuity of the raised divisor constant. -/
 theorem tseitinWidthDiv_eq : tseitinWidthDiv = 4 := rfl
 
-/-- Petersen numeric floor under the raised divisor. -/
+/-- Coarse quotient is at most the sharp medium floor. -/
+theorem tseitin_div_quot_le_mediumFloor (n : ℕ) :
+    n / tseitinWidthDiv ≤ tseitinMediumFloor n := by
+  simp only [tseitinWidthDiv, tseitinMediumFloor]
+  omega
+
+/-- Petersen numeric floor under the coarse divisor. -/
 theorem tseitin_petersen_width_floor :
     (1 * 10) / tseitinWidthDiv = 2 := by
   decide
 
-/-- Honest: with divisor 4, Petersen floor does not beat 3-regular axiom width. -/
+/-- Honest: with coarse divisor 4, Petersen floor does not beat width 3. -/
 theorem tseitin_petersen_floor_le_cnfWidth3 :
     (1 * 10) / tseitinWidthDiv ≤ 3 := by
   decide
 
-/-- Auxiliary: sum `> n/2` with each part `≤ n/2` forces `max ≥ n/4`. -/
-private theorem max_ge_div4_of_sum_gt_div2 (a b n : ℕ)
-    (hsum : n / 2 < a + b) (_ha : a ≤ n / 2) (_hb : b ≤ n / 2) :
-    n / 4 ≤ max a b := by
-  by_contra hlt
-  replace hlt : max a b < n / 4 := Nat.lt_of_not_ge hlt
-  have ha' : a < n / 4 := lt_of_le_of_lt (le_max_left a b) hlt
-  have hb' : b < n / 4 := lt_of_le_of_lt (le_max_right a b) hlt
-  have : a + b ≤ n / 2 := by omega
-  exact lt_irrefl _ (lt_of_lt_of_le hsum this)
+/-- Sharp medium floor on Petersen equals 3 (still not strictly above width 3). -/
+theorem tseitin_petersen_mediumFloor :
+    tseitinMediumFloor 10 = 3 := by
+  decide
+
+/-- Auxiliary: sum `> n/2` forces `max ≥ tseitinMediumFloor n`. -/
+private theorem max_ge_mediumFloor_of_sum_gt_div2 (a b n : ℕ)
+    (hsum : n / 2 < a + b) : tseitinMediumFloor n ≤ max a b := by
+  have hab : n / 2 + 1 ≤ a + b := Nat.succ_le_of_lt hsum
+  have hceil : (a + b + 1) / 2 ≤ max a b := by
+    have h2 : a + b ≤ 2 * max a b := by
+      cases le_total a b with
+      | inl hab =>
+        have : max a b = b := max_eq_right hab
+        simp [this]; omega
+      | inr hba =>
+        have : max a b = a := max_eq_left hba
+        simp [this]; omega
+    omega
+  have hfl : tseitinMediumFloor n ≤ (a + b + 1) / 2 := by
+    simp only [tseitinMediumFloor]
+    omega
+  exact hfl.trans hceil
 
 /-- From a derivation whose complex exceeds `n / 2`, extract a medium line. -/
 theorem exists_medium_tseitin_complex_of_large {n : ℕ} {G : FinGraph n}
@@ -980,7 +1008,7 @@ theorem exists_medium_tseitin_complex_of_large {n : ℕ} {G : FinGraph n}
     (hLarge : n / 2 < π.tseitinComplex.card) :
     ∃ (C' : Clause) (dC : Derivation (tseitinCNF G χ) C'),
       dC.tseitinComplex.card ≤ n / 2 ∧
-        n / tseitinWidthDiv ≤ dC.tseitinComplex.card ∧
+        tseitinMediumFloor n ≤ dC.tseitinComplex.card ∧
           dC.width ≤ π.width ∧
             cutCovered G dC.tseitinComplex C' := by
   induction π with
@@ -1008,17 +1036,16 @@ theorem exists_medium_tseitin_complex_of_large {n : ℕ} {G : FinGraph n}
         have hDbig' : SD.card ≤ n / 2 := Nat.le_of_not_gt hDbig
         have hleUnion : (SC ∪ SD).card ≤ SC.card + SD.card := card_union_le SC SD
         have hsum : n / 2 < SC.card + SD.card := lt_of_lt_of_le hUnion hleUnion
-        have hmax : n / tseitinWidthDiv ≤ max SC.card SD.card := by
-          simpa [tseitinWidthDiv] using
-            max_ge_div4_of_sum_gt_div2 _ _ _ hsum hCbig' hDbig'
+        have hmax : tseitinMediumFloor n ≤ max SC.card SD.card :=
+          max_ge_mediumFloor_of_sum_gt_div2 _ _ _ hsum
         have hn0 : 0 < n := by omega
         by_cases hSC : SD.card ≤ SC.card
-        · have hmed : n / tseitinWidthDiv ≤ SC.card := by
+        · have hmed : tseitinMediumFloor n ≤ SC.card := by
             simpa [max_eq_left hSC] using hmax
           refine ⟨dC.conclusion, dC, hCbig', hmed, ?_, tseitin_complex_cutCovered hn0 dC⟩
           exact (le_max_left dC.width dD.width).trans (le_max_left _ _)
         · have hSDle : SC.card ≤ SD.card := le_of_not_ge hSC
-          have hmed : n / tseitinWidthDiv ≤ SD.card := by
+          have hmed : tseitinMediumFloor n ≤ SD.card := by
             simpa [max_eq_right hSDle] using hmax
           refine ⟨dD.conclusion, dD, hDbig', hmed, ?_, tseitin_complex_cutCovered hn0 dD⟩
           exact (le_max_right dC.width dD.width).trans (le_max_left _ _)
@@ -1029,7 +1056,7 @@ theorem exists_medium_tseitin_complex {n : ℕ} {G : FinGraph n} {χ : Charge n}
     (hUniv : d.tseitinComplex = univ) (hn : 2 ≤ n) :
     ∃ (C : Clause) (dC : Derivation (tseitinCNF G χ) C),
       dC.tseitinComplex.card ≤ n / 2 ∧
-        n / tseitinWidthDiv ≤ dC.tseitinComplex.card ∧
+        tseitinMediumFloor n ≤ dC.tseitinComplex.card ∧
           dC.width ≤ d.width ∧
             cutCovered G dC.tseitinComplex C := by
   have hLarge : n / 2 < d.tseitinComplex.card := by
@@ -1192,26 +1219,47 @@ theorem tseitin_expander_width_lower_bound_of_univ {n : ℕ} {G : FinGraph n}
     (hα : HasExpansion G α)
     (d : Derivation (tseitinCNF G χ) (∅ : Clause))
     (hUniv : d.tseitinComplex = univ) (hn : 2 ≤ n) :
-    α * (n / tseitinWidthDiv) ≤ d.width := by
+    α * tseitinMediumFloor n ≤ d.width := by
   obtain ⟨C, dC, hHalf, hMed, hw, hCov⟩ := exists_medium_tseitin_complex d hUniv hn
   have hn0 : 0 < n := by omega
-  by_cases hdiv : n / tseitinWidthDiv = 0
+  by_cases hdiv : tseitinMediumFloor n = 0
   · simp [hdiv]
   · have hne : dC.tseitinComplex.Nonempty := by
-      have hpos : 0 < n / tseitinWidthDiv := Nat.pos_of_ne_zero hdiv
+      have hpos : 0 < tseitinMediumFloor n := Nat.pos_of_ne_zero hdiv
       exact card_pos.mp (lt_of_lt_of_le hpos hMed)
     have hge := tseitin_width_ge_alpha_mul_quot hα dC hHalf hMed hne hCov hn0
     exact hge.trans hw
+
+/-- Coarse corollary: `α * (n / tseitinWidthDiv)` via `tseitin_div_quot_le_mediumFloor`. -/
+theorem tseitin_expander_width_lower_bound_coarse_of_univ {n : ℕ} {G : FinGraph n}
+    {χ : Charge n} {α : ℕ}
+    (hα : HasExpansion G α)
+    (d : Derivation (tseitinCNF G χ) (∅ : Clause))
+    (hUniv : d.tseitinComplex = univ) (hn : 2 ≤ n) :
+    α * (n / tseitinWidthDiv) ≤ d.width := by
+  have hsharp := tseitin_expander_width_lower_bound_of_univ hα d hUniv hn
+  exact (Nat.mul_le_mul_left α (tseitin_div_quot_le_mediumFloor n)).trans hsharp
 
 /-- Expander width lower bound for Tseitin (semantic complex = univ via connectivity). -/
 theorem tseitin_expander_width_lower_bound {n : ℕ} {G : FinGraph n}
     {χ : Charge n} {α : ℕ}
     (hα : HasExpansion G α) (hα1 : 1 ≤ α)
     (d : Derivation (tseitinCNF G χ) (∅ : Clause)) (hn : 2 ≤ n) :
-    α * (n / tseitinWidthDiv) ≤ d.width := by
+    α * tseitinMediumFloor n ≤ d.width := by
   have hn0 : 0 < n := by omega
   have hG := hα.isConnected hα1
   exact tseitin_expander_width_lower_bound_of_univ hα d
+    (tseitin_complex_eq_univ hn0 hG d) hn
+
+/-- Coarse form of the expander width lower bound. -/
+theorem tseitin_expander_width_lower_bound_coarse {n : ℕ} {G : FinGraph n}
+    {χ : Charge n} {α : ℕ}
+    (hα : HasExpansion G α) (hα1 : 1 ≤ α)
+    (d : Derivation (tseitinCNF G χ) (∅ : Clause)) (hn : 2 ≤ n) :
+    α * (n / tseitinWidthDiv) ≤ d.width := by
+  have hn0 : 0 < n := by omega
+  have hG := hα.isConnected hα1
+  exact tseitin_expander_width_lower_bound_coarse_of_univ hα d
     (tseitin_complex_eq_univ hn0 hG d) hn
 
 /-- Size corollary under a full-complex hypothesis (BSW reuse). -/
@@ -1222,7 +1270,7 @@ theorem tseitin_expander_size_lower_bound_of_univ {n : ℕ} {G : FinGraph n}
       d.tseitinComplex = univ)
     (d : Derivation (tseitinCNF G χ) (∅ : Clause))
     (hn : 2 ≤ n) :
-    let W := α * (n / tseitinWidthDiv)
+    let W := α * tseitinMediumFloor n
     2 ^ ((W - cnfWidth (tseitinCNF G χ)) * (W - cnfWidth (tseitinCNF G χ)) /
           (bswRateConst * (cnfVars (tseitinCNF G χ)).card)) ≤ d.size := by
   intro W
@@ -1235,7 +1283,7 @@ theorem tseitin_expander_size_lower_bound {n : ℕ} {G : FinGraph n}
     {χ : Charge n} {α : ℕ}
     (hα : HasExpansion G α) (hα1 : 1 ≤ α) (hχ : oddCharge χ)
     (d : Derivation (tseitinCNF G χ) (∅ : Clause)) (hn : 2 ≤ n) :
-    let W := α * (n / tseitinWidthDiv)
+    let W := α * tseitinMediumFloor n
     2 ^ ((W - cnfWidth (tseitinCNF G χ)) * (W - cnfWidth (tseitinCNF G χ)) /
           (bswRateConst * (cnfVars (tseitinCNF G χ)).card)) ≤ d.size := by
   intro W
@@ -1244,9 +1292,103 @@ theorem tseitin_expander_size_lower_bound {n : ℕ} {G : FinGraph n}
   exact tseitin_expander_size_lower_bound_of_univ hα hχ
     (fun d' => tseitin_complex_eq_univ hn0 hG d') d hn
 
-/-- Honest Petersen non-vacuity status: divisor 4 gives floor 2, not above width 3. -/
+/-- Honest Petersen non-vacuity status: coarse divisor 4 gives floor 2, not above width 3. -/
 theorem tseitin_petersen_floor_not_gt_cnfWidth3 :
     ¬ (3 < (1 * 10) / tseitinWidthDiv) := by
   decide
+
+/-- Honest: coarse Heawood floor equals 3, not strictly above width 3. -/
+theorem tseitin_heawood_coarse_floor_not_gt_cnfWidth3 :
+    ¬ (3 < 1 * (14 / tseitinWidthDiv)) := by
+  decide
+
+/-! ## Regular degree implies Tseitin axiom width; Heawood beats -/
+
+/-- Every vertex-parity clause has cardinality equal to the vertex degree. -/
+theorem card_mem_vertexParityClauses {n : ℕ} {G : FinGraph n} {χ : Charge n}
+    {v : Fin n} {C : Clause} (hC : C ∈ vertexParityClauses G χ v) (hn : 0 < n) :
+    C.card = degree G v := by
+  obtain ⟨S, hS, rfl⟩ := mem_image.mp hC
+  simpa [degree] using card_parityForbidClause (incident G v) S hn
+
+/-- Every Tseitin hypothesis clause has cardinality equal to some vertex degree. -/
+theorem exists_degree_eq_card_mem_tseitinCNF {n : ℕ} {G : FinGraph n} {χ : Charge n}
+    {C : Clause} (hC : C ∈ tseitinCNF G χ) (hn : 0 < n) :
+    ∃ v : Fin n, C.card = degree G v := by
+  obtain ⟨v, hv⟩ := mem_tseitinCNF_iff.mp hC
+  exact ⟨v, card_mem_vertexParityClauses hv hn⟩
+
+/-- Under `d`-regularity, every Tseitin clause has card `d`. -/
+theorem card_mem_tseitinCNF_of_regular {n d : ℕ} {G : FinGraph n} {χ : Charge n}
+    (hreg : IsRegular G d) {C : Clause} (hC : C ∈ tseitinCNF G χ) (hn : 0 < n) :
+    C.card = d := by
+  obtain ⟨v, hv⟩ := exists_degree_eq_card_mem_tseitinCNF hC hn
+  exact hv.trans (hreg v)
+
+/-- Positive-degree regular graphs have a nonempty Tseitin CNF. -/
+theorem tseitinCNF_nonempty_of_regular {n d : ℕ} {G : FinGraph n} {χ : Charge n}
+    (hreg : IsRegular G d) (hn : 0 < n) (hd : 0 < d) :
+    (tseitinCNF G χ).Nonempty := by
+  let v : Fin n := ⟨0, hn⟩
+  have hdeg : degree G v = d := hreg v
+  have hIcard : (incident G v).card = d := hdeg
+  have hIpos : (incident G v).Nonempty := by
+    exact card_pos.mp (by omega)
+  obtain ⟨e, he⟩ := hIpos
+  -- At least one wrong-parity subset of the star exists when d > 0.
+  -- Take empty if χ v = true (even parity empty mismatches odd charge), else {e}.
+  classical
+  by_cases hχ : χ v = true
+  · refine ⟨parityForbidClause (incident G v) ∅, ?_⟩
+    refine mem_tseitinCNF_iff.mpr ⟨v, ?_⟩
+    refine mem_image.mpr ⟨∅, ?_, rfl⟩
+    refine mem_filter.mpr ⟨mem_powerset.mpr (empty_subset _), ?_⟩
+    simp [hχ]
+  · refine ⟨parityForbidClause (incident G v) ({e} : Finset (FinEdge n)), ?_⟩
+    refine mem_tseitinCNF_iff.mpr ⟨v, ?_⟩
+    refine mem_image.mpr ⟨{e}, ?_, rfl⟩
+    refine mem_filter.mpr ⟨mem_powerset.mpr (singleton_subset_iff.mpr he), ?_⟩
+    have hχf : χ v = false := eq_false_of_ne_true hχ
+    simp [hχf, card_singleton]
+
+/-- Tseitin CNF width equals the regular degree. -/
+theorem cnfWidth_tseitinCNF_of_regular {n d : ℕ} {G : FinGraph n} {χ : Charge n}
+    (hreg : IsRegular G d) (hn : 0 < n) (hd : 0 < d) :
+    cnfWidth (tseitinCNF G χ) = d := by
+  have hF := tseitinCNF_nonempty_of_regular (χ := χ) hreg hn hd
+  apply le_antisymm
+  · refine Finset.sup_le ?_
+    intro C hC
+    exact (card_mem_tseitinCNF_of_regular hreg hC hn).le
+  · obtain ⟨C, hC⟩ := hF
+    have hCd : C.card = d := card_mem_tseitinCNF_of_regular hreg hC hn
+    have : C.card ≤ cnfWidth (tseitinCNF G χ) := Finset.le_sup hC
+    omega
+
+/-- Heawood sharp medium floor is 4. -/
+theorem tseitin_heawood_mediumFloor :
+    tseitinMediumFloor 14 = 4 := by
+  decide
+
+/-- Numeric non-vacuity seed: Heawood sharp floor strictly beats 3-regular axiom
+width. Applying the width LB still needs `HasExpansion heawoodGraph 1`
+(deferred; see FinGraph.lean). -/
+theorem tseitin_heawood_width_beats_cnfWidth
+    (χ : Charge 14) (_hχ : oddCharge χ) :
+    cnfWidth (tseitinCNF heawoodGraph χ) < 1 * tseitinMediumFloor 14 := by
+  have hn : 0 < 14 := by omega
+  have hW : cnfWidth (tseitinCNF heawoodGraph χ) = 3 :=
+    cnfWidth_tseitinCNF_of_regular heawoodGraph_regular hn (by omega)
+  simp [hW, tseitin_heawood_mediumFloor]
+
+/-- Conditional width instantiation: expansion on Heawood yields width ≥ 4. -/
+theorem tseitin_heawood_width_ge_four_of_expansion
+    (hα : HasExpansion heawoodGraph 1)
+    (χ : Charge 14) (_hχ : oddCharge χ)
+    (d : Derivation (tseitinCNF heawoodGraph χ) (∅ : Clause)) :
+    4 ≤ d.width := by
+  have h := tseitin_expander_width_lower_bound hα (by omega : 1 ≤ 1) d
+    (by omega : 2 ≤ 14)
+  simpa [tseitin_heawood_mediumFloor, one_mul] using h
 
 end SATurday.ProofComplexity

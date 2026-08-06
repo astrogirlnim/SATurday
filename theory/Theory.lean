@@ -10,6 +10,7 @@ import Theory.ProofComplexity.Width
 import Theory.ProofComplexity.SizeWidth
 import Theory.ProofComplexity.FinGraph
 import Theory.ProofComplexity.Tseitin
+import Theory.ProofComplexity.CSExpansion
 
 /-!
 # SATurday Theory Library
