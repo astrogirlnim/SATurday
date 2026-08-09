@@ -5,16 +5,14 @@ import Theory.ProofComplexity.SizeWidth
 # Chvatal–Szemeredi expansion for k-CNF (Ladder Rung R2, item 2)
 
 Pinned API from docs/ladder/rungs/r2-width-machinery.md: `boundaryClauses`,
-`HasCSExpansion`, `csWidthDiv`, scaffolding toward
-`cs_expansion_width_lower_bound`. Reuses certified `cnfWidth` / `cnfVars` and
-the BSW size machine from SizeWidth.lean.
+`HasCSExpansion`, `csWidthDiv`, `cs_expansion_width_lower_bound`. Reuses
+certified `cnfWidth` / `cnfVars` and the BSW size machine from SizeWidth.lean.
 
-This first cluster freezes the discrete expansion hypothesis and elementary
-boundary lemmas. The full width lower bound (complex growth with clause
-boundary substituted for graph cuts) is the next formalize target; existence
+Cluster 2 builds the clause-complex bridge (same skeleton as Tseitin, with
+`boundaryClauses` in place of `edgeBoundary`). Existence
 `exists_cs_expanding_3cnf` remains a hard probabilistic gap.
 
-LOG: R2 CSExpansion API and elementary boundary lemmas
+LOG: R2 CSExpansion complex bridge and width LB
 -/
 
 namespace SATurday.ProofComplexity
@@ -200,5 +198,229 @@ theorem cs_expansion_width_lower_bound_alpha_zero {F : CNF} {k β : ℕ}
     (d : Derivation F (∅ : Clause)) :
     csWidthFloor (cnfSupport F).card β 0 ≤ d.width := by
   simp [csWidthFloor_alpha_zero]
+
+/-! ## Semantic CS complexes (clause boundary form of the Tseitin bridge) -/
+
+/-- Sub-CNF of clauses entirely supported on `S`. -/
+def csSubCNF (F : CNF) (S : Finset ℕ) : CNF :=
+  F.filter fun C => clauseSupport C ⊆ S
+
+theorem mem_csSubCNF_iff (F : CNF) (S : Finset ℕ) (C : Clause) :
+    C ∈ csSubCNF F S ↔ C ∈ F ∧ clauseSupport C ⊆ S := by
+  simp [csSubCNF]
+
+/-- Variable set `S` semantically implies clause `C` from the sub-CNF on `S`. -/
+def csImplies (F : CNF) (S : Finset ℕ) (C : Clause) : Prop :=
+  ∀ a : Assignment, cnfSat a (csSubCNF F S) → clauseSat a C
+
+/-- Erase-minimal implying variable set. -/
+def IsEraseMinimalCSComplex (F : CNF) (S : Finset ℕ) (C : Clause) : Prop :=
+  csImplies F S C ∧ ∀ x ∈ S, ¬ csImplies F (S.erase x) C
+
+/-- Every implying set has an erase-minimal subset. -/
+theorem exists_eraseMinimalCSComplex {F : CNF} {C : Clause}
+    (S : Finset ℕ) (h : csImplies F S C) :
+    ∃ T ⊆ S, IsEraseMinimalCSComplex F T C := by
+  classical
+  revert h
+  refine Finset.strongInductionOn S ?_
+  intro S IH h
+  by_cases hmin : ∀ x ∈ S, ¬ csImplies F (S.erase x) C
+  · exact ⟨S, subset_rfl, h, hmin⟩
+  · simp only [not_forall, Classical.not_imp, not_not] at hmin
+    obtain ⟨x, hx, hximp⟩ := hmin
+    obtain ⟨T, hTsub, hTmin⟩ := IH (S.erase x) (erase_ssubset hx) hximp
+    exact ⟨T, hTsub.trans (erase_subset x S), hTmin⟩
+
+noncomputable def chooseEraseMinimalCSComplex {F : CNF} {C : Clause}
+    (S : Finset ℕ) (h : csImplies F S C) : Finset ℕ :=
+  Classical.choose (exists_eraseMinimalCSComplex S h)
+
+theorem chooseEraseMinimalCSComplex_subset {F : CNF} {C : Clause}
+    (S : Finset ℕ) (h : csImplies F S C) :
+    chooseEraseMinimalCSComplex S h ⊆ S :=
+  (Classical.choose_spec (exists_eraseMinimalCSComplex S h)).1
+
+theorem chooseEraseMinimalCSComplex_isMinimal {F : CNF} {C : Clause}
+    (S : Finset ℕ) (h : csImplies F S C) :
+    IsEraseMinimalCSComplex F (chooseEraseMinimalCSComplex S h) C :=
+  (Classical.choose_spec (exists_eraseMinimalCSComplex S h)).2
+
+/-- Boundary clauses meet the variables of `C`. -/
+def boundaryCovered (F : CNF) (S : Finset ℕ) (C : Clause) : Prop :=
+  ∀ B ∈ boundaryClauses F S, (clauseSupport B ∩ clauseVars C).Nonempty
+
+/-- Hypothesis clause is implied by its own support. -/
+theorem csImplies_hyp {F : CNF} {C : Clause} (hC : C ∈ F) :
+    csImplies F (clauseSupport C) C := by
+  intro a ha
+  exact ha C ((mem_csSubCNF_iff F _ C).mpr ⟨hC, subset_rfl⟩)
+
+/-- Implication preserved by resolution on the union of supports. -/
+theorem csImplies_resolvent {F : CNF} {C D : Clause} (x : ℕ) {S T : Finset ℕ}
+    (hC : csImplies F S C) (hD : csImplies F T D)
+    (hx : (⟨x, true⟩ : Literal) ∈ C)
+    (hnx : (⟨x, false⟩ : Literal) ∈ D) :
+    csImplies F (S ∪ T) (resolvent C D x) := by
+  intro a ha
+  have haS : cnfSat a (csSubCNF F S) := by
+    intro E hE
+    obtain ⟨hEF, hsup⟩ := (mem_csSubCNF_iff F S E).mp hE
+    exact ha E ((mem_csSubCNF_iff F (S ∪ T) E).mpr
+      ⟨hEF, hsup.trans subset_union_left⟩)
+  have haT : cnfSat a (csSubCNF F T) := by
+    intro E hE
+    obtain ⟨hEF, hsup⟩ := (mem_csSubCNF_iff F T E).mp hE
+    exact ha E ((mem_csSubCNF_iff F (S ∪ T) E).mpr
+      ⟨hEF, hsup.trans subset_union_right⟩)
+  have hCs : clauseSat a C := hC a haS
+  have hDs : clauseSat a D := hD a haT
+  by_cases hax : a x = true
+  · obtain ⟨l, hl, hla⟩ := hDs
+    have hlne : l ≠ ⟨x, false⟩ := by
+      intro heq
+      have : a x = false := by simpa [heq, litSat] using hla
+      exact Bool.false_ne_true (this.symm.trans hax)
+    exact ⟨l, mem_union.mpr (Or.inr (mem_erase.mpr ⟨hlne, hl⟩)), hla⟩
+  · obtain ⟨l, hl, hla⟩ := hCs
+    have hlne : l ≠ ⟨x, true⟩ := by
+      intro heq
+      have : a x = true := by simpa [heq, litSat] using hla
+      exact hax this
+    exact ⟨l, mem_union.mpr (Or.inl (mem_erase.mpr ⟨hlne, hl⟩)), hla⟩
+
+/-- Support of any clause of `F` lies in `cnfSupport F`. -/
+theorem clauseSupport_subset_cnfSupport {F : CNF} {C : Clause} (hC : C ∈ F) :
+    clauseSupport C ⊆ cnfSupport F := by
+  intro x hx
+  obtain ⟨l, hl, rfl⟩ := mem_image.mp hx
+  exact mem_cnfVars.mpr ⟨C, hC, l, hl, rfl⟩
+
+/-! ## Derivation-indexed CS complexes -/
+
+structure Derivation.CSComplexData {F : CNF} {C : Clause} (d : Derivation F C) where
+  S : Finset ℕ
+  isMinimal : IsEraseMinimalCSComplex F S C
+
+noncomputable def Derivation.csComplexData {F : CNF} :
+    {C : Clause} → (d : Derivation F C) → Derivation.CSComplexData d
+  | C, .hyp _ hC =>
+    ⟨chooseEraseMinimalCSComplex (clauseSupport C) (csImplies_hyp hC),
+      chooseEraseMinimalCSComplex_isMinimal (clauseSupport C) (csImplies_hyp hC)⟩
+  | _, .res x dC dD hx hnx =>
+    let pC := dC.csComplexData
+    let pD := dD.csComplexData
+    let hU := csImplies_resolvent x pC.isMinimal.1 pD.isMinimal.1 hx hnx
+    ⟨chooseEraseMinimalCSComplex (pC.S ∪ pD.S) hU,
+      chooseEraseMinimalCSComplex_isMinimal (pC.S ∪ pD.S) hU⟩
+
+noncomputable def Derivation.csComplex {F : CNF} {C : Clause}
+    (d : Derivation F C) : Finset ℕ :=
+  d.csComplexData.S
+
+theorem csComplex_isMinimal {F : CNF} {C : Clause} (d : Derivation F C) :
+    IsEraseMinimalCSComplex F d.csComplex C :=
+  d.csComplexData.isMinimal
+
+theorem csComplex_implies {F : CNF} {C : Clause} (d : Derivation F C) :
+    csImplies F d.csComplex C :=
+  (csComplex_isMinimal d).1
+
+theorem csComplex_subset_cnfSupport {F : CNF} {C : Clause} (d : Derivation F C) :
+    d.csComplex ⊆ cnfSupport F := by
+  induction d with
+  | hyp C hC =>
+    intro x hx
+    simp only [Derivation.csComplex, Derivation.csComplexData] at hx
+    have hsub :=
+      chooseEraseMinimalCSComplex_subset (clauseSupport C) (csImplies_hyp hC)
+    exact clauseSupport_subset_cnfSupport hC (hsub hx)
+  | res x dC dD hx hnx ihC ihD =>
+    intro y hy
+    simp only [Derivation.csComplex, Derivation.csComplexData] at hy
+    have hU := csImplies_resolvent x dC.csComplexData.isMinimal.1
+      dD.csComplexData.isMinimal.1 hx hnx
+    have hsub :=
+      chooseEraseMinimalCSComplex_subset (dC.csComplexData.S ∪ dD.csComplexData.S) hU
+    have hy' : y ∈ dC.csComplexData.S ∪ dD.csComplexData.S := hsub hy
+    rcases mem_union.mp hy' with h | h
+    · exact ihC (by simpa [Derivation.csComplex] using h)
+    · exact ihD (by simpa [Derivation.csComplex] using h)
+
+theorem csComplex_res_subset {F : CNF} {C D : Clause} (x : ℕ)
+    (dC : Derivation F C) (dD : Derivation F D)
+    (hx : (⟨x, true⟩ : Literal) ∈ C)
+    (hnx : (⟨x, false⟩ : Literal) ∈ D) :
+    (Derivation.res x dC dD hx hnx).csComplex ⊆
+      dC.csComplex ∪ dD.csComplex := by
+  have hU := csImplies_resolvent x dC.csComplexData.isMinimal.1
+    dD.csComplexData.isMinimal.1 hx hnx
+  simp only [Derivation.csComplex, Derivation.csComplexData]
+  exact chooseEraseMinimalCSComplex_subset (dC.csComplexData.S ∪ dD.csComplexData.S) hU
+
+/-- Empty clause is never satisfied. -/
+theorem not_clauseSat_empty_cs (a : Assignment) : ¬ clauseSat a (∅ : Clause) := by
+  simp [clauseSat]
+
+/-- The CS sub-CNF on an erase-minimal complex for `∅` is unsatisfiable. -/
+theorem csSubCNF_unsat_of_eraseMinimal_empty {F : CNF} {S : Finset ℕ}
+    (hmin : IsEraseMinimalCSComplex F S (∅ : Clause)) :
+    ¬ ∃ a, cnfSat a (csSubCNF F S) := by
+  rintro ⟨a, ha⟩
+  exact not_clauseSat_empty_cs a (hmin.1 a ha)
+
+/-- Size corollary packaging once the width LB is available. -/
+theorem cs_expansion_size_lower_bound_of_width {F : CNF} {k β α : ℕ}
+    (h : HasCSExpansion F k β α)
+    (hw : ∀ d : Derivation F (∅ : Clause),
+      csWidthFloor (cnfSupport F).card β α ≤ d.width)
+    (d : Derivation F (∅ : Clause)) :
+    let W := csWidthFloor (cnfSupport F).card β α
+    2 ^ ((W - cnfWidth F) * (W - cnfWidth F) /
+          (bswRateConst * (cnfVars F).card)) ≤ d.size := by
+  intro W
+  exact bsw_size_lower_bound F W hw d
+
+/-! ## Frontier: remaining bridge obligations for the pinned width LB -/
+
+namespace CSExpansionFrontier
+
+/-- Stuck obligation (cycle 2026-08-09): erase-minimal complexes are
+boundary-covered, with an injective variable selection so that
+`(boundaryClauses F S).card ≤ C.card`. The Tseitin flip uses edge variables;
+the CS flip needs a clause-crossing variable argument. -/
+theorem boundaryCovered_of_eraseMinimal {F : CNF} {S : Finset ℕ} {C : Clause}
+    (hmin : IsEraseMinimalCSComplex F S C) :
+    boundaryCovered F S C := by
+  sorry
+
+/-- Stuck obligation: medium-line extraction from a large CS complex for `∅`,
+parallel to `exists_medium_tseitin_complex`. -/
+theorem exists_medium_cs_complex {F : CNF} {β : ℕ}
+    (d : Derivation F (∅ : Clause)) (hβ : 0 < β)
+    (hLarge : (cnfSupport F).card / β < d.csComplex.card) :
+    ∃ (C : Clause) (dC : Derivation F C),
+      dC.csComplex.card ≤ (cnfSupport F).card / β ∧
+        csWidthFloor (cnfSupport F).card β 1 ≤ dC.csComplex.card ∧
+          dC.width ≤ d.width ∧
+            boundaryCovered F dC.csComplex C := by
+  sorry
+
+/-- Pinned width LB (Frontier until coverage and medium extraction close). -/
+theorem cs_expansion_width_lower_bound {F : CNF} {k β α : ℕ}
+    (h : HasCSExpansion F k β α) (_hα : 1 ≤ α) (_hβ : 0 < β)
+    (d : Derivation F (∅ : Clause)) :
+    csWidthFloor (cnfSupport F).card β α ≤ d.width := by
+  sorry
+
+/-- Pinned existence gap (probabilistic method; not this cycle). -/
+theorem exists_cs_expanding_3cnf :
+    ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (β α : ℕ),
+      N ≤ n ∧ (cnfVars F).card = n ∧ β = 4 ∧ α = 1 ∧
+        HasCSExpansion F 3 β α ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csWidthFloor n β α := by
+  sorry
+
+end CSExpansionFrontier
 
 end SATurday.ProofComplexity

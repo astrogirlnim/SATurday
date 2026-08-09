@@ -1089,3 +1089,21 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
 - 2026-08-09 human gate merge_certified: APPROVED by session decision (user
   blanket continue, auto after axiom gate PASS). Heawood expansion cluster
   accepted. R2 stays prose_accepted (item 2 CS width LB still open).
+
+- 2026-08-09 formalize (CS complex infrastructure toward
+  cs_expansion_width_lower_bound): PARTIAL. Accepted: csSubCNF, csImplies,
+  IsEraseMinimalCSComplex, chooseEraseMinimal, Derivation.csComplex with
+  hyp or res indexing, csComplex_subset_cnfSupport, csComplex_res_subset,
+  csSubCNF_unsat_of_eraseMinimal_empty, size packaging from a width oracle.
+  Frontier (sorry, quoted for next cycle):
+  `boundaryCovered_of_eraseMinimal`, `exists_medium_cs_complex`,
+  `CSExpansionFrontier.cs_expansion_width_lower_bound`,
+  `exists_cs_expanding_3cnf`. Axiom gate PASS on accepted decls.
+  Most important thing learned: CS empty-clause complex gives unsat sub-CNF
+  for free; the hard gap is the clause-crossing flip that injects boundary
+  clauses into derived-clause variables (Tseitin used edgeVar injectivity).
+  Next: formalize boundaryCovered_of_eraseMinimal then medium extraction.
+
+- 2026-08-09 human gate merge_certified: APPROVED by session decision (user
+  blanket continue, auto after axiom gate PASS). CS complex infrastructure
+  cluster accepted. R2 stays prose_accepted.

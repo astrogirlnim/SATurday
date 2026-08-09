@@ -584,3 +584,27 @@ SATurday.ProofComplexity.csWidthFloor_alpha_zero
 SATurday.ProofComplexity.csWidthFloor_pos_iff
 SATurday.ProofComplexity.HasCSExpansion.alpha_zero
 SATurday.ProofComplexity.cs_expansion_width_lower_bound_alpha_zero
+
+# R2 item 2 cluster 6: CS complex infrastructure (partial 2026-08-09; Frontier holds width LB)
+SATurday.ProofComplexity.csSubCNF
+SATurday.ProofComplexity.mem_csSubCNF_iff
+SATurday.ProofComplexity.csImplies
+SATurday.ProofComplexity.IsEraseMinimalCSComplex
+SATurday.ProofComplexity.exists_eraseMinimalCSComplex
+SATurday.ProofComplexity.chooseEraseMinimalCSComplex
+SATurday.ProofComplexity.chooseEraseMinimalCSComplex_subset
+SATurday.ProofComplexity.chooseEraseMinimalCSComplex_isMinimal
+SATurday.ProofComplexity.boundaryCovered
+SATurday.ProofComplexity.csImplies_hyp
+SATurday.ProofComplexity.csImplies_resolvent
+SATurday.ProofComplexity.clauseSupport_subset_cnfSupport
+SATurday.ProofComplexity.Derivation.CSComplexData
+SATurday.ProofComplexity.Derivation.csComplexData
+SATurday.ProofComplexity.Derivation.csComplex
+SATurday.ProofComplexity.csComplex_isMinimal
+SATurday.ProofComplexity.csComplex_implies
+SATurday.ProofComplexity.csComplex_subset_cnfSupport
+SATurday.ProofComplexity.csComplex_res_subset
+SATurday.ProofComplexity.not_clauseSat_empty_cs
+SATurday.ProofComplexity.csSubCNF_unsat_of_eraseMinimal_empty
+SATurday.ProofComplexity.cs_expansion_size_lower_bound_of_width
