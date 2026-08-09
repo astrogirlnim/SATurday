@@ -2,8 +2,9 @@
 
 Status: prose_accepted
 Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (item 1
-merged); FinGraph.lean and Tseitin.lean (item 2 width machine merged);
-CSExpansion.lean (item 2 API cluster merged; full width LB open)
+merged); FinGraph.lean and Tseitin.lean (item 2 width machine merged, including
+heawoodGraph_expansion); CSExpansion.lean (item 2 API cluster merged; full
+width LB open)
 
 ## Statement
 
@@ -1070,3 +1071,21 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
 - 2026-08-06 human gate merge_certified: APPROVED by session decision (user
   blanket continue, auto after axiom gate PASS). Sharp medium floor, Heawood
   scaffold, and CSExpansion API cluster accepted. R2 stays prose_accepted.
+
+- 2026-08-09 formalize (heawoodGraph_expansion and unconditional Heawood apps):
+  SUCCESS. Card-stratified Finset decide stalled; replaced with bitmask kernel
+  check `(List.range 16384).all heawoodMaskExpanding` via `decide` (not
+  native_decide), bridged by finsetToMask, bitCount, and list cut equality.
+  Certified `heawoodGraph_expansion : HasExpansion heawoodGraph 1`.
+  Tseitin: unconditional `tseitin_heawood_width_ge_four`,
+  `tseitin_heawood_size_lower_bound`, `tseitin_heawood_width_floor_gt_cnfWidth`
+  (sharp floor 4 beats cnfWidth 3). CSExpansion: boundary complement lemma and
+  alpha-zero floor packaging. Axiom gate PASS. Zero sorry.
+  Most important thing learned: Fin 14 Finset decide thrash; Nat bitmask
+  List.all decide finishes in minutes when only one lean job runs.
+  Next: formalize `cs_expansion_width_lower_bound` complex bridge and
+  `exists_cs_expanding_3cnf`.
+
+- 2026-08-09 human gate merge_certified: APPROVED by session decision (user
+  blanket continue, auto after axiom gate PASS). Heawood expansion cluster
+  accepted. R2 stays prose_accepted (item 2 CS width LB still open).

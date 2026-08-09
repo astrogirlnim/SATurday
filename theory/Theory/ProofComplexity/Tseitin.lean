@@ -20,11 +20,10 @@ the conclusion, chosen inside the parent union at resolution steps). Pin target
 `tseitinMediumFloor n = (n / 2 + 2) / 2` (Nat form of ceil of half the
 exceeding half-size union). Width LB uses the sharp floor. Coarse form
 `α * (n / tseitinWidthDiv)` is a weaker corollary. Petersen coarse floor 2 and
-sharp floor 3 do not beat `cnfWidth = 3`. Heawood sharp floor 4 beats width 3
-numerically under regularity; full `HasExpansion heawoodGraph 1` is deferred
-(kernel decide over Fin 14 did not finish).
+sharp floor 3 do not beat `cnfWidth = 3`. Heawood has `HasExpansion _ 1` and
+unconditional width ≥ 4 (sharp floor beats regular axiom width 3).
 
-LOG: R2 Tseitin sharp medium floor and Heawood numeric non-vacuity
+LOG: R2 Tseitin Heawood unconditional expander width LB
 -/
 
 namespace SATurday.ProofComplexity
@@ -1371,8 +1370,7 @@ theorem tseitin_heawood_mediumFloor :
   decide
 
 /-- Numeric non-vacuity seed: Heawood sharp floor strictly beats 3-regular axiom
-width. Applying the width LB still needs `HasExpansion heawoodGraph 1`
-(deferred; see FinGraph.lean). -/
+width (4 > 3). -/
 theorem tseitin_heawood_width_beats_cnfWidth
     (χ : Charge 14) (_hχ : oddCharge χ) :
     cnfWidth (tseitinCNF heawoodGraph χ) < 1 * tseitinMediumFloor 14 := by
@@ -1381,7 +1379,7 @@ theorem tseitin_heawood_width_beats_cnfWidth
     cnfWidth_tseitinCNF_of_regular heawoodGraph_regular hn (by omega)
   simp [hW, tseitin_heawood_mediumFloor]
 
-/-- Conditional width instantiation: expansion on Heawood yields width ≥ 4. -/
+/-- Conditional packaging kept for pin compatibility; unconditional form below. -/
 theorem tseitin_heawood_width_ge_four_of_expansion
     (hα : HasExpansion heawoodGraph 1)
     (χ : Charge 14) (_hχ : oddCharge χ)
@@ -1390,5 +1388,29 @@ theorem tseitin_heawood_width_ge_four_of_expansion
   have h := tseitin_expander_width_lower_bound hα (by omega : 1 ≤ 1) d
     (by omega : 2 ≤ 14)
   simpa [tseitin_heawood_mediumFloor, one_mul] using h
+
+/-- Unconditional Heawood width LB: every refutation has width at least 4. -/
+theorem tseitin_heawood_width_ge_four
+    (χ : Charge 14) (hχ : oddCharge χ)
+    (d : Derivation (tseitinCNF heawoodGraph χ) (∅ : Clause)) :
+    4 ≤ d.width :=
+  tseitin_heawood_width_ge_four_of_expansion heawoodGraph_expansion χ hχ d
+
+/-- Unconditional Heawood size LB via BSW at width floor 4. -/
+theorem tseitin_heawood_size_lower_bound
+    (χ : Charge 14) (hχ : oddCharge χ)
+    (d : Derivation (tseitinCNF heawoodGraph χ) (∅ : Clause)) :
+    let W := 1 * tseitinMediumFloor 14
+    2 ^ ((W - cnfWidth (tseitinCNF heawoodGraph χ)) *
+          (W - cnfWidth (tseitinCNF heawoodGraph χ)) /
+          (bswRateConst * (cnfVars (tseitinCNF heawoodGraph χ)).card)) ≤ d.size := by
+  exact tseitin_expander_size_lower_bound heawoodGraph_expansion (by omega : 1 ≤ 1)
+    hχ d (by omega : 2 ≤ 14)
+
+/-- Concrete non-vacuity with the standard single-vertex odd charge. -/
+theorem tseitin_heawood_width_floor_gt_cnfWidth :
+    cnfWidth (tseitinCNF heawoodGraph (oddCharge_single 14 ⟨0, by omega⟩)) <
+      1 * tseitinMediumFloor 14 :=
+  tseitin_heawood_width_beats_cnfWidth _ (oddCharge_single_odd 14 ⟨0, by omega⟩)
 
 end SATurday.ProofComplexity

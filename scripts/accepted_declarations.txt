@@ -573,3 +573,14 @@ SATurday.ProofComplexity.CSExpansionSizeLowerBoundStatement
 SATurday.ProofComplexity.cs_expansion_width_lower_bound_of_floor_zero
 SATurday.ProofComplexity.csWidthFloor_beta_zero
 SATurday.ProofComplexity.singleton_mem_boundaryClauses
+
+# R2 item 2 cluster 5: Heawood expansion and unconditional Tseitin apps (certified 2026-08-09)
+SATurday.ProofComplexity.heawoodGraph_expansion
+SATurday.ProofComplexity.tseitin_heawood_width_ge_four
+SATurday.ProofComplexity.tseitin_heawood_size_lower_bound
+SATurday.ProofComplexity.tseitin_heawood_width_floor_gt_cnfWidth
+SATurday.ProofComplexity.boundaryClauses_sdiff_support
+SATurday.ProofComplexity.csWidthFloor_alpha_zero
+SATurday.ProofComplexity.csWidthFloor_pos_iff
+SATurday.ProofComplexity.HasCSExpansion.alpha_zero
+SATurday.ProofComplexity.cs_expansion_width_lower_bound_alpha_zero

@@ -14,7 +14,12 @@ Cluster 1b certifies `petersenGraph_expansion` at pinned alpha = 1. That factor
 is honest and tight on this encoding (some half-size sets have cut ratio exactly
 1; alpha = 2 is false).
 
-LOG: R2 FinGraph API Petersen construction and expansion
+Cluster 1c certifies `heawoodGraph_expansion` at alpha = 1 via a bitmask
+kernel check over all `2^14` masks (List.all + decide, not native_decide),
+bridged to `HasExpansion` by relating masks to vertex sets and list cuts to
+`edgeBoundary`. Half-size sets of card > 7 are exempt by the hypothesis.
+
+LOG: R2 FinGraph API Petersen Heawood construction and expansion
 -/
 
 namespace SATurday.ProofComplexity
@@ -342,12 +347,191 @@ theorem heawoodGraph_singleton_boundary (v : Fin 14) :
     (edgeBoundary heawoodGraph ({v} : Finset (Fin 14))).card = 3 := by
   simpa [edgeBoundary_singleton] using heawoodGraph_regular v
 
-/-
-Heawood `HasExpansion _ 1` is true combinatorially (verified externally on all
-subsets of size 1..7) but the Lean kernel `decide` over `Fin 14` powersets did
-not finish in-session. Expansion certification is deferred; construction and
-3-regularity are certified above. Do not claim `heawoodGraph_expansion` until
-a finishing kernel or combinatorial proof lands.
--/
+/-! ## Heawood expansion (alpha = 1), bitmask kernel check -/
+
+set_option maxRecDepth 100000
+set_option maxHeartbeats 80000000
+
+private instance : Std.Commutative (fun x y : ℕ => x ||| y) := ⟨Nat.or_comm⟩
+private instance : Std.Associative (fun x y : ℕ => x ||| y) := ⟨Nat.or_assoc⟩
+
+/-- Bitmask of a vertex set: bit `v.val` set iff `v ∈ S`. -/
+private def heawoodFinsetToMask (S : Finset (Fin 14)) : ℕ :=
+  S.fold (fun x y => x ||| y) 0 (fun v : Fin 14 => 2 ^ v.val)
+
+private theorem heawood_testBit_finsetToMask (S : Finset (Fin 14)) (i : Fin 14) :
+    (heawoodFinsetToMask S).testBit i.val = true ↔ i ∈ S := by
+  induction S using Finset.induction_on with
+  | empty => simp [heawoodFinsetToMask]
+  | insert a s ha ih =>
+    simp only [heawoodFinsetToMask, Finset.fold_insert ha]
+    rw [Nat.testBit_or, Nat.testBit_two_pow, Bool.or_eq_true, decide_eq_true_eq]
+    rw [mem_insert]
+    constructor
+    · rintro (hval | hbit)
+      · exact Or.inl (Fin.ext hval).symm
+      · exact Or.inr (ih.mp hbit)
+    · rintro (hia | his)
+      · exact Or.inl (congrArg Fin.val hia.symm)
+      · exact Or.inr (ih.mpr his)
+
+private theorem heawoodFinsetToMask_lt (S : Finset (Fin 14)) :
+    heawoodFinsetToMask S < 2 ^ 14 := by
+  induction S using Finset.induction_on with
+  | empty => simp [heawoodFinsetToMask]
+  | insert a s ha ih =>
+    simp only [heawoodFinsetToMask, Finset.fold_insert ha]
+    exact Nat.or_lt_two_pow (Nat.pow_lt_pow_right (by decide : 1 < 2) a.isLt) ih
+
+/-- Vertex set recovered from a bitmask. -/
+private def heawoodSetOfMask (mask : ℕ) : Finset (Fin 14) :=
+  univ.filter fun v => mask.testBit v.val
+
+private theorem heawoodSetOfMask_finsetToMask (S : Finset (Fin 14)) :
+    heawoodSetOfMask (heawoodFinsetToMask S) = S := by
+  ext v; simp [heawoodSetOfMask, heawood_testBit_finsetToMask]
+
+/-- Population count on the low 14 bits (List form keeps kernel checks light). -/
+private def heawoodBitCount14 (mask : ℕ) : ℕ :=
+  ((List.range 14).filter fun i => mask.testBit i).length
+
+private theorem heawoodBitCount14_eq_setOfMask (mask : ℕ) :
+    heawoodBitCount14 mask = (heawoodSetOfMask mask).card := by
+  simp only [heawoodBitCount14, heawoodSetOfMask]
+  have hmap : (List.finRange 14).map Fin.val = List.range 14 := by decide
+  rw [← hmap, List.filter_map]
+  change (List.map Fin.val
+      (List.filter (fun v => mask.testBit v.val) (List.finRange 14))).length =
+    (univ.filter fun v : Fin 14 => mask.testBit v.val).card
+  rw [List.length_map]
+  have hfilter :
+      List.filter (fun v => mask.testBit v.val) (List.finRange 14) =
+        List.filter (fun v => decide (mask.testBit v.val = true)) (List.finRange 14) := by
+    congr 1
+    ext v
+    simp
+  rw [hfilter]
+  have hnodup :
+      (List.filter (fun v => decide (mask.testBit v.val = true)) (List.finRange 14)).Nodup :=
+    (List.nodup_finRange 14).filter _
+  rw [← List.toFinset_card_of_nodup hnodup, List.toFinset_filter]
+  congr 1
+  ext v
+  simp
+
+private theorem heawoodBitCount14_finsetToMask (S : Finset (Fin 14)) :
+    heawoodBitCount14 (heawoodFinsetToMask S) = S.card := by
+  rw [heawoodBitCount14_eq_setOfMask, heawoodSetOfMask_finsetToMask]
+
+/-- Nat endpoint pairs for the Heawood edge list (kernel-friendly cuts). -/
+private def heawoodEdgePairs : List (ℕ × ℕ) :=
+  [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (0, 6),
+    (0, 7), (1, 8), (2, 9), (3, 10), (4, 11), (5, 12), (6, 13),
+    (7, 9), (8, 10), (9, 11), (10, 12), (11, 13), (7, 12), (8, 13)]
+
+/-- Concrete `FinEdge` list matching `heawoodGraph`. -/
+private def heawoodEdgePairList : List (FinEdge 14) :=
+  [hEdge 0 1, hEdge 1 2, hEdge 2 3, hEdge 3 4, hEdge 4 5, hEdge 5 6, hEdge 0 6,
+    hEdge 0 7, hEdge 1 8, hEdge 2 9, hEdge 3 10, hEdge 4 11, hEdge 5 12, hEdge 6 13,
+    hEdge 7 9, hEdge 8 10, hEdge 9 11, hEdge 10 12, hEdge 11 13, hEdge 7 12, hEdge 8 13]
+
+private theorem heawood_pairs_as_endpoints :
+    heawoodEdgePairs =
+      heawoodEdgePairList.map fun e => (e.val.1.val, e.val.2.val) := by decide
+
+private theorem heawoodGraph_eq_pairList :
+    heawoodGraph = heawoodEdgePairList.toFinset := by decide
+
+private theorem heawoodEdgePairList_nodup : heawoodEdgePairList.Nodup := by decide
+
+/-- Cut size of a bitmask against the Nat endpoint list. -/
+private def heawoodCutMask (mask : ℕ) : ℕ :=
+  (heawoodEdgePairs.filter fun e => mask.testBit e.1 != mask.testBit e.2).length
+
+private theorem heawoodCutMask_eq_listFilter (mask : ℕ) :
+    heawoodCutMask mask =
+      (heawoodEdgePairList.filter fun e =>
+        mask.testBit e.val.1.val != mask.testBit e.val.2.val).length := by
+  simp only [heawoodCutMask]
+  rw [heawood_pairs_as_endpoints, List.filter_map]
+  simp only [List.length_map, Function.comp]
+  rfl
+
+private theorem heawood_mem_xor_iff (S : Finset (Fin 14)) (e : FinEdge 14) :
+    ((e.val.1 ∈ S ∧ e.val.2 ∉ S) ∨ (e.val.1 ∉ S ∧ e.val.2 ∈ S)) ↔
+      ((heawoodFinsetToMask S).testBit e.val.1.val !=
+        (heawoodFinsetToMask S).testBit e.val.2.val) := by
+  have h1 := heawood_testBit_finsetToMask S e.val.1
+  have h2 := heawood_testBit_finsetToMask S e.val.2
+  cases hA : (heawoodFinsetToMask S).testBit e.val.1.val <;>
+    cases hB : (heawoodFinsetToMask S).testBit e.val.2.val
+  · have hn1 : e.val.1 ∉ S := by
+      intro h; simp [h1.mpr h] at hA
+    have hn2 : e.val.2 ∉ S := by
+      intro h; simp [h2.mpr h] at hB
+    simp [hn1, hn2]
+  · have hn1 : e.val.1 ∉ S := by
+      intro h; simp [h1.mpr h] at hA
+    have hy2 : e.val.2 ∈ S := h2.mp (by simp [hB])
+    simp [hn1, hy2]
+  · have hy1 : e.val.1 ∈ S := h1.mp (by simp [hA])
+    have hn2 : e.val.2 ∉ S := by
+      intro h; simp [h2.mpr h] at hB
+    simp [hy1, hn2]
+  · have hy1 : e.val.1 ∈ S := h1.mp (by simp [hA])
+    have hy2 : e.val.2 ∈ S := h2.mp (by simp [hB])
+    simp [hy1, hy2]
+
+private theorem heawood_edgeBoundary_card_eq_cutMask (S : Finset (Fin 14)) :
+    (edgeBoundary heawoodGraph S).card = heawoodCutMask (heawoodFinsetToMask S) := by
+  rw [heawoodCutMask_eq_listFilter]
+  simp only [edgeBoundary]
+  rw [heawoodGraph_eq_pairList]
+  set Pbool := fun e : FinEdge 14 =>
+    (heawoodFinsetToMask S).testBit e.val.1.val !=
+      (heawoodFinsetToMask S).testBit e.val.2.val
+  have hnodup : (heawoodEdgePairList.filter Pbool).Nodup :=
+    heawoodEdgePairList_nodup.filter _
+  rw [← List.toFinset_card_of_nodup hnodup, List.toFinset_filter]
+  congr 1
+  ext e
+  simp only [mem_filter, List.mem_toFinset, Pbool]
+  constructor
+  · rintro ⟨he, hcut⟩
+    exact ⟨he, (heawood_mem_xor_iff S e).mp hcut⟩
+  · rintro ⟨he, hxor⟩
+    exact ⟨he, (heawood_mem_xor_iff S e).mpr hxor⟩
+
+/-- Mask-level expansion predicate (empty / over-half exempt). -/
+private def heawoodMaskExpanding (mask : ℕ) : Bool :=
+  let c := heawoodBitCount14 mask
+  decide (c = 0 ∨ 14 < 2 * c ∨ c ≤ heawoodCutMask mask)
+
+/-- Kernel check: every 14-bit mask is expanding at alpha = 1. -/
+private theorem heawood_masks_expanding :
+    (List.range 16384).all heawoodMaskExpanding = true := by
+  decide
+
+/-- Heawood has integer edge expansion factor 1. -/
+theorem heawoodGraph_expansion : HasExpansion heawoodGraph 1 := by
+  intro S hne hhalf
+  have hm : heawoodFinsetToMask S ∈ List.range 16384 :=
+    List.mem_range.mpr (heawoodFinsetToMask_lt S)
+  have hbool : heawoodMaskExpanding (heawoodFinsetToMask S) = true :=
+    (List.all_eq_true.mp heawood_masks_expanding) _ hm
+  have hc : heawoodBitCount14 (heawoodFinsetToMask S) = S.card :=
+    heawoodBitCount14_finsetToMask S
+  have hcut :
+      (edgeBoundary heawoodGraph S).card = heawoodCutMask (heawoodFinsetToMask S) :=
+    heawood_edgeBoundary_card_eq_cutMask S
+  simp only [heawoodMaskExpanding, hc] at hbool
+  have hprop :
+      S.card = 0 ∨ 14 < 2 * S.card ∨
+        S.card ≤ heawoodCutMask (heawoodFinsetToMask S) :=
+    of_decide_eq_true hbool
+  rcases hprop with h0 | hbig | hle
+  · exact (hne.ne_empty (card_eq_zero.mp h0)).elim
+  · exact (lt_irrefl _ (lt_of_lt_of_le hbig hhalf)).elim
+  · simpa [one_mul, hcut] using hle
 
 end SATurday.ProofComplexity

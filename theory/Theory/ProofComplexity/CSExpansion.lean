@@ -135,4 +135,70 @@ theorem singleton_mem_boundaryClauses {F : CNF} {x y : ℕ} {C : Clause}
   · refine ⟨y, mem_inter.mpr ⟨hyC, mem_sdiff.mpr ⟨hy, ?_⟩⟩⟩
     simp [hne.symm]
 
+/-- CS boundary is unchanged when `S` is replaced by its complement in the support. -/
+theorem boundaryClauses_sdiff_support (F : CNF) (S : Finset ℕ)
+    (hS : S ⊆ cnfSupport F) :
+    boundaryClauses F S = boundaryClauses F (cnfSupport F \ S) := by
+  ext C
+  simp only [mem_boundaryClauses_iff]
+  constructor
+  · rintro ⟨hC, hIn, hOut⟩
+    refine ⟨hC, ?_, ?_⟩
+    · -- old outside becomes new inside
+      obtain ⟨x, hx⟩ := hOut
+      exact ⟨x, by
+        have hxC : x ∈ clauseSupport C := (mem_inter.mp hx).1
+        have hxSupp : x ∈ cnfSupport F \ S := (mem_inter.mp hx).2
+        exact mem_inter.mpr ⟨hxC, hxSupp⟩⟩
+    · obtain ⟨y, hy⟩ := hIn
+      have hyC : y ∈ clauseSupport C := (mem_inter.mp hy).1
+      have hyS : y ∈ S := (mem_inter.mp hy).2
+      have hySupp : y ∈ cnfSupport F := hS hyS
+      refine ⟨y, mem_inter.mpr ⟨hyC, mem_sdiff.mpr ⟨hySupp, ?_⟩⟩⟩
+      intro hyIn
+      exact (mem_sdiff.mp hyIn).2 hyS
+  · rintro ⟨hC, hIn, hOut⟩
+    refine ⟨hC, ?_, ?_⟩
+    · obtain ⟨y, hy⟩ := hOut
+      have hyC : y ∈ clauseSupport C := (mem_inter.mp hy).1
+      have hyNot : y ∈ cnfSupport F \ (cnfSupport F \ S) := (mem_inter.mp hy).2
+      have hyS : y ∈ S := by
+        have : y ∈ cnfSupport F ∧ y ∉ cnfSupport F \ S := mem_sdiff.mp hyNot
+        by_contra hny
+        exact this.2 (mem_sdiff.mpr ⟨this.1, hny⟩)
+      exact ⟨y, mem_inter.mpr ⟨hyC, hyS⟩⟩
+    · obtain ⟨x, hx⟩ := hIn
+      exact ⟨x, by
+        have hxC : x ∈ clauseSupport C := (mem_inter.mp hx).1
+        have hxSupp : x ∈ cnfSupport F \ S := (mem_inter.mp hx).2
+        exact mem_inter.mpr ⟨hxC, hxSupp⟩⟩
+
+/-- Floor packaging with `α = 0` is identically zero. -/
+theorem csWidthFloor_alpha_zero (n β : ℕ) :
+    csWidthFloor n β 0 = 0 := by
+  simp [csWidthFloor]
+
+/-- Positive CS floor requires positive parameters and large enough support. -/
+theorem csWidthFloor_pos_iff (n β α : ℕ) (hβ : 0 < β) :
+    0 < csWidthFloor n β α ↔ csWidthDiv * β ≤ α * n := by
+  simp only [csWidthFloor, csWidthDiv]
+  have hden : 0 < 2 * β := Nat.mul_pos (by decide : (0 : ℕ) < 2) hβ
+  constructor
+  · intro h
+    simpa using (Nat.le_div_iff_mul_le hden).1 (Nat.succ_le_of_lt h)
+  · intro h
+    exact Nat.div_pos h hden
+
+/-- Trivial CS expansion when `α = 0`: width bound plus vacuous boundary. -/
+theorem HasCSExpansion.alpha_zero {F : CNF} {k β : ℕ}
+    (hw : cnfWidth F ≤ k) : HasCSExpansion F k β 0 :=
+  ⟨hw, fun S _ _ _ => by simp⟩
+
+/-- Width LB statement holds under `α = 0` (floor vanishes). -/
+theorem cs_expansion_width_lower_bound_alpha_zero {F : CNF} {k β : ℕ}
+    (_h : HasCSExpansion F k β 0)
+    (d : Derivation F (∅ : Clause)) :
+    csWidthFloor (cnfSupport F).card β 0 ≤ d.width := by
+  simp [csWidthFloor_alpha_zero]
+
 end SATurday.ProofComplexity
