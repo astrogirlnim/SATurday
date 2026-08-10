@@ -347,3 +347,54 @@ lower bound via the bridge.
 
   Result: PARTIAL. InP nonvacuity certified. Next: formalize pairing verifier
   for InP_implies_InNP or start FormulaEncoding.
+
+- 2026-08-10 formalize (encodePair projFirst toward InP_implies_InNP): PARTIAL.
+
+  Target this cycle: close `InP_implies_InNP` (encodePair verifier for P ⊆ NP);
+  leave `classP_eq_classNP_implies_NP_eq_coNP` Frontier unless it falls out cleanly.
+  Do not edit CSExpansion.lean or R2 CS path.
+
+  Existing names verified before editing (no guessing):
+  - mathlib: Turing.TM2ComputableInPolyTime, TM2.step, TM2.stepAux, FinTM2,
+    initList, haltList, EvalsToInTime, proof_wanted TM2ComputableInPolyTime.comp
+  - repo: theory/Theory/ProofComplexity/Bridge/Encoding.lean (encodePair,
+    decodePair, idBitEnc, bitEnc, length_encodePair),
+    Complexity.lean (InP, InNP, ignoreWitness, zeroWitnessBound,
+    constBitComputableInPolyTime); CSExpansion.lean left untouched
+  - docs: docs/ladder/rungs/r5-cook-reckhow-bridge.md
+
+  Variables and declarations used:
+  - ProjStack (inp, work, out), ProjLabel (parse, expectBit, clear, rev)
+  - projFirstComputer, projStk, projCfg
+  - proj_step_parse_true, proj_step_parse_false, proj_step_expectBit,
+    proj_step_clear_cons, proj_step_clear_nil, proj_step_rev_cons,
+    proj_step_rev_nil, projFirst_initList, projFirst_haltList
+  - proj_evals_one_bit, proj_evals_parse, proj_evals_to_clear,
+    proj_evals_clear_one, proj_evals_clear_nil, proj_evals_clear,
+    proj_evals_rev_one, proj_evals_rev_nil, proj_evals_rev
+  - evalsToInTime_le_mono, projFirst_evals, projFirstTime, projFirstTime_bound
+  - projFirstComputableInPolyTime
+  - ignoreWitness_under_fst, ignoreWitness_zero_correct
+
+  Accepted (axiom gate PASS, merge_certified auto applied):
+  - SATurday.Bridge.proj_step_* and projFirst_initList / haltList
+  - SATurday.Bridge.projFirstTime_bound
+  - SATurday.Bridge.evalsToInTime_le_mono
+  - SATurday.Bridge.projFirst_evals
+  - SATurday.Bridge.projFirstComputableInPolyTime
+  - SATurday.Bridge.ignoreWitness_under_fst
+  - SATurday.Bridge.ignoreWitness_zero_correct
+
+  Frontier remaining: InP_implies_InNP (needs local TM2ComputableInPolyTime.comp
+  of projFirstComputableInPolyTime with the InP witness);
+  classP_eq_classNP_implies_NP_eq_coNP (needs P closed under complement).
+  Learned: Function.update equalities across FinTM2.kDecidableEq versus the
+  ambient DecidableEq instance do not unify; prove stack residuals by funext
+  and cases. Composition remains the hard gap (mathlib proof_wanted).
+
+  Result: PARTIAL. encodePair first projection certified; full P ⊆ NP blocked
+  on composition. Next: formalize local composition for Bool pair encodings,
+  or prove P closed under complement for bridge theorem 2.
+
+  Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
+  scripts/accepted_declarations.txt

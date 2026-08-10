@@ -703,3 +703,20 @@ SATurday.Bridge.constBitComputer_haltList
 SATurday.Bridge.constBitTime_eval
 SATurday.Bridge.emptyLanguage_in_P
 SATurday.Bridge.fullLanguage_in_P
+
+# R5 Cook Reckhow bridge: encodePair projFirst toward InP_implies_InNP (2026-08-10 formalize)
+SATurday.Bridge.proj_step_parse_true
+SATurday.Bridge.proj_step_parse_false
+SATurday.Bridge.proj_step_expectBit
+SATurday.Bridge.proj_step_clear_cons
+SATurday.Bridge.proj_step_clear_nil
+SATurday.Bridge.proj_step_rev_cons
+SATurday.Bridge.proj_step_rev_nil
+SATurday.Bridge.projFirst_initList
+SATurday.Bridge.projFirst_haltList
+SATurday.Bridge.projFirstTime_bound
+SATurday.Bridge.ignoreWitness_zero_correct
+SATurday.Bridge.evalsToInTime_le_mono
+SATurday.Bridge.projFirst_evals
+SATurday.Bridge.projFirstComputableInPolyTime
+SATurday.Bridge.ignoreWitness_under_fst
