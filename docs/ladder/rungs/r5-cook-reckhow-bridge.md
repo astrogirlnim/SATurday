@@ -1,7 +1,7 @@
 # R5: Cook-Reckhow Bridge
 
 Status: active
-Lean home: theory/Theory/ProofComplexity/Bridge/ (planned tree; not yet created)
+Lean home: theory/Theory/ProofComplexity/Bridge/ (Encoding.lean and Complexity.lean started)
 Namespace plan: SATurday.Bridge (separate from SATurday.ProofComplexity)
 
 ## Statement (pinned 2026-08-04 prove)
@@ -251,3 +251,55 @@ lower bound via the bridge.
   first.
 
   Artifacts: docs/ladder/rungs/r5-cook-reckhow-bridge.md
+
+- 2026-08-10 formalize (Encoding and Complexity cluster): PARTIAL.
+
+  Target this cycle: start Bridge module tree with Encoding.lean and
+  Complexity.lean; certify pairing encodings and InP InNP InCoNP statement
+  shapes; wire into Theory.lean; axiom gate; merge certified cluster.
+
+  Existing names verified before writing (no guessing):
+  - mathlib: Turing.TM2ComputableInPolyTime, idComputableInPolyTime,
+    Computability.encodeBool, FinTM2, TM2.Stmt
+  - repo: no Bridge/ files existed; ProofComplexity has Resolution PHP Width
+    SizeWidth FinGraph Tseitin CSExpansion and related R0 R1 R2 modules
+    (CSExpansion left untouched; parallel R2 agent)
+  - docs: docs/ladder/rungs/r5-cook-reckhow-bridge.md; docs/file_structure.md
+    absent
+
+  Variables and declarations used:
+  - Language, idBitEnc, bitEnc, encodePair, decodePair
+  - InP, InNP, InCoNP, complement
+  - ClassP_eq_ClassNP, ClassNP_eq_ClassCoNP
+  - emptyLanguage, fullLanguage, ignoreWitness, zeroWitnessBound
+  - constBitComputer, constBitTime (defs; correctness Frontier)
+  - BridgeFrontier: constBitComputableInPolyTime, emptyLanguage_in_P,
+    fullLanguage_in_P, InP_implies_InNP, classP_eq_classNP_implies_NP_eq_coNP
+
+  Accepted (axiom gate PASS, merge_certified auto applied):
+  - SATurday.Bridge.bitEnc_eq_encodeBool
+  - SATurday.Bridge.decodePair_encodePair
+  - SATurday.Bridge.encodePair_injective
+  - SATurday.Bridge.length_encodePair
+  - SATurday.Bridge.encodePair_ne_nil
+  - SATurday.Bridge.length_bitEnc
+  - SATurday.Bridge.bitEnc_injective
+  - SATurday.Bridge.InCoNP_iff
+  - SATurday.Bridge.complement_complement
+  - SATurday.Bridge.InNP_complement_complement
+  - SATurday.Bridge.ClassNP_eq_ClassCoNP.complement_in_NP
+  - SATurday.Bridge.constFalse_decides_empty
+  - SATurday.Bridge.constTrue_decides_full
+  - SATurday.Bridge.empty_witness_length_bound
+
+  Frontier remaining: constant bit TM2 run lemmas and InP nonvacuity; Psubseteq
+  NP via encodePair verifier; bridge theorem 2 (needs P closed under
+  complement). FormulaEncoding ProofSystem CookReckhow not started.
+
+  Result: PARTIAL. Smallest coherent certified cluster compiles and is gated.
+  Next: formalize constBitComputableInPolyTime (close emptyLanguage_in_P) or
+  start FormulaEncoding.
+
+  Artifacts: theory/Theory/ProofComplexity/Bridge/Encoding.lean,
+  theory/Theory/ProofComplexity/Bridge/Complexity.lean, theory/Theory.lean,
+  scripts/accepted_declarations.txt

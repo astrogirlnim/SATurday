@@ -11,6 +11,8 @@ import Theory.ProofComplexity.SizeWidth
 import Theory.ProofComplexity.FinGraph
 import Theory.ProofComplexity.Tseitin
 import Theory.ProofComplexity.CSExpansion
+import Theory.ProofComplexity.Bridge.Encoding
+import Theory.ProofComplexity.Bridge.Complexity
 
 /-!
 # SATurday Theory Library
@@ -24,6 +26,7 @@ after the program audit; see docs/postmortems/ for the reasons.
 ## Modules
 - `Theory.Basic`: fundamental smoke lemmas verifying the Lean setup
 - `Theory.ProofComplexity.*`: the active ladder (resolution first)
+- `Theory.ProofComplexity.Bridge.*`: R5 Cook Reckhow bridge (P NP coNP)
 
 Acceptance bar for anything imported here: compiles, zero sorries, and
 axioms limited to propext, Classical.choice, Quot.sound

@@ -662,3 +662,19 @@ SATurday.ProofComplexity.clauseSetBoundary_singleton
 SATurday.ProofComplexity.isCSMatchable_of_minimallyUnsat
 SATurday.ProofComplexity.exists_minimallyUnsat_subset
 SATurday.ProofComplexity.exists_matchable_subset_of_unsat
+
+# R5 Cook Reckhow bridge: Encoding and Complexity cluster (2026-08-10 formalize)
+SATurday.Bridge.bitEnc_eq_encodeBool
+SATurday.Bridge.decodePair_encodePair
+SATurday.Bridge.encodePair_injective
+SATurday.Bridge.length_encodePair
+SATurday.Bridge.encodePair_ne_nil
+SATurday.Bridge.length_bitEnc
+SATurday.Bridge.bitEnc_injective
+SATurday.Bridge.InCoNP_iff
+SATurday.Bridge.complement_complement
+SATurday.Bridge.InNP_complement_complement
+SATurday.Bridge.ClassNP_eq_ClassCoNP.complement_in_NP
+SATurday.Bridge.constFalse_decides_empty
+SATurday.Bridge.constTrue_decides_full
+SATurday.Bridge.empty_witness_length_bound
