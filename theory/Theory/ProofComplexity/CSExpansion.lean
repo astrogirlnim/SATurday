@@ -4,15 +4,14 @@ import Theory.ProofComplexity.SizeWidth
 /-!
 # Chvatal–Szemeredi expansion for k-CNF (Ladder Rung R2, item 2)
 
-Pinned API from docs/ladder/rungs/r2-width-machinery.md: `boundaryClauses`,
-`HasCSExpansion`, `csWidthDiv`, `cs_expansion_width_lower_bound`. Reuses
-certified `cnfWidth` / `cnfVars` and the BSW size machine from SizeWidth.lean.
+Critical path (pin restated 2026-08-09): `IsCSMatchable`, `HasCSClauseExpansion`,
+`csClauseWidthFloor`, certified `cs_clause_expansion_width_lower_bound`.
+Existence target: `exists_cs_clause_expanding_3cnf` (Frontier).
 
-Cluster 2 builds the clause-complex bridge (same skeleton as Tseitin, with
-`boundaryClauses` in place of `edgeBoundary`). Existence
-`exists_cs_expanding_3cnf` remains a hard probabilistic gap.
+Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
+and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
 
-LOG: R2 CSExpansion complex bridge and width LB
+Reuses certified `cnfWidth` / `cnfVars` and the BSW size machine from SizeWidth.
 -/
 
 namespace SATurday.ProofComplexity
@@ -846,31 +845,166 @@ theorem cs_clause_expansion_size_lower_bound {F : CNF} {r α : ℕ}
   exact bsw_size_lower_bound F W
     (fun d' => cs_clause_expansion_width_lower_bound hMatch hExp hr d') d
 
-/-! ## Frontier: pinned variable-side HasCSExpansion and existence -/
+/-! ## Minimal unsatisfiability (matchability infrastructure)
+
+Matchability of scale `r = |F| - 1` is immediate from minimal unsatisfiability:
+every proper subset of a minimally unsat CNF is satisfiable. This shrinks the
+existence gap without claiming probabilistic expansion. -/
+
+/-- `F` is unsatisfiable, and deleting any single clause restores satisfiability. -/
+def IsMinimallyUnsat (F : CNF) : Prop :=
+  ¬ Satisfiable F ∧ ∀ C ∈ F, Satisfiable (F.erase C)
+
+/-- Empty CNF is satisfiable (vacuous conjunction). -/
+theorem Satisfiable_empty : Satisfiable (∅ : CNF) :=
+  ⟨fun _ => true, fun C hC => by cases hC⟩
+
+/-- Satisfiability is downward closed under axiom deletion (subset). -/
+theorem Satisfiable.mono_subset {F G : CNF} (hFG : F ⊆ G) (h : Satisfiable G) :
+    Satisfiable F := by
+  obtain ⟨a, ha⟩ := h
+  exact ⟨a, fun C hC => ha C (hFG hC)⟩
+
+/-- Projection of minimal unsatisfiability. -/
+theorem IsMinimallyUnsat.not_satisfiable {F : CNF} (h : IsMinimallyUnsat F) :
+    ¬ Satisfiable F :=
+  h.1
+
+/-- Singleton empty clause is the smallest minimally unsatisfiable CNF. -/
+theorem isMinimallyUnsat_singleton_empty :
+    IsMinimallyUnsat ({(∅ : Clause)} : CNF) := by
+  refine ⟨?_, ?_⟩
+  · -- Empty clause is never satisfied.
+    rintro ⟨a, ha⟩
+    exact not_clauseSat_empty_cs a (ha (∅ : Clause) (mem_singleton_self _))
+  · intro C hC
+    have hCeq : C = (∅ : Clause) := mem_singleton.mp hC
+    simpa [hCeq] using Satisfiable_empty
+
+/-- Matchability is monotone in the scale parameter. -/
+theorem IsCSMatchable.mono {F : CNF} {r r' : ℕ}
+    (h : IsCSMatchable F r) (hle : r' ≤ r) : IsCSMatchable F r' :=
+  fun G hG hcard => h G hG (hcard.trans hle)
+
+/-- Floor at expansion factor one is half the matchability scale. -/
+theorem csClauseWidthFloor_one (r : ℕ) : csClauseWidthFloor r 1 = r / 2 := by
+  simp [csClauseWidthFloor]
+
+/-- Vacuous clause-set expansion at α = 0. -/
+theorem HasCSClauseExpansion.alpha_zero (F : CNF) (r : ℕ) :
+    HasCSClauseExpansion F r 0 :=
+  fun _G _hG _hlo _hhi => by simp
+
+/-- Singleton axiom sets have boundary equal to the clause support. -/
+theorem clauseSetBoundary_singleton (C : Clause) :
+    clauseSetBoundary ({C} : Finset Clause) = clauseSupport C := by
+  ext x
+  constructor
+  · intro hx
+    have hx' := (mem_clauseSetBoundary_iff _ x).mp hx
+    obtain ⟨D, hD, hxD⟩ := mem_biUnion.mp hx'.1
+    have hDeq : D = C := mem_singleton.mp hD
+    simpa [hDeq] using hxD
+  · intro hx
+    refine (mem_clauseSetBoundary_iff _ x).mpr ⟨?_, ?_⟩
+    · exact mem_biUnion.mpr ⟨C, mem_singleton_self _, hx⟩
+    · -- Unique owner is C itself.
+      have hfilt : ({C} : Finset Clause).filter (fun D => x ∈ clauseSupport D) = {C} := by
+        ext D
+        constructor
+        · intro hD
+          have hDsing : D = C := mem_singleton.mp (mem_filter.mp hD).1
+          exact mem_singleton.mpr hDsing
+        · intro hD
+          have hDeq : D = C := mem_singleton.mp hD
+          exact mem_filter.mpr ⟨mem_singleton.mpr hDeq, by simpa [hDeq] using hx⟩
+      simp [hfilt]
+
+/-- Minimally unsat CNFs are matchable at scale `|F| - 1`. -/
+theorem isCSMatchable_of_minimallyUnsat {F : CNF}
+    (h : IsMinimallyUnsat F) : IsCSMatchable F (F.card - 1) := by
+  intro G hG hcard
+  -- Unsatisfiable CNFs are nonempty (empty is satisfiable).
+  have hFne : F.Nonempty := by
+    by_contra hempty
+    have hFempty : F = ∅ := Finset.not_nonempty_iff_eq_empty.mp hempty
+    exact h.1 (hFempty ▸ Satisfiable_empty)
+  have hpos : 0 < F.card := card_pos.mpr hFne
+  -- Scale bound forces a proper subset.
+  have hne : G ≠ F := by
+    intro heq
+    have : F.card ≤ F.card - 1 := by simpa [heq] using hcard
+    omega
+  have hss : G ⊂ F := (ssubset_iff_subset_ne).2 ⟨hG, hne⟩
+  obtain ⟨C, hCmem⟩ := exists_of_ssubset hss
+  have hCin : C ∈ F := hCmem.1
+  have hCnG : C ∉ G := hCmem.2
+  have hGerase : G ⊆ F.erase C := by
+    intro D hD
+    exact mem_erase.mpr ⟨fun hDeq => hCnG (hDeq ▸ hD), hG hD⟩
+  exact Satisfiable.mono_subset hGerase (h.2 C hCin)
+
+/-- Every unsatisfiable CNF has a minimally unsatisfiable axiom subset. -/
+theorem exists_minimallyUnsat_subset {F : CNF} (h : ¬ Satisfiable F) :
+    ∃ G ⊆ F, IsMinimallyUnsat G := by
+  classical
+  revert h
+  refine Finset.strongInductionOn F ?_
+  intro F IH hunsat
+  by_cases hmin : ∀ C ∈ F, Satisfiable (F.erase C)
+  · exact ⟨F, subset_rfl, hunsat, hmin⟩
+  · simp only [not_forall, Classical.not_imp] at hmin
+    obtain ⟨C, hC, hCerase⟩ := hmin
+    obtain ⟨G, hGsub, hGmin⟩ := IH (F.erase C) (erase_ssubset hC) hCerase
+    exact ⟨G, hGsub.trans (erase_subset C F), hGmin⟩
+
+/-- Matchability scale from any unsat CNF via a minimally unsat subset. -/
+theorem exists_matchable_subset_of_unsat {F : CNF} (h : ¬ Satisfiable F) :
+    ∃ G ⊆ F, IsCSMatchable G (G.card - 1) ∧ ¬ Satisfiable G := by
+  obtain ⟨G, hGsub, hGmin⟩ := exists_minimallyUnsat_subset h
+  exact ⟨G, hGsub, isCSMatchable_of_minimallyUnsat hGmin, hGmin.not_satisfiable⟩
+
+/-! ## Frontier: restated existence plus quarantined variable-side names
+
+Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
+Obsolete variable-side Frontier theorems remain for archival reference only;
+do not spend cycles proving them. -/
 
 namespace CSExpansionFrontier
 
-/-- Variable-side coverage remains open; BSW coverage uses `clauseSetBoundary`. -/
+/-- QUARANTINED (audit 2026-08-09): variable-side coverage is not the BSW lemma.
+Accepted coverage is `clauseSetBoundary_subset_clauseVars`. -/
 theorem boundaryCovered_of_eraseMinimal {F : CNF} {S : Finset ℕ} {C : Clause}
     (_hmin : IsEraseMinimalCSComplex F S C) :
     boundaryCovered F S C := by
   sorry
 
-/-- Pinned name under variable-side `HasCSExpansion`. The accepted width machine
-is `cs_clause_expansion_width_lower_bound` under matchability plus
-`HasCSClauseExpansion`. Reduction between the two expansion hypotheses is open. -/
+/-- QUARANTINED: variable-side width LB under `HasCSExpansion`. Critical path is
+`cs_clause_expansion_width_lower_bound` under matchability plus clause-set expansion. -/
 theorem cs_expansion_width_lower_bound {F : CNF} {k β α : ℕ}
     (_h : HasCSExpansion F k β α) (_hα : 1 ≤ α) (_hβ : 0 < β)
     (d : Derivation F (∅ : Clause)) :
     csWidthFloor (cnfSupport F).card β α ≤ d.width := by
   sorry
 
-/-- Pinned existence gap (probabilistic method; not this cycle). -/
+/-- QUARANTINED obsolete existence under variable-side `HasCSExpansion`.
+Replaced on the critical path by `exists_cs_clause_expanding_3cnf`. -/
 theorem exists_cs_expanding_3cnf :
     ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (β α : ℕ),
       N ≤ n ∧ (cnfVars F).card = n ∧ β = 4 ∧ α = 1 ∧
         HasCSExpansion F 3 β α ∧ ¬ Satisfiable F ∧
           cnfWidth F < csWidthFloor n β α := by
+  sorry
+
+/-- Restated critical-path existence (pin 2026-08-09). Requires matchable,
+clause-set expanding, unsatisfiable 3-CNF with informative floor. Small-n
+witness search failed; probabilistic existence remains open (sorry honest). -/
+theorem exists_cs_clause_expanding_3cnf :
+    ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (r α : ℕ),
+      N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        α = 1 ∧ r = n / 4 ∧
+          IsCSMatchable F r ∧ HasCSClauseExpansion F r α ∧
+            ¬ Satisfiable F ∧ cnfWidth F < csClauseWidthFloor r α := by
   sorry
 
 end CSExpansionFrontier

@@ -1282,3 +1282,24 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
 - 2026-08-09 human gate accept_prose: APPROVED by session decision (user
   blanket continue). Restated CS clause-set pin accepted for formalization of
   remaining existence only. R2 stays prose_accepted.
+
+- 2026-08-10 formalize (exists_cs_clause_expanding_3cnf restatement plus
+  matchability infrastructure): PARTIAL. Restated Frontier theorem
+  `CSExpansionFrontier.exists_cs_clause_expanding_3cnf` matches the 2026-08-09
+  pin (matchability, clause-set expansion, width at most 3, alpha = 1,
+  r = n/4, informative floor). No finite informative witness claimed; existence
+  kept as honest sorry. Accepted infrastructure (12 decls, axiom gate PASS):
+  `IsMinimallyUnsat`, `Satisfiable_empty`, `Satisfiable.mono_subset`,
+  `IsMinimallyUnsat.not_satisfiable`, `isMinimallyUnsat_singleton_empty`,
+  `IsCSMatchable.mono`, `csClauseWidthFloor_one`,
+  `HasCSClauseExpansion.alpha_zero`, `clauseSetBoundary_singleton`,
+  `isCSMatchable_of_minimallyUnsat`, `exists_minimallyUnsat_subset`,
+  `exists_matchable_subset_of_unsat`. Obsolete variable-side Frontier names
+  quarantined in comments (`boundaryCovered_of_eraseMinimal`,
+  `cs_expansion_width_lower_bound`, `exists_cs_expanding_3cnf`).
+  Most important thing learned: minimal unsatisfiability yields matchability at
+  scale `|F|-1` for free, so the remaining hard gap is clause-set expansion of
+  medium axiom sets at expander scale, not the matchability predicate itself.
+  Pending human gate merge_certified (auto per user blanket after green gate).
+  Next: prove or formalize probabilistic or constructive
+  `HasCSClauseExpansion` at informative parameters, or continue R5 in parallel.

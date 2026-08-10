@@ -37,7 +37,8 @@ R4-class results plus the certified R5 bridge.
   - lean: Width.lean and SizeWidth.lean (item 1 BSW merged); FinGraph.lean and
     Tseitin.lean (item 2 Tseitin width machine and Heawood expansion merged);
     CSExpansion.lean (clause-set CS width machine certified; pin restated
-    2026-08-09 to IsCSMatchable / HasCSClauseExpansion; existence still Frontier)
+    2026-08-09 to IsCSMatchable / HasCSClauseExpansion; matchability
+    infrastructure merged 2026-08-10; exists_cs_clause_expanding_3cnf Frontier)
 
 - R3 stronger systems
   - status: proposed
