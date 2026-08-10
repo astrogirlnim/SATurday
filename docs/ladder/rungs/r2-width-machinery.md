@@ -1149,3 +1149,34 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   blanket continue, auto after axiom gate PASS). Clause-set width LB cluster
   accepted. R2 stays prose_accepted (pinned HasCSExpansion name and existence
   still open).
+
+- 2026-08-09 audit (CS expansion pin versus certified BSW packaging): SUCCESS
+  with an adverse hygiene verdict on item 2 family (b). Checklist:
+  1. Relativization: not applicable (syntactic resolution width).
+  2. Natural proofs analogue: not applicable at resolution.
+  3. Algebraization: not applicable.
+  4. Interpolation death: not applicable.
+  5. Simulation order: respected (resolution only).
+  6. Statement hygiene: FAIL on the CS pin shape. The 2026-08-04 pin froze
+     `HasCSExpansion` with variable cut `boundaryClauses`. Ben-Sasson and
+     Wigderson (and the lecture packaging used for random k-CNF) use axiom-set
+     measure μ and `clauseSetBoundary` (variables in exactly one axiom of a
+     minimal implying set), plus matchability of small axiom sets. Lean now
+     certifies that packaging as `IsCSMatchable`, `HasCSClauseExpansion`, and
+     `cs_clause_expansion_width_lower_bound`. Variable-side
+     `boundaryCovered_of_eraseMinimal` is not the BSW coverage lemma and is
+     false for the empty clause on erase-minimal variable complexes. Chasing
+     `CSExpansionFrontier.cs_expansion_width_lower_bound` under the frozen
+     variable-side hypothesis is therefore the wrong critical path.
+  7. Stop conditions: `exists_cs_expanding_3cnf` under variable-side expansion
+     has been deferred as hard probabilistic across multiple formalize cycles;
+     an informative finite witness search for the clause-set hypotheses also
+     failed at small n (needs expander-scale bipartite expansion). Do not spend
+     another formalize cycle on the variable-side Frontier name.
+  Strongest objection: the pin and the certified machine disagree on the
+  combinatorial object. Remedy: prove-cycle pin restatement that adopts
+  `IsCSMatchable` and `HasCSClauseExpansion` (and `csClauseWidthFloor`) as the
+  R2 item 2 CS targets, keeps `exists_cs_expanding_3cnf` but restated for those
+  hypotheses, and demotes variable-side `HasCSExpansion` to an optional lemma
+  or deletes it from the critical path.
+  Next: prove (restate CS pin to clause-set packaging).
