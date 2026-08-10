@@ -3,8 +3,9 @@
 Status: prose_accepted
 Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (item 1
 merged); FinGraph.lean and Tseitin.lean (item 2 width machine merged, including
-heawoodGraph_expansion); CSExpansion.lean (BSW clause-set width machine merged;
-pinned variable-side HasCSExpansion width LB and existence still Frontier)
+heawoodGraph_expansion); CSExpansion.lean (item 2 CS width machine certified under
+clause-set pin restated 2026-08-09; existence `exists_cs_clause_expanding_3cnf`
+still Frontier)
 
 ## Statement
 
@@ -1180,3 +1181,104 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   hypotheses, and demotes variable-side `HasCSExpansion` to an optional lemma
   or deletes it from the critical path.
   Next: prove (restate CS pin to clause-set packaging).
+
+- 2026-08-09 prove (restate R2 item 2 CS pin to clause-set BSW packaging):
+  SUCCESS. Prose only; no Lean this cycle. Supersedes the 2026-08-04 variable-side
+  `HasCSExpansion` / `boundaryClauses` pin for family (b), per the 2026-08-09
+  audit. The width machine under the restated pin is already certified in
+  `CSExpansion.lean`; this cycle freezes names and quantifiers only.
+
+  ### Restated statement (all quantifiers explicit)
+
+  Namespace `SATurday.ProofComplexity`. Objects from Resolution.lean and the
+  certified CSExpansion.lean API.
+
+  Definitions (already in Lean; pin adopts these names):
+
+  1. `clauseSetBoundary (G : Finset Clause) : Finset ℕ` is the set of variables
+     that appear in the support of exactly one clause of `G`.
+  2. `IsCSMatchable (F : CNF) (r : ℕ)` means: for every `G : Finset Clause`, if
+     `G ⊆ F` and `G.card ≤ r`, then `Satisfiable G`.
+  3. `HasCSClauseExpansion (F : CNF) (r α : ℕ)` means: for every `G : Finset Clause`,
+     if `G ⊆ F` and `r / 2 ≤ G.card` and `G.card ≤ r`, then
+     `α * G.card ≤ (clauseSetBoundary G).card`.
+  4. `csClauseWidthFloor (r α : ℕ) := α * (r / 2)`.
+
+  Width lower bound (critical path; certified):
+
+  - Target name `cs_clause_expansion_width_lower_bound` (already proved):
+    for every `F : CNF` and every `r α : ℕ`, if `IsCSMatchable F r` and
+    `HasCSClauseExpansion F r α` and `2 ≤ r`, then for every
+    `d : Derivation F (∅ : Clause)`,
+    `csClauseWidthFloor r α ≤ d.width`.
+  - Size corollary name `cs_clause_expansion_size_lower_bound` (already proved):
+    same hypotheses imply the BSW size lower bound at
+    `W := csClauseWidthFloor r α`.
+
+  Argument core (known, Ben-Sasson and Wigderson 2001; adaptation already in Lean):
+  matchability forces every erase-minimal axiom complex for the empty clause to
+  have size greater than `r`; medium extraction yields a derived clause whose
+  complex `G` satisfies `(r + 1) / 2 ≤ G.card ≤ r`; clause-set expansion gives
+  `α * G.card ≤ (clauseSetBoundary G).card`; coverage
+  `clauseSetBoundary_subset_clauseVars` gives
+  `(clauseSetBoundary G).card ≤ C.card ≤ d.width`.
+
+  Existence (still open; restated target):
+
+  - Target name `exists_cs_clause_expanding_3cnf` (replaces
+    `exists_cs_expanding_3cnf` on the critical path):
+    for every `N : ℕ`, there exist `n ≥ N`, `F : CNF`, and `r α : ℕ` such that
+    `(cnfVars F).card = n`, `cnfWidth F ≤ 3`, `α = 1`, `r = n / 4` (constants
+    may be tightened when the probabilistic calculation is fixed), 
+    `IsCSMatchable F r`, `HasCSClauseExpansion F r α`, `¬ Satisfiable F`, and
+    `cnfWidth F < csClauseWidthFloor r α`.
+  - Classification: known (Chvatal and Szemeredi; Ben-Sasson and Wigderson),
+    adaptation into Lean. Gap class: hard. Small n searches found no informative
+    witness; expect expander-scale random 3-CNF.
+
+  Demoted (not on the critical path):
+
+  - Variable-side `HasCSExpansion`, `boundaryClauses`, `csWidthFloor`, and
+    Frontier `cs_expansion_width_lower_bound` under those names. They may remain
+    as optional API, but no further formalize cycles should target them unless a
+    later prove cycle reopens a reduction.
+
+  ### Non vacuity under the restated pin
+
+  1. Width machine inhabited conditionally: any `F` meeting matchability and
+     clause-set expansion with `2 ≤ r` yields a width lower bound for every
+     refutation (certified).
+  2. Informative instance: requires `exists_cs_clause_expanding_3cnf` so that
+     `cnfWidth F < csClauseWidthFloor r α` for infinitely many sizes. Open.
+  3. Tseitin Heawood remains the certified informative witness for family (a);
+     it does not substitute for CS existence.
+
+  ### Gap list
+
+  1. Probabilistic existence of matchable expanding unsatisfiable 3-CNFs at
+     scale `n` with informative floor. Gap class: hard.
+  2. Locking exact constants (`r = n / 4`, density) to a published calculation.
+     Gap class: routine once a reference inequality is chosen.
+  3. Optional cleanup: move obsolete variable-side Frontier theorems out of the
+     critical path documentation only. Gap class: routine.
+
+  ### Self-adversarial pass
+
+  - Quantifiers: width LB is universal in refutations and conditional on
+    discrete hypotheses; no claim that a fixed DIMACS seed is hard.
+  - Off by one: medium extraction uses `(r + 1) / 2` while expansion asks
+    `r / 2 ≤ G.card`; in natural numbers `(r + 1) / 2 ≥ r / 2`, so the handoff
+    is safe (already checked in Lean).
+  - Hidden uniformity: existence must produce one `F` per `N` with both
+    matchability and expansion; failing either breaks informativeness.
+  - Does not secretly claim NP versus coNP or climb past resolution.
+  - Barrier audit: resolution level; classical barriers not applicable.
+
+  Most important thing learned: restating the pin removes a false critical path
+  without inventing new math; the remaining CS work is existence only.
+  Next: formalize `exists_cs_clause_expanding_3cnf` (or a finite informative
+  witness if one appears), else begin R5 bridge formalization in parallel.
+
+- 2026-08-09 human gate accept_prose: APPROVED by session decision (user
+  blanket continue). Restated CS clause-set pin accepted for formalization of
+  remaining existence only. R2 stays prose_accepted.

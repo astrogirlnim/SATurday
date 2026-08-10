@@ -36,8 +36,8 @@ R4-class results plus the certified R5 bridge.
   - memory: docs/ladder/rungs/r2-width-machinery.md
   - lean: Width.lean and SizeWidth.lean (item 1 BSW merged); FinGraph.lean and
     Tseitin.lean (item 2 Tseitin width machine and Heawood expansion merged);
-    CSExpansion.lean (BSW clause-set width machine merged; 2026-08-09 audit:
-    restate pin to clause-set packaging before more CS formalize; existence open)
+    CSExpansion.lean (clause-set CS width machine certified; pin restated
+    2026-08-09 to IsCSMatchable / HasCSClauseExpansion; existence still Frontier)
 
 - R3 stronger systems
   - status: proposed
