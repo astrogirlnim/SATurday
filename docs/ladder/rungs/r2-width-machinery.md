@@ -7,6 +7,7 @@ heawoodGraph_expansion); CSExpansion.lean (item 2 CS width machine certified und
 clause-set pin restated 2026-08-09; Spreads reduction to HasCSClauseExpansion
 merged 2026-08-10; finite Spreads r=2 matchable unsat witness merged 2026-08-10;
 informative floor threshold and Spreads scale 3 constructor merged 2026-08-10;
+single support starCNF and SpreadsSupports scaffolding merged 2026-08-10;
 existence `exists_cs_clause_expanding_3cnf` still Frontier)
 
 ## Statement
@@ -1361,3 +1362,26 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   merge_certified auto applied per user blanket after green gate.
   Next: formalize probabilistic Spreads existence or a single clause per
   support expander encoding that stays unsat and matchable.
+
+- 2026-08-10 formalize (single support star encoding toward
+  exists_cs_clause_expanding_3cnf): PARTIAL. Certified star encoding and
+  Spreads scaffolding (axiom gate PASS, 24 new accepted decls): edgesInternal,
+  edgesTouching, mem lemmas, edgesTouching_eq_internal_union_boundary,
+  disjoint_edgesInternal_edgeBoundary, starClause, starCNF,
+  clauseSupport_starClause, starClause_card_of_regular3, starCNF_cnfWidth_le,
+  card_edges_between_le_one, eq_of_incident_eq_of_regular3,
+  starClause_injective_of_regular3, exists_vertexSet_of_subset_starCNF,
+  biUnion_clauseSupport_star_eq, spreads_starCNF_of_touching_ge,
+  touching_card_ge_two_of_handshaking_expansion, heawoodStarCNF,
+  heawoodStarCNF_cnfWidth_le, heawoodStarCNF_satisfiable,
+  heawoodStarCNF_floor_not_informative, SpreadsSupports,
+  spreads_of_spreadsSupports. Frontier exists_cs_clause_expanding_3cnf
+  unchanged (honest sorry). No vacuous unsat witness claimed: all positive
+  heawoodStarCNF is satisfiable; floor at r = 5 is not informative.
+  Most important thing learned: Spreads for the star encoding reduces to a
+  medium touching lower bound on edge stars, and cut expansion plus cubic
+  handshaking would discharge that bound; the remaining Lean gap is the
+  handshaking identity itself, not a new CNF predicate.
+  merge_certified auto applied per user blanket after green gate.
+  Next: formalize cubic handshaking then Spreads on Heawood or McGee scale,
+  or push SpreadsSupports via probabilistic counting.

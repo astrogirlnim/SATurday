@@ -1,5 +1,6 @@
 import Theory.ProofComplexity.Width
 import Theory.ProofComplexity.SizeWidth
+import Theory.ProofComplexity.Tseitin
 
 /-!
 # Chvatal–Szemeredi expansion for k-CNF (Ladder Rung R2, item 2)
@@ -14,6 +15,11 @@ matchability at 2, and `hasCSClauseExpansion_spreadWitnessCNF_two`
 (packaged as `exists_spreads_two_matchable_unsat_3cnf`; floor not informative).
 Informative threshold lemmas: width 3 forces `r ≥ 8` for α = 1 floors;
 `spreads_three_of_unions` lifts the pairwise constructor to scale 3.
+Single support cubic star encoding: `starCNF` places one clause per vertex;
+`spreads_starCNF_of_touching_ge` plus `touching_card_ge_two_of_handshaking_expansion`
+package the expander bridge (handshaking identity remains the next obligation);
+`SpreadsSupports` packages the probabilistic set system form. Heawood star CNF
+is satisfiable and non informative at r = 5.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -1634,6 +1640,365 @@ theorem spreadWitnessCNF_floor_not_informative :
     simpa [cnfWidth, C0] using Finset.le_sup (f := Finset.card) hC
   omega
 
+/-! ## Single support cubic star encoding (expander to Spreads scaffolding)
+
+Full `tseitinCNF` repeats supports, so Spreads fails on expanders. The star
+encoding places one clause per vertex on incident edge variables. This cluster
+certifies the encoding, the support union identity, and Spreads from a medium
+touching lower bound. The remaining bridge is handshaking plus expansion:
+`2 |edgesTouching S| = 3|S| + |∂S|` turns `HasExpansion _ 1` into that bound.
+All positive star CNFs are satisfiable; unsat polarity remains open. -/
+
+/-- Edges with both endpoints in `S`. -/
+def edgesInternal {n : ℕ} (G : FinGraph n) (S : Finset (Fin n)) :
+    Finset (FinEdge n) :=
+  G.filter fun e => e.val.1 ∈ S ∧ e.val.2 ∈ S
+
+/-- Edges with at least one endpoint in `S`. -/
+def edgesTouching {n : ℕ} (G : FinGraph n) (S : Finset (Fin n)) :
+    Finset (FinEdge n) :=
+  S.biUnion (incident G)
+
+theorem mem_edgesInternal_iff {n : ℕ} {G : FinGraph n} {S : Finset (Fin n)}
+    {e : FinEdge n} :
+    e ∈ edgesInternal G S ↔ e ∈ G ∧ e.val.1 ∈ S ∧ e.val.2 ∈ S := by
+  simp [edgesInternal]
+
+theorem mem_edgesTouching_iff {n : ℕ} {G : FinGraph n} {S : Finset (Fin n)}
+    {e : FinEdge n} :
+    e ∈ edgesTouching G S ↔ e ∈ G ∧ (e.val.1 ∈ S ∨ e.val.2 ∈ S) := by
+  constructor
+  · intro he
+    obtain ⟨v, hvS, heInc⟩ := mem_biUnion.mp he
+    obtain ⟨heG, hends⟩ := mem_incident_iff.mp heInc
+    refine ⟨heG, ?_⟩
+    cases hends with
+    | inl h => exact Or.inl (h ▸ hvS)
+    | inr h => exact Or.inr (h ▸ hvS)
+  · rintro ⟨heG, h | h⟩
+    · exact mem_biUnion.mpr
+        ⟨e.val.1, h, mem_incident_iff.mpr ⟨heG, Or.inl rfl⟩⟩
+    · exact mem_biUnion.mpr
+        ⟨e.val.2, h, mem_incident_iff.mpr ⟨heG, Or.inr rfl⟩⟩
+
+theorem edgesTouching_eq_internal_union_boundary {n : ℕ}
+    (G : FinGraph n) (S : Finset (Fin n)) :
+    edgesTouching G S = edgesInternal G S ∪ edgeBoundary G S := by
+  ext e
+  constructor
+  · intro he
+    obtain ⟨heG, hS⟩ := (mem_edgesTouching_iff (G := G) (S := S)).mp he
+    by_cases h1 : e.val.1 ∈ S
+    · by_cases h2 : e.val.2 ∈ S
+      · exact mem_union.mpr
+          (Or.inl (mem_edgesInternal_iff.mpr ⟨heG, h1, h2⟩))
+      · exact mem_union.mpr
+          (Or.inr (mem_edgeBoundary_iff.mpr ⟨heG, Or.inl ⟨h1, h2⟩⟩))
+    · have h2 : e.val.2 ∈ S := by
+        cases hS with
+        | inl h => exact (h1 h).elim
+        | inr h => exact h
+      exact mem_union.mpr
+        (Or.inr (mem_edgeBoundary_iff.mpr ⟨heG, Or.inr ⟨h1, h2⟩⟩))
+  · intro he
+    cases mem_union.mp he with
+    | inl heI =>
+      obtain ⟨heG, h1, _⟩ := mem_edgesInternal_iff.mp heI
+      exact (mem_edgesTouching_iff (G := G) (S := S)).mpr ⟨heG, Or.inl h1⟩
+    | inr heB =>
+      obtain ⟨heG, hcut⟩ := mem_edgeBoundary_iff.mp heB
+      cases hcut with
+      | inl h =>
+        exact (mem_edgesTouching_iff (G := G) (S := S)).mpr ⟨heG, Or.inl h.1⟩
+      | inr h =>
+        exact (mem_edgesTouching_iff (G := G) (S := S)).mpr ⟨heG, Or.inr h.2⟩
+
+theorem disjoint_edgesInternal_edgeBoundary {n : ℕ}
+    (G : FinGraph n) (S : Finset (Fin n)) :
+    Disjoint (edgesInternal G S) (edgeBoundary G S) := by
+  refine disjoint_left.mpr ?_
+  intro e heI heB
+  obtain ⟨_, h1, h2⟩ := mem_edgesInternal_iff.mp heI
+  obtain ⟨_, hcut⟩ := mem_edgeBoundary_iff.mp heB
+  cases hcut with
+  | inl h => exact h.2 h2
+  | inr h => exact h.1 h1
+
+/-- One all positive forbidding clause on the star of `v`. -/
+def starClause {n : ℕ} (G : FinGraph n) (v : Fin n) : Clause :=
+  parityForbidClause (incident G v) (∅ : Finset (FinEdge n))
+
+/-- Single support cubic encoding: one star clause per vertex. -/
+def starCNF {n : ℕ} (G : FinGraph n) : CNF :=
+  (univ : Finset (Fin n)).image (starClause G)
+
+theorem clauseSupport_starClause {n : ℕ} (G : FinGraph n) (v : Fin n) :
+    clauseSupport (starClause G v) = (incident G v).image edgeVar := by
+  ext x
+  constructor
+  · intro hx
+    simp only [clauseSupport, starClause, parityForbidClause, clauseVars,
+      mem_image] at hx
+    obtain ⟨l, ⟨e, he, rfl⟩, rfl⟩ := hx
+    exact mem_image.mpr ⟨e, he, rfl⟩
+  · intro hx
+    obtain ⟨e, he, rfl⟩ := mem_image.mp hx
+    simp only [clauseSupport, starClause, parityForbidClause, clauseVars,
+      mem_image]
+    exact ⟨⟨edgeVar e, true⟩, ⟨e, he, rfl⟩, rfl⟩
+
+theorem starClause_card_of_regular3 {n : ℕ} {G : FinGraph n}
+    (hreg : IsRegular G 3) (hn : 0 < n) (v : Fin n) :
+    (starClause G v).card = 3 := by
+  rw [starClause, card_parityForbidClause (incident G v) ∅ hn, ← degree, hreg]
+
+theorem starCNF_cnfWidth_le {n : ℕ} {G : FinGraph n}
+    (hreg : IsRegular G 3) (hn : 0 < n) :
+    cnfWidth (starCNF G) ≤ 3 := by
+  refine Finset.sup_le ?_
+  intro C hC
+  obtain ⟨v, _, rfl⟩ := mem_image.mp hC
+  exact (starClause_card_of_regular3 hreg hn v).le
+
+theorem card_edges_between_le_one {n : ℕ} (G : FinGraph n) {v w : Fin n}
+    (hne : v ≠ w) :
+    (G.filter fun e =>
+        (e.val.1 = v ∧ e.val.2 = w) ∨ (e.val.1 = w ∧ e.val.2 = v)).card ≤ 1 := by
+  classical
+  by_cases hvw : v < w
+  · set e0 : FinEdge n := ⟨(v, w), hvw⟩
+    have hsub :
+        (G.filter fun e =>
+            (e.val.1 = v ∧ e.val.2 = w) ∨
+              (e.val.1 = w ∧ e.val.2 = v)) ⊆
+          ({e0} : Finset (FinEdge n)) := by
+      intro e he
+      obtain ⟨_, hpair⟩ := mem_filter.mp he
+      cases hpair with
+      | inl h => exact mem_singleton.mpr (Subtype.ext (Prod.ext h.1 h.2))
+      | inr h =>
+        have : w < v := by
+          have hlt := e.property
+          rw [h.1, h.2] at hlt
+          exact hlt
+        exact (lt_asymm hvw this).elim
+    exact (card_le_card hsub).trans (by simp [e0])
+  · have hwv : w < v := lt_of_le_of_ne (le_of_not_gt hvw) (Ne.symm hne)
+    set e0 : FinEdge n := ⟨(w, v), hwv⟩
+    have hsub :
+        (G.filter fun e =>
+            (e.val.1 = v ∧ e.val.2 = w) ∨
+              (e.val.1 = w ∧ e.val.2 = v)) ⊆
+          ({e0} : Finset (FinEdge n)) := by
+      intro e he
+      obtain ⟨_, hpair⟩ := mem_filter.mp he
+      cases hpair with
+      | inl h =>
+        have : v < w := by
+          have hlt := e.property
+          rw [h.1, h.2] at hlt
+          exact hlt
+        exact (lt_asymm hwv this).elim
+      | inr h => exact mem_singleton.mpr (Subtype.ext (Prod.ext h.1 h.2))
+    exact (card_le_card hsub).trans (by simp [e0])
+
+theorem eq_of_incident_eq_of_regular3 {n : ℕ} {G : FinGraph n}
+    (hreg : IsRegular G 3) {v w : Fin n}
+    (h : incident G v = incident G w) : v = w := by
+  classical
+  by_contra hne
+  have hall : ∀ e ∈ incident G v, e.val.1 = w ∨ e.val.2 = w := by
+    intro e he
+    have he' : e ∈ incident G w := by simpa [h] using he
+    exact (mem_incident_iff.mp he').2
+  have hsub :
+      incident G v ⊆
+        G.filter fun e =>
+          (e.val.1 = v ∧ e.val.2 = w) ∨ (e.val.1 = w ∧ e.val.2 = v) := by
+    intro e he
+    obtain ⟨heG, hv⟩ := mem_incident_iff.mp he
+    have hw := hall e he
+    refine mem_filter.mpr ⟨heG, ?_⟩
+    cases hv with
+    | inl hv1 =>
+      cases hw with
+      | inl hw1 => exact (hne (hv1.symm.trans hw1)).elim
+      | inr hw2 => exact Or.inl ⟨hv1, hw2⟩
+    | inr hv2 =>
+      cases hw with
+      | inl hw1 => exact Or.inr ⟨hw1, hv2⟩
+      | inr hw2 => exact (hne (hv2.symm.trans hw2)).elim
+  have hle := (card_le_card hsub).trans (card_edges_between_le_one G hne)
+  have : (incident G v).card = 3 := hreg v
+  omega
+
+theorem starClause_injective_of_regular3 {n : ℕ} {G : FinGraph n}
+    (hreg : IsRegular G 3) (hn : 0 < n) {v w : Fin n}
+    (h : starClause G v = starClause G w) : v = w := by
+  have hsup :
+      clauseSupport (starClause G v) = clauseSupport (starClause G w) :=
+    congrArg _ h
+  have himg :
+      (incident G v).image edgeVar = (incident G w).image edgeVar := by
+    simpa [clauseSupport_starClause] using hsup
+  have hinj := edgeVar_injective n hn
+  have hinc : incident G v = incident G w := by
+    ext e
+    constructor
+    · intro he
+      have hx : edgeVar e ∈ (incident G v).image edgeVar :=
+        mem_image_of_mem _ he
+      have hx' : edgeVar e ∈ (incident G w).image edgeVar := by
+        simpa [himg] using hx
+      obtain ⟨e', he', hv⟩ := mem_image.mp hx'
+      exact (hinj hv) ▸ he'
+    · intro he
+      have hx : edgeVar e ∈ (incident G w).image edgeVar :=
+        mem_image_of_mem _ he
+      have hx' : edgeVar e ∈ (incident G v).image edgeVar := by
+        simpa [himg] using hx
+      obtain ⟨e', he', hv⟩ := mem_image.mp hx'
+      exact (hinj hv) ▸ he'
+  exact eq_of_incident_eq_of_regular3 hreg hinc
+
+theorem exists_vertexSet_of_subset_starCNF {n : ℕ} {G : FinGraph n}
+    {H : Finset Clause} (hH : H ⊆ starCNF G) :
+    ∃ S : Finset (Fin n), H = S.image (starClause G) := by
+  refine ⟨univ.filter fun v => starClause G v ∈ H, ?_⟩
+  ext C
+  constructor
+  · intro hC
+    obtain ⟨v, _, rfl⟩ := mem_image.mp (hH hC)
+    exact mem_image.mpr ⟨v, mem_filter.mpr ⟨mem_univ _, hC⟩, rfl⟩
+  · intro hC
+    obtain ⟨v, hv, rfl⟩ := mem_image.mp hC
+    exact (mem_filter.mp hv).2
+
+theorem biUnion_clauseSupport_star_eq {n : ℕ} (G : FinGraph n)
+    (S : Finset (Fin n)) :
+    (S.image (starClause G)).biUnion clauseSupport =
+      (edgesTouching G S).image edgeVar := by
+  ext x
+  constructor
+  · intro hx
+    obtain ⟨C, hC, hxC⟩ := mem_biUnion.mp hx
+    obtain ⟨v, hvS, rfl⟩ := mem_image.mp hC
+    have hx' : x ∈ (incident G v).image edgeVar := by
+      simpa [clauseSupport_starClause] using hxC
+    obtain ⟨e, he, rfl⟩ := mem_image.mp hx'
+    exact mem_image.mpr ⟨e, mem_biUnion.mpr ⟨v, hvS, he⟩, rfl⟩
+  · intro hx
+    obtain ⟨e, heT, rfl⟩ := mem_image.mp hx
+    obtain ⟨v, hvS, he⟩ := mem_biUnion.mp heT
+    refine mem_biUnion.mpr ⟨starClause G v, mem_image_of_mem _ hvS, ?_⟩
+    simpa [clauseSupport_starClause] using mem_image_of_mem edgeVar he
+
+/-- Spreads for `starCNF` from a medium touching lower bound (rate 2).
+ paired with handshaking plus `HasExpansion _ 1` this yields the expander bridge. -/
+theorem spreads_starCNF_of_touching_ge {n : ℕ} {G : FinGraph n} {r : ℕ}
+    (hreg : IsRegular G 3) (hn : 0 < n)
+    (htouch : ∀ S : Finset (Fin n),
+      r / 2 ≤ S.card → S.card ≤ r →
+        2 * S.card ≤ (edgesTouching G S).card) :
+    Spreads (starCNF G) r 2 := by
+  intro H hH hlo hhi
+  obtain ⟨S, rfl⟩ := exists_vertexSet_of_subset_starCNF hH
+  have hinj : Set.InjOn (starClause G) S := fun _ _ _ _ heq =>
+    starClause_injective_of_regular3 hreg hn heq
+  have hcard : (S.image (starClause G)).card = S.card :=
+    card_image_of_injOn hinj
+  have hSlo : r / 2 ≤ S.card := by omega
+  have hShi : S.card ≤ r := by omega
+  have hge := htouch S hSlo hShi
+  have hsup :
+      ((S.image (starClause G)).biUnion clauseSupport).card =
+        (edgesTouching G S).card := by
+    rw [biUnion_clauseSupport_star_eq]
+    exact card_image_of_injective _ (edgeVar_injective n hn)
+  simpa [hcard, hsup] using hge
+
+/-- Touching lower bound from cut expansion once handshaking
+`2 |touching| = 3|S| + |∂S|` is available. Packaged for the next prove cycle. -/
+theorem touching_card_ge_two_of_handshaking_expansion {n : ℕ} {G : FinGraph n}
+    {S : Finset (Fin n)}
+    (hshake : 2 * (edgesTouching G S).card =
+      3 * S.card + (edgeBoundary G S).card)
+    (hbd : S.card ≤ (edgeBoundary G S).card) :
+    2 * S.card ≤ (edgesTouching G S).card := by omega
+
+/-- Heawood star CNF calibration target. -/
+def heawoodStarCNF : CNF := starCNF heawoodGraph
+
+theorem heawoodStarCNF_cnfWidth_le : cnfWidth heawoodStarCNF ≤ 3 :=
+  starCNF_cnfWidth_le heawoodGraph_regular (by decide : (0 : ℕ) < 14)
+
+/-- Honest: all positive star clauses are satisfiable. -/
+theorem heawoodStarCNF_satisfiable : Satisfiable heawoodStarCNF := by
+  refine ⟨fun _ => true, ?_⟩
+  intro C hC
+  obtain ⟨v, _, rfl⟩ := mem_image.mp hC
+  have hdeg : (incident heawoodGraph v).card = 3 := heawoodGraph_regular v
+  obtain ⟨e, he⟩ :=
+    card_pos.mp (show 0 < (incident heawoodGraph v).card from by omega)
+  refine ⟨⟨edgeVar e, true⟩, ?_, by simp [litSat]⟩
+  simp only [starClause, parityForbidClause, mem_image]
+  exact ⟨e, he, rfl⟩
+
+theorem heawoodStarCNF_floor_not_informative :
+    ¬ cnfWidth heawoodStarCNF <
+        csClauseWidthFloor (heawoodGraph.card / 4) 1 := by
+  intro h
+  have hr : heawoodGraph.card / 4 = 5 := by simp [heawoodGraph_card]
+  have hC : starClause heawoodGraph (0 : Fin 14) ∈ heawoodStarCNF :=
+    mem_image.mpr ⟨(0 : Fin 14), mem_univ _, rfl⟩
+  have hcard :
+      (starClause heawoodGraph (0 : Fin 14)).card = 3 :=
+    starClause_card_of_regular3 heawoodGraph_regular (by decide) (0 : Fin 14)
+  have hle :
+      (starClause heawoodGraph (0 : Fin 14)).card ≤ cnfWidth heawoodStarCNF :=
+    Finset.le_sup (f := Finset.card) hC
+  have hw : 3 ≤ cnfWidth heawoodStarCNF := by omega
+  have : 3 < csClauseWidthFloor 5 1 := by simpa [hr] using lt_of_le_of_lt hw h
+  simp [csClauseWidthFloor] at this
+
+/-- Support system form of Spreads (probabilistic method packaging). -/
+def SpreadsSupports (U : Finset (Finset ℕ)) (r γ : ℕ) : Prop :=
+  ∀ G : Finset (Finset ℕ), G ⊆ U →
+    r / 2 ≤ G.card → G.card ≤ r →
+      γ * G.card ≤ (G.biUnion id).card
+
+/-- If clause supports are injective into a spreading set system, Spreads holds. -/
+theorem spreads_of_spreadsSupports {F : CNF} {r γ : ℕ}
+    (hinj : ∀ C ∈ F, ∀ D ∈ F, C ≠ D → clauseSupport C ≠ clauseSupport D)
+    (hsp : SpreadsSupports (F.image clauseSupport) r γ) :
+    Spreads F r γ := by
+  intro H hH hlo hhi
+  have himg : H.image clauseSupport ⊆ F.image clauseSupport := by
+    intro T hT
+    obtain ⟨C, hC, rfl⟩ := mem_image.mp hT
+    exact mem_image_of_mem _ (hH hC)
+  have hinjH : Set.InjOn clauseSupport H := by
+    intro C hC D hD hEq
+    by_contra hne
+    exact hinj C (hH hC) D (hH hD) hne hEq
+  have hcard : (H.image clauseSupport).card = H.card :=
+    card_image_of_injOn hinjH
+  have hlo' : r / 2 ≤ (H.image clauseSupport).card := by omega
+  have hhi' : (H.image clauseSupport).card ≤ r := by omega
+  have hcov := hsp (H.image clauseSupport) himg hlo' hhi'
+  have hU :
+      (H.image clauseSupport).biUnion id = H.biUnion clauseSupport := by
+    ext x
+    constructor
+    · intro hx
+      obtain ⟨T, hT, hxT⟩ := mem_biUnion.mp hx
+      obtain ⟨C, hC, rfl⟩ := mem_image.mp hT
+      exact mem_biUnion.mpr ⟨C, hC, by simpa using hxT⟩
+    · intro hx
+      obtain ⟨C, hC, hxC⟩ := mem_biUnion.mp hx
+      exact mem_biUnion.mpr ⟨clauseSupport C, mem_image_of_mem _ hC, hxC⟩
+  simpa [hcard, hU] using hcov
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -1647,7 +2012,13 @@ admit vertex cut expansion through r = 9 (so r = |E|/4 is combinatorially in
 range), but the formal Tseitin CNF places several clauses on the same triple
 support and therefore fails Spreads. Sparse one clause per triple packings that
 Spreads at r ≥ 8 stay satisfiable under matchability searches. No honest
-informative inhabitant this cycle. -/
+informative inhabitant this cycle.
+
+Cycle 2026-08-10 (star encoding): certified `starCNF`, support union identity,
+`spreads_starCNF_of_touching_ge`, handshaking packaging lemma, Heawood star
+satisfiability and non informative floor, plus `SpreadsSupports`. Remaining:
+prove cubic handshaking `2|touching|=3|S|+|∂S|` then instantiate Heawood or
+McGee scale Spreads; unsat polarity or probabilistic existence still open. -/
 
 namespace CSExpansionFrontier
 
