@@ -1385,3 +1385,18 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   merge_certified auto applied per user blanket after green gate.
   Next: formalize cubic handshaking then Spreads on Heawood or McGee scale,
   or push SpreadsSupports via probabilistic counting.
+
+- 2026-08-10 formalize (cubic handshaking then Heawood star Spreads): PARTIAL
+  toward `exists_cs_clause_expanding_3cnf`. Certified
+  `handshaking_touching_of_regular3` (`2|touching|=3|S|+|∂S|`), supporting
+  double count lemmas (`endpointCountIn`, sum identities),
+  `spreads_starCNF_of_expansion`, and `spreads_heawoodStarCNF_five`.
+  Axiom gate PASS (8 new accepted decls). Honest limits unchanged: Heawood
+  star CNF is satisfiable and the α = 1 floor at r = 5 is not informative.
+  Frontier `exists_cs_clause_expanding_3cnf` unchanged (honest sorry).
+  Most important thing learned: the expander to Spreads bridge for star CNF
+  is now fully certified on Heawood; the remaining obstruction is informative
+  scale with matchable unsat polarity, not cut handshaking.
+  merge_certified auto applied per user blanket after green gate.
+  Next: formalize informative scale Spreads (r ≥ 8) with unsat polarity or
+  probabilistic SpreadsSupports existence, else continue R5.

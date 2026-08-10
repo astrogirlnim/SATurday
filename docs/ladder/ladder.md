@@ -42,7 +42,8 @@ R4-class results plus the certified R5 bridge.
     HasCSClauseExpansion merged 2026-08-10; finite Spreads r=2 unsat witness
     merged 2026-08-10; informative floor threshold and Spreads scale 3
     constructor merged 2026-08-10; single support starCNF encoding and
-    SpreadsSupports scaffolding merged 2026-08-10;
+    SpreadsSupports scaffolding merged 2026-08-10; cubic handshaking and
+    Heawood star Spreads at r = 5 merged 2026-08-10;
     exists_cs_clause_expanding_3cnf Frontier)
 
 - R3 stronger systems

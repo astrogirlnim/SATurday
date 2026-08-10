@@ -738,6 +738,16 @@ SATurday.ProofComplexity.heawoodStarCNF_floor_not_informative
 SATurday.ProofComplexity.SpreadsSupports
 SATurday.ProofComplexity.spreads_of_spreadsSupports
 
+# R2 item 2 cluster 14: cubic handshaking and Heawood star Spreads (2026-08-10)
+SATurday.ProofComplexity.endpointCountIn
+SATurday.ProofComplexity.sum_endpoint_indicator_eq_endpointCountIn
+SATurday.ProofComplexity.sum_degree_eq_sum_endpointCountIn
+SATurday.ProofComplexity.sum_degree_eq_two_internal_add_boundary
+SATurday.ProofComplexity.card_edgesTouching_eq_internal_add_boundary
+SATurday.ProofComplexity.handshaking_touching_of_regular3
+SATurday.ProofComplexity.spreads_starCNF_of_expansion
+SATurday.ProofComplexity.spreads_heawoodStarCNF_five
+
 # R5 Cook Reckhow bridge: Encoding and Complexity cluster (2026-08-10 formalize)
 SATurday.Bridge.bitEnc_eq_encodeBool
 SATurday.Bridge.decodePair_encodePair

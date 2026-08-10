@@ -16,10 +16,11 @@ matchability at 2, and `hasCSClauseExpansion_spreadWitnessCNF_two`
 Informative threshold lemmas: width 3 forces `r ≥ 8` for α = 1 floors;
 `spreads_three_of_unions` lifts the pairwise constructor to scale 3.
 Single support cubic star encoding: `starCNF` places one clause per vertex;
-`spreads_starCNF_of_touching_ge` plus `touching_card_ge_two_of_handshaking_expansion`
-package the expander bridge (handshaking identity remains the next obligation);
-`SpreadsSupports` packages the probabilistic set system form. Heawood star CNF
-is satisfiable and non informative at r = 5.
+cubic handshaking `handshaking_touching_of_regular3` plus
+`spreads_starCNF_of_expansion` yield Spreads from `HasExpansion _ 1`;
+`spreads_heawoodStarCNF_five` instantiates the Heawood cage (satisfiable,
+floor not informative). `SpreadsSupports` packages the probabilistic set system
+form.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -1918,13 +1919,294 @@ theorem spreads_starCNF_of_touching_ge {n : ℕ} {G : FinGraph n} {r : ℕ}
   simpa [hcard, hsup] using hge
 
 /-- Touching lower bound from cut expansion once handshaking
-`2 |touching| = 3|S| + |∂S|` is available. Packaged for the next prove cycle. -/
+`2 |touching| = 3|S| + |∂S|` is available. -/
 theorem touching_card_ge_two_of_handshaking_expansion {n : ℕ} {G : FinGraph n}
     {S : Finset (Fin n)}
     (hshake : 2 * (edgesTouching G S).card =
       3 * S.card + (edgeBoundary G S).card)
     (hbd : S.card ≤ (edgeBoundary G S).card) :
     2 * S.card ≤ (edgesTouching G S).card := by omega
+
+/-! ### Cubic handshaking for star encoding Spreads -/
+
+/-- How many endpoints of `e` lie in `S` (0, 1, or 2). -/
+def endpointCountIn {n : ℕ} (S : Finset (Fin n)) (e : FinEdge n) : ℕ :=
+  (if e.val.1 ∈ S then 1 else 0) + (if e.val.2 ∈ S then 1 else 0)
+
+/-- For a fixed edge, summing endpoint indicators over `S` recovers `endpointCountIn`. -/
+theorem sum_endpoint_indicator_eq_endpointCountIn {n : ℕ} (S : Finset (Fin n))
+    (e : FinEdge n) :
+    ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) =
+      endpointCountIn S e := by
+  classical
+  by_cases h1 : e.val.1 ∈ S
+  · by_cases h2 : e.val.2 ∈ S
+    · have hne : e.val.1 ≠ e.val.2 := e.ne_endpoints
+      have hfilter :
+          (S.filter fun v => e.val.1 = v ∨ e.val.2 = v) =
+            ({e.val.1, e.val.2} : Finset (Fin n)) := by
+        ext v
+        constructor
+        · intro hv
+          obtain ⟨_, hends⟩ := mem_filter.mp hv
+          cases hends with
+          | inl h => simp [h]
+          | inr h => simp [h]
+        · intro hv
+          have hv' : v = e.val.1 ∨ v = e.val.2 := by
+            simpa [mem_insert, mem_singleton] using hv
+          cases hv' with
+          | inl h => exact mem_filter.mpr ⟨h ▸ h1, Or.inl h.symm⟩
+          | inr h => exact mem_filter.mpr ⟨h ▸ h2, Or.inr h.symm⟩
+      have hsum :
+          ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) = 2 := by
+        have h1' :
+            ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) =
+              (S.filter fun v => e.val.1 = v ∨ e.val.2 = v).sum
+                fun _ => (1 : ℕ) :=
+          (sum_filter (p := fun v : Fin n => e.val.1 = v ∨ e.val.2 = v)
+            (f := fun _ => (1 : ℕ))).symm
+        calc
+          ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) =
+              (S.filter fun v => e.val.1 = v ∨ e.val.2 = v).sum
+                fun _ => (1 : ℕ) := h1'
+          _ = ({e.val.1, e.val.2} : Finset (Fin n)).card := by
+            simp [hfilter, sum_const]
+          _ = 2 := by simp [hne]
+      simpa [endpointCountIn, h1, h2] using hsum
+    · have hfilter :
+          (S.filter fun v => e.val.1 = v ∨ e.val.2 = v) =
+            ({e.val.1} : Finset (Fin n)) := by
+        ext v
+        constructor
+        · intro hv
+          obtain ⟨hvS, hends⟩ := mem_filter.mp hv
+          cases hends with
+          | inl h => simp [h]
+          | inr h => exact (h2 (h ▸ hvS)).elim
+        · intro hv
+          have hv1 : v = e.val.1 := mem_singleton.mp hv
+          exact mem_filter.mpr ⟨hv1 ▸ h1, Or.inl hv1.symm⟩
+      have hsum :
+          ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) = 1 := by
+        have h1' :
+            ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) =
+              (S.filter fun v => e.val.1 = v ∨ e.val.2 = v).sum
+                fun _ => (1 : ℕ) :=
+          (sum_filter (p := fun v : Fin n => e.val.1 = v ∨ e.val.2 = v)
+            (f := fun _ => (1 : ℕ))).symm
+        calc
+          ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) =
+              (S.filter fun v => e.val.1 = v ∨ e.val.2 = v).sum
+                fun _ => (1 : ℕ) := h1'
+          _ = 1 := by simp [hfilter, sum_const]
+      simpa [endpointCountIn, h1, h2] using hsum
+  · by_cases h2 : e.val.2 ∈ S
+    · have hfilter :
+          (S.filter fun v => e.val.1 = v ∨ e.val.2 = v) =
+            ({e.val.2} : Finset (Fin n)) := by
+        ext v
+        constructor
+        · intro hv
+          obtain ⟨hvS, hends⟩ := mem_filter.mp hv
+          cases hends with
+          | inl h => exact (h1 (h ▸ hvS)).elim
+          | inr h => simp [h]
+        · intro hv
+          have hv2 : v = e.val.2 := mem_singleton.mp hv
+          exact mem_filter.mpr ⟨hv2 ▸ h2, Or.inr hv2.symm⟩
+      have hsum :
+          ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) = 1 := by
+        have h1' :
+            ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) =
+              (S.filter fun v => e.val.1 = v ∨ e.val.2 = v).sum
+                fun _ => (1 : ℕ) :=
+          (sum_filter (p := fun v : Fin n => e.val.1 = v ∨ e.val.2 = v)
+            (f := fun _ => (1 : ℕ))).symm
+        calc
+          ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) =
+              (S.filter fun v => e.val.1 = v ∨ e.val.2 = v).sum
+                fun _ => (1 : ℕ) := h1'
+          _ = 1 := by simp [hfilter, sum_const]
+      simpa [endpointCountIn, h1, h2] using hsum
+    · have hsum :
+          ∑ v ∈ S, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) = 0 := by
+        refine sum_eq_zero fun v hv => ?_
+        split_ifs with h
+        · cases h with
+          | inl heq => exact (h1 (heq ▸ hv)).elim
+          | inr heq => exact (h2 (heq ▸ hv)).elim
+        · rfl
+      simpa [endpointCountIn, h1, h2] using hsum
+
+/-- Double count: sum of degrees over `S` equals sum of endpoint counts in `G`. -/
+theorem sum_degree_eq_sum_endpointCountIn {n : ℕ} (G : FinGraph n)
+    (S : Finset (Fin n)) :
+    ∑ v ∈ S, degree G v = ∑ e ∈ G, endpointCountIn S e := by
+  classical
+  have hleft :
+      ∑ v ∈ S, degree G v =
+        ∑ v ∈ S, ∑ e ∈ G,
+          (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) := by
+    refine sum_congr rfl fun v _ => ?_
+    have h1 :
+        ∑ e ∈ G, (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) =
+          (G.filter fun e => e.val.1 = v ∨ e.val.2 = v).sum
+            fun _ => (1 : ℕ) :=
+      (sum_filter (p := fun e : FinEdge n => e.val.1 = v ∨ e.val.2 = v)
+        (f := fun _ => (1 : ℕ))).symm
+    simpa [degree, incident, sum_const] using h1.symm
+  have hswap :
+      ∑ v ∈ S, ∑ e ∈ G,
+          (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) =
+        ∑ e ∈ G, ∑ v ∈ S,
+          (if e.val.1 = v ∨ e.val.2 = v then (1 : ℕ) else 0) :=
+    sum_comm
+  rw [hleft, hswap]
+  exact sum_congr rfl fun e _ => sum_endpoint_indicator_eq_endpointCountIn S e
+
+/-- Handshaking on cuts: ∑ deg = 2|internal| + |∂S|. -/
+theorem sum_degree_eq_two_internal_add_boundary {n : ℕ} (G : FinGraph n)
+    (S : Finset (Fin n)) :
+    ∑ v ∈ S, degree G v =
+      2 * (edgesInternal G S).card + (edgeBoundary G S).card := by
+  classical
+  set I := edgesInternal G S
+  set B := edgeBoundary G S
+  have hIsub : I ⊆ G := fun e he => (mem_edgesInternal_iff.mp he).1
+  have hBsub : B ⊆ G := edgeBoundary_subset G S
+  have hdisj : Disjoint I B := disjoint_edgesInternal_edgeBoundary G S
+  have hpt : ∀ e ∈ G, endpointCountIn S e =
+      if e ∈ I then (2 : ℕ) else if e ∈ B then 1 else 0 := by
+    intro e heG
+    by_cases hI : e ∈ I
+    · obtain ⟨_, ha, hb⟩ := mem_edgesInternal_iff.mp hI
+      simp [endpointCountIn, hI, ha, hb]
+    · by_cases hB : e ∈ B
+      · obtain ⟨_, hcut⟩ := mem_edgeBoundary_iff.mp hB
+        cases hcut with
+        | inl h => simp [endpointCountIn, hI, hB, h.1, h.2]
+        | inr h => simp [endpointCountIn, hI, hB, h.1, h.2]
+      · have ha : e.val.1 ∉ S := by
+          intro hx
+          by_cases hb : e.val.2 ∈ S
+          · exact hI (mem_edgesInternal_iff.mpr ⟨heG, hx, hb⟩)
+          · exact hB (mem_edgeBoundary_iff.mpr ⟨heG, Or.inl ⟨hx, hb⟩⟩)
+        have hb : e.val.2 ∉ S := by
+          intro hx
+          exact hB (mem_edgeBoundary_iff.mpr ⟨heG, Or.inr ⟨ha, hx⟩⟩)
+        simp [endpointCountIn, hI, hB, ha, hb]
+  have hfilterI : G.filter (fun e => e ∈ I) = I := by
+    ext e
+    exact ⟨fun he => (mem_filter.mp he).2, fun he => mem_filter.mpr ⟨hIsub he, he⟩⟩
+  have hfilterB : G.filter (fun e => e ∉ I ∧ e ∈ B) = B := by
+    ext e
+    constructor
+    · intro he
+      exact (mem_filter.mp he).2.2
+    · intro he
+      exact mem_filter.mpr ⟨hBsub he, ⟨fun hI =>
+        (disjoint_left.mp hdisj hI he), he⟩⟩
+  have hsum := sum_degree_eq_sum_endpointCountIn G S
+  -- Split the edge sum by the internal predicate, then by the boundary predicate.
+  have hsplit₁ :=
+    (sum_filter_add_sum_filter_not (s := G) (p := fun e => e ∈ I)
+      (f := endpointCountIn S)).symm
+  have hIconst :
+      ∑ e ∈ G.filter (fun e => e ∈ I), endpointCountIn S e = 2 * I.card := by
+    have h :
+        ∑ e ∈ G.filter (fun e => e ∈ I), endpointCountIn S e =
+          ∑ e ∈ I, (2 : ℕ) := by
+      refine sum_congr hfilterI fun e he => ?_
+      obtain ⟨_, ha, hb⟩ := mem_edgesInternal_iff.mp he
+      simp [endpointCountIn, ha, hb]
+    simpa [sum_const, mul_comm] using h
+  have hsplit₂ :
+      ∑ e ∈ G.filter (fun e => e ∉ I), endpointCountIn S e =
+        ∑ e ∈ G.filter (fun e => e ∉ I ∧ e ∈ B), endpointCountIn S e +
+          ∑ e ∈ G.filter (fun e => e ∉ I ∧ e ∉ B), endpointCountIn S e := by
+    -- On `G.filter (∉ I)`, split by membership in `B`.
+    have h :=
+      (sum_filter_add_sum_filter_not
+        (s := G.filter (fun e => e ∉ I)) (p := fun e => e ∈ B)
+        (f := endpointCountIn S)).symm
+    -- Rewrite the two filtered sets into the ∧ forms.
+    have hB' :
+        (G.filter (fun e => e ∉ I)).filter (fun e => e ∈ B) =
+          G.filter (fun e => e ∉ I ∧ e ∈ B) := by
+      ext e; simp [mem_filter, and_comm, and_left_comm]
+    have hnB' :
+        (G.filter (fun e => e ∉ I)).filter (fun e => e ∉ B) =
+          G.filter (fun e => e ∉ I ∧ e ∉ B) := by
+      ext e; simp [mem_filter, and_comm, and_left_comm]
+    simpa [hB', hnB'] using h
+  have hBconst :
+      ∑ e ∈ G.filter (fun e => e ∉ I ∧ e ∈ B), endpointCountIn S e = B.card := by
+    have h :
+        ∑ e ∈ G.filter (fun e => e ∉ I ∧ e ∈ B), endpointCountIn S e =
+          ∑ e ∈ B, (1 : ℕ) := by
+      refine sum_congr hfilterB fun e he => ?_
+      obtain ⟨_, hcut⟩ := mem_edgeBoundary_iff.mp he
+      cases hcut with
+      | inl hc => simp [endpointCountIn, hc.1, hc.2]
+      | inr hc => simp [endpointCountIn, hc.1, hc.2]
+    simpa [sum_const] using h
+  have hRest :
+      ∑ e ∈ G.filter (fun e => e ∉ I ∧ e ∉ B), endpointCountIn S e = 0 := by
+    refine sum_eq_zero fun e he => ?_
+    obtain ⟨heG, hni, hnb⟩ := mem_filter.mp he
+    have hval := hpt e heG
+    simp [hni, hnb] at hval
+    exact hval
+  calc
+    ∑ v ∈ S, degree G v = ∑ e ∈ G, endpointCountIn S e := hsum
+    _ = ∑ e ∈ G.filter (fun e => e ∈ I), endpointCountIn S e +
+          ∑ e ∈ G.filter (fun e => e ∉ I), endpointCountIn S e := hsplit₁
+    _ = 2 * I.card +
+          (∑ e ∈ G.filter (fun e => e ∉ I ∧ e ∈ B), endpointCountIn S e +
+            ∑ e ∈ G.filter (fun e => e ∉ I ∧ e ∉ B), endpointCountIn S e) := by
+      rw [hIconst, hsplit₂]
+    _ = 2 * I.card + (B.card + 0) := by rw [hBconst, hRest]
+    _ = 2 * I.card + B.card := by omega
+
+/-- Touching edges partition into internal edges and the cut. -/
+theorem card_edgesTouching_eq_internal_add_boundary {n : ℕ} (G : FinGraph n)
+    (S : Finset (Fin n)) :
+    (edgesTouching G S).card =
+      (edgesInternal G S).card + (edgeBoundary G S).card := by
+  rw [edgesTouching_eq_internal_union_boundary,
+    card_union_of_disjoint (disjoint_edgesInternal_edgeBoundary G S)]
+
+/-- Cubic handshaking identity: `2 |touching| = 3|S| + |∂S|`. -/
+theorem handshaking_touching_of_regular3 {n : ℕ} {G : FinGraph n}
+    (hreg : IsRegular G 3) (S : Finset (Fin n)) :
+    2 * (edgesTouching G S).card =
+      3 * S.card + (edgeBoundary G S).card := by
+  have hdeg : ∑ v ∈ S, degree G v = 3 * S.card := by
+    calc
+      ∑ v ∈ S, degree G v = ∑ v ∈ S, (3 : ℕ) :=
+        sum_congr rfl fun v _ => hreg v
+      _ = 3 * S.card := by simp [sum_const, mul_comm]
+  have hsum := sum_degree_eq_two_internal_add_boundary G S
+  have htouch := card_edgesTouching_eq_internal_add_boundary G S
+  omega
+
+/-- Expander bridge: cubic `HasExpansion _ 1` yields Spreads for `starCNF` at scale
+`r` whenever medium sets sit inside the expansion window `2 * card ≤ n`. -/
+theorem spreads_starCNF_of_expansion {n : ℕ} {G : FinGraph n} {r : ℕ}
+    (hreg : IsRegular G 3) (hexp : HasExpansion G 1) (hn : 0 < n)
+    (hrWin : 2 * r ≤ n) (hrLo : 1 ≤ r / 2) :
+    Spreads (starCNF G) r 2 := by
+  refine spreads_starCNF_of_touching_ge hreg hn ?_
+  intro S hlo hhi
+  have hne : S.Nonempty := by
+    have : 0 < S.card := lt_of_lt_of_le (Nat.succ_le_iff.mp hrLo) hlo
+    exact card_pos.mp this
+  have hHalf : 2 * S.card ≤ n := by omega
+  have hbd : S.card ≤ (edgeBoundary G S).card := by
+    simpa [one_mul] using hexp S hne hHalf
+  exact touching_card_ge_two_of_handshaking_expansion
+    (handshaking_touching_of_regular3 hreg S) hbd
 
 /-- Heawood star CNF calibration target. -/
 def heawoodStarCNF : CNF := starCNF heawoodGraph
@@ -1960,6 +2242,16 @@ theorem heawoodStarCNF_floor_not_informative :
   have hw : 3 ≤ cnfWidth heawoodStarCNF := by omega
   have : 3 < csClauseWidthFloor 5 1 := by simpa [hr] using lt_of_le_of_lt hw h
   simp [csClauseWidthFloor] at this
+
+/-- Heawood star CNF Spreads at cage scale `r = 5` via cubic handshaking plus
+`heawoodGraph_expansion`. Honest: formula remains satisfiable and the α = 1 floor
+at this scale is not informative. -/
+theorem spreads_heawoodStarCNF_five : Spreads heawoodStarCNF 5 2 := by
+  have hrWin : 2 * (5 : ℕ) ≤ 14 := by decide
+  have hrLo : 1 ≤ (5 : ℕ) / 2 := by decide
+  simpa [heawoodStarCNF] using
+    spreads_starCNF_of_expansion heawoodGraph_regular heawoodGraph_expansion
+      (by decide : (0 : ℕ) < 14) hrWin hrLo
 
 /-- Support system form of Spreads (probabilistic method packaging). -/
 def SpreadsSupports (U : Finset (Finset ℕ)) (r γ : ℕ) : Prop :=
@@ -2016,9 +2308,14 @@ informative inhabitant this cycle.
 
 Cycle 2026-08-10 (star encoding): certified `starCNF`, support union identity,
 `spreads_starCNF_of_touching_ge`, handshaking packaging lemma, Heawood star
-satisfiability and non informative floor, plus `SpreadsSupports`. Remaining:
-prove cubic handshaking `2|touching|=3|S|+|∂S|` then instantiate Heawood or
-McGee scale Spreads; unsat polarity or probabilistic existence still open. -/
+satisfiability and non informative floor, plus `SpreadsSupports`.
+
+Cycle 2026-08-10 (cubic handshaking): certified
+`handshaking_touching_of_regular3` (`2|touching|=3|S|+|∂S|`),
+`spreads_starCNF_of_expansion`, and `spreads_heawoodStarCNF_five`. Remaining for
+`exists_cs_clause_expanding_3cnf`: informative scale (`r ≥ 8`) with matchable
+unsat polarity (star CNFs are all positive hence satisfiable), or probabilistic
+`SpreadsSupports` existence. -/
 
 namespace CSExpansionFrontier
 
