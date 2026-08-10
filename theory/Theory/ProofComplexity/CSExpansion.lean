@@ -381,34 +381,358 @@ theorem cs_expansion_size_lower_bound_of_width {F : CNF} {k β α : ℕ}
   intro W
   exact bsw_size_lower_bound F W hw d
 
-/-! ## Frontier: remaining bridge obligations for the pinned width LB -/
+/-! ## BSW clause-set complexes (μ-measure)
+
+The standard random k-CNF width argument (Ben-Sasson and Wigderson) uses the
+size of a minimal *axiom set* implying a derived clause, with boundary equal to
+variables appearing in exactly one axiom of that set. Coverage: each boundary
+variable lies in the derived clause (OR sensitivity + critical assignment). -/
+
+/-- Variables appearing in exactly one clause of `G`. -/
+def clauseSetBoundary (G : Finset Clause) : Finset ℕ :=
+  (G.biUnion clauseSupport).filter fun x =>
+    (G.filter fun C => x ∈ clauseSupport C).card = 1
+
+theorem mem_clauseSetBoundary_iff (G : Finset Clause) (x : ℕ) :
+    x ∈ clauseSetBoundary G ↔
+      x ∈ G.biUnion clauseSupport ∧
+        (G.filter fun C => x ∈ clauseSupport C).card = 1 := by
+  simp [clauseSetBoundary]
+
+/-- Axiom set `G ⊆ F` semantically implies `C`. -/
+def csClauseImplies (F : CNF) (G : Finset Clause) (C : Clause) : Prop :=
+  G ⊆ F ∧ ∀ a : Assignment, cnfSat a G → clauseSat a C
+
+/-- Erase-minimal axiom complex for `C`. -/
+def IsEraseMinimalClauseComplex (F : CNF) (G : Finset Clause) (C : Clause) : Prop :=
+  csClauseImplies F G C ∧ ∀ D ∈ G, ¬ csClauseImplies F (G.erase D) C
+
+theorem exists_eraseMinimalClauseComplex {F : CNF} {C : Clause}
+    (G : Finset Clause) (h : csClauseImplies F G C) :
+    ∃ H ⊆ G, IsEraseMinimalClauseComplex F H C := by
+  classical
+  revert h
+  refine Finset.strongInductionOn G ?_
+  intro G IH h
+  by_cases hmin : ∀ D ∈ G, ¬ csClauseImplies F (G.erase D) C
+  · exact ⟨G, subset_rfl, h, hmin⟩
+  · simp only [not_forall, Classical.not_imp, not_not] at hmin
+    obtain ⟨D, hD, hDimp⟩ := hmin
+    obtain ⟨H, hHsub, hHmin⟩ := IH (G.erase D) (erase_ssubset hD) hDimp
+    exact ⟨H, hHsub.trans (erase_subset D G), hHmin⟩
+
+noncomputable def chooseEraseMinimalClauseComplex {F : CNF} {C : Clause}
+    (G : Finset Clause) (h : csClauseImplies F G C) : Finset Clause :=
+  Classical.choose (exists_eraseMinimalClauseComplex G h)
+
+theorem chooseEraseMinimalClauseComplex_subset {F : CNF} {C : Clause}
+    (G : Finset Clause) (h : csClauseImplies F G C) :
+    chooseEraseMinimalClauseComplex G h ⊆ G :=
+  (Classical.choose_spec (exists_eraseMinimalClauseComplex G h)).1
+
+theorem chooseEraseMinimalClauseComplex_isMinimal {F : CNF} {C : Clause}
+    (G : Finset Clause) (h : csClauseImplies F G C) :
+    IsEraseMinimalClauseComplex F (chooseEraseMinimalClauseComplex G h) C :=
+  (Classical.choose_spec (exists_eraseMinimalClauseComplex G h)).2
+
+/-- Flip one variable. -/
+def csFlipVar (a : Assignment) (x : ℕ) : Assignment :=
+  fun y => if y = x then !a y else a y
+
+theorem clauseSat_csFlipVar_of_not_mem (a : Assignment) (C : Clause) (x : ℕ)
+    (hx : x ∉ clauseVars C) :
+    clauseSat (csFlipVar a x) C ↔ clauseSat a C := by
+  classical
+  constructor
+  · rintro ⟨l, hl, hlit⟩
+    refine ⟨l, hl, ?_⟩
+    have hvar : l.var ≠ x := by
+      intro heq
+      exact hx (mem_image.mpr ⟨l, hl, heq⟩)
+    simpa [litSat, csFlipVar, hvar] using hlit
+  · rintro ⟨l, hl, hlit⟩
+    refine ⟨l, hl, ?_⟩
+    have hvar : l.var ≠ x := by
+      intro heq
+      exact hx (mem_image.mpr ⟨l, hl, heq⟩)
+    simpa [litSat, csFlipVar, hvar] using hlit
+
+theorem cnfSat_csFlipVar_of_not_mem_supports (a : Assignment) (G : Finset Clause)
+    (x : ℕ) (hx : ∀ C ∈ G, x ∉ clauseSupport C) :
+    cnfSat (csFlipVar a x) G ↔ cnfSat a G := by
+  classical
+  constructor
+  · intro ha C hC
+    exact (clauseSat_csFlipVar_of_not_mem a C x (hx C hC)).1 (ha C hC)
+  · intro ha C hC
+    exact (clauseSat_csFlipVar_of_not_mem a C x (hx C hC)).2 (ha C hC)
+
+/-- BSW coverage: boundary variables of an erase-minimal axiom complex lie in `C`.
+Critical assignment for the unique owner clause plus OR sensitivity under flip. -/
+theorem clauseSetBoundary_subset_clauseVars {F : CNF} {G : Finset Clause} {C : Clause}
+    (hmin : IsEraseMinimalClauseComplex F G C) :
+    clauseSetBoundary G ⊆ clauseVars C := by
+  classical
+  intro x hx
+  by_contra hxC
+  have hcard : (G.filter fun D => x ∈ clauseSupport D).card = 1 :=
+    (mem_clauseSetBoundary_iff G x |>.mp hx).2
+  obtain ⟨D, hDsing⟩ := card_eq_one.mp hcard
+  have hDfilt : D ∈ G.filter fun E => x ∈ clauseSupport E := by
+    simp [hDsing]
+  have hDG : D ∈ G := (mem_filter.mp hDfilt).1
+  have hxD : x ∈ clauseSupport D := (mem_filter.mp hDfilt).2
+  have hNot := hmin.2 D hDG
+  have hEx : ∃ a, cnfSat a (G.erase D) ∧ ¬ clauseSat a C := by
+    have hsub : G.erase D ⊆ F := (erase_subset D G).trans hmin.1.1
+    by_contra hnone
+    push Not at hnone
+    exact hNot ⟨hsub, hnone⟩
+  obtain ⟨a, haErase, haC⟩ := hEx
+  have haDfalse : ¬ clauseSat a D := by
+    intro hDsat
+    have haG : cnfSat a G := by
+      intro E hE
+      by_cases hED : E = D
+      · simpa [hED] using hDsat
+      · exact haErase E (mem_erase.mpr ⟨hED, hE⟩)
+    exact haC (hmin.1.2 a haG)
+  obtain ⟨l, hlD, rfl⟩ := mem_image.mp hxD
+  have haLit : a l.var = !l.pos := by
+    have hNotLit : ¬ litSat a l := fun hlit => haDfalse ⟨l, hlD, hlit⟩
+    simp only [litSat] at hNotLit
+    cases hpos : l.pos <;> cases ha' : a l.var <;> simp_all
+  set a' := csFlipVar a l.var
+  have ha'D : clauseSat a' D := by
+    refine ⟨l, hlD, ?_⟩
+    simp [litSat, a', csFlipVar, haLit]
+  have hxOther : ∀ E ∈ G.erase D, l.var ∉ clauseSupport E := by
+    intro E hE hxE
+    have hEfilt : E ∈ G.filter (fun E => l.var ∈ clauseSupport E) :=
+      mem_filter.mpr ⟨(mem_erase.mp hE).2, hxE⟩
+    have hEq : E = D := by
+      have hsing : G.filter (fun E => l.var ∈ clauseSupport E) = {D} := hDsing
+      simpa [hsing] using hEfilt
+    exact (mem_erase.mp hE).1 hEq
+  have ha'Erase : cnfSat a' (G.erase D) :=
+    (cnfSat_csFlipVar_of_not_mem_supports a (G.erase D) l.var hxOther).2 haErase
+  have ha'C : ¬ clauseSat a' C := by
+    simpa [a', clauseSat_csFlipVar_of_not_mem a C l.var hxC] using haC
+  have ha'G : cnfSat a' G := by
+    intro E hE
+    by_cases hED : E = D
+    · simpa [hED] using ha'D
+    · exact ha'Erase E (mem_erase.mpr ⟨hED, hE⟩)
+  exact ha'C (hmin.1.2 a' ha'G)
+
+/-- Boundary size is at most clause width under erase-minimal axiom complexes. -/
+theorem clauseSetBoundary_card_le_clause_card {F : CNF} {G : Finset Clause}
+    {C : Clause} (hmin : IsEraseMinimalClauseComplex F G C) :
+    (clauseSetBoundary G).card ≤ C.card := by
+  have hsub := clauseSetBoundary_subset_clauseVars hmin
+  exact (card_le_card hsub).trans card_image_le
+
+/-- Singleton axiom set implies its clause. -/
+theorem csClauseImplies_hyp {F : CNF} {C : Clause} (hC : C ∈ F) :
+    csClauseImplies F ({C} : Finset Clause) C :=
+  ⟨singleton_subset_iff.mpr hC, fun a ha => ha C (mem_singleton_self _)⟩
+
+/-- Erase-minimal singleton when `C` is falsifiable (non-tautology). -/
+theorem isEraseMinimalClauseComplex_hyp {F : CNF} {C : Clause}
+    (hC : C ∈ F) (hFals : ∃ a, ¬ clauseSat a C) :
+    IsEraseMinimalClauseComplex F ({C} : Finset Clause) C := by
+  refine ⟨csClauseImplies_hyp hC, ?_⟩
+  intro D hD himp
+  have hDeq : D = C := mem_singleton.mp hD
+  have hempty : ({C} : Finset Clause).erase D = ∅ := by simp [hDeq]
+  have himp' : csClauseImplies F (∅ : Finset Clause) C := by
+    simpa [hempty] using himp
+  obtain ⟨a, ha⟩ := hFals
+  exact ha (himp'.2 a (by intro E hE; simp at hE))
+
+/-- Implication preserved by resolution on the union of axiom sets. -/
+theorem csClauseImplies_resolvent {F : CNF} {C D : Clause} (x : ℕ)
+    {G H : Finset Clause}
+    (hC : csClauseImplies F G C) (hD : csClauseImplies F H D)
+    (hx : (⟨x, true⟩ : Literal) ∈ C)
+    (hnx : (⟨x, false⟩ : Literal) ∈ D) :
+    csClauseImplies F (G ∪ H) (resolvent C D x) := by
+  refine ⟨union_subset hC.1 hD.1, fun a ha => ?_⟩
+  have hCs : clauseSat a C := hC.2 a (fun E hE => ha E (mem_union_left H hE))
+  have hDs : clauseSat a D := hD.2 a (fun E hE => ha E (mem_union_right G hE))
+  by_cases hax : a x = true
+  · obtain ⟨l, hl, hla⟩ := hDs
+    have hlne : l ≠ ⟨x, false⟩ := by
+      intro heq
+      have : a x = false := by simpa [heq, litSat] using hla
+      exact Bool.false_ne_true (this.symm.trans hax)
+    exact ⟨l, mem_union.mpr (Or.inr (mem_erase.mpr ⟨hlne, hl⟩)), hla⟩
+  · obtain ⟨l, hl, hla⟩ := hCs
+    have hlne : l ≠ ⟨x, true⟩ := by
+      intro heq
+      have : a x = true := by simpa [heq, litSat] using hla
+      exact hax this
+    exact ⟨l, mem_union.mpr (Or.inl (mem_erase.mpr ⟨hlne, hl⟩)), hla⟩
+
+/-! ## Derivation-indexed clause-set complexes (μ) -/
+
+structure Derivation.CSClauseComplexData {F : CNF} {C : Clause}
+    (d : Derivation F C) where
+  G : Finset Clause
+  isMinimal : IsEraseMinimalClauseComplex F G C
+
+/-- Critical axiom set: erase-minimal μ-complex inside parent union. -/
+noncomputable def Derivation.csClauseComplexData {F : CNF} :
+    {C : Clause} → (d : Derivation F C) → Derivation.CSClauseComplexData d
+  | C, .hyp _ hC =>
+    ⟨chooseEraseMinimalClauseComplex ({C} : Finset Clause) (csClauseImplies_hyp hC),
+      chooseEraseMinimalClauseComplex_isMinimal ({C} : Finset Clause)
+        (csClauseImplies_hyp hC)⟩
+  | _, .res x dC dD hx hnx =>
+    let pC := dC.csClauseComplexData
+    let pD := dD.csClauseComplexData
+    let hU := csClauseImplies_resolvent x pC.isMinimal.1 pD.isMinimal.1 hx hnx
+    ⟨chooseEraseMinimalClauseComplex (pC.G ∪ pD.G) hU,
+      chooseEraseMinimalClauseComplex_isMinimal (pC.G ∪ pD.G) hU⟩
+
+noncomputable def Derivation.csClauseComplex {F : CNF} {C : Clause}
+    (d : Derivation F C) : Finset Clause :=
+  d.csClauseComplexData.G
+
+theorem csClauseComplex_isMinimal {F : CNF} {C : Clause} (d : Derivation F C) :
+    IsEraseMinimalClauseComplex F d.csClauseComplex C :=
+  d.csClauseComplexData.isMinimal
+
+theorem csClauseComplex_implies {F : CNF} {C : Clause} (d : Derivation F C) :
+    csClauseImplies F d.csClauseComplex C :=
+  (csClauseComplex_isMinimal d).1
+
+theorem csClauseComplex_subset_F {F : CNF} {C : Clause} (d : Derivation F C) :
+    d.csClauseComplex ⊆ F :=
+  (csClauseComplex_implies d).1
+
+theorem csClauseComplex_res_subset {F : CNF} {C D : Clause} (x : ℕ)
+    (dC : Derivation F C) (dD : Derivation F D)
+    (hx : (⟨x, true⟩ : Literal) ∈ C)
+    (hnx : (⟨x, false⟩ : Literal) ∈ D) :
+    (Derivation.res x dC dD hx hnx).csClauseComplex ⊆
+      dC.csClauseComplex ∪ dD.csClauseComplex := by
+  have hU := csClauseImplies_resolvent x dC.csClauseComplexData.isMinimal.1
+    dD.csClauseComplexData.isMinimal.1 hx hnx
+  simp only [Derivation.csClauseComplex, Derivation.csClauseComplexData]
+  exact chooseEraseMinimalClauseComplex_subset (dC.csClauseComplexData.G ∪
+    dD.csClauseComplexData.G) hU
+
+theorem csClauseComplex_hyp_card_le_one {F : CNF} {C : Clause} (hC : C ∈ F) :
+    (Derivation.hyp (F := F) C hC).csClauseComplex.card ≤ 1 := by
+  have hsub :=
+    chooseEraseMinimalClauseComplex_subset ({C} : Finset Clause) (csClauseImplies_hyp hC)
+  have hle := card_le_card hsub
+  simpa [Derivation.csClauseComplex, Derivation.csClauseComplexData, card_singleton] using hle
+
+/-- Conclusion clause card is at most derivation width. -/
+theorem Derivation.cs_concl_card_le_width {F : CNF} {C : Clause}
+    (d : Derivation F C) : C.card ≤ d.width := by
+  induction d with
+  | hyp _ _ => simp [Derivation.width]
+  | res _ dC dD _ _ ihC ihD =>
+    simp only [Derivation.width, Derivation.conclusion]
+    exact le_max_right _ _
+
+/-- Every derived line is BSW-covered: `|∂G| ≤ width(C)`. -/
+theorem cs_clause_complex_boundary_le_width {F : CNF} {C : Clause}
+    (d : Derivation F C) :
+    (clauseSetBoundary d.csClauseComplex).card ≤ d.width := by
+  have hbd :=
+    clauseSetBoundary_card_le_clause_card (csClauseComplex_isMinimal d)
+  exact hbd.trans d.cs_concl_card_le_width
+
+/-- Medium floor for axiom-set complexes, parallel to `tseitinMediumFloor`. -/
+def csClauseMediumFloor (m : ℕ) : ℕ := (m / 2 + 2) / 2
+
+private theorem max_ge_csClauseMediumFloor_of_sum_gt_div2 (a b m : ℕ)
+    (hsum : m / 2 < a + b) : csClauseMediumFloor m ≤ max a b := by
+  have hab : m / 2 + 1 ≤ a + b := Nat.succ_le_of_lt hsum
+  have hceil : (a + b + 1) / 2 ≤ max a b := by
+    have h2 : a + b ≤ 2 * max a b := by
+      cases le_total a b with
+      | inl hab =>
+        have : max a b = b := max_eq_right hab
+        simp [this]; omega
+      | inr hba =>
+        have : max a b = a := max_eq_left hba
+        simp [this]; omega
+    omega
+  have hfl : csClauseMediumFloor m ≤ (a + b + 1) / 2 := by
+    simp only [csClauseMediumFloor]
+    omega
+  exact hfl.trans hceil
+
+/-- From a derivation whose μ-complex exceeds `m / 2`, extract a medium line. -/
+theorem exists_medium_cs_clause_complex_of_large {F : CNF} {C : Clause}
+    (π : Derivation F C) (hm : 2 ≤ F.card)
+    (hLarge : F.card / 2 < π.csClauseComplex.card) :
+    ∃ (C' : Clause) (dC : Derivation F C'),
+      dC.csClauseComplex.card ≤ F.card / 2 ∧
+        csClauseMediumFloor F.card ≤ dC.csClauseComplex.card ∧
+          dC.width ≤ π.width ∧
+            (clauseSetBoundary dC.csClauseComplex).card ≤ dC.width := by
+  induction π with
+  | hyp _ hC =>
+    have hle := csClauseComplex_hyp_card_le_one hC
+    omega
+  | res x dC dD hx hnx ihC ihD =>
+    have hsub := csClauseComplex_res_subset x dC dD hx hnx
+    have hle : (Derivation.res x dC dD hx hnx).csClauseComplex.card ≤
+        (dC.csClauseComplex ∪ dD.csClauseComplex).card := card_le_card hsub
+    set SC := dC.csClauseComplex
+    set SD := dD.csClauseComplex
+    have hUnion : F.card / 2 < (SC ∪ SD).card := lt_of_lt_of_le hLarge hle
+    by_cases hCbig : F.card / 2 < SC.card
+    · obtain ⟨C', d', h1, h2, h3, h4⟩ := ihC hCbig
+      refine ⟨C', d', h1, h2, h3.trans ?_, h4⟩
+      simp only [Derivation.width]
+      exact (le_max_left _ _).trans (le_max_left _ _)
+    · by_cases hDbig : F.card / 2 < SD.card
+      · obtain ⟨C', d', h1, h2, h3, h4⟩ := ihD hDbig
+        refine ⟨C', d', h1, h2, h3.trans ?_, h4⟩
+        simp only [Derivation.width]
+        exact (le_max_right _ _).trans (le_max_left _ _)
+      · have hCbig' : SC.card ≤ F.card / 2 := Nat.le_of_not_gt hCbig
+        have hDbig' : SD.card ≤ F.card / 2 := Nat.le_of_not_gt hDbig
+        have hleUnion : (SC ∪ SD).card ≤ SC.card + SD.card := card_union_le SC SD
+        have hsum : F.card / 2 < SC.card + SD.card := lt_of_lt_of_le hUnion hleUnion
+        have hmax : csClauseMediumFloor F.card ≤ max SC.card SD.card :=
+          max_ge_csClauseMediumFloor_of_sum_gt_div2 _ _ _ hsum
+        by_cases hSC : SD.card ≤ SC.card
+        · have hmed : csClauseMediumFloor F.card ≤ SC.card := by
+            simpa [max_eq_left hSC] using hmax
+          refine ⟨dC.conclusion, dC, hCbig', hmed, ?_,
+            cs_clause_complex_boundary_le_width dC⟩
+          exact (le_max_left dC.width dD.width).trans (le_max_left _ _)
+        · have hSDle : SC.card ≤ SD.card := le_of_not_ge hSC
+          have hmed : csClauseMediumFloor F.card ≤ SD.card := by
+            simpa [max_eq_right hSDle] using hmax
+          refine ⟨dD.conclusion, dD, hDbig', hmed, ?_,
+            cs_clause_complex_boundary_le_width dD⟩
+          exact (le_max_right dC.width dD.width).trans (le_max_left _ _)
+
+/-! ## Frontier: pinned width LB vs HasCSExpansion and existence -/
 
 namespace CSExpansionFrontier
 
-/-- Stuck obligation (cycle 2026-08-09): erase-minimal complexes are
-boundary-covered, with an injective variable selection so that
-`(boundaryClauses F S).card ≤ C.card`. The Tseitin flip uses edge variables;
-the CS flip needs a clause-crossing variable argument. -/
+/-- Variable-side coverage remains open; BSW coverage uses `clauseSetBoundary`. -/
 theorem boundaryCovered_of_eraseMinimal {F : CNF} {S : Finset ℕ} {C : Clause}
-    (hmin : IsEraseMinimalCSComplex F S C) :
+    (_hmin : IsEraseMinimalCSComplex F S C) :
     boundaryCovered F S C := by
   sorry
 
-/-- Stuck obligation: medium-line extraction from a large CS complex for `∅`,
-parallel to `exists_medium_tseitin_complex`. -/
-theorem exists_medium_cs_complex {F : CNF} {β : ℕ}
-    (d : Derivation F (∅ : Clause)) (hβ : 0 < β)
-    (hLarge : (cnfSupport F).card / β < d.csComplex.card) :
-    ∃ (C : Clause) (dC : Derivation F C),
-      dC.csComplex.card ≤ (cnfSupport F).card / β ∧
-        csWidthFloor (cnfSupport F).card β 1 ≤ dC.csComplex.card ∧
-          dC.width ≤ d.width ∧
-            boundaryCovered F dC.csComplex C := by
-  sorry
-
-/-- Pinned width LB (Frontier until coverage and medium extraction close). -/
+/-- Bridge gap: pin uses variable-side `HasCSExpansion` / `boundaryClauses`, while
+the accepted coverage theorem uses axiom-set `clauseSetBoundary`. Closing the
+width LB needs either a clause-expansion hypothesis or a reduction between them,
+plus a matchability hypothesis giving a large μ-complex for `∅`. -/
 theorem cs_expansion_width_lower_bound {F : CNF} {k β α : ℕ}
-    (h : HasCSExpansion F k β α) (_hα : 1 ≤ α) (_hβ : 0 < β)
+    (_h : HasCSExpansion F k β α) (_hα : 1 ≤ α) (_hβ : 0 < β)
     (d : Derivation F (∅ : Clause)) :
     csWidthFloor (cnfSupport F).card β α ≤ d.width := by
   sorry

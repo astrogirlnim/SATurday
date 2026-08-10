@@ -1107,3 +1107,25 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
 - 2026-08-09 human gate merge_certified: APPROVED by session decision (user
   blanket continue, auto after axiom gate PASS). CS complex infrastructure
   cluster accepted. R2 stays prose_accepted.
+
+- 2026-08-09 formalize (BSW clause-set complexes and coverage): PARTIAL to
+  SUCCESS on the coverage cluster. Accepted: `clauseSetBoundary`,
+  `csClauseImplies`, erase-minimal axiom complexes, flip lemmas,
+  `clauseSetBoundary_subset_clauseVars` (OR sensitivity plus critical
+  assignment), card bound, `Derivation.csClauseComplex` with hyp or res
+  indexing, `cs_clause_complex_boundary_le_width`, medium extraction
+  `exists_medium_cs_clause_complex_of_large`. Frontier (sorry): variable-side
+  `boundaryCovered_of_eraseMinimal`, pinned
+  `CSExpansionFrontier.cs_expansion_width_lower_bound` (bridge gap between
+  variable-side `HasCSExpansion` and axiom-set boundary), 
+  `exists_cs_expanding_3cnf`. Axiom gate PASS.
+  Most important thing learned: random k-CNF width uses axiom-set measure μ
+  and variables in exactly one axiom, not variable-set `boundaryClauses`;
+  pinning the width LB still needs clause expansion or a reduction, plus
+  matchability so μ(empty) is large.
+  Next: bridge HasCSExpansion to clause-set expansion or restate the pin,
+  then close width LB and existence.
+
+- 2026-08-09 human gate merge_certified: APPROVED by session decision (user
+  blanket continue, auto after axiom gate PASS). BSW clause-set coverage
+  cluster accepted. R2 stays prose_accepted (pinned CS width LB still open).
