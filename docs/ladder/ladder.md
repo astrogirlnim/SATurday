@@ -39,7 +39,8 @@ R4-class results plus the certified R5 bridge.
     CSExpansion.lean (clause-set CS width machine certified; pin restated
     2026-08-09 to IsCSMatchable / HasCSClauseExpansion; matchability
     infrastructure merged 2026-08-10; Spreads reduction to
-    HasCSClauseExpansion merged 2026-08-10; exists_cs_clause_expanding_3cnf Frontier)
+    HasCSClauseExpansion merged 2026-08-10; finite Spreads r=2 unsat witness
+    merged 2026-08-10; exists_cs_clause_expanding_3cnf Frontier)
 
 - R3 stronger systems
   - status: proposed

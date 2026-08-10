@@ -9,6 +9,9 @@ Critical path (pin restated 2026-08-09): `IsCSMatchable`, `HasCSClauseExpansion`
 Existence target: `exists_cs_clause_expanding_3cnf` (Frontier).
 Accepted reduction: `Spreads` at rate 2 plus width ≤ 3 yields
 `hasCSClauseExpansion_one_of_spreads_two`.
+Finite non vacuous inhabitant: `spreadWitnessCNF` with `Spreads _ 2 2`,
+matchability at 2, and `hasCSClauseExpansion_spreadWitnessCNF_two`
+(packaged as `exists_spreads_two_matchable_unsat_3cnf`; floor not informative).
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -1194,6 +1197,317 @@ theorem spreads_one_of_support_ge {F : CNF} {γ : ℕ}
     obtain ⟨C, rfl⟩ := card_eq_one.mp h1
     have hC : C ∈ F := hG (mem_singleton_self _)
     simpa [biUnion_singleton] using hge C hC
+
+/-! ## Spreads at rate 2 for matchable unsat 3-CNF (finite witness)
+
+Non vacuous scale `r = 2` (medium sets of size 1 and 2). Pairwise support unions
+of size at least 4 yield `Spreads F 2 2`, hence `HasCSClauseExpansion F 2 1` via
+`hasCSClauseExpansion_one_of_spreads_two`. The concrete witness is an explicit
+unsatisfiable width-3 CNF on six variables with pairwise distinct triple supports.
+Informative floor (`cnfWidth < csClauseWidthFloor`) fails at this scale and is
+not claimed; the `∀ N` Frontier pin remains open. -/
+
+/-- Nonempty clauses are satisfiable as singleton CNFs. -/
+theorem Satisfiable.singleton_of_nonempty {C : Clause} (h : C.Nonempty) :
+    Satisfiable ({C} : CNF) := by
+  obtain ⟨l, hl⟩ := h
+  refine ⟨fun x => if x = l.var then l.pos else true, ?_⟩
+  intro D hD
+  have hDeq : D = C := mem_singleton.mp hD
+  subst hDeq
+  exact ⟨l, hl, by simp [litSat]⟩
+
+/-- Any two clauses of cardinality at least two are jointly satisfiable. -/
+theorem Satisfiable.pair_of_card_ge_two {C D : Clause}
+    (hC : 2 ≤ C.card) (hD : 2 ≤ D.card) :
+    Satisfiable ({C, D} : CNF) := by
+  classical
+  by_cases hEq : C = D
+  · subst hEq
+    have hne : C.Nonempty := card_pos.mp (by omega)
+    simpa [pair_eq_singleton] using Satisfiable.singleton_of_nonempty hne
+  · obtain ⟨l, hl⟩ := card_pos.mp (show 0 < C.card from by omega)
+    let a0 : Assignment := fun x => if x = l.var then l.pos else false
+    have hCsat : clauseSat a0 C := ⟨l, hl, by simp [litSat, a0]⟩
+    by_cases hDsat : clauseSat a0 D
+    · refine ⟨a0, fun E hE => ?_⟩
+      rcases mem_insert.mp hE with hE | hE
+      · subst hE; exact hCsat
+      · have hE' : E = D := mem_singleton.mp hE
+        subst hE'; exact hDsat
+    · obtain ⟨m, hm⟩ := card_pos.mp (show 0 < D.card from by omega)
+      by_cases hvar : m.var = l.var
+      · have hrest : (D.erase m).Nonempty := by
+          have : (D.erase m).card = D.card - 1 := card_erase_of_mem hm
+          exact card_pos.mp (by omega)
+        obtain ⟨m', hm'erase⟩ := hrest
+        have hm'mem : m' ∈ D := mem_of_mem_erase hm'erase
+        have hm'ne : m' ≠ m := (mem_erase.mp hm'erase).1
+        have hm'var : m'.var ≠ l.var := by
+          intro hv
+          by_cases hposEq : m'.pos = l.pos
+          · -- Same polarity as `l`: `a0` satisfies `m'`, so satisfies `D`.
+            have : litSat a0 m' := by
+              simp [litSat, a0, hv, hposEq]
+            exact hDsat ⟨m', hm'mem, this⟩
+          · -- Opposite polarity: `m'` equals `m` (also opposite of `l` under `a0`).
+            have hm_fail : ¬ litSat a0 m := fun h => hDsat ⟨m, hm, h⟩
+            have hm_opp : m.pos ≠ l.pos := by
+              intro heq
+              have : litSat a0 m := by simp [litSat, a0, hvar, heq]
+              exact hm_fail this
+            have : m' = m := by
+              rcases l with ⟨lv, lp⟩
+              rcases m with ⟨mv, mb⟩
+              rcases m' with ⟨m'v, m'b⟩
+              have hv1 : mv = lv := hvar
+              have hv2 : m'v = lv := hv
+              subst hv1; subst hv2
+              cases lp <;> cases mb <;> cases m'b <;> simp_all [Literal]
+            exact hm'ne this
+        let a1 : Assignment := fun x =>
+          if x = l.var then l.pos else if x = m'.var then m'.pos else false
+        refine ⟨a1, fun E hE => ?_⟩
+        rcases mem_insert.mp hE with hE | hE
+        · subst hE; exact ⟨l, hl, by simp [litSat, a1]⟩
+        · have : E = D := mem_singleton.mp hE
+          subst this
+          refine ⟨m', hm'mem, ?_⟩
+          simp [litSat, a1, hm'var]
+      · let a1 : Assignment := fun x =>
+          if x = l.var then l.pos else if x = m.var then m.pos else false
+        refine ⟨a1, fun E hE => ?_⟩
+        rcases mem_insert.mp hE with hE | hE
+        · subst hE; exact ⟨l, hl, by simp [litSat, a1]⟩
+        · have : E = D := mem_singleton.mp hE
+          subst this
+          refine ⟨m, hm, ?_⟩
+          simp [litSat, a1, hvar]
+
+/-- Matchability at scale 2 for CNFs whose clauses all have size at least 2. -/
+theorem isCSMatchable_two_of_clause_card_ge_two {F : CNF}
+    (h : ∀ C ∈ F, 2 ≤ C.card) : IsCSMatchable F 2 := by
+  intro G hG hcard
+  have hcases : G.card = 0 ∨ G.card = 1 ∨ G.card = 2 := by omega
+  rcases hcases with h0 | h1 | h2
+  · have hGempty : G = ∅ := card_eq_zero.mp h0
+    simpa [hGempty] using Satisfiable_empty
+  · obtain ⟨C, rfl⟩ := card_eq_one.mp h1
+    exact Satisfiable.singleton_of_nonempty
+      (card_pos.mp (by have := h C (hG (mem_singleton_self _)); omega))
+  · obtain ⟨C, D, hCD, rfl⟩ := card_eq_two.mp h2
+    exact Satisfiable.pair_of_card_ge_two
+      (h C (hG (mem_insert_self _ _)))
+      (h D (hG (mem_insert_of_mem (mem_singleton_self _))))
+
+/-- Distinct size-3 supports force pairwise union size at least 4. -/
+theorem clauseSupport_union_card_ge_four_of_ne_triples {C D : Clause}
+    (hC : (clauseSupport C).card = 3) (hD : (clauseSupport D).card = 3)
+    (hne : clauseSupport C ≠ clauseSupport D) :
+    4 ≤ (clauseSupport C ∪ clauseSupport D).card := by
+  have hle : (clauseSupport C ∩ clauseSupport D).card ≤ 2 := by
+    by_contra hgt
+    have hge : 3 ≤ (clauseSupport C ∩ clauseSupport D).card := by omega
+    have hsub : clauseSupport C ∩ clauseSupport D ⊆ clauseSupport C :=
+      inter_subset_left
+    have heq : clauseSupport C ∩ clauseSupport D = clauseSupport C :=
+      eq_of_subset_of_card_le hsub (by omega)
+    have hCsubD : clauseSupport C ⊆ clauseSupport D := by
+      intro x hx
+      have hxI : x ∈ clauseSupport C ∩ clauseSupport D := by
+        simpa [heq] using hx
+      exact (mem_inter.mp hxI).2
+    exact hne (eq_of_subset_of_card_le hCsubD (by omega))
+  have hcard := card_union_add_card_inter (clauseSupport C) (clauseSupport D)
+  omega
+
+/-- Spreading at rate 2 and scale 2 from support lower bounds plus pairwise unions. -/
+theorem spreads_two_of_pairwise_union_ge {F : CNF}
+    (h1 : ∀ C ∈ F, 2 ≤ (clauseSupport C).card)
+    (h2 : ∀ C ∈ F, ∀ D ∈ F, C ≠ D →
+      4 ≤ (clauseSupport C ∪ clauseSupport D).card) :
+    Spreads F 2 2 := by
+  intro G hG hlo hhi
+  have hcases : G.card = 1 ∨ G.card = 2 := by omega
+  rcases hcases with h1c | h2c
+  · obtain ⟨C, rfl⟩ := card_eq_one.mp h1c
+    have : 2 * ({C} : Finset Clause).card ≤ (clauseSupport C).card := by
+      simpa using h1 C (hG (mem_singleton_self _))
+    simpa [biUnion_singleton] using this
+  · obtain ⟨C, D, hCD, rfl⟩ := card_eq_two.mp h2c
+    have hC : C ∈ F := hG (mem_insert_self _ _)
+    have hD : D ∈ F := hG (mem_insert_of_mem (mem_singleton_self _))
+    have hU :
+        ({C, D} : Finset Clause).biUnion clauseSupport =
+          clauseSupport C ∪ clauseSupport D := by
+      ext x; constructor
+      · intro hx
+        obtain ⟨E, hE, hxE⟩ := mem_biUnion.mp hx
+        rcases mem_insert.mp hE with hE | hE
+        · subst hE; exact mem_union_left _ hxE
+        · have : E = D := mem_singleton.mp hE
+          subst this; exact mem_union_right _ hxE
+      · intro hx
+        rcases mem_union.mp hx with hx | hx
+        · exact mem_biUnion.mpr ⟨C, mem_insert_self _ _, hx⟩
+        · exact mem_biUnion.mpr
+            ⟨D, mem_insert_of_mem (mem_singleton_self _), hx⟩
+    have h4 : 4 ≤ (clauseSupport C ∪ clauseSupport D).card := h2 C hC D hD hCD
+    have : 2 * ({C, D} : Finset Clause).card ≤
+        (({C, D} : Finset Clause).biUnion clauseSupport).card := by
+      simpa [hU, card_pair hCD] using h4
+    exact this
+
+/-- Assignment read from a finite valuation on `Fin n`. -/
+def assignmentOfFin {n : ℕ} (χ : Fin n → Bool) : Assignment :=
+  fun v => if h : v < n then χ ⟨v, h⟩ else false
+
+/-- Decidable satisfaction under a total assignment (classical Finset search). -/
+instance instDecidableCnfSat (a : Assignment) (F : CNF) :
+    Decidable (cnfSat a F) := by
+  classical
+  unfold cnfSat clauseSat litSat
+  infer_instance
+
+/-- Existence of a satisfying valuation on `Fin n` (decidable; honest finite search). -/
+def existsSatFin (n : ℕ) (F : CNF) : Prop :=
+  ∃ χ : Fin n → Bool, cnfSat (assignmentOfFin χ) F
+
+instance (n : ℕ) (F : CNF) : Decidable (existsSatFin n F) := by
+  classical
+  unfold existsSatFin
+  infer_instance
+
+/-- If all variables of `F` lie below `n` and no `Fin n` valuation satisfies `F`,
+then `F` is unsatisfiable. -/
+theorem not_satisfiable_of_not_existsSatFin {F : CNF} {n : ℕ}
+    (hvars : ∀ v ∈ cnfVars F, v < n)
+    (h : ¬ existsSatFin n F) :
+    ¬ Satisfiable F := by
+  intro ⟨a, ha⟩
+  apply h
+  refine ⟨fun i => a i.val, ?_⟩
+  intro C hC
+  obtain ⟨l, hl, hsat⟩ := ha C hC
+  refine ⟨l, hl, ?_⟩
+  have hv : l.var ∈ cnfVars F :=
+    mem_biUnion.mpr ⟨C, hC, mem_image.mpr ⟨l, hl, rfl⟩⟩
+  have hlt : l.var < n := hvars _ hv
+  simpa [litSat, assignmentOfFin, hlt] using hsat
+
+/-! ### Explicit witness CNF (six variables, fourteen distinct triples) -/
+
+/-- Clause of the spreading witness, indexed for compact packaging. -/
+def spreadWitnessClause : Fin 14 → Clause
+  | ⟨0, _⟩ => {⟨0, false⟩, ⟨2, true⟩, ⟨5, true⟩}
+  | ⟨1, _⟩ => {⟨2, false⟩, ⟨4, false⟩, ⟨5, true⟩}
+  | ⟨2, _⟩ => {⟨1, true⟩, ⟨2, false⟩, ⟨5, false⟩}
+  | ⟨3, _⟩ => {⟨0, false⟩, ⟨1, false⟩, ⟨4, true⟩}
+  | ⟨4, _⟩ => {⟨1, false⟩, ⟨4, true⟩, ⟨5, true⟩}
+  | ⟨5, _⟩ => {⟨1, false⟩, ⟨2, true⟩, ⟨3, false⟩}
+  | ⟨6, _⟩ => {⟨1, true⟩, ⟨3, false⟩, ⟨4, true⟩}
+  | ⟨7, _⟩ => {⟨3, false⟩, ⟨4, true⟩, ⟨5, false⟩}
+  | ⟨8, _⟩ => {⟨1, true⟩, ⟨3, true⟩, ⟨5, true⟩}
+  | ⟨9, _⟩ => {⟨0, false⟩, ⟨1, true⟩, ⟨3, false⟩}
+  | ⟨10, _⟩ => {⟨0, false⟩, ⟨2, true⟩, ⟨3, true⟩}
+  | ⟨11, _⟩ => {⟨1, false⟩, ⟨2, false⟩, ⟨4, false⟩}
+  | ⟨12, _⟩ => {⟨0, true⟩, ⟨4, true⟩, ⟨5, false⟩}
+  | ⟨13, _⟩ => {⟨0, true⟩, ⟨2, true⟩, ⟨4, false⟩}
+
+/-- Matchable unsatisfiable width-3 CNF with `Spreads _ 2 2`. -/
+def spreadWitnessCNF : CNF :=
+  (Finset.univ : Finset (Fin 14)).image spreadWitnessClause
+
+theorem spreadWitnessClause_card (i : Fin 14) :
+    (spreadWitnessClause i).card = 3 := by
+  fin_cases i <;> decide
+
+theorem spreadWitnessClause_support_card (i : Fin 14) :
+    (clauseSupport (spreadWitnessClause i)).card = 3 := by
+  fin_cases i <;> decide
+
+theorem mem_spreadWitnessCNF {C : Clause} :
+    C ∈ spreadWitnessCNF ↔ ∃ i : Fin 14, spreadWitnessClause i = C := by
+  simp [spreadWitnessCNF, mem_image]
+
+theorem spreadWitnessCNF_clause_card {C : Clause}
+    (hC : C ∈ spreadWitnessCNF) : C.card = 3 := by
+  obtain ⟨i, rfl⟩ := mem_spreadWitnessCNF.mp hC
+  exact spreadWitnessClause_card i
+
+theorem spreadWitnessCNF_support_card {C : Clause}
+    (hC : C ∈ spreadWitnessCNF) : (clauseSupport C).card = 3 := by
+  obtain ⟨i, rfl⟩ := mem_spreadWitnessCNF.mp hC
+  exact spreadWitnessClause_support_card i
+
+theorem spreadWitnessCNF_cnfWidth_le :
+    cnfWidth spreadWitnessCNF ≤ 3 :=
+  Finset.sup_le fun C hC => (spreadWitnessCNF_clause_card hC).le
+
+theorem spreadWitnessClause_support_injective {i j : Fin 14}
+    (h : clauseSupport (spreadWitnessClause i) =
+      clauseSupport (spreadWitnessClause j)) :
+    i = j := by
+  revert h
+  fin_cases i <;> fin_cases j <;> decide
+
+theorem spreadWitnessCNF_pairwise_union_ge :
+    ∀ C ∈ spreadWitnessCNF, ∀ D ∈ spreadWitnessCNF, C ≠ D →
+      4 ≤ (clauseSupport C ∪ clauseSupport D).card := by
+  intro C hC D hD hne
+  obtain ⟨i, rfl⟩ := mem_spreadWitnessCNF.mp hC
+  obtain ⟨j, rfl⟩ := mem_spreadWitnessCNF.mp hD
+  have hij : i ≠ j := fun heq => hne (congrArg _ heq)
+  have hsup :
+      clauseSupport (spreadWitnessClause i) ≠
+        clauseSupport (spreadWitnessClause j) :=
+    fun heq => hij (spreadWitnessClause_support_injective heq)
+  exact clauseSupport_union_card_ge_four_of_ne_triples
+    (spreadWitnessClause_support_card i) (spreadWitnessClause_support_card j) hsup
+
+theorem spreads_spreadWitnessCNF_two : Spreads spreadWitnessCNF 2 2 :=
+  spreads_two_of_pairwise_union_ge
+    (fun C hC => by have := spreadWitnessCNF_support_card hC; omega)
+    spreadWitnessCNF_pairwise_union_ge
+
+theorem isCSMatchable_spreadWitnessCNF_two :
+    IsCSMatchable spreadWitnessCNF 2 :=
+  isCSMatchable_two_of_clause_card_ge_two fun C hC => by
+    have := spreadWitnessCNF_clause_card hC; omega
+
+theorem hasCSClauseExpansion_spreadWitnessCNF_two :
+    HasCSClauseExpansion spreadWitnessCNF 2 1 :=
+  hasCSClauseExpansion_one_of_spreads_two
+    spreadWitnessCNF_cnfWidth_le spreads_spreadWitnessCNF_two
+
+theorem spreadWitnessCNF_vars_lt_six {v : ℕ}
+    (hv : v ∈ cnfVars spreadWitnessCNF) : v < 6 := by
+  simp only [cnfVars, mem_biUnion, mem_spreadWitnessCNF] at hv
+  obtain ⟨C, ⟨i, rfl⟩, hvC⟩ := hv
+  fin_cases i <;>
+    · simp only [spreadWitnessClause, clauseVars, mem_image] at hvC
+      aesop
+
+/-- Finite valuation search: no `Fin 6` assignment satisfies the witness. -/
+theorem not_existsSatFin_spreadWitnessCNF :
+    ¬ existsSatFin 6 spreadWitnessCNF := by
+  decide
+
+theorem spreadWitnessCNF_unsat : ¬ Satisfiable spreadWitnessCNF :=
+  not_satisfiable_of_not_existsSatFin
+    (fun _ hv => spreadWitnessCNF_vars_lt_six hv) not_existsSatFin_spreadWitnessCNF
+
+/-- Packaged finite advance toward `exists_cs_clause_expanding_3cnf`:
+matchable unsat width-3 CNF with `Spreads` at rate 2, hence clause-set expansion
+at α = 1. Floor informativeness is not claimed at `r = 2`. -/
+theorem exists_spreads_two_matchable_unsat_3cnf :
+    ∃ (F : CNF) (r : ℕ),
+      cnfWidth F ≤ 3 ∧ r = 2 ∧
+        IsCSMatchable F r ∧ Spreads F r 2 ∧ HasCSClauseExpansion F r 1 ∧
+          ¬ Satisfiable F :=
+  ⟨spreadWitnessCNF, 2, spreadWitnessCNF_cnfWidth_le, rfl,
+    isCSMatchable_spreadWitnessCNF_two, spreads_spreadWitnessCNF_two,
+    hasCSClauseExpansion_spreadWitnessCNF_two, spreadWitnessCNF_unsat⟩
 
 /-! ## Frontier: restated existence plus quarantined variable-side names
 

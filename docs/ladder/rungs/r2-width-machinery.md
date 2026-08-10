@@ -5,7 +5,8 @@ Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (item 1
 merged); FinGraph.lean and Tseitin.lean (item 2 width machine merged, including
 heawoodGraph_expansion); CSExpansion.lean (item 2 CS width machine certified under
 clause-set pin restated 2026-08-09; Spreads reduction to HasCSClauseExpansion
-merged 2026-08-10; existence `exists_cs_clause_expanding_3cnf` still Frontier)
+merged 2026-08-10; finite Spreads r=2 matchable unsat witness merged 2026-08-10;
+existence `exists_cs_clause_expanding_3cnf` still Frontier)
 
 ## Statement
 
@@ -1320,3 +1321,23 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   merge_certified auto applied per user blanket after green gate.
   Next: formalize or prove `Spreads` for a constructive or probabilistic 3-CNF
   family at informative scale, else continue R5.
+
+- 2026-08-10 formalize (Spreads r=2 matchable unsat witness): PARTIAL toward
+  `exists_cs_clause_expanding_3cnf`. Certified finite non vacuous inhabitant
+  `spreadWitnessCNF` (14 distinct triple supports on 6 vars) with
+  `Spreads spreadWitnessCNF 2 2`, `IsCSMatchable _ 2`, unsat via decidable
+  `existsSatFin` search, and `hasCSClauseExpansion_spreadWitnessCNF_two` by
+  reuse of `hasCSClauseExpansion_one_of_spreads_two`. Packaged as
+  `exists_spreads_two_matchable_unsat_3cnf`. General lemmas:
+  `Satisfiable.pair_of_card_ge_two`, `isCSMatchable_two_of_clause_card_ge_two`,
+  `spreads_two_of_pairwise_union_ge`. Axiom gate PASS. Floor informativeness
+  not claimed at r=2 (`csClauseWidthFloor 2 1 = 1` does not beat width 3).
+  Frontier `exists_cs_clause_expanding_3cnf` unchanged (honest sorry; needs
+  `r = n/4` at informative scale).
+  Most important thing learned: for pure 3-CNF, Spreads at scale 2 is exactly
+  pairwise distinct supports, and unsat formulas with that property exist, but
+  raising the scale past 2 on small explicit instances fails because triples of
+  clauses can cover fewer than six variables.
+  merge_certified auto applied per user blanket after green gate.
+  Next: formalize Spreads at informative r (probabilistic or constructive
+  expander scale), or continue R5.
