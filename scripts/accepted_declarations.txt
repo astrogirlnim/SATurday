@@ -748,3 +748,25 @@ SATurday.Bridge.evalsToInTime_le_mono
 SATurday.Bridge.projFirst_evals
 SATurday.Bridge.projFirstComputableInPolyTime
 SATurday.Bridge.ignoreWitness_under_fst
+
+# R5 Cook Reckhow bridge: local TM2 composition surgery and NP nonvacuity (2026-08-10 formalize)
+SATurday.Bridge.stmtRemap
+SATurday.Bridge.stmtLiftInl
+SATurday.Bridge.stmtLiftInr
+SATurday.Bridge.equivCompLabel
+SATurday.Bridge.stmtLiftState₁
+SATurday.Bridge.stmtLiftState₂
+SATurday.Bridge.copyPopStmt
+SATurday.Bridge.copyPushStmt
+SATurday.Bridge.firstPhaseStmt
+SATurday.Bridge.stmtRemapGoto
+SATurday.Bridge.secondPhaseStmt
+SATurday.Bridge.seqCompComputer
+SATurday.Bridge.constBit_of_encoding
+SATurday.Bridge.comp_const_right
+SATurday.Bridge.constBit_encodePair
+SATurday.Bridge.ignoreWitness_const_encodePair
+SATurday.Bridge.emptyLanguage_in_NP
+SATurday.Bridge.fullLanguage_in_NP
+SATurday.Bridge.poly_add_eval
+SATurday.Bridge.seqCompTime_eval

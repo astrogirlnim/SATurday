@@ -398,3 +398,54 @@ lower bound via the bridge.
 
   Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
   scripts/accepted_declarations.txt
+
+- 2026-08-10 formalize (local TM2 composition surgery toward InP_implies_InNP): PARTIAL.
+
+  Target this cycle: close `InP_implies_InNP` via local TM2 polytime composition
+  (mathlib `TM2ComputableInPolyTime.comp` is `proof_wanted`); maximize accepted
+  progress if full close blocked. Do not edit CSExpansion.lean.
+
+  Existing names verified before editing (no guessing):
+  - mathlib: Turing.TM2ComputableInPolyTime, FinTM2, TM2.Stmt, TM2.step,
+    TM2OutputsInTime, proof_wanted TM2ComputableInPolyTime.comp,
+    idComputableInPolyTime
+  - repo: Encoding.lean (encodePair, idBitEnc, bitEnc), Complexity.lean
+    (InP, InNP, projFirstComputableInPolyTime, ignoreWitness_under_fst,
+    constBitComputer, ignoreWitness_zero_correct); CSExpansion.lean untouched
+  - docs: docs/ladder/rungs/r5-cook-reckhow-bridge.md
+
+  Variables and declarations used or added:
+  - stmtRemap, stmtRemapGoto, stmtLiftInl, stmtLiftInr, stmtLiftState₁,
+    stmtLiftState₂
+  - CompLabel, equivCompLabel, Compσ, compΓ
+  - copyPopStmt, copyPushStmt, firstPhaseStmt, secondPhaseStmt, seqCompComputer
+  - constBit_of_encoding, comp_const_right, constBit_encodePair,
+    ignoreWitness_const_encodePair
+  - emptyLanguage_in_NP, fullLanguage_in_NP
+  - poly_add_eval, seqCompTime, seqCompTime_eval
+  - Frontier: compose_projFirst_bitEnc, InP_implies_InNP,
+    classP_eq_classNP_implies_NP_eq_coNP
+
+  Accepted (axiom gate PASS, merge_certified auto applied):
+  - SATurday.Bridge.stmtRemap and stmtRemapGoto
+  - SATurday.Bridge.stmtLiftInl, stmtLiftInr, stmtLiftState₁, stmtLiftState₂
+  - SATurday.Bridge.equivCompLabel, seqCompComputer
+  - SATurday.Bridge.copyPopStmt, copyPushStmt, firstPhaseStmt, secondPhaseStmt
+  - SATurday.Bridge.constBit_of_encoding, comp_const_right, constBit_encodePair
+  - SATurday.Bridge.ignoreWitness_const_encodePair
+  - SATurday.Bridge.emptyLanguage_in_NP, fullLanguage_in_NP
+  - SATurday.Bridge.poly_add_eval, seqCompTime_eval
+
+  Frontier remaining: compose_projFirst_bitEnc.outputsFun (sequential simulation
+  of seqCompComputer after projFirst then InP witness); InP_implies_InNP;
+  classP_eq_classNP_implies_NP_eq_coNP (P closed under complement).
+  Learned: right-constant Bool composition needs no product machine
+  (`(fun _ => b) ∘ f = fun _ => b`); general pair composition still needs
+  phase simulation on seqCompComputer.
+
+  Result: PARTIAL. Composition skeleton and NP nonvacuity certified; full
+  P ⊆ NP blocked on seqComp outputsFun. Next: formalize sequential simulation
+  for compose_projFirst_bitEnc.
+
+  Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
+  scripts/accepted_declarations.txt

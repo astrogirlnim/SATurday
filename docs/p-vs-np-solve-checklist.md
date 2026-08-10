@@ -10,8 +10,8 @@ ladder after the program audit (see docs/postmortems/).
 - [x] Fix accepted proof standards (zero sorries, standard axioms only, axiom gate).
 - [x] Fix stop conditions (barrier failure, vacuous statements, budget breaches).
 - [ ] Formalize the target chain statement in Lean without opaque constants (rung R5;
-      Encoding Complexity and InP nonvacuity certified 2026-08-10; Frontier:
-      Psubseteq NP, bridge theorems, FormulaEncoding).
+      Encoding Complexity, InP and NP nonvacuity, composition surgery certified
+      2026-08-10; Frontier: Psubseteq NP simulation, bridge theorems, FormulaEncoding).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

@@ -8,12 +8,15 @@ import Mathlib.Tactic
 
 Pinned class predicates `InP`, `InNP`, `InCoNP` using mathlib's
 `Turing.TM2ComputableInPolyTime`. Class equality propositions match the
-Cook Reckhow bridge pin. Constant bit InP nonvacuity and `encodePair`
-projection (`projFirstComputableInPolyTime`) are certified. Closing
-`InP_implies_InNP` still needs poly time composition with an arbitrary
-InP witness (mathlib `TM2ComputableInPolyTime.comp` is `proof_wanted`).
+Cook Reckhow bridge pin. Constant bit InP nonvacuity, `encodePair`
+projection (`projFirstComputableInPolyTime`), local statement surgery toward
+composition (`seqCompComputer`), and Bool right-constant composition
+(`comp_const_right`, NP nonvacuity) are certified. Closing
+`InP_implies_InNP` still needs the sequential simulation proof for
+`compose_projFirst_bitEnc` (mathlib `TM2ComputableInPolyTime.comp` is
+`proof_wanted`).
 
-LOG: R5 Bridge Complexity module (InP InNP InCoNP, encodePair projFirst)
+LOG: R5 Bridge Complexity module (InP InNP composition surgery NP nonvacuity)
 -/
 
 open Turing
@@ -636,25 +639,324 @@ theorem ignoreWitness_zero_correct (L : Language) (χ : List Bool → Bool)
     have : χ x = true := by simpa [ignoreWitness] using hV
     exact (hdec x).mp this
 
+/-! ## Local TM2 statement surgery (toward poly time composition)
+
+Mathlib leaves `TM2ComputableInPolyTime.comp` as `proof_wanted`. The bridge only
+needs the special case: first `encodePair → idBitEnc` (projection), then
+`idBitEnc → bitEnc` (an InP characteristic). The helpers below remap labels,
+replace `halt` by a goto, and lift stack indices through `Sum`, which is the
+skeleton of a sequential product machine. -/
+
+/-- Recursively remap goto labels and replace `halt` by `goto onHalt`. -/
+def stmtRemap {K : Type} {Γ : K → Type} {Λ Λ' σ : Type}
+    (mapLabel : Λ → Λ') (onHalt : σ → Λ') :
+    TM2.Stmt Γ Λ σ → TM2.Stmt Γ Λ' σ
+  | .push k f q => .push k f (stmtRemap mapLabel onHalt q)
+  | .peek k f q => .peek k f (stmtRemap mapLabel onHalt q)
+  | .pop k f q => .pop k f (stmtRemap mapLabel onHalt q)
+  | .load f q => .load f (stmtRemap mapLabel onHalt q)
+  | .branch p q₁ q₂ =>
+      .branch p (stmtRemap mapLabel onHalt q₁) (stmtRemap mapLabel onHalt q₂)
+  | .goto f => .goto (fun s => mapLabel (f s))
+  | .halt => .goto onHalt
+
+/-- Lift stack indices through `Sum.inl`, keeping the same labels and state. -/
+def stmtLiftInl {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type} {Λ σ : Type} :
+    TM2.Stmt Γ₁ Λ σ → TM2.Stmt (Sum.elim Γ₁ Γ₂) Λ σ
+  | .push k f q => .push (Sum.inl k) f (stmtLiftInl q)
+  | .peek k f q => .peek (Sum.inl k) f (stmtLiftInl q)
+  | .pop k f q => .pop (Sum.inl k) f (stmtLiftInl q)
+  | .load f q => .load f (stmtLiftInl q)
+  | .branch p q₁ q₂ => .branch p (stmtLiftInl q₁) (stmtLiftInl q₂)
+  | .goto f => .goto f
+  | .halt => .halt
+
+/-- Lift stack indices through `Sum.inr`. -/
+def stmtLiftInr {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type} {Λ σ : Type} :
+    TM2.Stmt Γ₂ Λ σ → TM2.Stmt (Sum.elim Γ₁ Γ₂) Λ σ
+  | .push k f q => .push (Sum.inr k) f (stmtLiftInr q)
+  | .peek k f q => .peek (Sum.inr k) f (stmtLiftInr q)
+  | .pop k f q => .pop (Sum.inr k) f (stmtLiftInr q)
+  | .load f q => .load f (stmtLiftInr q)
+  | .branch p q₁ q₂ => .branch p (stmtLiftInr q₁) (stmtLiftInr q₂)
+  | .goto f => .goto f
+  | .halt => .halt
+
+/-- Labels for the sequential product: run first TM, copy out→in, run second. -/
+inductive CompLabel (Λ₁ Λ₂ : Type) where
+  | first : Λ₁ → CompLabel Λ₁ Λ₂
+  | copyPop : CompLabel Λ₁ Λ₂
+  | copyPush : CompLabel Λ₁ Λ₂
+  | second : Λ₂ → CompLabel Λ₁ Λ₂
+  deriving Repr
+
+/-- Equivalence packing composition labels as a sum (gives Fintype for free). -/
+def equivCompLabel (Λ₁ Λ₂ : Type) : CompLabel Λ₁ Λ₂ ≃ Λ₁ ⊕ Bool ⊕ Λ₂ where
+  toFun
+    | .first l => .inl l
+    | .copyPop => .inr (.inl false)
+    | .copyPush => .inr (.inl true)
+    | .second l => .inr (.inr l)
+  invFun
+    | .inl l => .first l
+    | .inr (.inl false) => .copyPop
+    | .inr (.inl true) => .copyPush
+    | .inr (.inr l) => .second l
+  left_inv
+    | .first _ | .copyPop | .copyPush | .second _ => rfl
+  right_inv
+    | .inl _ | .inr (.inl false) | .inr (.inl true) | .inr (.inr _) => rfl
+
+/-- Fintype instance for composition labels via the sum encoding. -/
+instance {Λ₁ Λ₂ : Type} [Fintype Λ₁] [Fintype Λ₂] : Fintype (CompLabel Λ₁ Λ₂) :=
+  Fintype.ofEquiv _ (equivCompLabel Λ₁ Λ₂).symm
+
+/-- Decidable equality for composition labels via the sum encoding. -/
+instance {Λ₁ Λ₂ : Type} [DecidableEq Λ₁] [DecidableEq Λ₂] :
+    DecidableEq (CompLabel Λ₁ Λ₂) :=
+  Equiv.decidableEq (equivCompLabel Λ₁ Λ₂)
+
+/-- Internal state of the sequential product: pair of component states plus an
+optional buffered middle alphabet symbol during the copy phase. -/
+abbrev Compσ (σ₁ σ₂ βΓ : Type) := σ₁ × σ₂ × Option βΓ
+
+/-- Stack family of the sequential product. -/
+def compΓ {K₁ K₂ : Type} (Γ₁ : K₁ → Type) (Γ₂ : K₂ → Type) :
+    K₁ ⊕ K₂ → Type :=
+  Sum.elim Γ₁ Γ₂
+
+/-- Lift a statement on σ₁ to the product state `Compσ`, acting on the first
+component only. -/
+def stmtLiftState₁ {K : Type} {Γ : K → Type} {Λ σ₁ σ₂ βΓ : Type} :
+    TM2.Stmt Γ Λ σ₁ → TM2.Stmt Γ Λ (Compσ σ₁ σ₂ βΓ)
+  | .push k f q => .push k (fun st => f st.1) (stmtLiftState₁ q)
+  | .peek k f q =>
+      .peek k (fun st o => (f st.1 o, st.2.1, st.2.2)) (stmtLiftState₁ q)
+  | .pop k f q =>
+      .pop k (fun st o => (f st.1 o, st.2.1, st.2.2)) (stmtLiftState₁ q)
+  | .load f q => .load (fun st => (f st.1, st.2.1, st.2.2)) (stmtLiftState₁ q)
+  | .branch p q₁ q₂ =>
+      .branch (fun st => p st.1) (stmtLiftState₁ q₁) (stmtLiftState₁ q₂)
+  | .goto f => .goto (fun st => f st.1)
+  | .halt => .halt
+
+/-- Lift a statement on σ₂ to the product state `Compσ`, acting on the second
+component only. -/
+def stmtLiftState₂ {K : Type} {Γ : K → Type} {Λ σ₁ σ₂ βΓ : Type} :
+    TM2.Stmt Γ Λ σ₂ → TM2.Stmt Γ Λ (Compσ σ₁ σ₂ βΓ)
+  | .push k f q => .push k (fun st => f st.2.1) (stmtLiftState₂ q)
+  | .peek k f q =>
+      .peek k (fun st o => (st.1, f st.2.1 o, st.2.2)) (stmtLiftState₂ q)
+  | .pop k f q =>
+      .pop k (fun st o => (st.1, f st.2.1 o, st.2.2)) (stmtLiftState₂ q)
+  | .load f q => .load (fun st => (st.1, f st.2.1, st.2.2)) (stmtLiftState₂ q)
+  | .branch p q₁ q₂ =>
+      .branch (fun st => p st.2.1) (stmtLiftState₂ q₁) (stmtLiftState₂ q₂)
+  | .goto f => .goto (fun st => f st.2.1)
+  | .halt => .halt
+
+/-- Copy pop: read one symbol from the first output stack into the buffer;
+if empty, jump to the second machine's main label. -/
+def copyPopStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ βΓ : Type} [Inhabited βΓ] [DecidableEq βΓ]
+    (kOut : K₁) (decodeOut : Γ₁ kOut → βΓ) (secondMain : Λ₂) :
+    TM2.Stmt (Sum.elim Γ₁ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  .pop (Sum.inl kOut)
+    (fun st o =>
+      match o with
+      | none => (st.1, st.2.1, none)
+      | some x => (st.1, st.2.1, some (decodeOut x))) <|
+    .branch (fun st => decide (st.2.2 = none))
+      (.goto fun _ => CompLabel.second secondMain)
+      (.goto fun _ => CompLabel.copyPush)
+
+/-- Copy push: write the buffered symbol onto the second input stack and loop. -/
+def copyPushStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ βΓ : Type} [Inhabited βΓ]
+    (kIn : K₂) (encodeIn : βΓ → Γ₂ kIn) :
+    TM2.Stmt (Sum.elim Γ₁ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  .push (Sum.inr kIn) (fun st => encodeIn (st.2.2.getD default)) <|
+    .load (fun st => (st.1, st.2.1, none)) <|
+      .goto fun _ => CompLabel.copyPop
+
+/-- First-phase program: lift stacks and state, remap labels into `CompLabel.first`,
+and send former `halt` to `copyPop`. -/
+def firstPhaseStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ βΓ : Type}
+    (q : TM2.Stmt Γ₁ Λ₁ σ₁) :
+    TM2.Stmt (Sum.elim Γ₁ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  stmtRemap CompLabel.first (fun _ => CompLabel.copyPop)
+    (stmtLiftInl (stmtLiftState₁ q : TM2.Stmt Γ₁ Λ₁ (Compσ σ₁ σ₂ βΓ)))
+
+/-- Remap goto labels only; leave `halt` as `halt`. -/
+def stmtRemapGoto {K : Type} {Γ : K → Type} {Λ Λ' σ : Type}
+    (mapLabel : Λ → Λ') :
+    TM2.Stmt Γ Λ σ → TM2.Stmt Γ Λ' σ
+  | .push k f q => .push k f (stmtRemapGoto mapLabel q)
+  | .peek k f q => .peek k f (stmtRemapGoto mapLabel q)
+  | .pop k f q => .pop k f (stmtRemapGoto mapLabel q)
+  | .load f q => .load f (stmtRemapGoto mapLabel q)
+  | .branch p q₁ q₂ =>
+      .branch p (stmtRemapGoto mapLabel q₁) (stmtRemapGoto mapLabel q₂)
+  | .goto f => .goto (fun s => mapLabel (f s))
+  | .halt => .halt
+
+/-- Second-phase program: lift stacks and state, remap labels into
+`CompLabel.second`, preserve genuine `halt`. -/
+def secondPhaseStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ βΓ : Type}
+    (q : TM2.Stmt Γ₂ Λ₂ σ₂) :
+    TM2.Stmt (Sum.elim Γ₁ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  stmtRemapGoto CompLabel.second
+    (stmtLiftInr (stmtLiftState₂ q : TM2.Stmt Γ₂ Λ₂ (Compσ σ₁ σ₂ βΓ)))
+
+/-- Sequential product FinTM2: run `tm1`, copy output tape to `tm2` input tape
+(via `decodeOut` / `encodeIn` through the middle alphabet), then run `tm2`. -/
+noncomputable def seqCompComputer {βΓ : Type} [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀) :
+    FinTM2 := by
+  letI : Fintype tm1.K := tm1.kFin
+  letI : Fintype tm2.K := tm2.kFin
+  letI : DecidableEq tm1.K := tm1.kDecidableEq
+  letI : DecidableEq tm2.K := tm2.kDecidableEq
+  letI : Fintype tm1.Λ := tm1.ΛFin
+  letI : Fintype tm2.Λ := tm2.ΛFin
+  letI : Fintype tm1.σ := tm1.σFin
+  letI : Fintype tm2.σ := tm2.σFin
+  letI : Fintype (Sum.elim tm1.Γ tm2.Γ (Sum.inl tm1.k₀)) := by
+    change Fintype (tm1.Γ tm1.k₀)
+    exact tm1.Γk₀Fin
+  exact
+    { K := tm1.K ⊕ tm2.K
+      k₀ := Sum.inl tm1.k₀
+      k₁ := Sum.inr tm2.k₁
+      Γ := Sum.elim tm1.Γ tm2.Γ
+      Λ := CompLabel tm1.Λ tm2.Λ
+      main := CompLabel.first tm1.main
+      σ := Compσ tm1.σ tm2.σ βΓ
+      initialState := (tm1.initialState, tm2.initialState, none)
+      m
+        | .first l => firstPhaseStmt (tm1.m l)
+        | .copyPop => copyPopStmt tm1.k₁ decodeOut tm2.main
+        | .copyPush => copyPushStmt tm2.k₀ encodeIn
+        | .second l => secondPhaseStmt (tm2.m l) }
+
+/-! ## Local Bool composition lemmas (accepted special cases)
+
+Full `TM2ComputableInPolyTime.comp` remains open. The constant-right case is the
+poly time identity `(fun _ => b) ∘ f = fun _ => b`, realized by running
+`constBitComputer` directly on the first encoding (no product machine needed).
+This yields `encodePair → bitEnc` constant maps and therefore NP nonvacuity. -/
+
+/-- Constant bit function under an arbitrary `List Bool` encoding. -/
+noncomputable def constBit_of_encoding {α : Type} (ea : α → List Bool) (b : Bool) :
+    TM2ComputableInPolyTime ea bitEnc (fun _ : α => b) where
+  tm := constBitComputer b
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := constBitTime
+  outputsFun a := by
+    change TM2OutputsInTime (constBitComputer b) (List.map id (ea a))
+      (some (List.map id (bitEnc b))) (constBitTime.eval (ea a).length)
+    simp only [bitEnc, List.map_id, constBitTime_eval]
+    exact constBitComputer_evals b (ea a)
+
+/-- Right-constant local composition: `(fun _ => b) ∘ f` is poly time whenever the
+input encoding lands in `List Bool`, by ignoring `f` and clearing the encoded
+input. -/
+noncomputable def comp_const_right {α : Type} {ea : α → List Bool}
+    {f : α → List Bool} (b : Bool)
+    (_hf : TM2ComputableInPolyTime ea idBitEnc f) :
+    TM2ComputableInPolyTime ea bitEnc (fun _ : α => b) :=
+  constBit_of_encoding ea b
+
+/-- Constant characteristic under `encodePair` (pair projection then constant). -/
+noncomputable def constBit_encodePair (b : Bool) :
+    TM2ComputableInPolyTime encodePair bitEnc (fun _ : List Bool × List Bool => b) :=
+  constBit_of_encoding encodePair b
+
+/-- `ignoreWitness` for a constant characteristic is poly time on `encodePair`. -/
+noncomputable def ignoreWitness_const_encodePair (b : Bool) :
+    TM2ComputableInPolyTime encodePair bitEnc
+      (fun pw => ignoreWitness (fun _ => b) pw.1 pw.2) := by
+  simpa [ignoreWitness] using constBit_encodePair b
+
+/-- Empty language is in NP via the constant false verifier. -/
+theorem emptyLanguage_in_NP : InNP emptyLanguage :=
+  ⟨zeroWitnessBound, ignoreWitness (fun _ => false),
+    ignoreWitness_const_encodePair false,
+    ignoreWitness_zero_correct emptyLanguage (fun _ => false) constFalse_decides_empty⟩
+
+/-- Full language is in NP via the constant true verifier. -/
+theorem fullLanguage_in_NP : InNP fullLanguage :=
+  ⟨zeroWitnessBound, ignoreWitness (fun _ => true),
+    ignoreWitness_const_encodePair true,
+    ignoreWitness_zero_correct fullLanguage (fun _ => true) constTrue_decides_full⟩
+
+/-- Polynomial bound helper: `p + q` evaluates as a sum. -/
+theorem poly_add_eval (p q : Polynomial ℕ) (n : ℕ) :
+    (p + q).eval n = p.eval n + q.eval n :=
+  Polynomial.eval_add
+
+/-- Time bound skeleton for sequential composition: first run, copy at most
+`n + 1` symbols, then second run. Used by the Frontier composition obligation. -/
+noncomputable def seqCompTime (p q : Polynomial ℕ) : Polynomial ℕ :=
+  p + (Polynomial.X + 1) + q
+
+theorem seqCompTime_eval (p q : Polynomial ℕ) (n : ℕ) :
+    (seqCompTime p q).eval n = p.eval n + (n + 1) + q.eval n := by
+  simp [seqCompTime, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
 
 end SATurday.Bridge
 
 /-! ## Frontier: P ⊆ NP and bridge theorem 2
 
-`projFirstComputableInPolyTime` and `ignoreWitness_under_fst` are certified.
-Remaining for `InP_implies_InNP`: compose those two into one
-`TM2ComputableInPolyTime encodePair bitEnc (fun pw => χ pw.1)` (mathlib
-`TM2ComputableInPolyTime.comp` is still `proof_wanted`). Bridge theorem 2
-still needs P closed under complement. -/
+Accepted this cycle: statement surgery (`stmtRemap`, lifts, `seqCompComputer`),
+local Bool composition `comp_const_right` / `constBit_encodePair`, and NP
+nonvacuity (`emptyLanguage_in_NP`, `fullLanguage_in_NP`).
+
+Remaining for `InP_implies_InNP`: prove `outputsFun` for
+`seqCompComputer projFirstComputer h.tm` (mathlib-style sequential simulation),
+i.e. local `encodePair → idBitEnc → bitEnc` composition for an arbitrary InP
+witness. Bridge theorem 2 still needs P closed under complement. -/
 
 namespace SATurday.Bridge.BridgeFrontier
 
 open SATurday.Bridge
 
+/-- Local composition target: project the pair then run an InP characteristic.
+Machine skeleton is `seqCompComputer`; the evaluation proof is the remaining
+obligation (same content as mathlib `TM2ComputableInPolyTime.comp` specialized
+to Bool pair encodings). -/
+noncomputable def compose_projFirst_bitEnc {χ : List Bool → Bool}
+    (hχ : TM2ComputableInPolyTime idBitEnc bitEnc χ) :
+    TM2ComputableInPolyTime encodePair bitEnc (fun pw => χ pw.1) := by
+  let tm :=
+    seqCompComputer (βΓ := Bool) projFirstComputer hχ.tm
+      (fun b : Bool => b)
+      (fun b : Bool => hχ.inputAlphabet.symm b)
+  refine
+    { tm := tm
+      inputAlphabet := ?inA
+      outputAlphabet := ?outA
+      time := seqCompTime projFirstTime hχ.time
+      outputsFun := fun _ => by sorry }
+  case inA =>
+    -- Input stack is left injection of projFirst's Bool input stack.
+    simpa [tm, seqCompComputer] using (Equiv.refl Bool)
+  case outA =>
+    -- Output stack is right injection of hχ's output stack.
+    let e : tm.Γ tm.k₁ ≃ hχ.tm.Γ hχ.tm.k₁ := by
+      simpa [tm, seqCompComputer] using (Equiv.refl (hχ.tm.Γ hχ.tm.k₁))
+    exact e.trans hχ.outputAlphabet
+
 /-- Every language in P is in NP (ignore the witness).
-Blocked on poly time composition of `projFirstComputableInPolyTime` with the
-InP witness (`ignoreWitness_under_fst`). -/
+Blocked on `compose_projFirst_bitEnc.outputsFun` (sequential simulation). -/
 theorem InP_implies_InNP (L : Language) (h : InP L) : InNP L := by
+  rcases h with ⟨χ, hχ, hdec⟩
+  refine ⟨zeroWitnessBound, ignoreWitness χ, ?_, ignoreWitness_zero_correct L χ hdec⟩
+  -- Need compose_projFirst_bitEnc hχ after transport ignoreWitness = χ ∘ fst.
   sorry
 
 /-- Bridge theorem 2: P = NP implies NP = coNP. -/
