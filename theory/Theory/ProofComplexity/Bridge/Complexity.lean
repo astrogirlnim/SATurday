@@ -10,13 +10,13 @@ Pinned class predicates `InP`, `InNP`, `InCoNP` using mathlib's
 `Turing.TM2ComputableInPolyTime`. Class equality propositions match the
 Cook Reckhow bridge pin. Constant bit InP nonvacuity, `encodePair`
 projection (`projFirstComputableInPolyTime`), local statement surgery toward
-composition (`seqCompComputer`), and Bool right-constant composition
-(`comp_const_right`, NP nonvacuity) are certified. Closing
-`InP_implies_InNP` still needs the sequential simulation proof for
+composition (`seqCompComputer` with order preserving out→aux→in copy), and
+Bool right-constant composition (`comp_const_right`, NP nonvacuity) are
+certified. Closing `InP_implies_InNP` still needs sequential simulation of
 `compose_projFirst_bitEnc` (mathlib `TM2ComputableInPolyTime.comp` is
 `proof_wanted`).
 
-LOG: R5 Bridge Complexity module (InP InNP composition surgery NP nonvacuity)
+LOG: R5 Bridge Complexity module (InP InNP seqComp order preserving copy)
 -/
 
 open Turing
@@ -660,7 +660,41 @@ def stmtRemap {K : Type} {Γ : K → Type} {Λ Λ' σ : Type}
   | .goto f => .goto (fun s => mapLabel (f s))
   | .halt => .goto onHalt
 
-/-- Lift stack indices through `Sum.inl`, keeping the same labels and state. -/
+/-- Stack index type for the sequential product: first machine stacks, one aux
+stack (needed because a single out→in transfer reverses list order), then second
+machine stacks. -/
+abbrev CompK (K₁ K₂ : Type) := K₁ ⊕ Unit ⊕ K₂
+
+/-- Alphabet family on `CompK`: aux stack carries the middle alphabet `βΓ`. -/
+def CompΓ {K₁ K₂ : Type} (Γ₁ : K₁ → Type) (βΓ : Type) (Γ₂ : K₂ → Type) :
+    CompK K₁ K₂ → Type :=
+  Sum.elim Γ₁ (Sum.elim (fun _ : Unit => βΓ) Γ₂)
+
+/-- Lift stack indices into the first summand of `CompK`. -/
+def stmtLiftFirst {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ σ : Type} :
+    TM2.Stmt Γ₁ Λ σ → TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) Λ σ
+  | .push k f q => .push (Sum.inl k) f (stmtLiftFirst q)
+  | .peek k f q => .peek (Sum.inl k) f (stmtLiftFirst q)
+  | .pop k f q => .pop (Sum.inl k) f (stmtLiftFirst q)
+  | .load f q => .load f (stmtLiftFirst q)
+  | .branch p q₁ q₂ => .branch p (stmtLiftFirst q₁) (stmtLiftFirst q₂)
+  | .goto f => .goto f
+  | .halt => .halt
+
+/-- Lift stack indices into the second machine summand of `CompK`. -/
+def stmtLiftSecond {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ σ : Type} :
+    TM2.Stmt Γ₂ Λ σ → TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) Λ σ
+  | .push k f q => .push (Sum.inr (Sum.inr k)) f (stmtLiftSecond q)
+  | .peek k f q => .peek (Sum.inr (Sum.inr k)) f (stmtLiftSecond q)
+  | .pop k f q => .pop (Sum.inr (Sum.inr k)) f (stmtLiftSecond q)
+  | .load f q => .load f (stmtLiftSecond q)
+  | .branch p q₁ q₂ => .branch p (stmtLiftSecond q₁) (stmtLiftSecond q₂)
+  | .goto f => .goto f
+  | .halt => .halt
+
+/-- Legacy two-summand inl lift (retained for accepted API continuity). -/
 def stmtLiftInl {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type} {Λ σ : Type} :
     TM2.Stmt Γ₁ Λ σ → TM2.Stmt (Sum.elim Γ₁ Γ₂) Λ σ
   | .push k f q => .push (Sum.inl k) f (stmtLiftInl q)
@@ -671,7 +705,7 @@ def stmtLiftInl {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Typ
   | .goto f => .goto f
   | .halt => .halt
 
-/-- Lift stack indices through `Sum.inr`. -/
+/-- Legacy two-summand inr lift (retained for accepted API continuity). -/
 def stmtLiftInr {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type} {Λ σ : Type} :
     TM2.Stmt Γ₂ Λ σ → TM2.Stmt (Sum.elim Γ₁ Γ₂) Λ σ
   | .push k f q => .push (Sum.inr k) f (stmtLiftInr q)
@@ -682,30 +716,40 @@ def stmtLiftInr {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Typ
   | .goto f => .goto f
   | .halt => .halt
 
-/-- Labels for the sequential product: run first TM, copy out→in, run second. -/
+/-- Labels: first phase, out→aux copy, aux→in copy, second phase.
+Two copy legs restore list order (each leg reverses). -/
 inductive CompLabel (Λ₁ Λ₂ : Type) where
   | first : Λ₁ → CompLabel Λ₁ Λ₂
-  | copyPop : CompLabel Λ₁ Λ₂
-  | copyPush : CompLabel Λ₁ Λ₂
+  | copyToAuxPop : CompLabel Λ₁ Λ₂
+  | copyToAuxPush : CompLabel Λ₁ Λ₂
+  | copyToInPop : CompLabel Λ₁ Λ₂
+  | copyToInPush : CompLabel Λ₁ Λ₂
   | second : Λ₂ → CompLabel Λ₁ Λ₂
   deriving Repr
 
-/-- Equivalence packing composition labels as a sum (gives Fintype for free). -/
-def equivCompLabel (Λ₁ Λ₂ : Type) : CompLabel Λ₁ Λ₂ ≃ Λ₁ ⊕ Bool ⊕ Λ₂ where
+/-- Pack composition labels as a sum for Fintype and DecidableEq. -/
+def equivCompLabel (Λ₁ Λ₂ : Type) :
+    CompLabel Λ₁ Λ₂ ≃ Λ₁ ⊕ Fin 4 ⊕ Λ₂ where
   toFun
     | .first l => .inl l
-    | .copyPop => .inr (.inl false)
-    | .copyPush => .inr (.inl true)
+    | .copyToAuxPop => .inr (.inl 0)
+    | .copyToAuxPush => .inr (.inl 1)
+    | .copyToInPop => .inr (.inl 2)
+    | .copyToInPush => .inr (.inl 3)
     | .second l => .inr (.inr l)
   invFun
     | .inl l => .first l
-    | .inr (.inl false) => .copyPop
-    | .inr (.inl true) => .copyPush
+    | .inr (.inl 0) => .copyToAuxPop
+    | .inr (.inl 1) => .copyToAuxPush
+    | .inr (.inl 2) => .copyToInPop
+    | .inr (.inl 3) => .copyToInPush
     | .inr (.inr l) => .second l
   left_inv
-    | .first _ | .copyPop | .copyPush | .second _ => rfl
+    | .first _ | .copyToAuxPop | .copyToAuxPush
+    | .copyToInPop | .copyToInPush | .second _ => rfl
   right_inv
-    | .inl _ | .inr (.inl false) | .inr (.inl true) | .inr (.inr _) => rfl
+    | .inl _ | .inr (.inl 0) | .inr (.inl 1)
+    | .inr (.inl 2) | .inr (.inl 3) | .inr (.inr _) => rfl
 
 /-- Fintype instance for composition labels via the sum encoding. -/
 instance {Λ₁ Λ₂ : Type} [Fintype Λ₁] [Fintype Λ₂] : Fintype (CompLabel Λ₁ Λ₂) :=
@@ -719,11 +763,6 @@ instance {Λ₁ Λ₂ : Type} [DecidableEq Λ₁] [DecidableEq Λ₂] :
 /-- Internal state of the sequential product: pair of component states plus an
 optional buffered middle alphabet symbol during the copy phase. -/
 abbrev Compσ (σ₁ σ₂ βΓ : Type) := σ₁ × σ₂ × Option βΓ
-
-/-- Stack family of the sequential product. -/
-def compΓ {K₁ K₂ : Type} (Γ₁ : K₁ → Type) (Γ₂ : K₂ → Type) :
-    K₁ ⊕ K₂ → Type :=
-  Sum.elim Γ₁ Γ₂
 
 /-- Lift a statement on σ₁ to the product state `Compσ`, acting on the first
 component only. -/
@@ -755,38 +794,62 @@ def stmtLiftState₂ {K : Type} {Γ : K → Type} {Λ σ₁ σ₂ βΓ : Type} :
   | .goto f => .goto (fun st => f st.2.1)
   | .halt => .halt
 
-/-- Copy pop: read one symbol from the first output stack into the buffer;
-if empty, jump to the second machine's main label. -/
-def copyPopStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type}
-    {Λ₁ Λ₂ σ₁ σ₂ βΓ : Type} [Inhabited βΓ] [DecidableEq βΓ]
-    (kOut : K₁) (decodeOut : Γ₁ kOut → βΓ) (secondMain : Λ₂) :
-    TM2.Stmt (Sum.elim Γ₁ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+/-- Aux stack index. -/
+def compAux {K₁ K₂ : Type} : CompK K₁ K₂ := Sum.inr (Sum.inl ())
+
+/-- Pop from first output into buffer; empty out jumps to aux→in copy. -/
+def copyToAuxPopStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ : Type} [Inhabited βΓ] [DecidableEq βΓ]
+    (kOut : K₁) (decodeOut : Γ₁ kOut → βΓ) :
+    TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
   .pop (Sum.inl kOut)
     (fun st o =>
       match o with
       | none => (st.1, st.2.1, none)
       | some x => (st.1, st.2.1, some (decodeOut x))) <|
     .branch (fun st => decide (st.2.2 = none))
-      (.goto fun _ => CompLabel.second secondMain)
-      (.goto fun _ => CompLabel.copyPush)
+      (.goto fun _ => CompLabel.copyToInPop)
+      (.goto fun _ => CompLabel.copyToAuxPush)
 
-/-- Copy push: write the buffered symbol onto the second input stack and loop. -/
-def copyPushStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type}
-    {Λ₁ Λ₂ σ₁ σ₂ βΓ : Type} [Inhabited βΓ]
-    (kIn : K₂) (encodeIn : βΓ → Γ₂ kIn) :
-    TM2.Stmt (Sum.elim Γ₁ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
-  .push (Sum.inr kIn) (fun st => encodeIn (st.2.2.getD default)) <|
+/-- Push buffered symbol onto aux and loop out→aux. -/
+def copyToAuxPushStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ : Type} [Inhabited βΓ] :
+    TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  .push (compAux : CompK K₁ K₂) (fun st => st.2.2.getD default) <|
     .load (fun st => (st.1, st.2.1, none)) <|
-      .goto fun _ => CompLabel.copyPop
+      .goto fun _ => CompLabel.copyToAuxPop
 
-/-- First-phase program: lift stacks and state, remap labels into `CompLabel.first`,
-and send former `halt` to `copyPop`. -/
-def firstPhaseStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type}
-    {Λ₁ Λ₂ σ₁ σ₂ βΓ : Type}
+/-- Pop from aux into buffer; empty aux jumps to second machine main. -/
+def copyToInPopStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ : Type} [Inhabited βΓ] [DecidableEq βΓ]
+    (secondMain : Λ₂) :
+    TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  .pop (compAux : CompK K₁ K₂)
+    (fun st o =>
+      match o with
+      | none => (st.1, st.2.1, none)
+      | some x => (st.1, st.2.1, some x)) <|
+    .branch (fun st => decide (st.2.2 = none))
+      (.goto fun _ => CompLabel.second secondMain)
+      (.goto fun _ => CompLabel.copyToInPush)
+
+/-- Push buffered symbol onto second input and loop aux→in. -/
+def copyToInPushStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ : Type} [Inhabited βΓ]
+    (kIn : K₂) (encodeIn : βΓ → Γ₂ kIn) :
+    TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  .push (Sum.inr (Sum.inr kIn)) (fun st => encodeIn (st.2.2.getD default)) <|
+    .load (fun st => (st.1, st.2.1, none)) <|
+      .goto fun _ => CompLabel.copyToInPop
+
+/-- First-phase program: lift stacks and state, remap into `CompLabel.first`,
+send former `halt` to `copyToAuxPop`. -/
+def firstPhaseStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ : Type}
     (q : TM2.Stmt Γ₁ Λ₁ σ₁) :
-    TM2.Stmt (Sum.elim Γ₁ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
-  stmtRemap CompLabel.first (fun _ => CompLabel.copyPop)
-    (stmtLiftInl (stmtLiftState₁ q : TM2.Stmt Γ₁ Λ₁ (Compσ σ₁ σ₂ βΓ)))
+    TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  stmtRemap CompLabel.first (fun _ => CompLabel.copyToAuxPop)
+    (stmtLiftFirst (stmtLiftState₁ q : TM2.Stmt Γ₁ Λ₁ (Compσ σ₁ σ₂ βΓ)))
 
 /-- Remap goto labels only; leave `halt` as `halt`. -/
 def stmtRemapGoto {K : Type} {Γ : K → Type} {Λ Λ' σ : Type}
@@ -801,17 +864,17 @@ def stmtRemapGoto {K : Type} {Γ : K → Type} {Λ Λ' σ : Type}
   | .goto f => .goto (fun s => mapLabel (f s))
   | .halt => .halt
 
-/-- Second-phase program: lift stacks and state, remap labels into
-`CompLabel.second`, preserve genuine `halt`. -/
-def secondPhaseStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {Γ₂ : K₂ → Type}
-    {Λ₁ Λ₂ σ₁ σ₂ βΓ : Type}
+/-- Second-phase program: lift stacks and state, remap into `CompLabel.second`,
+preserve genuine `halt`. -/
+def secondPhaseStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ : Type}
     (q : TM2.Stmt Γ₂ Λ₂ σ₂) :
-    TM2.Stmt (Sum.elim Γ₁ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+    TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
   stmtRemapGoto CompLabel.second
-    (stmtLiftInr (stmtLiftState₂ q : TM2.Stmt Γ₂ Λ₂ (Compσ σ₁ σ₂ βΓ)))
+    (stmtLiftSecond (stmtLiftState₂ q : TM2.Stmt Γ₂ Λ₂ (Compσ σ₁ σ₂ βΓ)))
 
-/-- Sequential product FinTM2: run `tm1`, copy output tape to `tm2` input tape
-(via `decodeOut` / `encodeIn` through the middle alphabet), then run `tm2`. -/
+/-- Sequential product FinTM2: run `tm1`, copy out→aux→in (order preserving),
+then run `tm2`. -/
 noncomputable def seqCompComputer {βΓ : Type} [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
     (tm1 tm2 : FinTM2)
     (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀) :
@@ -824,23 +887,37 @@ noncomputable def seqCompComputer {βΓ : Type} [Inhabited βΓ] [Fintype βΓ] 
   letI : Fintype tm2.Λ := tm2.ΛFin
   letI : Fintype tm1.σ := tm1.σFin
   letI : Fintype tm2.σ := tm2.σFin
-  letI : Fintype (Sum.elim tm1.Γ tm2.Γ (Sum.inl tm1.k₀)) := by
+  letI : Fintype (CompΓ tm1.Γ βΓ tm2.Γ (Sum.inl tm1.k₀)) := by
     change Fintype (tm1.Γ tm1.k₀)
     exact tm1.Γk₀Fin
   exact
-    { K := tm1.K ⊕ tm2.K
+    { K := CompK tm1.K tm2.K
       k₀ := Sum.inl tm1.k₀
-      k₁ := Sum.inr tm2.k₁
-      Γ := Sum.elim tm1.Γ tm2.Γ
+      k₁ := Sum.inr (Sum.inr tm2.k₁)
+      Γ := CompΓ tm1.Γ βΓ tm2.Γ
       Λ := CompLabel tm1.Λ tm2.Λ
       main := CompLabel.first tm1.main
       σ := Compσ tm1.σ tm2.σ βΓ
       initialState := (tm1.initialState, tm2.initialState, none)
       m
         | .first l => firstPhaseStmt (tm1.m l)
-        | .copyPop => copyPopStmt tm1.k₁ decodeOut tm2.main
-        | .copyPush => copyPushStmt tm2.k₀ encodeIn
+        | .copyToAuxPop => copyToAuxPopStmt tm1.k₁ decodeOut
+        | .copyToAuxPush => copyToAuxPushStmt
+        | .copyToInPop => copyToInPopStmt tm2.main
+        | .copyToInPush => copyToInPushStmt tm2.k₀ encodeIn
         | .second l => secondPhaseStmt (tm2.m l) }
+
+/-- Deprecated names kept as abbreviations so older session notes still resolve. -/
+abbrev copyPopStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ : Type} [Inhabited βΓ] [DecidableEq βΓ]
+    (kOut : K₁) (decodeOut : Γ₁ kOut → βΓ) (_secondMain : Λ₂) :
+    TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  copyToAuxPopStmt kOut decodeOut
+
+abbrev copyPushStmt {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    {Λ₁ Λ₂ σ₁ σ₂ : Type} [Inhabited βΓ] :
+    TM2.Stmt (CompΓ Γ₁ βΓ Γ₂) (CompLabel Λ₁ Λ₂) (Compσ σ₁ σ₂ βΓ) :=
+  copyToAuxPushStmt
 
 /-! ## Local Bool composition lemmas (accepted special cases)
 
@@ -899,31 +976,259 @@ theorem poly_add_eval (p q : Polynomial ℕ) (n : ℕ) :
     (p + q).eval n = p.eval n + q.eval n :=
   Polynomial.eval_add
 
-/-- Time bound skeleton for sequential composition: first run, copy at most
-`n + 1` symbols, then second run. Used by the Frontier composition obligation. -/
+/-- Time bound for sequential composition: first run, two order preserving copy
+legs (each symbol costs 2 steps, plus one empty pop per leg), then second run.
+Bound uses `4 * (X + 1)` which dominates `2 * (n + 1) + 2 * (n + 1)`. -/
 noncomputable def seqCompTime (p q : Polynomial ℕ) : Polynomial ℕ :=
-  p + (Polynomial.X + 1) + q
+  p + 4 * (Polynomial.X + 1) + q
 
 theorem seqCompTime_eval (p q : Polynomial ℕ) (n : ℕ) :
-    (seqCompTime p q).eval n = p.eval n + (n + 1) + q.eval n := by
-  simp [seqCompTime, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
+    (seqCompTime p q).eval n = p.eval n + 4 * (n + 1) + q.eval n := by
+  simp [seqCompTime, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+    Polynomial.eval_one, Polynomial.eval_ofNat]
+
+/-! ## Sequential simulation helpers (accepted scaffolding)
+
+Configuration lifts and copy phase dynamics for `seqCompComputer`. Full
+`outputsFun` for arbitrary first or second machines remains Frontier; these
+lemmas pin the order preserving copy and the stack layout. -/
+
+/-- Product stack from first stacks, aux list, and second stacks. -/
+def seqCompStk {K₁ K₂ : Type} {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    (S₁ : ∀ k, List (Γ₁ k)) (aux : List βΓ) (S₂ : ∀ k, List (Γ₂ k)) :
+    ∀ k : CompK K₁ K₂, List (CompΓ Γ₁ βΓ Γ₂ k)
+  | .inl k => S₁ k
+  | .inr (.inl _) => aux
+  | .inr (.inr k) => S₂ k
+
+/-- Configuration helper for a `seqCompComputer` run. -/
+def seqCompCfg {βΓ : Type} [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (l : Option (CompLabel tm1.Λ tm2.Λ))
+    (v : Compσ tm1.σ tm2.σ βΓ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k)) :
+    (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).Cfg :=
+  ⟨l, v, seqCompStk S₁ aux S₂⟩
+
+/-- Empty stack family. -/
+def emptyStk {K : Type} {Γ : K → Type} : ∀ k : K, List (Γ k) := fun _ => []
+
+/-- DecidableEq on composition stack indices. -/
+instance instDecidableEqCompK {K₁ K₂ : Type} [DecidableEq K₁] [DecidableEq K₂] :
+    DecidableEq (CompK K₁ K₂) :=
+  inferInstanceAs (DecidableEq (K₁ ⊕ Unit ⊕ K₂))
+
+/-- Update first-machine stack `k` inside a product stack family. -/
+theorem seqCompStk_update_first {K₁ K₂ : Type} [DecidableEq K₁] [DecidableEq K₂]
+    {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    (S₁ : ∀ k, List (Γ₁ k)) (aux : List βΓ) (S₂ : ∀ k, List (Γ₂ k))
+    (k : K₁) (v : List (Γ₁ k)) :
+    Function.update (seqCompStk S₁ aux S₂) (Sum.inl k) v =
+      seqCompStk (Function.update S₁ k v) aux S₂ := by
+  funext t
+  cases t with
+  | inl k' =>
+      by_cases h : k' = k
+      · subst h; simp [seqCompStk, Function.update]
+      · simp [seqCompStk, Function.update, h]
+  | inr t =>
+      cases t with
+      | inl u => cases u; simp [seqCompStk, Function.update]
+      | inr k' => simp [seqCompStk, Function.update]
+
+/-- Update aux stack inside a product stack family. -/
+theorem seqCompStk_update_aux {K₁ K₂ : Type} [DecidableEq K₁] [DecidableEq K₂]
+    {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    (S₁ : ∀ k, List (Γ₁ k)) (aux : List βΓ) (S₂ : ∀ k, List (Γ₂ k))
+    (v : List βΓ) :
+    Function.update (seqCompStk S₁ aux S₂) (Sum.inr (Sum.inl ())) v =
+      seqCompStk S₁ v S₂ := by
+  funext t
+  cases t with
+  | inl k' => simp [seqCompStk, Function.update]
+  | inr t =>
+      cases t with
+      | inl u => cases u; simp [seqCompStk, Function.update]
+      | inr k' => simp [seqCompStk, Function.update]
+
+/-- Update second-machine stack `k` inside a product stack family. -/
+theorem seqCompStk_update_second {K₁ K₂ : Type} [DecidableEq K₁] [DecidableEq K₂]
+    {Γ₁ : K₁ → Type} {βΓ : Type} {Γ₂ : K₂ → Type}
+    (S₁ : ∀ k, List (Γ₁ k)) (aux : List βΓ) (S₂ : ∀ k, List (Γ₂ k))
+    (k : K₂) (v : List (Γ₂ k)) :
+    Function.update (seqCompStk S₁ aux S₂) (Sum.inr (Sum.inr k)) v =
+      seqCompStk S₁ aux (Function.update S₂ k v) := by
+  funext t
+  cases t with
+  | inl k' => simp [seqCompStk, Function.update]
+  | inr t =>
+      cases t with
+      | inl u => cases u; simp [seqCompStk, Function.update]
+      | inr k' =>
+          by_cases h : k' = k
+          · subst h; simp [seqCompStk, Function.update]
+          · simp [seqCompStk, Function.update, h]
+
+/-- Copy bound: each of two legs costs `2 * length + 1` steps. -/
+theorem seqComp_copy_steps_bound (n : ℕ) :
+    2 * (2 * n + 1) ≤ 4 * (n + 1) := by omega
+
+/-- Push step of out→aux: buffered symbol is consed onto aux; return to pop.
+No first or second stack `Function.update`, so the residual is instance clean. -/
+theorem seqComp_step_copyToAuxPush {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (b : βΓ) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPush)
+        (σ₁, σ₂, some b) S₁ aux S₂) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) S₁ (b :: aux) S₂) := by
+  simp [seqCompComputer, seqCompCfg, seqCompStk, copyToAuxPushStmt, TM2.step,
+    TM2.stepAux, compAux]
+  refine congrArg some ?_
+  refine congrArg (fun stk =>
+    (⟨some CompLabel.copyToAuxPop, (σ₁, σ₂, (none : Option βΓ)), stk⟩ :
+      (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).Cfg)) ?_
+  funext t
+  cases t with
+  | inl k' => simp [seqCompStk, Function.update]
+  | inr t =>
+      cases t with
+      | inl u =>
+          cases u
+          -- Aux coordinate: update writes b :: aux.
+          change b :: aux = b :: aux
+          rfl
+      | inr k' => simp [seqCompStk, Function.update]
+
+/-- Empty aux at copyToInPop jumps to the second machine main label. -/
+theorem seqComp_step_copyToInPop_nil {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (S₂ : ∀ k, List (tm2.Γ k)) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ [] S₂) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second tm2.main))
+        (σ₁, σ₂, none) S₁ [] S₂) := by
+  simp [seqCompComputer, seqCompCfg, seqCompStk, copyToInPopStmt, TM2.step,
+    TM2.stepAux, compAux]
+  refine congrArg some ?_
+  refine congrArg (fun stk =>
+    (⟨some (CompLabel.second tm2.main), (σ₁, σ₂, (none : Option βΓ)), stk⟩ :
+      (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).Cfg)) ?_
+  funext t
+  cases t with
+  | inl k' => simp [seqCompStk, Function.update]
+  | inr t =>
+      cases t with
+      | inl u =>
+          cases u
+          -- Empty pop updates aux to [].tail.
+          change [].tail = []
+          rfl
+      | inr k' => simp [seqCompStk, Function.update]
+
+/-- Pop step of aux→in: nonempty aux head enters the buffer and jumps to push. -/
+theorem seqComp_step_copyToInPop_cons {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (b : βΓ) (bs : List βΓ)
+    (S₂ : ∀ k, List (tm2.Γ k)) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ (b :: bs) S₂) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPush)
+        (σ₁, σ₂, some b) S₁ bs S₂) := by
+  simp [seqCompComputer, seqCompCfg, seqCompStk, copyToInPopStmt, TM2.step,
+    TM2.stepAux, compAux]
+  refine congrArg some ?_
+  refine congrArg (fun stk =>
+    (⟨some CompLabel.copyToInPush, (σ₁, σ₂, some b), stk⟩ :
+      (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).Cfg)) ?_
+  funext t
+  cases t with
+  | inl k' => simp [seqCompStk, Function.update]
+  | inr t =>
+      cases t with
+      | inl u =>
+          cases u
+          change (b :: bs).tail = bs
+          rfl
+      | inr k' => simp [seqCompStk, Function.update]
+
+/- Remaining copy steps that rewrite first or second stacks via Function.update
+stay in BridgeFrontier (FinTM2.kDecidableEq versus ambient update). -/
 
 end SATurday.Bridge
 
 /-! ## Frontier: P ⊆ NP and bridge theorem 2
 
-Accepted this cycle: statement surgery (`stmtRemap`, lifts, `seqCompComputer`),
-local Bool composition `comp_const_right` / `constBit_encodePair`, and NP
-nonvacuity (`emptyLanguage_in_NP`, `fullLanguage_in_NP`).
-
-Remaining for `InP_implies_InNP`: prove `outputsFun` for
-`seqCompComputer projFirstComputer h.tm` (mathlib-style sequential simulation),
-i.e. local `encodePair → idBitEnc → bitEnc` composition for an arbitrary InP
-witness. Bridge theorem 2 still needs P closed under complement. -/
+Accepted scaffolding includes order preserving `seqCompComputer`, stack helpers,
+and copy steps that touch only the aux stack. Remaining in Frontier: copy steps
+that update first or second stacks under `FinTM2.kDecidableEq`, phase simulation,
+`compose_projFirst_bitEnc.outputsFun`, `InP_implies_InNP`, and bridge theorem 2. -/
 
 namespace SATurday.Bridge.BridgeFrontier
 
 open SATurday.Bridge
+
+/-- Frontier: pop step of out→aux (nonempty). Blocked on stack update residual. -/
+theorem seqComp_step_copyToAuxPop_cons {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (x : tm1.Γ tm1.k₁) (xs : List (tm1.Γ tm1.k₁))
+    (hOut : S₁ tm1.k₁ = x :: xs) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) S₁ aux S₂) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPush)
+        (σ₁, σ₂, some (decodeOut x))
+        (Function.update S₁ tm1.k₁ xs) aux S₂) := by
+  sorry
+
+/-- Frontier: empty out jumps to aux→in. -/
+theorem seqComp_step_copyToAuxPop_nil {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (hOut : S₁ tm1.k₁ = []) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) S₁ aux S₂) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ aux S₂) := by
+  sorry
+
+/-- Frontier: push step of aux→in (updates second input stack). -/
+theorem seqComp_step_copyToInPush {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (b : βΓ) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPush)
+        (σ₁, σ₂, some b) S₁ aux S₂) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ aux
+        (Function.update S₂ tm2.k₀ (encodeIn b :: S₂ tm2.k₀))) := by
+  sorry
 
 /-- Local composition target: project the pair then run an InP characteristic.
 Machine skeleton is `seqCompComputer`; the evaluation proof is the remaining
@@ -944,11 +1249,12 @@ noncomputable def compose_projFirst_bitEnc {χ : List Bool → Bool}
       outputsFun := fun _ => by sorry }
   case inA =>
     -- Input stack is left injection of projFirst's Bool input stack.
-    simpa [tm, seqCompComputer] using (Equiv.refl Bool)
+    simpa [tm, seqCompComputer, CompΓ] using (Equiv.refl Bool)
   case outA =>
     -- Output stack is right injection of hχ's output stack.
     let e : tm.Γ tm.k₁ ≃ hχ.tm.Γ hχ.tm.k₁ := by
-      simpa [tm, seqCompComputer] using (Equiv.refl (hχ.tm.Γ hχ.tm.k₁))
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (hχ.tm.Γ hχ.tm.k₁))
     exact e.trans hχ.outputAlphabet
 
 /-- Every language in P is in NP (ignore the witness).

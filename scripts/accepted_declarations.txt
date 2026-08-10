@@ -712,6 +712,32 @@ SATurday.ProofComplexity.spreads_of_medium_biUnion_ge
 SATurday.ProofComplexity.spreads_three_of_unions
 SATurday.ProofComplexity.spreadWitnessCNF_floor_not_informative
 
+# R2 item 2 cluster 13: single support star encoding and SpreadsSupports (2026-08-10)
+SATurday.ProofComplexity.edgesInternal
+SATurday.ProofComplexity.edgesTouching
+SATurday.ProofComplexity.mem_edgesInternal_iff
+SATurday.ProofComplexity.mem_edgesTouching_iff
+SATurday.ProofComplexity.edgesTouching_eq_internal_union_boundary
+SATurday.ProofComplexity.disjoint_edgesInternal_edgeBoundary
+SATurday.ProofComplexity.starClause
+SATurday.ProofComplexity.starCNF
+SATurday.ProofComplexity.clauseSupport_starClause
+SATurday.ProofComplexity.starClause_card_of_regular3
+SATurday.ProofComplexity.starCNF_cnfWidth_le
+SATurday.ProofComplexity.card_edges_between_le_one
+SATurday.ProofComplexity.eq_of_incident_eq_of_regular3
+SATurday.ProofComplexity.starClause_injective_of_regular3
+SATurday.ProofComplexity.exists_vertexSet_of_subset_starCNF
+SATurday.ProofComplexity.biUnion_clauseSupport_star_eq
+SATurday.ProofComplexity.spreads_starCNF_of_touching_ge
+SATurday.ProofComplexity.touching_card_ge_two_of_handshaking_expansion
+SATurday.ProofComplexity.heawoodStarCNF
+SATurday.ProofComplexity.heawoodStarCNF_cnfWidth_le
+SATurday.ProofComplexity.heawoodStarCNF_satisfiable
+SATurday.ProofComplexity.heawoodStarCNF_floor_not_informative
+SATurday.ProofComplexity.SpreadsSupports
+SATurday.ProofComplexity.spreads_of_spreadsSupports
+
 # R5 Cook Reckhow bridge: Encoding and Complexity cluster (2026-08-10 formalize)
 SATurday.Bridge.bitEnc_eq_encodeBool
 SATurday.Bridge.decodePair_encodePair
@@ -778,3 +804,24 @@ SATurday.Bridge.emptyLanguage_in_NP
 SATurday.Bridge.fullLanguage_in_NP
 SATurday.Bridge.poly_add_eval
 SATurday.Bridge.seqCompTime_eval
+
+# R5 Cook Reckhow bridge: order preserving seqComp copy and aux step lemmas (2026-08-10 formalize)
+SATurday.Bridge.CompΓ
+SATurday.Bridge.stmtLiftFirst
+SATurday.Bridge.stmtLiftSecond
+SATurday.Bridge.compAux
+SATurday.Bridge.copyToAuxPopStmt
+SATurday.Bridge.copyToAuxPushStmt
+SATurday.Bridge.copyToInPopStmt
+SATurday.Bridge.copyToInPushStmt
+SATurday.Bridge.seqCompStk
+SATurday.Bridge.seqCompCfg
+SATurday.Bridge.emptyStk
+SATurday.Bridge.instDecidableEqCompK
+SATurday.Bridge.seqCompStk_update_first
+SATurday.Bridge.seqCompStk_update_aux
+SATurday.Bridge.seqCompStk_update_second
+SATurday.Bridge.seqComp_copy_steps_bound
+SATurday.Bridge.seqComp_step_copyToAuxPush
+SATurday.Bridge.seqComp_step_copyToInPop_nil
+SATurday.Bridge.seqComp_step_copyToInPop_cons

@@ -449,3 +449,58 @@ lower bound via the bridge.
 
   Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
   scripts/accepted_declarations.txt
+
+- 2026-08-10 formalize (order preserving seqComp simulation toward InP_implies_InNP): PARTIAL.
+
+  Target this cycle: close `compose_projFirst_bitEnc.outputsFun` via sequential
+  simulation of `seqCompComputer`; maximize accepted progress if full close
+  blocked. Do not edit CSExpansion.lean.
+
+  Existing names verified before editing (no guessing):
+  - mathlib: Turing.TM2ComputableInPolyTime, TM2.step, TM2.stepAux, FinTM2,
+    initList, haltList, EvalsToInTime, Function.update
+  - repo: Encoding.lean (encodePair, idBitEnc, bitEnc), Complexity.lean
+    (seqCompComputer, firstPhaseStmt, copyPopStmt or copyPushStmt,
+    projFirstComputableInPolyTime, compose_projFirst_bitEnc Frontier);
+    CSExpansion.lean left untouched (parallel R2 agent; WIP restored after gate)
+  - docs: docs/ladder/rungs/r5-cook-reckhow-bridge.md
+
+  Variables and declarations used or added:
+  - CompK, CompΓ, stmtLiftFirst, stmtLiftSecond, compAux
+  - CompLabel.copyToAuxPop, copyToAuxPush, copyToInPop, copyToInPush
+  - copyToAuxPopStmt, copyToAuxPushStmt, copyToInPopStmt, copyToInPushStmt
+  - seqCompStk, seqCompCfg, emptyStk, instDecidableEqCompK
+  - seqCompStk_update_first, seqCompStk_update_aux, seqCompStk_update_second
+  - seqComp_copy_steps_bound, seqCompTime (now 4*(X+1) copy budget)
+  - seqComp_step_copyToAuxPush, seqComp_step_copyToInPop_nil,
+    seqComp_step_copyToInPop_cons (accepted)
+  - Frontier: seqComp_step_copyToAuxPop_cons, seqComp_step_copyToAuxPop_nil,
+    seqComp_step_copyToInPush, compose_projFirst_bitEnc, InP_implies_InNP,
+    classP_eq_classNP_implies_NP_eq_coNP
+
+  Accepted (axiom gate PASS with HEAD CSExpansion, merge_certified auto applied):
+  - SATurday.Bridge.CompΓ, stmtLiftFirst, stmtLiftSecond, compAux
+  - SATurday.Bridge.copyToAux*Stmt, copyToIn*Stmt
+  - SATurday.Bridge.seqCompStk, seqCompCfg, emptyStk, instDecidableEqCompK
+  - SATurday.Bridge.seqCompStk_update_*
+  - SATurday.Bridge.seqComp_copy_steps_bound
+  - SATurday.Bridge.seqComp_step_copyToAuxPush
+  - SATurday.Bridge.seqComp_step_copyToInPop_nil
+  - SATurday.Bridge.seqComp_step_copyToInPop_cons
+  - rewritten seqCompComputer (out→aux→in; single out→in would reverse)
+
+  Frontier remaining: first or second stack update steps under
+  FinTM2.kDecidableEq versus ambient Function.update; first or second phase
+  simulation; compose_projFirst_bitEnc.outputsFun; InP_implies_InNP;
+  classP_eq_classNP_implies_NP_eq_coNP.
+  Learned: a single stack transfer reverses list order, so composition needs an
+  aux stack (two transfers). Aux only copy steps close with change or rfl;
+  updates to first or second stacks still hit DecidableEq instance mismatch.
+
+  Result: PARTIAL. Order preserving product machine and aux copy steps
+  certified; full P ⊆ NP still blocked on remaining copy and phase simulation.
+  Next: formalize seqComp_step_copyToAuxPop_cons and copyToInPush without
+  ambient Function.update on the statement RHS, then lift projFirst_evals.
+
+  Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
+  scripts/accepted_declarations.txt
