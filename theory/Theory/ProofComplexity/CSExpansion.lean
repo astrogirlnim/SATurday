@@ -717,7 +717,136 @@ theorem exists_medium_cs_clause_complex_of_large {F : CNF} {C : Clause}
             cs_clause_complex_boundary_le_width dD⟩
           exact (le_max_right dC.width dD.width).trans (le_max_left _ _)
 
-/-! ## Frontier: pinned width LB vs HasCSExpansion and existence -/
+/-! ## Matchability and clause-set expansion (BSW width machine)
+
+The Ben-Sasson and Wigderson random k-CNF argument uses (i) matchability of
+small axiom sets and (ii) boundary expansion of medium axiom sets under
+`clauseSetBoundary`. This is the packaging that pairs with the certified
+coverage lemma; the pin's variable-side `HasCSExpansion` remains a separate
+Frontier reduction target. -/
+
+/-- Every axiom subset of size at most `r` is satisfiable. -/
+def IsCSMatchable (F : CNF) (r : ℕ) : Prop :=
+  ∀ G : Finset Clause, G ⊆ F → G.card ≤ r → Satisfiable G
+
+/-- Medium axiom sets expand under the clause-set boundary. -/
+def HasCSClauseExpansion (F : CNF) (r α : ℕ) : Prop :=
+  ∀ G : Finset Clause, G ⊆ F →
+    r / 2 ≤ G.card → G.card ≤ r →
+      α * G.card ≤ (clauseSetBoundary G).card
+
+/-- Width floor from matchability scale `r` and expansion factor `α`. -/
+def csClauseWidthFloor (r α : ℕ) : ℕ := α * (r / 2)
+
+/-- Unsatisfiable CNFs imply every clause from the full axiom set. -/
+theorem csClauseImplies_of_unsat {F : CNF} (h : ¬ Satisfiable F) (C : Clause) :
+    csClauseImplies F F C :=
+  ⟨subset_rfl, fun a ha => False.elim (h ⟨a, ha⟩)⟩
+
+/-- Matchability forces every empty-clause μ-complex above `r`. -/
+theorem csClauseComplex_card_gt_of_matchable {F : CNF} {r : ℕ}
+    (d : Derivation F (∅ : Clause)) (hMatch : IsCSMatchable F r) :
+    r < d.csClauseComplex.card := by
+  by_contra hle
+  have hsub := csClauseComplex_subset_F d
+  obtain ⟨a, ha⟩ := hMatch d.csClauseComplex hsub (le_of_not_gt hle)
+  exact not_clauseSat_empty_cs a ((csClauseComplex_implies d).2 a ha)
+
+private theorem max_ge_ceil_half_of_sum_gt (a b t : ℕ)
+    (hsum : t < a + b) : (t + 1) / 2 ≤ max a b := by
+  have h2 : a + b ≤ 2 * max a b := by
+    cases le_total a b with
+    | inl hab =>
+      have : max a b = b := max_eq_right hab
+      simp [this]; omega
+    | inr hba =>
+      have : max a b = a := max_eq_left hba
+      simp [this]; omega
+  omega
+
+/-- Extract a medium μ-line when the complex exceeds threshold `t`. -/
+theorem exists_medium_cs_clause_complex_thresh {F : CNF} {C : Clause} {t : ℕ}
+    (π : Derivation F C) (ht : 1 ≤ t)
+    (hLarge : t < π.csClauseComplex.card) :
+    ∃ (C' : Clause) (dC : Derivation F C'),
+      dC.csClauseComplex.card ≤ t ∧
+        (t + 1) / 2 ≤ dC.csClauseComplex.card ∧
+          dC.width ≤ π.width ∧
+            (clauseSetBoundary dC.csClauseComplex).card ≤ dC.width := by
+  induction π with
+  | hyp _ hC =>
+    have hle := csClauseComplex_hyp_card_le_one hC
+    omega
+  | res x dC dD hx hnx ihC ihD =>
+    have hsub := csClauseComplex_res_subset x dC dD hx hnx
+    have hle : (Derivation.res x dC dD hx hnx).csClauseComplex.card ≤
+        (dC.csClauseComplex ∪ dD.csClauseComplex).card := card_le_card hsub
+    set SC := dC.csClauseComplex
+    set SD := dD.csClauseComplex
+    have hUnion : t < (SC ∪ SD).card := lt_of_lt_of_le hLarge hle
+    by_cases hCbig : t < SC.card
+    · obtain ⟨C', d', h1, h2, h3, h4⟩ := ihC hCbig
+      refine ⟨C', d', h1, h2, h3.trans ?_, h4⟩
+      simp only [Derivation.width]
+      exact (le_max_left _ _).trans (le_max_left _ _)
+    · by_cases hDbig : t < SD.card
+      · obtain ⟨C', d', h1, h2, h3, h4⟩ := ihD hDbig
+        refine ⟨C', d', h1, h2, h3.trans ?_, h4⟩
+        simp only [Derivation.width]
+        exact (le_max_right _ _).trans (le_max_left _ _)
+      · have hCbig' : SC.card ≤ t := Nat.le_of_not_gt hCbig
+        have hDbig' : SD.card ≤ t := Nat.le_of_not_gt hDbig
+        have hleUnion : (SC ∪ SD).card ≤ SC.card + SD.card := card_union_le SC SD
+        have hsum : t < SC.card + SD.card := lt_of_lt_of_le hUnion hleUnion
+        have hmax : (t + 1) / 2 ≤ max SC.card SD.card :=
+          max_ge_ceil_half_of_sum_gt _ _ _ hsum
+        by_cases hSC : SD.card ≤ SC.card
+        · have hmed : (t + 1) / 2 ≤ SC.card := by
+            simpa [max_eq_left hSC] using hmax
+          refine ⟨dC.conclusion, dC, hCbig', hmed, ?_,
+            cs_clause_complex_boundary_le_width dC⟩
+          exact (le_max_left dC.width dD.width).trans (le_max_left _ _)
+        · have hSDle : SC.card ≤ SD.card := le_of_not_ge hSC
+          have hmed : (t + 1) / 2 ≤ SD.card := by
+            simpa [max_eq_right hSDle] using hmax
+          refine ⟨dD.conclusion, dD, hDbig', hmed, ?_,
+            cs_clause_complex_boundary_le_width dD⟩
+          exact (le_max_right dC.width dD.width).trans (le_max_left _ _)
+
+/-- BSW width lower bound under matchability and clause-set expansion. -/
+theorem cs_clause_expansion_width_lower_bound {F : CNF} {r α : ℕ}
+    (hMatch : IsCSMatchable F r) (hExp : HasCSClauseExpansion F r α)
+    (hr : 2 ≤ r) (d : Derivation F (∅ : Clause)) :
+    csClauseWidthFloor r α ≤ d.width := by
+  have hLarge : r < d.csClauseComplex.card :=
+    csClauseComplex_card_gt_of_matchable d hMatch
+  have ht : 1 ≤ r := by omega
+  obtain ⟨C, dC, hUpper, hLower, hWle, hBd⟩ :=
+    exists_medium_cs_clause_complex_thresh d ht hLarge
+  have hGsub := csClauseComplex_subset_F dC
+  have hGe : r / 2 ≤ dC.csClauseComplex.card := by
+    have hhalf : r / 2 ≤ (r + 1) / 2 := by omega
+    exact hhalf.trans hLower
+  have hExp' := hExp dC.csClauseComplex hGsub hGe hUpper
+  have hαle : α * dC.csClauseComplex.card ≤ d.width :=
+    (hExp'.trans hBd).trans hWle
+  have hfloor : csClauseWidthFloor r α ≤ α * dC.csClauseComplex.card := by
+    simp only [csClauseWidthFloor]
+    exact Nat.mul_le_mul_left α hGe
+  exact hfloor.trans hαle
+
+/-- Size corollary via BSW once the clause-set width floor is available. -/
+theorem cs_clause_expansion_size_lower_bound {F : CNF} {r α : ℕ}
+    (hMatch : IsCSMatchable F r) (hExp : HasCSClauseExpansion F r α)
+    (hr : 2 ≤ r) (d : Derivation F (∅ : Clause)) :
+    let W := csClauseWidthFloor r α
+    2 ^ ((W - cnfWidth F) * (W - cnfWidth F) /
+          (bswRateConst * (cnfVars F).card)) ≤ d.size := by
+  intro W
+  exact bsw_size_lower_bound F W
+    (fun d' => cs_clause_expansion_width_lower_bound hMatch hExp hr d') d
+
+/-! ## Frontier: pinned variable-side HasCSExpansion and existence -/
 
 namespace CSExpansionFrontier
 
@@ -727,10 +856,9 @@ theorem boundaryCovered_of_eraseMinimal {F : CNF} {S : Finset ℕ} {C : Clause}
     boundaryCovered F S C := by
   sorry
 
-/-- Bridge gap: pin uses variable-side `HasCSExpansion` / `boundaryClauses`, while
-the accepted coverage theorem uses axiom-set `clauseSetBoundary`. Closing the
-width LB needs either a clause-expansion hypothesis or a reduction between them,
-plus a matchability hypothesis giving a large μ-complex for `∅`. -/
+/-- Pinned name under variable-side `HasCSExpansion`. The accepted width machine
+is `cs_clause_expansion_width_lower_bound` under matchability plus
+`HasCSClauseExpansion`. Reduction between the two expansion hypotheses is open. -/
 theorem cs_expansion_width_lower_bound {F : CNF} {k β α : ℕ}
     (_h : HasCSExpansion F k β α) (_hα : 1 ≤ α) (_hβ : 0 < β)
     (d : Derivation F (∅ : Clause)) :

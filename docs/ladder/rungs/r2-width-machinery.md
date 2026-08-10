@@ -3,8 +3,8 @@
 Status: prose_accepted
 Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (item 1
 merged); FinGraph.lean and Tseitin.lean (item 2 width machine merged, including
-heawoodGraph_expansion); CSExpansion.lean (item 2 API cluster merged; full
-width LB open)
+heawoodGraph_expansion); CSExpansion.lean (BSW clause-set width machine merged;
+pinned variable-side HasCSExpansion width LB and existence still Frontier)
 
 ## Statement
 
@@ -1129,3 +1129,23 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
 - 2026-08-09 human gate merge_certified: APPROVED by session decision (user
   blanket continue, auto after axiom gate PASS). BSW clause-set coverage
   cluster accepted. R2 stays prose_accepted (pinned CS width LB still open).
+
+- 2026-08-09 formalize (BSW matchability and clause-set width LB): SUCCESS on
+  the clause-set packaging. Accepted: `IsCSMatchable`, `HasCSClauseExpansion`,
+  `csClauseWidthFloor`, `csClauseComplex_card_gt_of_matchable`,
+  `exists_medium_cs_clause_complex_thresh`,
+  `cs_clause_expansion_width_lower_bound`, size corollary via BSW.
+  Frontier unchanged for pinned names: variable-side
+  `CSExpansionFrontier.cs_expansion_width_lower_bound` under `HasCSExpansion`,
+  and `exists_cs_expanding_3cnf`. Axiom gate PASS.
+  Most important thing learned: the informative CS width machine is matchability
+  plus axiom-set boundary expansion; the pin's variable-side `boundaryClauses`
+  hypothesis is a different combinatorial object and needs a separate reduction
+  or a pin restatement.
+  Next: inhabit `IsCSMatchable` and `HasCSClauseExpansion` (existence), or
+  reduce pinned `HasCSExpansion` to the clause-set machine.
+
+- 2026-08-09 human gate merge_certified: APPROVED by session decision (user
+  blanket continue, auto after axiom gate PASS). Clause-set width LB cluster
+  accepted. R2 stays prose_accepted (pinned HasCSExpansion name and existence
+  still open).

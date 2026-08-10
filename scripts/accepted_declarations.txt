@@ -638,3 +638,13 @@ SATurday.ProofComplexity.Derivation.cs_concl_card_le_width
 SATurday.ProofComplexity.cs_clause_complex_boundary_le_width
 SATurday.ProofComplexity.csClauseMediumFloor
 SATurday.ProofComplexity.exists_medium_cs_clause_complex_of_large
+
+# R2 item 2 cluster 8: BSW matchability plus clause-set width LB (certified 2026-08-09)
+SATurday.ProofComplexity.IsCSMatchable
+SATurday.ProofComplexity.HasCSClauseExpansion
+SATurday.ProofComplexity.csClauseWidthFloor
+SATurday.ProofComplexity.csClauseImplies_of_unsat
+SATurday.ProofComplexity.csClauseComplex_card_gt_of_matchable
+SATurday.ProofComplexity.exists_medium_cs_clause_complex_thresh
+SATurday.ProofComplexity.cs_clause_expansion_width_lower_bound
+SATurday.ProofComplexity.cs_clause_expansion_size_lower_bound
