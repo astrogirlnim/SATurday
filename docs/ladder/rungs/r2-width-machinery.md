@@ -4,8 +4,8 @@ Status: prose_accepted
 Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (item 1
 merged); FinGraph.lean and Tseitin.lean (item 2 width machine merged, including
 heawoodGraph_expansion); CSExpansion.lean (item 2 CS width machine certified under
-clause-set pin restated 2026-08-09; existence `exists_cs_clause_expanding_3cnf`
-still Frontier)
+clause-set pin restated 2026-08-09; Spreads reduction to HasCSClauseExpansion
+merged 2026-08-10; existence `exists_cs_clause_expanding_3cnf` still Frontier)
 
 ## Statement
 
@@ -1303,3 +1303,20 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Pending human gate merge_certified (auto per user blanket after green gate).
   Next: prove or formalize probabilistic or constructive
   `HasCSClauseExpansion` at informative parameters, or continue R5 in parallel.
+
+- 2026-08-10 formalize (Spreads reduction to HasCSClauseExpansion): PARTIAL.
+  Certified combinatorial core that advances clause-set expansion without a vacuous
+  witness: incidence identity `clauseSetBoundary_card_add_sum_ge`
+  (`|∂G| + ∑|supp C| ≥ 2|⋃ supp|`), definition `Spreads`, and
+  `hasCSClauseExpansion_one_of_spreads_two` (plus support-bounded twin and
+  `HasCSClauseExpansion.mono_alpha`). Axiom gate PASS on 11 new accepted decls.
+  Frontier `CSExpansionFrontier.exists_cs_clause_expanding_3cnf` unchanged
+  (honest sorry); sufficient route is now matchability plus `Spreads F (n/4) 2`
+  at width at most 3. Restored dirty local Bridge Complexity.lean to HEAD only
+  so the gate could run; no R5 content edited.
+  Most important thing learned: inhabiting α = 1 expansion for 3-CNF reduces to
+  union growth at rate 2 on medium axiom sets, which is the standard random
+  method obligation rather than a new expansion predicate.
+  merge_certified auto applied per user blanket after green gate.
+  Next: formalize or prove `Spreads` for a constructive or probabilistic 3-CNF
+  family at informative scale, else continue R5.

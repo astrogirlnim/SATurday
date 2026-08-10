@@ -7,6 +7,8 @@ import Theory.ProofComplexity.SizeWidth
 Critical path (pin restated 2026-08-09): `IsCSMatchable`, `HasCSClauseExpansion`,
 `csClauseWidthFloor`, certified `cs_clause_expansion_width_lower_bound`.
 Existence target: `exists_cs_clause_expanding_3cnf` (Frontier).
+Accepted reduction: `Spreads` at rate 2 plus width ≤ 3 yields
+`hasCSClauseExpansion_one_of_spreads_two`.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -964,11 +966,242 @@ theorem exists_matchable_subset_of_unsat {F : CNF} (h : ¬ Satisfiable F) :
   obtain ⟨G, hGsub, hGmin⟩ := exists_minimallyUnsat_subset h
   exact ⟨G, hGsub, isCSMatchable_of_minimallyUnsat hGmin, hGmin.not_satisfiable⟩
 
+/-! ## Clause-set expansion via union spreading
+
+Ben-Sasson and Wigderson reduce medium clause-set expansion (`HasCSClauseExpansion`
+at α = 1 for 3-CNF) to a union growth (spreading) hypothesis: every medium axiom
+set covers at least two distinct variables per clause. The combinatorial core is
+the incidence identity `|∂G| + ∑|supp C| ≥ 2|⋃ supp|`, which yields
+`|∂G| ≥ |G|` once `∑|supp C| ≤ 3|G|` and `|⋃ supp| ≥ 2|G|`. -/
+
+/-- Occurrence count of a variable inside an axiom set. -/
+def clauseOcc (G : Finset Clause) (x : ℕ) : ℕ :=
+  (G.filter fun C => x ∈ clauseSupport C).card
+
+/-- Double count pairs `(C, x)` with `x ∈ clauseSupport C`. -/
+theorem sum_clauseSupport_card_eq_sum_occ (G : Finset Clause) :
+    G.sum (fun C => (clauseSupport C).card) =
+      (G.biUnion clauseSupport).sum (fun x => clauseOcc G x) := by
+  classical
+  let U := G.biUnion clauseSupport
+  have hsub : ∀ C ∈ G, clauseSupport C ⊆ U := fun C hC =>
+    subset_biUnion_of_mem clauseSupport hC
+  have hleft :
+      G.sum (fun C => (clauseSupport C).card) =
+        G.sum fun C => ∑ x ∈ U, (if x ∈ clauseSupport C then (1 : ℕ) else 0) := by
+    refine sum_congr rfl ?_
+    intro C hC
+    have hfilter : U.filter (fun x => x ∈ clauseSupport C) = clauseSupport C := by
+      ext x
+      exact ⟨fun hx => (mem_filter.mp hx).2,
+        fun hx => mem_filter.mpr ⟨hsub C hC hx, hx⟩⟩
+    rw [← sum_filter (p := fun x => x ∈ clauseSupport C) (f := fun _ => (1 : ℕ)),
+      hfilter]
+    simp
+  have hswap :
+      G.sum (fun C => ∑ x ∈ U, (if x ∈ clauseSupport C then (1 : ℕ) else 0)) =
+        U.sum fun x => G.sum fun C => (if x ∈ clauseSupport C then (1 : ℕ) else 0) :=
+    sum_comm
+  have hright :
+      U.sum (fun x => G.sum fun C => (if x ∈ clauseSupport C then (1 : ℕ) else 0)) =
+        U.sum fun x => clauseOcc G x := by
+    refine sum_congr rfl ?_
+    intro x _
+    have h1 :
+        G.sum (fun C => (if x ∈ clauseSupport C then (1 : ℕ) else 0)) =
+          (G.filter fun C => x ∈ clauseSupport C).sum fun _ => (1 : ℕ) :=
+      (sum_filter (p := fun C => x ∈ clauseSupport C) (f := fun _ => (1 : ℕ))).symm
+    simpa [clauseOcc, sum_const, nsmul_eq_mul] using h1
+  rw [hleft, hswap, hright]
+
+/-- Incidence core: boundary size plus total support mass is at least twice the
+union. Equality holds when every non-boundary variable has occurrence exactly two. -/
+theorem clauseSetBoundary_card_add_sum_ge (G : Finset Clause) :
+    (clauseSetBoundary G).card + G.sum (fun C => (clauseSupport C).card) ≥
+      2 * (G.biUnion clauseSupport).card := by
+  classical
+  set U := G.biUnion clauseSupport
+  set B := clauseSetBoundary G
+  have hBsub : B ⊆ U := by
+    intro x hx
+    exact ((mem_clauseSetBoundary_iff G x).mp hx).1
+  have hsum := sum_clauseSupport_card_eq_sum_occ G
+  -- Pointwise: boundary vars contribute ≥1, non-boundary vars in U contribute ≥2.
+  have hle : ∀ x ∈ U, (if x ∈ B then 1 else 2) ≤ clauseOcc G x := by
+    intro x hxU
+    by_cases hxB : x ∈ B
+    · have hocc : clauseOcc G x = 1 := by
+        have := (mem_clauseSetBoundary_iff G x).mp hxB
+        simpa [clauseOcc] using this.2
+      simp [hxB, hocc]
+    · simp only [hxB, ite_false]
+      have hne : clauseOcc G x ≠ 1 := by
+        intro h1
+        exact hxB ((mem_clauseSetBoundary_iff G x).mpr
+          ⟨hxU, by simpa [clauseOcc] using h1⟩)
+      have hpos : 0 < clauseOcc G x := by
+        obtain ⟨C, hC, hxC⟩ := mem_biUnion.mp hxU
+        exact Nat.pos_of_ne_zero fun h0 => by
+          have : C ∈ G.filter (fun D => x ∈ clauseSupport D) :=
+            mem_filter.mpr ⟨hC, hxC⟩
+          have hempty : G.filter (fun D => x ∈ clauseSupport D) = ∅ :=
+            card_eq_zero.mp (by simpa [clauseOcc] using h0)
+          simp [hempty] at this
+      omega
+  have hsum_ge :
+      U.sum (fun x => if x ∈ B then (1 : ℕ) else 2) ≤
+        U.sum (fun x => clauseOcc G x) :=
+    sum_le_sum hle
+  have hite : B.card + U.sum (fun x => if x ∈ B then (1 : ℕ) else 2) =
+      2 * U.card := by
+    have hBfilter : U.filter (fun x => x ∈ B) = B := by
+      ext x
+      exact ⟨fun hx => (mem_filter.mp hx).2,
+        fun hx => mem_filter.mpr ⟨hBsub hx, hx⟩⟩
+    have h1 :
+        U.sum (fun x => if x ∈ B then (1 : ℕ) else 2) =
+          (U.filter (fun x => x ∈ B)).sum (fun _ => (1 : ℕ)) +
+            (U.filter (fun x => x ∉ B)).sum (fun _ => (2 : ℕ)) := by
+      rw [← sum_filter_add_sum_filter_not (s := U) (p := fun x => x ∈ B)]
+      refine congrArg₂ _ ?_ ?_
+      · refine sum_congr rfl ?_
+        intro x hx
+        have : x ∈ B := (mem_filter.mp hx).2
+        simp [this]
+      · refine sum_congr rfl ?_
+        intro x hx
+        have : x ∉ B := (mem_filter.mp hx).2
+        simp [this]
+    have h2 :
+        (U.filter (fun x => x ∈ B)).sum (fun _ => (1 : ℕ)) = B.card := by
+      simp [hBfilter, sum_const]
+    have h3 :
+        (U.filter (fun x => x ∉ B)).sum (fun _ => (2 : ℕ)) =
+          2 * (U.filter (fun x => x ∉ B)).card := by
+      simp [sum_const, mul_comm]
+    have h4 : (U.filter (fun x => x ∉ B)).card = U.card - B.card := by
+      have : U.filter (fun x => x ∉ B) = U \ B := by
+        ext x; simp [mem_sdiff]
+      rw [this, Finset.card_sdiff, inter_eq_left.mpr hBsub]
+    have hlecard : B.card ≤ U.card := card_le_card hBsub
+    rw [h1, h2, h3, h4]
+    omega
+  have hmain :
+      B.card + U.sum (fun x => clauseOcc G x) ≥ 2 * U.card := by
+    calc
+      B.card + U.sum (fun x => clauseOcc G x)
+          ≥ B.card + U.sum (fun x => if x ∈ B then (1 : ℕ) else 2) :=
+            Nat.add_le_add_left hsum_ge _
+      _ = 2 * U.card := hite
+  -- Rewrite back through the occurrence identity.
+  have : (clauseSetBoundary G).card + G.sum (fun C => (clauseSupport C).card) ≥
+      2 * (G.biUnion clauseSupport).card := by
+    calc
+      (clauseSetBoundary G).card + G.sum (fun C => (clauseSupport C).card)
+          = B.card + U.sum (fun x => clauseOcc G x) := by
+            simp only [B, U, hsum]
+      _ ≥ 2 * U.card := hmain
+      _ = 2 * (G.biUnion clauseSupport).card := by simp [U]
+  exact this
+
+/-- Weaker α is easier: expansion factors are downward closed. -/
+theorem HasCSClauseExpansion.mono_alpha {F : CNF} {r α α' : ℕ}
+    (h : HasCSClauseExpansion F r α) (hle : α' ≤ α) :
+    HasCSClauseExpansion F r α' :=
+  fun G hG hlo hhi =>
+    (Nat.mul_le_mul_right G.card hle).trans (h G hG hlo hhi)
+
+/-- Support card never exceeds clause card, hence never exceeds `cnfWidth`. -/
+theorem clauseSupport_card_le_cnfWidth {F : CNF} {C : Clause}
+    (hC : C ∈ F) : (clauseSupport C).card ≤ cnfWidth F := by
+  have hle : C.card ≤ cnfWidth F := Finset.le_sup hC
+  exact (card_image_le).trans hle
+
+/-- Total support mass of `G` is at most `k * |G|` when every member has support
+size at most `k`. -/
+theorem sum_clauseSupport_card_le_mul {G : Finset Clause} {k : ℕ}
+    (hw : ∀ C ∈ G, (clauseSupport C).card ≤ k) :
+    G.sum (fun C => (clauseSupport C).card) ≤ k * G.card := by
+  have h :=
+    sum_le_card_nsmul G (fun C => (clauseSupport C).card) k hw
+  -- `sum_le_card_nsmul` yields `|G| * k`; commute to `k * |G|`.
+  simpa [nsmul_eq_mul, Nat.mul_comm] using h
+
+/-- Medium axiom sets spread: the union of supports grows at rate `γ` per clause. -/
+def Spreads (F : CNF) (r γ : ℕ) : Prop :=
+  ∀ G : Finset Clause, G ⊆ F →
+    r / 2 ≤ G.card → G.card ≤ r →
+      γ * G.card ≤ (G.biUnion clauseSupport).card
+
+/-- Spreading at rate 2 plus width at most 3 yields clause-set expansion at α = 1.
+This is the exact combinatorial reduction used by the random 3-CNF argument. -/
+theorem hasCSClauseExpansion_one_of_spreads_two {F : CNF} {r : ℕ}
+    (hw : cnfWidth F ≤ 3) (hsp : Spreads F r 2) :
+    HasCSClauseExpansion F r 1 := by
+  intro G hG hlo hhi
+  have hU : 2 * G.card ≤ (G.biUnion clauseSupport).card := hsp G hG hlo hhi
+  have hsum : G.sum (fun C => (clauseSupport C).card) ≤ 3 * G.card := by
+    refine sum_clauseSupport_card_le_mul ?_
+    intro C hC
+    exact (clauseSupport_card_le_cnfWidth (hG hC)).trans hw
+  have hcore := clauseSetBoundary_card_add_sum_ge G
+  -- `|∂G| + ∑ ≥ 2|U| ≥ 4|G|`, and `∑ ≤ 3|G|`, so `|∂G| ≥ |G|`.
+  have h4 : 4 * G.card ≤
+      (clauseSetBoundary G).card + G.sum (fun C => (clauseSupport C).card) := by
+    have h2U : 4 * G.card ≤ 2 * (G.biUnion clauseSupport).card := by
+      -- 2 * (2 * |G|) ≤ 2 * |U|
+      have := Nat.mul_le_mul_left 2 hU
+      -- this : 2*(2*|G|) ≤ 2*|U|
+      convert this using 1 <;> omega
+    exact h2U.trans hcore
+  have : G.card ≤ (clauseSetBoundary G).card := by omega
+  simpa using this
+
+/-- Same reduction under an explicit per-clause support bound (avoids `cnfWidth`). -/
+theorem hasCSClauseExpansion_one_of_spreads_two_of_support_le {F : CNF} {r : ℕ}
+    (hw : ∀ C ∈ F, (clauseSupport C).card ≤ 3) (hsp : Spreads F r 2) :
+    HasCSClauseExpansion F r 1 := by
+  intro G hG hlo hhi
+  have hU : 2 * G.card ≤ (G.biUnion clauseSupport).card := hsp G hG hlo hhi
+  have hsum : G.sum (fun C => (clauseSupport C).card) ≤ 3 * G.card :=
+    sum_clauseSupport_card_le_mul fun C hC => hw C (hG hC)
+  have hcore := clauseSetBoundary_card_add_sum_ge G
+  have h4 : 4 * G.card ≤
+      (clauseSetBoundary G).card + G.sum (fun C => (clauseSupport C).card) := by
+    have h2U : 4 * G.card ≤ 2 * (G.biUnion clauseSupport).card := by
+      have := Nat.mul_le_mul_left 2 hU
+      convert this using 1 <;> omega
+    exact h2U.trans hcore
+  have : G.card ≤ (clauseSetBoundary G).card := by omega
+  simpa using this
+
+/-- Vacuous spreading when the medium interval forces the empty set only
+(`r ≤ 1` gives floor 0, not informative, but records the API edge). -/
+theorem Spreads.alpha_scale_zero (F : CNF) (γ : ℕ) : Spreads F 0 γ := by
+  intro G _hG hlo hhi
+  have : G.card = 0 := by omega
+  simp [this]
+
+/-- Singleton medium sets spread at rate `γ` once every clause support has size
+at least `γ`. Useful for tiny-r calibration only. -/
+theorem spreads_one_of_support_ge {F : CNF} {γ : ℕ}
+    (hge : ∀ C ∈ F, γ ≤ (clauseSupport C).card) : Spreads F 1 γ := by
+  intro G hG hlo hhi
+  have hcard : G.card = 0 ∨ G.card = 1 := by omega
+  cases hcard with
+  | inl h0 => simp [h0]
+  | inr h1 =>
+    obtain ⟨C, rfl⟩ := card_eq_one.mp h1
+    have hC : C ∈ F := hG (mem_singleton_self _)
+    simpa [biUnion_singleton] using hge C hC
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
-Obsolete variable-side Frontier theorems remain for archival reference only;
-do not spend cycles proving them. -/
+Sufficient accepted route: produce matchable unsat 3-CNF with `Spreads F (n/4) 2`,
+then apply `hasCSClauseExpansion_one_of_spreads_two`. Obsolete variable-side
+Frontier theorems remain for archival reference only; do not spend cycles proving
+them. -/
 
 namespace CSExpansionFrontier
 
@@ -997,8 +1230,9 @@ theorem exists_cs_expanding_3cnf :
   sorry
 
 /-- Restated critical-path existence (pin 2026-08-09). Requires matchable,
-clause-set expanding, unsatisfiable 3-CNF with informative floor. Small-n
-witness search failed; probabilistic existence remains open (sorry honest). -/
+clause-set expanding, unsatisfiable 3-CNF with informative floor. Sufficient
+accepted route: `Spreads F (n/4) 2` plus `hasCSClauseExpansion_one_of_spreads_two`.
+Small-n witness search failed; probabilistic spreading remains open (sorry honest). -/
 theorem exists_cs_clause_expanding_3cnf :
     ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (r α : ℕ),
       N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧

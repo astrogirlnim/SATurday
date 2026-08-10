@@ -663,6 +663,19 @@ SATurday.ProofComplexity.isCSMatchable_of_minimallyUnsat
 SATurday.ProofComplexity.exists_minimallyUnsat_subset
 SATurday.ProofComplexity.exists_matchable_subset_of_unsat
 
+# R2 item 2 cluster 10: Spreads reduction to HasCSClauseExpansion (certified 2026-08-10)
+SATurday.ProofComplexity.clauseOcc
+SATurday.ProofComplexity.sum_clauseSupport_card_eq_sum_occ
+SATurday.ProofComplexity.clauseSetBoundary_card_add_sum_ge
+SATurday.ProofComplexity.HasCSClauseExpansion.mono_alpha
+SATurday.ProofComplexity.clauseSupport_card_le_cnfWidth
+SATurday.ProofComplexity.sum_clauseSupport_card_le_mul
+SATurday.ProofComplexity.Spreads
+SATurday.ProofComplexity.hasCSClauseExpansion_one_of_spreads_two
+SATurday.ProofComplexity.hasCSClauseExpansion_one_of_spreads_two_of_support_le
+SATurday.ProofComplexity.Spreads.alpha_scale_zero
+SATurday.ProofComplexity.spreads_one_of_support_ge
+
 # R5 Cook Reckhow bridge: Encoding and Complexity cluster (2026-08-10 formalize)
 SATurday.Bridge.bitEnc_eq_encodeBool
 SATurday.Bridge.decodePair_encodePair
