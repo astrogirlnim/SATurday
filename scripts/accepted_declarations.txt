@@ -704,6 +704,14 @@ SATurday.ProofComplexity.not_existsSatFin_spreadWitnessCNF
 SATurday.ProofComplexity.spreadWitnessCNF_unsat
 SATurday.ProofComplexity.exists_spreads_two_matchable_unsat_3cnf
 
+# R2 item 2 cluster 12: informative floor threshold and Spreads scale 3 constructor (2026-08-10)
+SATurday.ProofComplexity.csClauseWidthFloor_alpha_one_lt_iff
+SATurday.ProofComplexity.informative_cs_floor_requires_r_ge_eight
+SATurday.ProofComplexity.informative_cs_floor_of_cnfWidth_eq_three
+SATurday.ProofComplexity.spreads_of_medium_biUnion_ge
+SATurday.ProofComplexity.spreads_three_of_unions
+SATurday.ProofComplexity.spreadWitnessCNF_floor_not_informative
+
 # R5 Cook Reckhow bridge: Encoding and Complexity cluster (2026-08-10 formalize)
 SATurday.Bridge.bitEnc_eq_encodeBool
 SATurday.Bridge.decodePair_encodePair

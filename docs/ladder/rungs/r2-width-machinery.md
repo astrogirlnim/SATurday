@@ -6,6 +6,7 @@ merged); FinGraph.lean and Tseitin.lean (item 2 width machine merged, including
 heawoodGraph_expansion); CSExpansion.lean (item 2 CS width machine certified under
 clause-set pin restated 2026-08-09; Spreads reduction to HasCSClauseExpansion
 merged 2026-08-10; finite Spreads r=2 matchable unsat witness merged 2026-08-10;
+informative floor threshold and Spreads scale 3 constructor merged 2026-08-10;
 existence `exists_cs_clause_expanding_3cnf` still Frontier)
 
 ## Statement
@@ -1341,3 +1342,22 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   merge_certified auto applied per user blanket after green gate.
   Next: formalize Spreads at informative r (probabilistic or constructive
   expander scale), or continue R5.
+
+- 2026-08-10 formalize (informative Spreads push toward
+  exists_cs_clause_expanding_3cnf): PARTIAL. No honest informative inhabitant
+  (need r ≥ 8 so cnfWidth < csClauseWidthFloor r 1). Certified threshold and
+  constructor lemmas (axiom gate PASS): csClauseWidthFloor_alpha_one_lt_iff,
+  informative_cs_floor_requires_r_ge_eight,
+  informative_cs_floor_of_cnfWidth_eq_three, spreads_of_medium_biUnion_ge,
+  spreads_three_of_unions, spreadWitnessCNF_floor_not_informative.
+  Search notes: McGee LCF cubic on 24 verts has vertex cut expansion through
+  r = 9 (pin scale |E|/4), but formal tseitinCNF repeats supports per vertex
+  and fails Spreads; sparse one clause per triple packings that Spreads at
+  r ≥ 8 did not yield matchable unsat under finite search. Frontier
+  exists_cs_clause_expanding_3cnf unchanged (honest sorry).
+  Most important thing learned: informative CS existence is blocked by an
+  encoding gap (graph expansion on vertices versus clause Spreads on possibly
+  repeated supports) plus the sparse versus unsat tension for explicit 3-CNFs.
+  merge_certified auto applied per user blanket after green gate.
+  Next: formalize probabilistic Spreads existence or a single clause per
+  support expander encoding that stays unsat and matchable.

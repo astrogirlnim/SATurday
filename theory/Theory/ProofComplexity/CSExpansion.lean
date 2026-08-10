@@ -12,6 +12,8 @@ Accepted reduction: `Spreads` at rate 2 plus width ≤ 3 yields
 Finite non vacuous inhabitant: `spreadWitnessCNF` with `Spreads _ 2 2`,
 matchability at 2, and `hasCSClauseExpansion_spreadWitnessCNF_two`
 (packaged as `exists_spreads_two_matchable_unsat_3cnf`; floor not informative).
+Informative threshold lemmas: width 3 forces `r ≥ 8` for α = 1 floors;
+`spreads_three_of_unions` lifts the pairwise constructor to scale 3.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -1509,13 +1511,143 @@ theorem exists_spreads_two_matchable_unsat_3cnf :
     isCSMatchable_spreadWitnessCNF_two, spreads_spreadWitnessCNF_two,
     hasCSClauseExpansion_spreadWitnessCNF_two, spreadWitnessCNF_unsat⟩
 
+/-! ## Informative floor threshold and medium union Spreads constructors
+
+For width at most 3 and α = 1, `cnfWidth F < csClauseWidthFloor r 1` forces
+`r ≥ 8` whenever the formula actually has a width-3 clause. Finite Spreads
+witnesses at r = 2 are therefore non informative. The constructors below package
+Spreads at general r from explicit medium union lower bounds (the r = 2 case
+recovers `spreads_two_of_pairwise_union_ge`). -/
+
+/-- Floor at α = 1 is exactly half the matchability scale. -/
+theorem csClauseWidthFloor_alpha_one_lt_iff (r w : ℕ) :
+    w < csClauseWidthFloor r 1 ↔ w < r / 2 := by
+  simp [csClauseWidthFloor]
+
+/-- If some clause has card at least 3, an informative α = 1 floor needs `r ≥ 8`. -/
+theorem informative_cs_floor_requires_r_ge_eight {F : CNF} {r : ℕ}
+    (h3 : ∃ C ∈ F, 3 ≤ C.card)
+    (hinfo : cnfWidth F < csClauseWidthFloor r 1) : 8 ≤ r := by
+  obtain ⟨C, hC, hC3⟩ := h3
+  have hw : 3 ≤ cnfWidth F := (le_sup (f := fun D : Clause => D.card) hC).trans' hC3
+  have : 3 < r / 2 := lt_of_le_of_lt hw (by simpa [csClauseWidthFloor] using hinfo)
+  omega
+
+/-- Same threshold under the common `cnfWidth F = 3` packaging. -/
+theorem informative_cs_floor_of_cnfWidth_eq_three {F : CNF} {r : ℕ}
+    (hw : cnfWidth F = 3)
+    (hinfo : cnfWidth F < csClauseWidthFloor r 1) : 8 ≤ r := by
+  have : 3 < r / 2 := by
+    simpa [hw, csClauseWidthFloor] using hinfo
+  omega
+
+/-- Spreads from a uniform medium union lower bound (definition unfolded). -/
+theorem spreads_of_medium_biUnion_ge {F : CNF} {r γ : ℕ}
+    (h : ∀ G : Finset Clause, G ⊆ F →
+      r / 2 ≤ G.card → G.card ≤ r →
+        γ * G.card ≤ (G.biUnion clauseSupport).card) :
+    Spreads F r γ :=
+  h
+
+/-- Spreading at rate 2 and scale 3 from support lower bounds on medium sizes
+1, 2, and 3. -/
+theorem spreads_three_of_unions {F : CNF}
+    (h1 : ∀ C ∈ F, 2 ≤ (clauseSupport C).card)
+    (h2 : ∀ C ∈ F, ∀ D ∈ F, C ≠ D →
+      4 ≤ (clauseSupport C ∪ clauseSupport D).card)
+    (h3 : ∀ C ∈ F, ∀ D ∈ F, ∀ E ∈ F,
+      C ≠ D → C ≠ E → D ≠ E →
+        6 ≤ (clauseSupport C ∪ clauseSupport D ∪ clauseSupport E).card) :
+    Spreads F 3 2 := by
+  intro G hG hlo hhi
+  have hcases : G.card = 1 ∨ G.card = 2 ∨ G.card = 3 := by omega
+  rcases hcases with h1c | h2c | h3c
+  · obtain ⟨C, rfl⟩ := card_eq_one.mp h1c
+    have : 2 * ({C} : Finset Clause).card ≤ (clauseSupport C).card := by
+      simpa using h1 C (hG (mem_singleton_self _))
+    simpa [biUnion_singleton] using this
+  · obtain ⟨C, D, hCD, rfl⟩ := card_eq_two.mp h2c
+    have hC : C ∈ F := hG (mem_insert_self _ _)
+    have hD : D ∈ F := hG (mem_insert_of_mem (mem_singleton_self _))
+    have hU :
+        ({C, D} : Finset Clause).biUnion clauseSupport =
+          clauseSupport C ∪ clauseSupport D := by
+      ext x; constructor
+      · intro hx
+        obtain ⟨E, hE, hxE⟩ := mem_biUnion.mp hx
+        rcases mem_insert.mp hE with hE | hE
+        · subst hE; exact mem_union_left _ hxE
+        · have : E = D := mem_singleton.mp hE
+          subst this; exact mem_union_right _ hxE
+      · intro hx
+        rcases mem_union.mp hx with hx | hx
+        · exact mem_biUnion.mpr ⟨C, mem_insert_self _ _, hx⟩
+        · exact mem_biUnion.mpr
+            ⟨D, mem_insert_of_mem (mem_singleton_self _), hx⟩
+    have h4 : 4 ≤ (clauseSupport C ∪ clauseSupport D).card := h2 C hC D hD hCD
+    have : 2 * ({C, D} : Finset Clause).card ≤
+        (({C, D} : Finset Clause).biUnion clauseSupport).card := by
+      simpa [hU, card_pair hCD] using h4
+    exact this
+  · obtain ⟨C, D, E, hCD, hCE, hDE, rfl⟩ := card_eq_three.mp h3c
+    have hC : C ∈ F := hG (by simp)
+    have hD : D ∈ F := hG (by simp)
+    have hE : E ∈ F := hG (by simp)
+    have hU :
+        ({C, D, E} : Finset Clause).biUnion clauseSupport =
+          clauseSupport C ∪ clauseSupport D ∪ clauseSupport E := by
+      ext x; constructor
+      · intro hx
+        obtain ⟨K, hK, hxK⟩ := mem_biUnion.mp hx
+        have hKmem : K = C ∨ K = D ∨ K = E := by
+          simpa [mem_insert, mem_singleton] using hK
+        rcases hKmem with rfl | rfl | rfl
+        · exact mem_union_left _ (mem_union_left _ hxK)
+        · exact mem_union_left _ (mem_union_right _ hxK)
+        · exact mem_union_right _ hxK
+      · intro hx
+        rcases mem_union.mp hx with hx | hx
+        · rcases mem_union.mp hx with hx | hx
+          · exact mem_biUnion.mpr ⟨C, by simp, hx⟩
+          · exact mem_biUnion.mpr ⟨D, by simp, hx⟩
+        · exact mem_biUnion.mpr ⟨E, by simp, hx⟩
+    have h6 :
+        6 ≤ (clauseSupport C ∪ clauseSupport D ∪ clauseSupport E).card :=
+      h3 C hC D hD E hE hCD hCE hDE
+    have hcard : ({C, D, E} : Finset Clause).card = 3 :=
+      (card_eq_three (s := {C, D, E})).mpr ⟨C, D, E, hCD, hCE, hDE, rfl⟩
+    have : 2 * ({C, D, E} : Finset Clause).card ≤
+        (({C, D, E} : Finset Clause).biUnion clauseSupport).card := by
+      simpa [hU, hcard] using h6
+    exact this
+
+/-- Non informative calibration: r = 2 yields floor 1, which cannot beat width 3. -/
+theorem spreadWitnessCNF_floor_not_informative :
+    ¬ cnfWidth spreadWitnessCNF < csClauseWidthFloor 2 1 := by
+  intro h
+  have hfloor : csClauseWidthFloor 2 1 = 1 := by simp [csClauseWidthFloor]
+  rw [hfloor] at h
+  set C0 : Clause := spreadWitnessClause ⟨0, by omega⟩
+  have hC : C0 ∈ spreadWitnessCNF := mem_spreadWitnessCNF.mpr ⟨⟨0, by omega⟩, rfl⟩
+  have hcard : C0.card = 3 := spreadWitnessClause_card ⟨0, by omega⟩
+  have hle : C0.card ≤ cnfWidth spreadWitnessCNF := by
+    simpa [cnfWidth, C0] using Finset.le_sup (f := Finset.card) hC
+  omega
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
 Sufficient accepted route: produce matchable unsat 3-CNF with `Spreads F (n/4) 2`,
 then apply `hasCSClauseExpansion_one_of_spreads_two`. Obsolete variable-side
 Frontier theorems remain for archival reference only; do not spend cycles proving
-them. -/
+them.
+
+Cycle 2026-08-10 (informative push): cubic cages such as LCF McGee on 24 verts
+admit vertex cut expansion through r = 9 (so r = |E|/4 is combinatorially in
+range), but the formal Tseitin CNF places several clauses on the same triple
+support and therefore fails Spreads. Sparse one clause per triple packings that
+Spreads at r ≥ 8 stay satisfiable under matchability searches. No honest
+informative inhabitant this cycle. -/
 
 namespace CSExpansionFrontier
 
