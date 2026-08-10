@@ -10,7 +10,7 @@ ladder after the program audit (see docs/postmortems/).
 - [x] Fix accepted proof standards (zero sorries, standard axioms only, axiom gate).
 - [x] Fix stop conditions (barrier failure, vacuous statements, budget breaches).
 - [ ] Formalize the target chain statement in Lean without opaque constants (rung R5;
-      Encoding and Complexity defs certified 2026-08-10; Frontier: nonvacuity,
+      Encoding Complexity and InP nonvacuity certified 2026-08-10; Frontier:
       Psubseteq NP, bridge theorems, FormulaEncoding).
 
 ## 1) Pick One Main Attack

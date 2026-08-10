@@ -303,3 +303,47 @@ lower bound via the bridge.
   Artifacts: theory/Theory/ProofComplexity/Bridge/Encoding.lean,
   theory/Theory/ProofComplexity/Bridge/Complexity.lean, theory/Theory.lean,
   scripts/accepted_declarations.txt
+
+- 2026-08-10 formalize (constant bit InP nonvacuity): PARTIAL.
+
+  Target this cycle: close `constBitComputableInPolyTime` and InP nonvacuity
+  (`emptyLanguage_in_P`, `fullLanguage_in_P`); leave pairing and bridge theorem 2
+  in Frontier if blocked.
+
+  Existing names verified before editing (no guessing):
+  - mathlib: Turing.TM2ComputableInPolyTime, FinTM2, TM2.step, TM2.stepAux,
+    StateTransition.EvalsToInTime, initList, haltList, idComputableInPolyTime
+  - repo: theory/Theory/ProofComplexity/Bridge/Encoding.lean,
+    Complexity.lean (constBitComputer, constBitTime already present);
+    CSExpansion.lean left untouched (parallel R2 agent)
+  - docs: docs/ladder/rungs/r5-cook-reckhow-bridge.md
+
+  Variables and declarations used:
+  - constBitStk, constBitCfg, update_unit_stk, update_constBitStk
+  - constBitComputer_step_cons, constBitComputer_step_nil,
+    constBitComputer_step_write, constBitComputer_initList,
+    constBitComputer_haltList
+  - constBitComputer_evals_cons_step, constBitComputer_evals_nil,
+    constBitComputer_evals, constBitTime_eval
+  - constBitComputableInPolyTime (moved out of Frontier)
+  - emptyLanguage_in_P, fullLanguage_in_P (moved out of Frontier)
+
+  Accepted (axiom gate PASS, merge_certified auto applied):
+  - SATurday.Bridge.update_unit_stk
+  - SATurday.Bridge.update_constBitStk
+  - SATurday.Bridge.constBitComputer_step_cons
+  - SATurday.Bridge.constBitComputer_step_nil
+  - SATurday.Bridge.constBitComputer_step_write
+  - SATurday.Bridge.constBitComputer_initList
+  - SATurday.Bridge.constBitComputer_haltList
+  - SATurday.Bridge.constBitTime_eval
+  - SATurday.Bridge.emptyLanguage_in_P
+  - SATurday.Bridge.fullLanguage_in_P
+
+  Frontier remaining: InP_implies_InNP (needs encodePair verifier TM);
+  classP_eq_classNP_implies_NP_eq_coNP (needs P closed under complement).
+  Learned: haltList zeros non output stacks, so constant output needs a clear
+  loop on a shared input or output stack; step count is |x| + 2.
+
+  Result: PARTIAL. InP nonvacuity certified. Next: formalize pairing verifier
+  for InP_implies_InNP or start FormulaEncoding.

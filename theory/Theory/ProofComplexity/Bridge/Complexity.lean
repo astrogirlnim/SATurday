@@ -8,13 +8,14 @@ import Mathlib.Tactic
 
 Pinned class predicates `InP`, `InNP`, `InCoNP` using mathlib's
 `Turing.TM2ComputableInPolyTime`. Class equality propositions match the
-Cook Reckhow bridge pin. Nonvacuity (constant bit machines), P ⊆ NP, and
-bridge theorem 2 are stated in `BridgeFrontier` until TM2 engineering closes.
+Cook Reckhow bridge pin. Constant bit nonvacuity is certified; P ⊆ NP and
+bridge theorem 2 remain in `BridgeFrontier`.
 
 LOG: R5 Bridge Complexity module (InP InNP InCoNP)
 -/
 
 open Turing
+open StateTransition
 open scoped Polynomial
 
 namespace SATurday.Bridge
@@ -99,8 +100,12 @@ theorem empty_witness_length_bound (x : List Bool) :
     ([] : List Bool).length ≤ zeroWitnessBound.eval x.length := by
   simp [zeroWitnessBound]
 
-/-- Clear loop TM2 for a constant output bit. Construction is accepted;
-correctness theorems live in `BridgeFrontier` until the run lemmas close. -/
+/-! ## Constant bit TM2 (certified nonvacuity engine) -/
+
+/-- Clear loop TM2 for a constant output bit.
+Label `false`: pop one input bit; if the stack was empty go to `true`, else loop.
+Label `true`: reset state to `false`, push the constant bit, halt.
+Step count on input of length `n` is exactly `n + 2`. -/
 def constBitComputer (b : Bool) : FinTM2 where
   K := Unit
   k₀ := ⟨⟩
@@ -123,31 +128,155 @@ def constBitComputer (b : Bool) : FinTM2 where
 /-- Polynomial time bound `X + 2` for the constant bit machine. -/
 noncomputable def constBitTime : Polynomial ℕ := Polynomial.X + 2
 
+/-- Unit stack family used by `constBitComputer` configurations. -/
+def constBitStk (s : List Bool) : Unit → List Bool := fun _ => s
+
+/-- Updating a constant Unit stack family replaces it. -/
+theorem update_unit_stk (s t : List Bool) :
+    Function.update (fun _ : Unit => s) PUnit.unit t = fun _ => t := by
+  funext k
+  cases k
+  simp [Function.update]
+
+/-- Configuration helper for `constBitComputer`. -/
+def constBitCfg (b : Bool) (l : Option Bool) (v : Bool) (s : List Bool) :
+    (constBitComputer b).Cfg :=
+  ⟨l, v, constBitStk s⟩
+
+/-- Stack update residual after a clear or write step. -/
+theorem update_constBitStk (s t : List Bool) :
+    Function.update (constBitStk s) PUnit.unit t = constBitStk t := by
+  simpa [constBitStk] using update_unit_stk s t
+
+/-- Popping a nonempty stack at the clear label shortens the stack by one. -/
+theorem constBitComputer_step_cons (b x : Bool) (xs : List Bool) :
+    TM2.step (constBitComputer b).m (constBitCfg b (some false) false (x :: xs)) =
+      some (constBitCfg b (some false) false xs) := by
+  simp [constBitComputer, constBitCfg, constBitStk, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk => (⟨some false, false, stk⟩ : (constBitComputer b).Cfg))
+      (update_constBitStk (x :: xs) xs)
+
+/-- Popping the empty stack at the clear label jumps to the write label. -/
+theorem constBitComputer_step_nil (b : Bool) :
+    TM2.step (constBitComputer b).m (constBitCfg b (some false) false []) =
+      some (constBitCfg b (some true) true []) := by
+  simp [constBitComputer, constBitCfg, constBitStk, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk => (⟨some true, true, stk⟩ : (constBitComputer b).Cfg))
+      (update_constBitStk [] [])
+
+/-- The write label pushes the constant bit and halts with state reset. -/
+theorem constBitComputer_step_write (b : Bool) :
+    TM2.step (constBitComputer b).m (constBitCfg b (some true) true []) =
+      some (constBitCfg b none false [b]) := by
+  simp [constBitComputer, constBitCfg, constBitStk, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk => (⟨none, false, stk⟩ : (constBitComputer b).Cfg))
+      (update_constBitStk [] [b])
+
+/-- Initial configuration matches the clear label with the full input stack. -/
+theorem constBitComputer_initList (b : Bool) (s : List Bool) :
+    initList (constBitComputer b) s = constBitCfg b (some false) false s := by
+  simp [initList, constBitComputer, constBitCfg]
+  exact congrArg (fun stk => (⟨some false, false, stk⟩ : (constBitComputer b).Cfg))
+    (rfl : (fun _ : Unit => s) = constBitStk s)
+
+/-- Halting configuration matches `haltList` on the singleton output. -/
+theorem constBitComputer_haltList (b : Bool) :
+    haltList (constBitComputer b) [b] = constBitCfg b none false [b] := by
+  simp [haltList, constBitComputer, constBitCfg]
+  exact congrArg (fun stk => (⟨none, false, stk⟩ : (constBitComputer b).Cfg))
+    (rfl : (fun _ : Unit => [b]) = constBitStk [b])
+
+/-- One clear step removes the head of a nonempty input. -/
+def constBitComputer_evals_cons_step (b x : Bool) (xs : List Bool) :
+    EvalsToInTime (constBitComputer b).step
+      (initList (constBitComputer b) (x :: xs))
+      (some (initList (constBitComputer b) xs)) 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    -- One bind step from init (x::xs) lands on init xs.
+    change (some (initList (constBitComputer b) (x :: xs))).bind (constBitComputer b).step =
+      some (initList (constBitComputer b) xs)
+    simp only [FinTM2.step, Option.bind, constBitComputer_initList]
+    exact constBitComputer_step_cons b x xs
+
+/-- Empty input: empty pop then write (2 steps) yields `[b]`. -/
+def constBitComputer_evals_nil (b : Bool) :
+    EvalsToInTime (constBitComputer b).step
+      (initList (constBitComputer b) [])
+      (some (haltList (constBitComputer b) [b])) 2 where
+  steps := 2
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    -- Two bind steps: empty pop to write label, then push and halt.
+    change ((some (initList (constBitComputer b) [])).bind (constBitComputer b).step).bind
+        (constBitComputer b).step =
+      some (haltList (constBitComputer b) [b])
+    simp only [FinTM2.step, constBitComputer_initList, constBitComputer_haltList]
+    -- Reduce `(some cfg).bind step` to `step cfg`, then apply the two step lemmas.
+    change ((TM2.step (constBitComputer b).m (constBitCfg b (some false) false [])).bind
+        (TM2.step (constBitComputer b).m)) =
+      some (constBitCfg b none false [b])
+    rw [constBitComputer_step_nil b]
+    change TM2.step (constBitComputer b).m (constBitCfg b (some true) true []) =
+      some (constBitCfg b none false [b])
+    exact constBitComputer_step_write b
+
+/-- After clearing `s`, one empty pop and one write, the machine outputs `[b]`. -/
+noncomputable def constBitComputer_evals (b : Bool) (s : List Bool) :
+    TM2OutputsInTime (constBitComputer b) s (some [b]) (s.length + 2) := by
+  induction s with
+  | nil =>
+      exact constBitComputer_evals_nil b
+  | cons x xs ih =>
+      have h :=
+        EvalsToInTime.trans (constBitComputer b).step 1 (xs.length + 2)
+          (initList (constBitComputer b) (x :: xs))
+          (initList (constBitComputer b) xs)
+          (some (haltList (constBitComputer b) [b]))
+          (constBitComputer_evals_cons_step b x xs) ih
+      simpa [List.length_cons, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using h
+
+/-- Time polynomial evaluates as length plus two. -/
+theorem constBitTime_eval (n : ℕ) : constBitTime.eval n = n + 2 := by
+  simp [constBitTime, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_ofNat]
+
+/-- Constant bit function is computable in poly time by `constBitComputer`. -/
+noncomputable def constBitComputableInPolyTime (b : Bool) :
+    TM2ComputableInPolyTime idBitEnc bitEnc (fun _ : List Bool => b) where
+  tm := constBitComputer b
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := constBitTime
+  outputsFun a := by
+    change TM2OutputsInTime (constBitComputer b) (List.map id (idBitEnc a))
+      (some (List.map id (bitEnc ((fun _ : List Bool => b) a))))
+      (constBitTime.eval (idBitEnc a).length)
+    simp only [idBitEnc, bitEnc, List.map_id, id_eq, constBitTime_eval]
+    exact constBitComputer_evals b a
+
+/-- Empty language is in P via the constant false machine. -/
+theorem emptyLanguage_in_P : InP emptyLanguage :=
+  ⟨fun _ => false, constBitComputableInPolyTime false, constFalse_decides_empty⟩
+
+/-- Full language is in P via the constant true machine. -/
+theorem fullLanguage_in_P : InP fullLanguage :=
+  ⟨fun _ => true, constBitComputableInPolyTime true, constTrue_decides_full⟩
+
 end SATurday.Bridge
 
-/-! ## Frontier: nonvacuity, P ⊆ NP, bridge theorem 2
+/-! ## Frontier: P ⊆ NP and bridge theorem 2
 
-Needs: prove `constBitComputer` computes the constant function in poly time;
-build a pairing verifier for `InP_implies_InNP`; close P under complement for
+Needs: pairing verifier TM for `InP_implies_InNP`; close P under complement for
 bridge theorem 2. Mathlib leaves `TM2ComputableInPolyTime.comp` as
-`proof_wanted`. -/
+`proof_wanted`. Constant bit nonvacuity is certified above. -/
 
 namespace SATurday.Bridge.BridgeFrontier
 
 open SATurday.Bridge
-
-/-- Constant bit function is computable in poly time by `constBitComputer`. -/
-noncomputable def constBitComputableInPolyTime (b : Bool) :
-    TM2ComputableInPolyTime idBitEnc bitEnc (fun _ : List Bool => b) := by
-  sorry
-
-/-- Empty language is in P. -/
-theorem emptyLanguage_in_P : InP emptyLanguage := by
-  sorry
-
-/-- Full language is in P. -/
-theorem fullLanguage_in_P : InP fullLanguage := by
-  sorry
 
 /-- Every language in P is in NP (ignore the witness; needs pairing TM). -/
 theorem InP_implies_InNP (L : Language) (h : InP L) : InNP L := by
