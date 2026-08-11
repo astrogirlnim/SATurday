@@ -601,3 +601,38 @@ lower bound via the bridge.
 
   Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
   scripts/accepted_declarations.txt
+
+- 2026-08-11 formalize (full-list seqComp copy transfer): PARTIAL.
+
+  Target this cycle: close `seqComp_evals_copyToAux` and `seqComp_evals_copyToIn`,
+  then glue `compose_projFirst_bitEnc.outputsFun` and `InP_implies_InNP`.
+
+  Existing names verified before editing (no guessing):
+  - SATurday.Bridge.seqComp_evals_copyToAux_one, _nil, copyToIn_one, _nil
+  - seqComp_evals_first, seqComp_evals_second, liftFirstCfg, liftSecondCfg
+  - evalsToInTime_le_mono, EvalsToInTime.trans
+
+  Variables and declarations used or added:
+  - evalsToInTime_congr_end
+  - seqComp_evals_copyToAux, seqComp_evals_copyToIn (moved out of Frontier)
+  - Frontier unchanged: compose_projFirst_bitEnc.outputsFun, InP_implies_InNP,
+    classP_eq_classNP_implies_NP_eq_coNP
+
+  Accepted (axiom gate PASS, merge_certified auto applied):
+  - SATurday.Bridge.evalsToInTime_congr_end
+  - SATurday.Bridge.seqComp_evals_copyToAux
+  - SATurday.Bridge.seqComp_evals_copyToIn
+
+  Frontier remaining: outputsFun glue needs initList or haltList equality for
+  seqCompComputer versus liftFirstCfg or liftSecondCfg; FinTM2.initList dite
+  casts on CompK do not unify with component dite by simple simp.
+  Learned: rewrite ending Option cfg via evalsToInTime_congr_end, then
+  evalsToInTime_le_mono for the Nat time association 2*n+1+2 versus 2*(n+1)+1.
+
+  Result: PARTIAL. Full-list order preserving copy certified; P ⊆ NP still
+  blocked on initList packaging for outputsFun.
+  Next: formalize seqComp_initList and seqComp_haltList (dite cast hygiene),
+  then chain first or copy or second into compose_projFirst_bitEnc.outputsFun.
+
+  Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
+  scripts/accepted_declarations.txt

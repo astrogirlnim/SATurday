@@ -12,12 +12,12 @@ Cook Reckhow bridge pin. Constant bit InP nonvacuity, `encodePair`
 projection (`projFirstComputableInPolyTime`), local statement surgery toward
 composition (`seqCompComputer` with order preserving out→aux→in copy), and
 Bool right-constant composition (`comp_const_right`, NP nonvacuity) are
-certified. Closing `InP_implies_InNP` still needs full-list copy induction glued to
-`compose_projFirst_bitEnc.outputsFun` (mathlib `TM2ComputableInPolyTime.comp` is
-`proof_wanted`). First or second phase `stepAux` lifts and multi-step iterate are
-certified; one-symbol copy evals are certified.
+certified. Closing `InP_implies_InNP` still needs `compose_projFirst_bitEnc.outputsFun`
+(mathlib `TM2ComputableInPolyTime.comp` is `proof_wanted`). Phase `stepAux`
+lifts, multi-step iterate, and full-list order preserving copy are certified;
+glue is blocked on `initList` / `haltList` packaging for `seqCompComputer`.
 
-LOG: R5 Bridge Complexity module (InP InNP seqComp phase simulation)
+LOG: R5 Bridge Complexity module (InP InNP seqComp full-list copy)
 -/
 
 open Turing
@@ -1888,20 +1888,13 @@ def seqComp_evals_copyToIn_nil {βΓ : Type}
         (σ₁, σ₂, none) S₁ [] S₂)
     exact seqComp_step_copyToInPop_nil tm1 tm2 decodeOut encodeIn σ₁ σ₂ S₁ S₂
 
-end SATurday.Bridge
+/-- Rewrite the ending configuration of an `EvalsToInTime` proof. -/
+def evalsToInTime_congr_end {σ} {f : σ → Option σ} {a : σ} {b b' : Option σ} {m : ℕ}
+    (h : EvalsToInTime f a b m) (heq : b = b') : EvalsToInTime f a b' m := by
+  rwa [← heq]
 
-/-! ## Frontier: P ⊆ NP and bridge theorem 2
-
-Accepted scaffolding includes copy steps, first or second phase `stepAux` lifts,
-multi-step phase iterate, and one-symbol copy evals.
-Remaining: induct full-list copy transfer, glue to `outputsFun`, `InP_implies_InNP`,
-and bridge theorem 2. -/
-
-namespace SATurday.Bridge.BridgeFrontier
-
-open SATurday.Bridge
-
-/-- Full out→aux list transfer (induction on the out stack). One-symbol steps are accepted. -/
+/-- Transfer the whole first out stack onto aux (reversed decode), then enter aux→in.
+Cost `2 * length + 1`. -/
 noncomputable def seqComp_evals_copyToAux {βΓ : Type}
     [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
     (tm1 tm2 : FinTM2)
@@ -1918,9 +1911,45 @@ noncomputable def seqComp_evals_copyToAux {βΓ : Type}
         (σ₁, σ₂, none) (Function.update S₁ tm1.k₁ [])
         ((xs.map decodeOut).reverse ++ aux) S₂))
       (2 * xs.length + 1) := by
-  sorry
+  induction xs generalizing S₁ aux with
+  | nil =>
+      have h := seqComp_evals_copyToAux_nil tm1 tm2 decodeOut encodeIn σ₁ σ₂ S₁ aux S₂ hOut
+      have hS : Function.update S₁ tm1.k₁ [] = S₁ := by
+        letI : DecidableEq tm1.K := tm1.kDecidableEq
+        exact update_self_of_eq_nil S₁ tm1.k₁ hOut
+      simpa [hS, List.map, List.reverse_nil, List.nil_append, Nat.mul_zero] using h
+  | cons x xs ih =>
+      have h1 := seqComp_evals_copyToAux_one tm1 tm2 decodeOut encodeIn σ₁ σ₂
+        S₁ aux S₂ x xs hOut
+      have h2 := ih (Function.update S₁ tm1.k₁ xs) (decodeOut x :: aux)
+        (by simp [Function.update])
+      have h := EvalsToInTime.trans
+        (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+        2 (2 * xs.length + 1) _ _ _ h1 h2
+      have hupd :
+          Function.update (Function.update S₁ tm1.k₁ xs) tm1.k₁ [] =
+            Function.update S₁ tm1.k₁ [] := by
+        letI : DecidableEq tm1.K := tm1.kDecidableEq
+        funext k
+        by_cases hk : k = tm1.k₁ <;> simp [Function.update, hk]
+      have hstack :
+          (xs.map decodeOut).reverse ++ decodeOut x :: aux =
+            ((x :: xs).map decodeOut).reverse ++ aux := by
+        simp [List.map_cons, List.reverse_cons, List.append_assoc]
+      have hend :
+          seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+              (σ₁, σ₂, none)
+              (Function.update (Function.update S₁ tm1.k₁ xs) tm1.k₁ [])
+              ((xs.map decodeOut).reverse ++ decodeOut x :: aux) S₂ =
+            seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+              (σ₁, σ₂, none) (Function.update S₁ tm1.k₁ [])
+              (((x :: xs).map decodeOut).reverse ++ aux) S₂ := by
+        simp only [hupd, hstack]
+      have h' := evalsToInTime_congr_end h (congrArg some hend)
+      exact evalsToInTime_le_mono h' (by simp [List.length_cons]; omega)
 
-/-- Full aux→in list transfer (induction on aux). One-symbol steps are accepted. -/
+/-- Transfer the whole aux stack onto second input (reversed encode), then enter second main.
+Cost `2 * length + 1`. -/
 noncomputable def seqComp_evals_copyToIn {βΓ : Type}
     [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
     (tm1 tm2 : FinTM2)
@@ -1935,7 +1964,63 @@ noncomputable def seqComp_evals_copyToIn {βΓ : Type}
         (σ₁, σ₂, none) S₁ []
         (Function.update S₂ tm2.k₀ ((aux.map encodeIn).reverse ++ S₂ tm2.k₀))))
       (2 * aux.length + 1) := by
-  sorry
+  induction aux generalizing S₂ with
+  | nil =>
+      have h := seqComp_evals_copyToIn_nil tm1 tm2 decodeOut encodeIn σ₁ σ₂ S₁ S₂
+      have hS : Function.update S₂ tm2.k₀ (S₂ tm2.k₀) = S₂ := by
+        letI : DecidableEq tm2.K := tm2.kDecidableEq
+        funext k
+        by_cases hk : k = tm2.k₀
+        · subst hk; rw [Function.update_self]
+        · rw [Function.update_of_ne hk]
+      simpa [List.map, List.reverse_nil, List.nil_append, Nat.mul_zero, hS] using h
+  | cons b bs ih =>
+      have h1 := seqComp_evals_copyToIn_one tm1 tm2 decodeOut encodeIn σ₁ σ₂ S₁ b bs S₂
+      have h2 := ih (Function.update S₂ tm2.k₀ (encodeIn b :: S₂ tm2.k₀))
+      have h := EvalsToInTime.trans
+        (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+        2 (2 * bs.length + 1) _ _ _ h1 h2
+      have hmid :
+          (Function.update S₂ tm2.k₀ (encodeIn b :: S₂ tm2.k₀)) tm2.k₀ =
+            encodeIn b :: S₂ tm2.k₀ := by
+        letI : DecidableEq tm2.K := tm2.kDecidableEq
+        simp [Function.update]
+      have hupd :
+          Function.update (Function.update S₂ tm2.k₀ (encodeIn b :: S₂ tm2.k₀)) tm2.k₀
+              ((bs.map encodeIn).reverse ++ encodeIn b :: S₂ tm2.k₀) =
+            Function.update S₂ tm2.k₀
+              ((bs.map encodeIn).reverse ++ encodeIn b :: S₂ tm2.k₀) := by
+        letI : DecidableEq tm2.K := tm2.kDecidableEq
+        funext k
+        by_cases hk : k = tm2.k₀ <;> simp [Function.update, hk]
+      have hstack :
+          (bs.map encodeIn).reverse ++ encodeIn b :: S₂ tm2.k₀ =
+            ((b :: bs).map encodeIn).reverse ++ S₂ tm2.k₀ := by
+        simp [List.map_cons, List.reverse_cons, List.append_assoc]
+      have hend :
+          seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second tm2.main))
+              (σ₁, σ₂, none) S₁ []
+              (Function.update (Function.update S₂ tm2.k₀ (encodeIn b :: S₂ tm2.k₀)) tm2.k₀
+                ((bs.map encodeIn).reverse ++
+                  (Function.update S₂ tm2.k₀ (encodeIn b :: S₂ tm2.k₀)) tm2.k₀)) =
+            seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second tm2.main))
+              (σ₁, σ₂, none) S₁ []
+              (Function.update S₂ tm2.k₀ (((b :: bs).map encodeIn).reverse ++ S₂ tm2.k₀)) := by
+        simp only [hmid]
+        rw [hupd, hstack]
+      have h' := evalsToInTime_congr_end h (congrArg some hend)
+      exact evalsToInTime_le_mono h' (by simp [List.length_cons]; omega)
+
+end SATurday.Bridge
+
+/-! ## Frontier: P ⊆ NP and bridge theorem 2
+
+Accepted scaffolding includes phase lifts and full-list order preserving copy.
+Remaining: glue to `outputsFun`, `InP_implies_InNP`, and bridge theorem 2. -/
+
+namespace SATurday.Bridge.BridgeFrontier
+
+open SATurday.Bridge
 
 /-- Local composition target: project the pair then run an InP characteristic.
 Machine skeleton is `seqCompComputer`; the evaluation proof is the remaining

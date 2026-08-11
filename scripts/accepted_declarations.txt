@@ -863,3 +863,8 @@ SATurday.Bridge.seqComp_evals_copyToAux_one
 SATurday.Bridge.seqComp_evals_copyToAux_nil
 SATurday.Bridge.seqComp_evals_copyToIn_one
 SATurday.Bridge.seqComp_evals_copyToIn_nil
+
+# R5 Cook Reckhow bridge: full-list seqComp copy transfer (2026-08-11 formalize)
+SATurday.Bridge.evalsToInTime_congr_end
+SATurday.Bridge.seqComp_evals_copyToAux
+SATurday.Bridge.seqComp_evals_copyToIn
