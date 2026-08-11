@@ -1753,3 +1753,32 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   bound over medium `(S,U)` pairs, not new combinatorics.
   Next: formalize the summed Spreads concentration inequality at `m = 6 n`
   and `r = n / 4`, then package with `exists_unsat_random3CNF`.
+
+- 2026-08-11 formalize (Spreads summed choose packaging and crude obstruction):
+  PARTIAL. Edited only `theory/Theory/ProofComplexity/CSExpansion.lean` (plus
+  `scripts/accepted_declarations.txt`). Certified cluster 20 (axiom gate PASS):
+  `indexSupportFin`, `supportConcentrated_indexSupportFin`,
+  `indexSupport_eq_image_indexSupportFin`, `card_indexSupportFin`,
+  `exists_concentrated_fin_of_not_spreadsIndices`,
+  `exists_spreadsIndices_of_univ_card_lt`, `spreadsFailureTerm`,
+  `spreadsFailureTerm_lt_ensemble_iff`, `spreadsFailureTerm_core_lt_iff`,
+  `thirty_two_pow_two_lt_fifteen_pow_three`,
+  `thirty_two_pow_sixteen_lt_fifteen_pow_twenty_four`,
+  `thirty_two_pow_twenty_four_le_fifteen_pow_mul_thirty_two_pow`,
+  `eight_factorial_le_five_pow_eight`, `thirty_two_mul_five_le_one_eighty_five`,
+  `descFactorial_one_ninety_two_eight_ge`,
+  `choose_one_ninety_two_eight_ge_thirty_two_pow_eight`,
+  `choose_thirty_two_fifteen_pos`, `spreads_crude_core_ge_at_thirty_two`,
+  `spreads_crude_core_not_lt_at_thirty_two`,
+  `spreads_crude_term_not_lt_eight_pow_at_thirty_two`,
+  `random3CNFMatchScale_thirty_two`, `random3CNFClauseCount_thirty_two`.
+  Frontier unchanged: `exists_spreads_matchable_unsat_random3CNF` and
+  `exists_cs_clause_expanding_3cnf` still sorry. Most important thing learned:
+  the sketched crude close
+  `C(m,s) C(n,2s-1) ((2s-1)/n)^{3s} < 1` already fails at the informative
+  minimum `n = 32` (`s = 8`), certified as
+  `spreads_crude_core_not_lt_at_thirty_two`; Block A needs a tighter Spreads
+  count (minimal bad sets, LLL, or smaller scale with pin revision), not more
+  algebra on the same union bound.
+  Next: prove cycle to revise the probabilistic Spreads plan, then formalize
+  the revised count.

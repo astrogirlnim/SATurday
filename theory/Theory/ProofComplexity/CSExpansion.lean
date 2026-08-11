@@ -1,6 +1,8 @@
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Fintype.Prod
+import Mathlib.Data.Nat.Choose.Basic
+import Mathlib.Data.Nat.Choose.Bounds
 import Theory.ProofComplexity.Width
 import Theory.ProofComplexity.SizeWidth
 import Theory.ProofComplexity.Tseitin
@@ -39,9 +41,11 @@ unsat first-moment Nat bounds (`seven_pow_six_lt_two_pow_seventeen`,
 `two_pow_mul_seven_pow_lt_eight_pow`, `exists_unsat_random3CNF`). Cluster 19:
 Spreads and matchability union bound scaffolding
 (`Oriented3Clause.support`, concentration fibers, index Spreads lift,
-`isCSMatchable_of_unsat_min_card`). Frontier
-`exists_spreads_matchable_unsat_random3CNF` still needs the summed
-union bound inequalities.
+`isCSMatchable_of_unsat_min_card`). Cluster 20: Spreads summed choose
+packaging (`indexSupportFin`, failure terms, card comparison bridge) plus
+honest obstruction that the crude `C(m,s) C(n,2s-1) (u/n)^{3s}` close fails
+at locked `n = 32`. Frontier `exists_spreads_matchable_unsat_random3CNF`
+still open pending a tighter count or parameter revision.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -3678,6 +3682,303 @@ theorem not_spreadsIndices_of_concentrated_small {n m : ℕ}
   have hle := indexSupport_card_le_of_concentrated hconc
   omega
 
+/-! ## Spreads summed choose packaging (Cluster 20)
+
+Finite packaging for Step 3: Fin valued supports, crude failure terms
+`C(m,s) C(n,2s-1) (8 (2s-1)^3)^s (8 n^3)^{m-s}`, and the card comparison
+bridge from a strict inequality against `|Ω|` to an inhabited
+`SpreadsIndices` sample. The crude close at locked `m = 6 n`, `r = n / 4`
+fails already at the informative minimum `n = 32` (certified obstruction
+below); a tighter count or pin revision is required before
+`exists_spreads_matchable_unsat_random3CNF` can land. -/
+
+/-- Fin valued support of an index set (coordinates, not `ℕ` images). -/
+def indexSupportFin {n m : ℕ} (ω : EnsembleIndex n m) (S : Finset (Fin m)) :
+    Finset (Fin n) :=
+  S.biUnion fun i =>
+    insert (ω i).x (insert (ω i).y ({(ω i).z} : Finset (Fin n)))
+
+/-- Every sample is concentrated on its own Fin support. -/
+theorem supportConcentrated_indexSupportFin {n m : ℕ}
+    (ω : EnsembleIndex n m) (S : Finset (Fin m)) :
+    supportConcentrated ω S (indexSupportFin ω S) := by
+  intro i hi
+  refine ⟨?_, ?_, ?_⟩
+  · exact mem_biUnion.mpr ⟨i, hi, mem_insert_self _ _⟩
+  · exact mem_biUnion.mpr ⟨i, hi, mem_insert_of_mem (mem_insert_self _ _)⟩
+  · exact mem_biUnion.mpr ⟨i, hi,
+      mem_insert_of_mem (mem_insert_of_mem (mem_singleton_self _))⟩
+
+/-- `ℕ` index support is the `Fin.val` image of the Fin support. -/
+theorem indexSupport_eq_image_indexSupportFin {n m : ℕ}
+    (ω : EnsembleIndex n m) (S : Finset (Fin m)) :
+    indexSupport ω S = (indexSupportFin ω S).image Fin.val := by
+  classical
+  ext v
+  constructor
+  · intro hv
+    obtain ⟨i, hi, hv'⟩ := mem_biUnion.mp hv
+    simp only [Oriented3Clause.support, mem_insert, mem_singleton] at hv'
+    rcases hv' with hv' | hv' | hv' <;> subst hv'
+    · exact mem_image.mpr ⟨(ω i).x,
+        mem_biUnion.mpr ⟨i, hi, mem_insert_self _ _⟩, rfl⟩
+    · exact mem_image.mpr ⟨(ω i).y,
+        mem_biUnion.mpr ⟨i, hi, mem_insert_of_mem (mem_insert_self _ _)⟩, rfl⟩
+    · exact mem_image.mpr ⟨(ω i).z,
+        mem_biUnion.mpr ⟨i, hi,
+          mem_insert_of_mem (mem_insert_of_mem (mem_singleton_self _))⟩, rfl⟩
+  · intro hv
+    obtain ⟨x, hx, rfl⟩ := mem_image.mp hv
+    obtain ⟨i, hi, hx'⟩ := mem_biUnion.mp hx
+    refine mem_biUnion.mpr ⟨i, hi, ?_⟩
+    simp only [mem_insert, mem_singleton] at hx'
+    simp only [Oriented3Clause.support, mem_insert, mem_singleton]
+    rcases hx' with hx' | hx' | hx' <;> simp [hx']
+
+/-- Fin support cardinality matches the `ℕ` support cardinality. -/
+theorem card_indexSupportFin {n m : ℕ}
+    (ω : EnsembleIndex n m) (S : Finset (Fin m)) :
+    (indexSupportFin ω S).card = (indexSupport ω S).card := by
+  classical
+  have himg := indexSupport_eq_image_indexSupportFin ω S
+  have hinj : Set.InjOn Fin.val (indexSupportFin ω S : Set (Fin n)) := by
+    intro a _ b _ h
+    exact Fin.val_injective h
+  rw [himg]
+  exact (card_image_of_injOn hinj).symm
+
+/-- SpreadsIndices failure yields a medium Fin concentrated witness. -/
+theorem exists_concentrated_fin_of_not_spreadsIndices {n m : ℕ}
+    {ω : EnsembleIndex n m} {r : ℕ} (h : ¬ SpreadsIndices ω r) :
+    ∃ S : Finset (Fin m), ∃ U : Finset (Fin n),
+      r / 2 ≤ S.card ∧ S.card ≤ r ∧ U.card < 2 * S.card ∧
+        supportConcentrated ω S U := by
+  obtain ⟨S, hlo, hhi, hcard⟩ := exists_concentrated_of_not_spreadsIndices h
+  refine ⟨S, indexSupportFin ω S, hlo, hhi, ?_,
+    supportConcentrated_indexSupportFin ω S⟩
+  have hceq := card_indexSupportFin ω S
+  omega
+
+/-- If not every sample fails SpreadsIndices, some sample spreads. -/
+theorem exists_spreadsIndices_of_univ_card_lt {n m r : ℕ}
+    (h : Fintype.card { ω : EnsembleIndex n m // ¬ SpreadsIndices ω r } <
+      Fintype.card (EnsembleIndex n m)) :
+    ∃ ω : EnsembleIndex n m, SpreadsIndices ω r := by
+  classical
+  by_contra hnone
+  have hall : ∀ ω : EnsembleIndex n m, ¬ SpreadsIndices ω r := fun ω hsp =>
+    hnone ⟨ω, hsp⟩
+  have hEq :
+      Fintype.card { ω : EnsembleIndex n m // ¬ SpreadsIndices ω r } =
+        Fintype.card (EnsembleIndex n m) :=
+    Fintype.card_congr (Equiv.subtypeUnivEquiv hall)
+  exact (Nat.ne_of_lt h) hEq
+
+/-- Crude Spreads failure term at scale `s` (one `U` size `2s-1` slice). -/
+def spreadsFailureTerm (n m s : ℕ) : ℕ :=
+  Nat.choose m s * Nat.choose n (2 * s - 1) *
+    (8 * (2 * s - 1) ^ 3) ^ s * (8 * n ^ 3) ^ (m - s)
+
+/-- Cancel the free `(8 n^3)^{m-s}` factor in a term versus `|Ω|`. -/
+theorem spreadsFailureTerm_lt_ensemble_iff {n m s : ℕ}
+    (hpos : 0 < 8 * n ^ 3) (_hle : s ≤ m) :
+    spreadsFailureTerm n m s < (8 * n ^ 3) ^ m ↔
+      Nat.choose m s * Nat.choose n (2 * s - 1) * (8 * (2 * s - 1) ^ 3) ^ s <
+        (8 * n ^ 3) ^ s := by
+  unfold spreadsFailureTerm
+  have hm : (8 * n ^ 3) ^ m =
+      (8 * n ^ 3) ^ s * (8 * n ^ 3) ^ (m - s) := by
+    rw [← Nat.pow_add]
+    congr 1
+    omega
+  constructor
+  · intro h
+    rw [hm] at h
+    exact Nat.lt_of_mul_lt_mul_right h
+  · intro h
+    rw [hm]
+    exact Nat.mul_lt_mul_of_pos_right h (Nat.pow_pos hpos)
+
+/-- Cancel the common `8^s` after the ensemble reduction. -/
+theorem spreadsFailureTerm_core_lt_iff {n s : ℕ} (_hs : 0 < s) :
+    Nat.choose (6 * n) s * Nat.choose n (2 * s - 1) *
+        (8 * (2 * s - 1) ^ 3) ^ s < (8 * n ^ 3) ^ s ↔
+      Nat.choose (6 * n) s * Nat.choose n (2 * s - 1) *
+        (2 * s - 1) ^ (3 * s) < n ^ (3 * s) := by
+  have h8pos : 0 < (8 : ℕ) := by decide
+  have hL :
+      (8 * (2 * s - 1) ^ 3) ^ s = 8 ^ s * (2 * s - 1) ^ (3 * s) := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  have hR : (8 * n ^ 3) ^ s = 8 ^ s * n ^ (3 * s) := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  constructor
+  · intro h
+    rw [hL, hR] at h
+    have hre :
+        Nat.choose (6 * n) s * Nat.choose n (2 * s - 1) *
+            (8 ^ s * (2 * s - 1) ^ (3 * s)) =
+          (Nat.choose (6 * n) s * Nat.choose n (2 * s - 1) *
+            (2 * s - 1) ^ (3 * s)) * 8 ^ s := by
+      ring
+    have hre2 : 8 ^ s * n ^ (3 * s) = n ^ (3 * s) * 8 ^ s := by ring
+    rw [hre, hre2] at h
+    exact Nat.lt_of_mul_lt_mul_right h
+  · intro h
+    rw [hL, hR]
+    have hmul :
+        (Nat.choose (6 * n) s * Nat.choose n (2 * s - 1) *
+            (2 * s - 1) ^ (3 * s)) * 8 ^ s <
+          n ^ (3 * s) * 8 ^ s :=
+      Nat.mul_lt_mul_of_pos_right h (Nat.pow_pos h8pos)
+    have hre :
+        Nat.choose (6 * n) s * Nat.choose n (2 * s - 1) *
+            (8 ^ s * (2 * s - 1) ^ (3 * s)) =
+          (Nat.choose (6 * n) s * Nat.choose n (2 * s - 1) *
+            (2 * s - 1) ^ (3 * s)) * 8 ^ s := by
+      ring
+    have hre2 : 8 ^ s * n ^ (3 * s) = n ^ (3 * s) * 8 ^ s := by ring
+    rw [hre, hre2]
+    exact hmul
+
+/-- Building block: `32^2 < 15^3` (3375 vs 1024). -/
+theorem thirty_two_pow_two_lt_fifteen_pow_three : (32 : ℕ) ^ 2 < 15 ^ 3 := by
+  decide
+
+/-- Raise the previous inequality to the 8th power: `32^16 < 15^24`. -/
+theorem thirty_two_pow_sixteen_lt_fifteen_pow_twenty_four :
+    (32 : ℕ) ^ 16 < 15 ^ 24 := by
+  have h := thirty_two_pow_two_lt_fifteen_pow_three
+  have hpow : ((32 : ℕ) ^ 2) ^ 8 < (15 ^ 3) ^ 8 :=
+    Nat.pow_lt_pow_left h (by decide : (8 : ℕ) ≠ 0)
+  have heq1 : ((32 : ℕ) ^ 2) ^ 8 = 32 ^ 16 := by
+    rw [← Nat.pow_mul]
+  have heq2 : (15 ^ 3) ^ 8 = 15 ^ 24 := by
+    rw [← Nat.pow_mul]
+  rwa [heq1, heq2] at hpow
+
+/-- Hence `32^24 ≤ 15^24 * 32^8`. -/
+theorem thirty_two_pow_twenty_four_le_fifteen_pow_mul_thirty_two_pow :
+    (32 : ℕ) ^ 24 ≤ 15 ^ 24 * 32 ^ 8 := by
+  have hlt := thirty_two_pow_sixteen_lt_fifteen_pow_twenty_four
+  have hsplit : (32 : ℕ) ^ 24 = 32 ^ 16 * 32 ^ 8 := by
+    rw [← Nat.pow_add]
+  rw [hsplit]
+  exact Nat.mul_le_mul_right _ (le_of_lt hlt)
+
+/-- `Nat.factorial 8 ≤ 5^8`, used to lower-bound `Nat.choose 192 8`. -/
+theorem eight_factorial_le_five_pow_eight : Nat.factorial 8 ≤ 5 ^ 8 := by
+  decide
+
+/-- `32 * 5 ≤ 185`, so `32^8 * 5^8 ≤ 185^8`. -/
+theorem thirty_two_mul_five_le_one_eighty_five : (32 : ℕ) * 5 ≤ 185 := by
+  decide
+
+/-- Descending product lower bound: each of the eight factors is at least 185. -/
+theorem descFactorial_one_ninety_two_eight_ge :
+    (185 : ℕ) ^ 8 ≤ Nat.descFactorial 192 8 := by
+  have h :
+      Nat.descFactorial 192 8 =
+        185 * (186 * (187 * (188 * (189 * (190 * (191 * 192)))))) := by
+    simp [Nat.descFactorial_succ, Nat.descFactorial_zero]
+  rw [h]
+  have h186 : (185 : ℕ) ≤ 186 := by decide
+  have h187 : (185 : ℕ) ≤ 187 := by decide
+  have h188 : (185 : ℕ) ≤ 188 := by decide
+  have h189 : (185 : ℕ) ≤ 189 := by decide
+  have h190 : (185 : ℕ) ≤ 190 := by decide
+  have h191 : (185 : ℕ) ≤ 191 := by decide
+  have h192 : (185 : ℕ) ≤ 192 := by decide
+  calc
+    (185 : ℕ) ^ 8
+        = 185 * (185 * (185 * (185 * (185 * (185 * (185 * 185)))))) := by
+          ring
+    _ ≤ 185 * (186 * (187 * (188 * (189 * (190 * (191 * 192)))))) := by
+      refine Nat.mul_le_mul le_rfl (Nat.mul_le_mul h186
+        (Nat.mul_le_mul h187 (Nat.mul_le_mul h188
+          (Nat.mul_le_mul h189 (Nat.mul_le_mul h190
+            (Nat.mul_le_mul h191 h192))))))
+
+/-- `32^8 ≤ Nat.choose 192 8`. -/
+theorem choose_one_ninety_two_eight_ge_thirty_two_pow_eight :
+    (32 : ℕ) ^ 8 ≤ Nat.choose 192 8 := by
+  have hfac := eight_factorial_le_five_pow_eight
+  have hbase := thirty_two_mul_five_le_one_eighty_five
+  have h185 : (32 : ℕ) ^ 8 * 5 ^ 8 ≤ 185 ^ 8 := by
+    simpa [Nat.mul_pow] using Nat.pow_le_pow_left hbase 8
+  have hdesc := descFactorial_one_ninety_two_eight_ge
+  have hchoos :
+      Nat.choose 192 8 = Nat.descFactorial 192 8 / Nat.factorial 8 :=
+    Nat.choose_eq_descFactorial_div_factorial 192 8
+  have hmul : (32 : ℕ) ^ 8 * Nat.factorial 8 ≤ Nat.descFactorial 192 8 := by
+    refine le_trans ?_ hdesc
+    exact le_trans (Nat.mul_le_mul_left _ hfac) h185
+  rw [hchoos]
+  exact (Nat.le_div_iff_mul_le (Nat.factorial_pos 8)).2 hmul
+
+/-- `1 ≤ Nat.choose 32 15`. -/
+theorem choose_thirty_two_fifteen_pos : 1 ≤ Nat.choose 32 15 :=
+  Nat.choose_pos (by decide : 15 ≤ 32)
+
+/-- Honest obstruction (positive form): at locked `n = 32`, `s = 8`, the
+crude cancelled term is at least `32^{24}`, so it is not strictly smaller. -/
+theorem spreads_crude_core_ge_at_thirty_two :
+    (32 : ℕ) ^ 24 ≤
+      Nat.choose (6 * 32) 8 * Nat.choose 32 15 * (15 : ℕ) ^ 24 := by
+  have h6 : (6 * 32 : ℕ) = 192 := by decide
+  rw [h6]
+  have hch := choose_one_ninety_two_eight_ge_thirty_two_pow_eight
+  have hpos := choose_thirty_two_fifteen_pos
+  have hpow := thirty_two_pow_twenty_four_le_fifteen_pow_mul_thirty_two_pow
+  refine le_trans hpow ?_
+  have hleft :
+      (15 : ℕ) ^ 24 * 32 ^ 8 ≤ (15 : ℕ) ^ 24 * Nat.choose 192 8 :=
+    Nat.mul_le_mul_left _ hch
+  refine le_trans hleft ?_
+  have hswap :
+      (15 : ℕ) ^ 24 * Nat.choose 192 8 =
+        Nat.choose 192 8 * (15 : ℕ) ^ 24 :=
+    Nat.mul_comm _ _
+  rw [hswap, mul_assoc]
+  exact Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_left _ hpos)
+
+/-- Negation form of the same obstruction (feeds the cancelled-term close). -/
+theorem spreads_crude_core_not_lt_at_thirty_two :
+    ¬ (Nat.choose (6 * 32) 8 * Nat.choose 32 15 * (15 : ℕ) ^ 24 <
+        (32 : ℕ) ^ 24) :=
+  not_lt_of_ge spreads_crude_core_ge_at_thirty_two
+
+/-- Same obstruction before cancelling `8^s`, reduced by power algebra. -/
+theorem spreads_crude_term_not_lt_eight_pow_at_thirty_two :
+    ¬ (Nat.choose (6 * 32) 8 * Nat.choose 32 15 *
+        (8 * 15 ^ 3) ^ 8 < (8 * 32 ^ 3) ^ 8) := by
+  intro hlt
+  have hL : (8 * 15 ^ 3) ^ 8 = 8 ^ 8 * (15 : ℕ) ^ 24 := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  have hR : (8 * 32 ^ 3) ^ 8 = 8 ^ 8 * (32 : ℕ) ^ 24 := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  rw [hL, hR] at hlt
+  have hre :
+      Nat.choose (6 * 32) 8 * Nat.choose 32 15 * (8 ^ 8 * (15 : ℕ) ^ 24) =
+        (Nat.choose (6 * 32) 8 * Nat.choose 32 15 * (15 : ℕ) ^ 24) * 8 ^ 8 := by
+    ring
+  have hre2 : 8 ^ 8 * (32 : ℕ) ^ 24 = (32 : ℕ) ^ 24 * 8 ^ 8 := by ring
+  rw [hre, hre2] at hlt
+  have hcore :
+      Nat.choose (6 * 32) 8 * Nat.choose 32 15 * (15 : ℕ) ^ 24 <
+        (32 : ℕ) ^ 24 :=
+    Nat.lt_of_mul_lt_mul_right hlt
+  exact spreads_crude_core_not_lt_at_thirty_two hcore
+
+/-- Medium scale at `n = 32` is `r = 8`. -/
+theorem random3CNFMatchScale_thirty_two :
+    random3CNFMatchScale 32 = 8 :=
+  rfl
+
+/-- Clause count at `n = 32` is `m = 192`. -/
+theorem random3CNFClauseCount_thirty_two :
+    random3CNFClauseCount 32 = 192 :=
+  rfl
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -3724,7 +4025,13 @@ Cycle 2026-08-11 (unsat first moment): accepted Nat bounds
 
 Cycle 2026-08-11 (Spreads and matchability scaffolding): accepted support
 concentration fibers, `SpreadsIndices` lift, and matchability extraction from
-large minimally unsat cores. Remaining: summed union bound inequalities. -/
+large minimally unsat cores. Remaining: summed union bound inequalities.
+
+Cycle 2026-08-11 (summed choose packaging): accepted `indexSupportFin`,
+failure term algebra, card comparison bridge, and obstruction
+`spreads_crude_core_not_lt_at_thirty_two` showing the crude close fails at
+locked `n = 32`. Remaining: tighter Spreads count or pin revision, then
+matchability, then package `exists_spreads_matchable_unsat_random3CNF`. -/
 
 namespace CSExpansionFrontier
 
