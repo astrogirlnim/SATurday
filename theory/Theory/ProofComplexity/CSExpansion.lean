@@ -1,3 +1,6 @@
+import Mathlib.Data.Fintype.BigOperators
+import Mathlib.Data.Fintype.Pi
+import Mathlib.Data.Fintype.Prod
 import Theory.ProofComplexity.Width
 import Theory.ProofComplexity.SizeWidth
 import Theory.ProofComplexity.Tseitin
@@ -31,8 +34,11 @@ Cluster 17 (probabilistic lift scaffolding): finite ensemble
 `Oriented3Clause` / `EnsembleIndex` / `Ensemble3CNF`, sample map `random3CNF`
 at locked density `m = 6 n` and scale `r = n / 4`, width and variable-card
 lemmas, `Spreads.mono_r`, and packaging
-`exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`. Frontier
-`exists_spreads_matchable_unsat_random3CNF` carries the counting existence.
+`exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`. Cluster 18:
+unsat first-moment Nat bounds (`seven_pow_six_lt_two_pow_seventeen`,
+`two_pow_mul_seven_pow_lt_eight_pow`, `exists_unsat_random3CNF`). Frontier
+`exists_spreads_matchable_unsat_random3CNF` still needs Spreads and
+matchability union bounds.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -3013,6 +3019,297 @@ theorem exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat
   · exact hasCSClauseExpansion_one_of_spreads_two hw hsp
   · simpa [csClauseWidthFloor] using hfloor
 
+/-! ## Unsat first-moment Nat bounds (Cluster 18)
+
+Finite counting for Step 2 of the probabilistic plan: a fixed `Fin n`
+assignment satisfies a uniform oriented 3-clause on exactly `7 n^3` of the
+`8 n^3` atoms, so at density `m = 6 n` the union bound is
+`2^n · 7^(6n) < 8^(6n)`, which is the Nat packaging of
+`2^n (7/8)^(6n) → 0`. No analysis axioms: only `7^6 < 2^17`. -/
+
+/-- Product encoding of an oriented atom (for Fintype cardinality). -/
+def Oriented3Clause.equivProd (n : ℕ) :
+    Oriented3Clause n ≃ (Fin n × Fin n × Fin n × Bool × Bool × Bool) where
+  toFun c := (c.x, c.y, c.z, c.px, c.py, c.pz)
+  invFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+instance {n : ℕ} : Fintype (Oriented3Clause n) :=
+  Fintype.ofEquiv _ (Oriented3Clause.equivProd n).symm
+
+theorem card_oriented3Clause (n : ℕ) :
+    Fintype.card (Oriented3Clause n) = 8 * n ^ 3 := by
+  rw [Fintype.card_congr (Oriented3Clause.equivProd n)]
+  simp [Fintype.card_prod, Fintype.card_fin]
+  ring
+
+/-- Literal satisfaction under `assignmentOfFin` on a variable in `Fin n`. -/
+theorem litSat_assignmentOfFin {n : ℕ} (χ : Fin n → Bool) (i : Fin n)
+    (p : Bool) :
+    litSat (assignmentOfFin χ) ⟨i.val, p⟩ ↔ χ i = p := by
+  simp [litSat, assignmentOfFin, i.isLt]
+
+/-- An oriented atom is satisfied by `χ` iff at least one of its three
+polarities matches `χ` on that coordinate (duplicates in the Finset clause do
+not change the disjunction). -/
+theorem clauseSat_toClause_iff {n : ℕ} (c : Oriented3Clause n)
+    (χ : Fin n → Bool) :
+    clauseSat (assignmentOfFin χ) c.toClause ↔
+      c.px = χ c.x ∨ c.py = χ c.y ∨ c.pz = χ c.z := by
+  classical
+  constructor
+  · intro ⟨l, hl, hsat⟩
+    simp only [Oriented3Clause.toClause, mem_insert, mem_singleton] at hl
+    rcases hl with hl | hl | hl <;> subst hl
+    · left; exact (litSat_assignmentOfFin χ c.x c.px).mp hsat |>.symm
+    · right; left; exact (litSat_assignmentOfFin χ c.y c.py).mp hsat |>.symm
+    · right; right; exact (litSat_assignmentOfFin χ c.z c.pz).mp hsat |>.symm
+  · intro h
+    rcases h with h | h | h
+    · refine ⟨⟨c.x.val, c.px⟩, ?_,
+        (litSat_assignmentOfFin χ c.x c.px).mpr h.symm⟩
+      simp [Oriented3Clause.toClause]
+    · refine ⟨⟨c.y.val, c.py⟩, ?_,
+        (litSat_assignmentOfFin χ c.y c.py).mpr h.symm⟩
+      simp [Oriented3Clause.toClause]
+    · refine ⟨⟨c.z.val, c.pz⟩, ?_,
+        (litSat_assignmentOfFin χ c.z c.pz).mpr h.symm⟩
+      simp [Oriented3Clause.toClause]
+
+/-- Unique falsifying polarity pattern for a fixed triple and assignment. -/
+theorem not_clauseSat_toClause_iff {n : ℕ} (c : Oriented3Clause n)
+    (χ : Fin n → Bool) :
+    ¬ clauseSat (assignmentOfFin χ) c.toClause ↔
+      c.px = !χ c.x ∧ c.py = !χ c.y ∧ c.pz = !χ c.z := by
+  rw [clauseSat_toClause_iff, not_or, not_or]
+  cases χ c.x <;> cases χ c.y <;> cases χ c.z <;> cases c.px <;>
+    cases c.py <;> cases c.pz <;> decide
+
+/-- Exactly `n^3` oriented atoms falsify a fixed `Fin n` assignment. -/
+theorem card_oriented3Clause_unsat {n : ℕ} (χ : Fin n → Bool) :
+    Fintype.card
+        { c : Oriented3Clause n //
+          ¬ clauseSat (assignmentOfFin χ) c.toClause } =
+      n ^ 3 := by
+  classical
+  let e :
+      Fin n × Fin n × Fin n ≃
+        { c : Oriented3Clause n //
+          ¬ clauseSat (assignmentOfFin χ) c.toClause } :=
+    { toFun := fun p =>
+        ⟨⟨p.1, p.2.1, p.2.2, !χ p.1, !χ p.2.1, !χ p.2.2⟩, by
+          rw [not_clauseSat_toClause_iff]; simp⟩
+      invFun := fun c => (c.1.x, c.1.y, c.1.z)
+      left_inv := fun _ => rfl
+      right_inv := fun c => by
+        have h := (not_clauseSat_toClause_iff c.1 χ).mp c.2
+        apply Subtype.ext
+        obtain ⟨⟨x, y, z, px, py, pz⟩, hc⟩ := c
+        change Oriented3Clause.mk x y z (!χ x) (!χ y) (!χ z) =
+          Oriented3Clause.mk x y z px py pz
+        have hx : px = !χ x := h.1
+        have hy : py = !χ y := h.2.1
+        have hz : pz = !χ z := h.2.2
+        subst hx; subst hy; subst hz
+        rfl }
+  simpa [Fintype.card_prod, Fintype.card_fin, pow_three] using
+    (Fintype.card_congr e).symm
+
+/-- Exactly `7 n^3` oriented atoms satisfy a fixed `Fin n` assignment. -/
+theorem card_oriented3Clause_sat {n : ℕ} (χ : Fin n → Bool) :
+    Fintype.card
+        { c : Oriented3Clause n //
+          clauseSat (assignmentOfFin χ) c.toClause } =
+      7 * n ^ 3 := by
+  classical
+  have htot := card_oriented3Clause n
+  have hunsat := card_oriented3Clause_unsat χ
+  have hcompl :=
+    Fintype.card_subtype_compl fun c : Oriented3Clause n =>
+      clauseSat (assignmentOfFin χ) c.toClause
+  have hle :
+      Fintype.card
+          { c : Oriented3Clause n //
+            clauseSat (assignmentOfFin χ) c.toClause } ≤
+        Fintype.card (Oriented3Clause n) :=
+    Fintype.card_subtype_le _
+  have hadd :
+      Fintype.card
+          { c : Oriented3Clause n //
+            clauseSat (assignmentOfFin χ) c.toClause } +
+        Fintype.card
+          { c : Oriented3Clause n //
+            ¬ clauseSat (assignmentOfFin χ) c.toClause } =
+        Fintype.card (Oriented3Clause n) := by
+    rw [Nat.add_comm, hcompl, Nat.sub_add_cancel hle]
+  rw [htot, hunsat] at hadd
+  omega
+
+/-- Satisfaction of the sampled CNF is clausewise on the oriented sequence. -/
+theorem cnfSat_random3CNF_iff {n m : ℕ} {ω : EnsembleIndex n m}
+    {a : Assignment} :
+    cnfSat a (random3CNF n m ω) ↔
+      ∀ i : Fin m, clauseSat a (ω i).toClause := by
+  constructor
+  · intro h i
+    exact h _ ((mem_random3CNF (ω := ω)).mpr ⟨i, rfl⟩)
+  · intro h C hC
+    obtain ⟨i, rfl⟩ := (mem_random3CNF (ω := ω)).mp hC
+    exact h i
+
+/-- Ensemble cardinality: `(8 n^3)^m`. -/
+theorem card_ensembleIndex (n m : ℕ) :
+    Fintype.card (EnsembleIndex n m) = (8 * n ^ 3) ^ m := by
+  rw [Fintype.card_fun, Fintype.card_fin, card_oriented3Clause]
+
+/-- Fixed assignment fiber: exactly `(7 n^3)^m` satisfying samples. -/
+theorem card_ensembleIndex_sat {n m : ℕ} (χ : Fin n → Bool) :
+    Fintype.card
+        { ω : EnsembleIndex n m //
+          cnfSat (assignmentOfFin χ) (random3CNF n m ω) } =
+      (7 * n ^ 3) ^ m := by
+  classical
+  let e :
+      { ω : EnsembleIndex n m //
+          cnfSat (assignmentOfFin χ) (random3CNF n m ω) } ≃
+        (Fin m →
+          { c : Oriented3Clause n //
+            clauseSat (assignmentOfFin χ) c.toClause }) :=
+    { toFun := fun ω i =>
+        ⟨ω.1 i, (cnfSat_random3CNF_iff (a := assignmentOfFin χ)).mp ω.2 i⟩
+      invFun := fun τ =>
+        ⟨fun i => (τ i).1, by
+          rw [cnfSat_random3CNF_iff]
+          intro i; exact (τ i).2⟩
+      left_inv := fun _ => by
+        ext <;> rfl
+      right_inv := fun _ => by
+        ext <;> rfl }
+  rw [Fintype.card_congr e, Fintype.card_fun, Fintype.card_fin,
+    card_oriented3Clause_sat]
+
+/-- Core Nat inequality: `7^6 = 117649 < 131072 = 2^17`. -/
+theorem seven_pow_six_lt_two_pow_seventeen : 7 ^ 6 < 2 ^ 17 := by
+  decide
+
+/-- First-moment comparison at density `m = 6 n`: `2^n · 7^(6n) < 8^(6n)`. -/
+theorem two_pow_mul_seven_pow_lt_eight_pow {n : ℕ} (hn : 0 < n) :
+    2 ^ n * 7 ^ (6 * n) < 8 ^ (6 * n) := by
+  have hbase : 7 ^ 6 < 2 ^ 17 := seven_pow_six_lt_two_pow_seventeen
+  have hne : n ≠ 0 := Nat.pos_iff_ne_zero.mp hn
+  have hpow : (7 ^ 6) ^ n < (2 ^ 17) ^ n :=
+    Nat.pow_lt_pow_left hbase hne
+  have h7 : 7 ^ (6 * n) < 2 ^ (17 * n) := by
+    -- `Nat.pow_mul a m n` : `a ^ (m * n) = (a ^ m) ^ n`
+    have e1 : 7 ^ (6 * n) = (7 ^ 6) ^ n := Nat.pow_mul 7 6 n
+    have e2 : 2 ^ (17 * n) = (2 ^ 17) ^ n := Nat.pow_mul 2 17 n
+    rw [e1, e2]
+    exact hpow
+  have h2pos : 0 < 2 ^ n := Nat.pow_pos (by decide : (0 : ℕ) < 2)
+  have hmul : 2 ^ n * 7 ^ (6 * n) < 2 ^ n * 2 ^ (17 * n) :=
+    Nat.mul_lt_mul_of_pos_left h7 h2pos
+  have hsum : 2 ^ n * 2 ^ (17 * n) = 2 ^ (18 * n) := by
+    rw [← Nat.pow_add]
+    congr 1
+    ring
+  have h8 : 8 ^ (6 * n) = 2 ^ (18 * n) := by
+    have : (8 : ℕ) = 2 ^ 3 := by decide
+    rw [this, ← Nat.pow_mul]
+    congr 1
+    ring
+  calc
+    2 ^ n * 7 ^ (6 * n) < 2 ^ n * 2 ^ (17 * n) := hmul
+    _ = 2 ^ (18 * n) := hsum
+    _ = 8 ^ (6 * n) := h8.symm
+
+/-- Cancel `(n^3)^m` to obtain the sample-space form of the first moment. -/
+theorem two_pow_mul_seven_cube_pow_lt_eight_cube_pow {n m : ℕ}
+    (hn : 0 < n) (hm : m = 6 * n) :
+    2 ^ n * (7 * n ^ 3) ^ m < (8 * n ^ 3) ^ m := by
+  have hn3 : 0 < n ^ 3 := Nat.pow_pos hn
+  have hcore := two_pow_mul_seven_pow_lt_eight_pow hn
+  subst hm
+  have h7 :
+      (7 * n ^ 3) ^ (6 * n) = 7 ^ (6 * n) * (n ^ 3) ^ (6 * n) :=
+    Nat.mul_pow _ _ _
+  have h8 :
+      (8 * n ^ 3) ^ (6 * n) = 8 ^ (6 * n) * (n ^ 3) ^ (6 * n) :=
+    Nat.mul_pow _ _ _
+  have hpos : 0 < (n ^ 3) ^ (6 * n) := Nat.pow_pos hn3
+  have hmul := Nat.mul_lt_mul_of_pos_right hcore hpos
+  calc
+    2 ^ n * (7 * n ^ 3) ^ (6 * n)
+        = 2 ^ n * (7 ^ (6 * n) * (n ^ 3) ^ (6 * n)) := by rw [h7]
+    _ = (2 ^ n * 7 ^ (6 * n)) * (n ^ 3) ^ (6 * n) := by ring
+    _ < (8 ^ (6 * n)) * (n ^ 3) ^ (6 * n) := hmul
+    _ = (8 * n ^ 3) ^ (6 * n) := by rw [← h8]
+
+/-- Satisfiable samples inject into the assignment-indexed sat fibers. -/
+theorem card_ensembleIndex_le_sat_sum {n m : ℕ}
+    (hsat : ∀ ω : EnsembleIndex n m,
+      existsSatFin n (random3CNF n m ω)) :
+    Fintype.card (EnsembleIndex n m) ≤
+      2 ^ n * (7 * n ^ 3) ^ m := by
+  classical
+  choose χ hχ using hsat
+  let f : EnsembleIndex n m →
+      Σ τ : Fin n → Bool,
+        { ω : EnsembleIndex n m //
+          cnfSat (assignmentOfFin τ) (random3CNF n m ω) } :=
+    fun ω => ⟨χ ω, ω, hχ ω⟩
+  have hinj : Function.Injective f := by
+    intro ω₁ ω₂ h
+    exact congrArg (fun s : Σ τ : Fin n → Bool,
+        { ω : EnsembleIndex n m //
+          cnfSat (assignmentOfFin τ) (random3CNF n m ω) } =>
+      (s.2 : EnsembleIndex n m)) h
+  have hle := Fintype.card_le_of_injective f hinj
+  refine hle.trans (le_of_eq ?_)
+  rw [Fintype.card_sigma]
+  simp only [card_ensembleIndex_sat, Finset.sum_const, Finset.card_univ,
+    nsmul_eq_mul]
+  rw [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool]
+  norm_cast
+
+/-- Exists an unsatisfiable sample at locked density `m = 6 n` for every
+`n ≥ 1` (first-moment union bound). -/
+theorem exists_unsat_random3CNF {n : ℕ} (hn : 0 < n) :
+    ∃ ω : EnsembleIndex n (random3CNFClauseCount n),
+      ¬ Satisfiable (random3CNF n (random3CNFClauseCount n) ω) := by
+  classical
+  set m := random3CNFClauseCount n
+  have hm : m = 6 * n := random3CNFClauseCount_eq n
+  have hstrict :=
+    two_pow_mul_seven_cube_pow_lt_eight_cube_pow hn hm
+  by_contra h
+  push Not at h
+  have hsatfin :
+      ∀ ω : EnsembleIndex n m, existsSatFin n (random3CNF n m ω) := by
+    intro ω
+    obtain ⟨a, ha⟩ := h ω
+    refine ⟨fun i => a i.val, ?_⟩
+    intro C hC
+    obtain ⟨l, hl, hlit⟩ := ha C hC
+    refine ⟨l, hl, ?_⟩
+    have hv : l.var ∈ cnfVars (random3CNF n m ω) :=
+      mem_biUnion.mpr ⟨C, hC, mem_image.mpr ⟨l, hl, rfl⟩⟩
+    have hlt : l.var < n :=
+      mem_range.mp ((random3CNF_vars_subset_range n m ω) hv)
+    simpa [litSat, assignmentOfFin, hlt] using hlit
+  have hle := card_ensembleIndex_le_sat_sum hsatfin
+  have hcard := card_ensembleIndex n m
+  have : (8 * n ^ 3) ^ m ≤ 2 ^ n * (7 * n ^ 3) ^ m := by
+    simpa [hcard] using hle
+  exact (not_le_of_gt hstrict) this
+
+/-- Convenience: some sample is unsatisfiable for every `n ≥ 32` (informative
+scale regime). -/
+theorem exists_unsat_random3CNF_ge_thirty_two {n : ℕ} (hn : 32 ≤ n) :
+    ∃ ω : EnsembleIndex n (random3CNFClauseCount n),
+      ¬ Satisfiable (random3CNF n (random3CNFClauseCount n) ω) :=
+  exists_unsat_random3CNF (lt_of_lt_of_le (by decide : (0 : ℕ) < 32) hn)
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -3051,7 +3348,11 @@ obstruction, and all-true path satisfiability. Overlap plus SpreadsSupports is
 therefore inhabited; matchable unsat polarity (or probabilistic lift) remains.
 
 Cycle 2026-08-11 (probabilistic scaffolding): accepted ensemble and packaging;
-Frontier `exists_spreads_matchable_unsat_random3CNF` holds the counting gap. -/
+Frontier `exists_spreads_matchable_unsat_random3CNF` holds the counting gap.
+
+Cycle 2026-08-11 (unsat first moment): accepted Nat bounds
+`seven_pow_six_lt_two_pow_seventeen`, `two_pow_mul_seven_pow_lt_eight_pow`,
+`exists_unsat_random3CNF`. Remaining: Spreads and matchability union bounds. -/
 
 namespace CSExpansionFrontier
 

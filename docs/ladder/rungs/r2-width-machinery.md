@@ -1706,3 +1706,24 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   union bounds land. Next: formalize the unsat first moment slice of
   `exists_spreads_matchable_unsat_random3CNF` (Nat inequalities at `m = 6 n`),
   then Spreads and matchability union bounds.
+
+- 2026-08-11 formalize (unsat first-moment Nat bounds for random3CNF): PARTIAL.
+  Edited only `theory/Theory/ProofComplexity/CSExpansion.lean` (plus
+  `scripts/accepted_declarations.txt`). Certified cluster 18 (axiom gate PASS):
+  `Oriented3Clause.equivProd`, `card_oriented3Clause` (`8 n^3`),
+  `litSat_assignmentOfFin`, `clauseSat_toClause_iff`,
+  `not_clauseSat_toClause_iff`, `card_oriented3Clause_unsat` (`n^3`),
+  `card_oriented3Clause_sat` (`7 n^3`), `cnfSat_random3CNF_iff`,
+  `card_ensembleIndex`, `card_ensembleIndex_sat`,
+  `seven_pow_six_lt_two_pow_seventeen` (`7^6 < 2^17`),
+  `two_pow_mul_seven_pow_lt_eight_pow` (`2^n 7^(6n) < 8^(6n)`),
+  `two_pow_mul_seven_cube_pow_lt_eight_cube_pow`,
+  `card_ensembleIndex_le_sat_sum`, `exists_unsat_random3CNF` (every `n ≥ 1`),
+  `exists_unsat_random3CNF_ge_thirty_two`. Frontier unchanged:
+  `exists_spreads_matchable_unsat_random3CNF` and
+  `exists_cs_clause_expanding_3cnf` still sorry (Spreads and matchability
+  union bounds not yet formalized). Most important thing learned: the unsat
+  half of the probabilistic plan is a pure Nat counting theorem with core
+  inequality `7^6 < 2^17`, already enough to inhabit unsat samples at density
+  `m = 6 n`; Block A now waits only on Spreads and matchability fibers.
+  Next: formalize Spreads union bound at `r = n/4`, then matchability.

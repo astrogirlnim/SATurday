@@ -47,8 +47,11 @@ R4-class results plus the certified R5 bridge.
     SpreadsSupports at informative r = 8 merged 2026-08-11; overlapping
     loose path SpreadsSupports and polarity CNF packaging merged 2026-08-11;
     probabilistic ensemble scaffolding (`Ensemble3CNF` / `random3CNF` /
-    packaging) merged 2026-08-11; exists_cs_clause_expanding_3cnf and
-    exists_spreads_matchable_unsat_random3CNF Frontier)
+    packaging) merged 2026-08-11; unsat first-moment Nat bounds
+    (`exists_unsat_random3CNF`) merged 2026-08-11; Spreads and matchability
+    union bounds plus
+    exists_spreads_matchable_unsat_random3CNF and exists_cs_clause_expanding_3cnf
+    Frontier)
 
 - R3 stronger systems
   - status: proposed

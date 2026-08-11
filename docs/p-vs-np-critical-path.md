@@ -38,8 +38,9 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       `Ensemble3CNF` / `random3CNF` / packaging
       `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` (axiom gate
       green). Remaining: Frontier counting
-      `exists_spreads_matchable_unsat_random3CNF` (unsat, Spreads, matchability
-      union bounds at `m = 6 n`, `r = n/4`).
+      `exists_spreads_matchable_unsat_random3CNF` (Spreads and matchability
+      union bounds at `m = 6 n`, `r = n/4`; unsat first-moment
+      `exists_unsat_random3CNF` certified 2026-08-11).
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Human gate: move R2 from `prose_accepted` to `certified` only after the
@@ -102,9 +103,10 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: formalize the unsat first moment Nat inequalities for
-   `exists_spreads_matchable_unsat_random3CNF` at density `m = 6 n`, then Spreads
-   and matchability union bounds (edit CSExpansion.lean only).
+1. R2: formalize Spreads then matchability union bounds for
+   `exists_spreads_matchable_unsat_random3CNF` at density `m = 6 n` and scale
+   `r = n/4` (unsat first-moment `exists_unsat_random3CNF` done; edit
+   CSExpansion.lean only).
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or
