@@ -748,6 +748,27 @@ SATurday.ProofComplexity.handshaking_touching_of_regular3
 SATurday.ProofComplexity.spreads_starCNF_of_expansion
 SATurday.ProofComplexity.spreads_heawoodStarCNF_five
 
+# R2 item 2 cluster 15: SpreadsSupports matching at informative r (2026-08-11)
+SATurday.ProofComplexity.SpreadsSupports.mono_gamma
+SATurday.ProofComplexity.clauseSupport_parityForbidClause
+SATurday.ProofComplexity.starClauseWith
+SATurday.ProofComplexity.clauseSupport_starClauseWith
+SATurday.ProofComplexity.clauseSupport_starClauseWith_eq_starClause
+SATurday.ProofComplexity.starCNFWith
+SATurday.ProofComplexity.spreadsSupports_of_spreads
+SATurday.ProofComplexity.matchingTriple
+SATurday.ProofComplexity.matchingTriple_card
+SATurday.ProofComplexity.matchingTriple_disjoint
+SATurday.ProofComplexity.matchingTriple_injective
+SATurday.ProofComplexity.matchingTripleSupports
+SATurday.ProofComplexity.mem_matchingTripleSupports
+SATurday.ProofComplexity.matchingTripleSupports_card
+SATurday.ProofComplexity.card_biUnion_matchingTripleSupports_subset
+SATurday.ProofComplexity.spreadsSupports_matchingTriples
+SATurday.ProofComplexity.spreadsSupports_matchingTriples_two
+SATurday.ProofComplexity.exists_spreadsSupports_informative
+SATurday.ProofComplexity.spreadsSupports_matchingTriples_eight
+
 # R5 Cook Reckhow bridge: Encoding and Complexity cluster (2026-08-10 formalize)
 SATurday.Bridge.bitEnc_eq_encodeBool
 SATurday.Bridge.decodePair_encodePair

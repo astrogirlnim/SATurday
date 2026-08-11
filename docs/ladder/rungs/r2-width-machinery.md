@@ -1400,3 +1400,27 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   merge_certified auto applied per user blanket after green gate.
   Next: formalize informative scale Spreads (r ≥ 8) with unsat polarity or
   probabilistic SpreadsSupports existence, else continue R5.
+
+- 2026-08-11 formalize (changed approach: SpreadsSupports matching first):
+  PARTIAL toward `exists_cs_clause_expanding_3cnf`. Stop condition forced a
+  change of approach after repeated all positive star or sparse unsat blocks.
+  Certified set system scaffolding (axiom gate PASS, 19 new accepted decls):
+  `SpreadsSupports.mono_gamma`, `clauseSupport_parityForbidClause`,
+  `starClauseWith`, `clauseSupport_starClauseWith`,
+  `clauseSupport_starClauseWith_eq_starClause`, `starCNFWith`,
+  `spreadsSupports_of_spreads`, `matchingTriple`, `matchingTriple_card`,
+  `matchingTriple_disjoint`, `matchingTriple_injective`,
+  `matchingTripleSupports`, `mem_matchingTripleSupports`,
+  `matchingTripleSupports_card`, `card_biUnion_matchingTripleSupports_subset`,
+  `spreadsSupports_matchingTriples`, `spreadsSupports_matchingTriples_two`,
+  `exists_spreadsSupports_informative`, `spreadsSupports_matchingTriples_eight`.
+  Honest limit: a disjoint matching SpreadsSupports at r = 8 is informative as a
+  set system, but a clausewise matching CNF is satisfiable, so the Frontier pin
+  is unchanged. Most important thing learned: the informative SpreadsSupports
+  obligation is now inhabited in Lean; the remaining gap is polarity plus
+  matchable unsat on an overlapping support system (or a random method lift),
+  not the set system spreading predicate itself.
+  merge_certified auto applied per user blanket after green gate.
+  Next: formalize a matchable unsat CNF whose supports inject into an
+  informative SpreadsSupports system (overlapping triples, not a pure matching),
+  or prove a probabilistic existence lift.

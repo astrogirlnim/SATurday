@@ -32,9 +32,10 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       (`theory/Theory/ProofComplexity/CSExpansion.lean`).
       Accepted route recorded in file: matchable unsat 3 CNF with
       `Spreads F (n/4) 2`, then `hasCSClauseExpansion_one_of_spreads_two`.
-      Blocker recorded 2026-08-10: informative scale (`r >= 8`) plus matchable
-      unsat polarity (all positive star CNFs are satisfiable); or probabilistic
-      `SpreadsSupports` existence.
+      Progress 2026-08-11: `exists_spreadsSupports_informative` certified
+      (matching triples at r = 8). Remaining blocker: matchable unsat polarity on
+      an overlapping SpreadsSupports system (pure matchings are satisfiable), or
+      probabilistic CNF lift.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Human gate: move R2 from `prose_accepted` to `certified` only after the
@@ -97,8 +98,10 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: one formalize or prove cycle aimed only at
-   `exists_cs_clause_expanding_3cnf` (or an honest pin redesign).
+1. R2: inhabit matchable unsat 3 CNF on an informative SpreadsSupports system
+   (overlapping supports; pure matchings are satisfiable), or probabilistic lift
+   of `exists_spreadsSupports_informative` toward
+   `exists_cs_clause_expanding_3cnf`.
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or

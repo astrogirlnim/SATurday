@@ -20,7 +20,9 @@ cubic handshaking `handshaking_touching_of_regular3` plus
 `spreads_starCNF_of_expansion` yield Spreads from `HasExpansion _ 1`;
 `spreads_heawoodStarCNF_five` instantiates the Heawood cage (satisfiable,
 floor not informative). `SpreadsSupports` packages the probabilistic set system
-form.
+form. Cluster 15 certifies matching triple `SpreadsSupports` at informative
+`r ≥ 8`, polarity independent parity supports, and the Spreads or SpreadsSupports
+bridge; CNF polarity plus unsat inhabitation of that set system remains open.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -2291,6 +2293,221 @@ theorem spreads_of_spreadsSupports {F : CNF} {r γ : ℕ}
       exact mem_biUnion.mpr ⟨clauseSupport C, mem_image_of_mem _ hC, hxC⟩
   simpa [hcard, hU] using hcov
 
+/-! ## SpreadsSupports scaffolding (changed approach: set system first)
+
+Prior cycles blocked on all positive star CNF satisfiability at cage scale and on
+finite sparse unsat search. Spreads cares only about supports, so the
+probabilistic route factors as (1) inhabit `SpreadsSupports` at informative
+`r ≥ 8`, then (2) choose polarities yielding matchable unsat. This cluster
+certifies (1) for disjoint triple matchings, polarity independent supports for
+parity forbidding clauses, and the Spreads ↔ SpreadsSupports bridge under
+injective supports. Step (2) remains the Frontier gap. -/
+
+/-- Weaker spreading rate is inherited. -/
+theorem SpreadsSupports.mono_gamma {U : Finset (Finset ℕ)} {r γ γ' : ℕ}
+    (h : SpreadsSupports U r γ) (hle : γ' ≤ γ) :
+    SpreadsSupports U r γ' := by
+  intro G hG hlo hhi
+  have hge := h G hG hlo hhi
+  exact le_trans (Nat.mul_le_mul_right G.card hle) hge
+
+/-- Support of a parity forbidding clause depends only on the incident star, not
+on the polarity set `S`. -/
+theorem clauseSupport_parityForbidClause {n : ℕ}
+    (I S : Finset (FinEdge n)) :
+    clauseSupport (parityForbidClause I S) = I.image edgeVar := by
+  ext x
+  constructor
+  · intro hx
+    obtain ⟨l, hl, rfl⟩ := mem_image.mp hx
+    obtain ⟨e, he, rfl⟩ := mem_image.mp hl
+    exact mem_image.mpr ⟨e, he, rfl⟩
+  · intro hx
+    obtain ⟨e, he, rfl⟩ := mem_image.mp hx
+    refine mem_image.mpr ⟨⟨edgeVar e, decide (e ∉ S)⟩, ?_, rfl⟩
+    exact mem_image.mpr ⟨e, he, rfl⟩
+
+/-- Star clause with an arbitrary polarity set on the incident edges. -/
+def starClauseWith {n : ℕ} (G : FinGraph n) (v : Fin n)
+    (S : Finset (FinEdge n)) : Clause :=
+  parityForbidClause (incident G v) S
+
+theorem clauseSupport_starClauseWith {n : ℕ} (G : FinGraph n) (v : Fin n)
+    (S : Finset (FinEdge n)) :
+    clauseSupport (starClauseWith G v S) = (incident G v).image edgeVar :=
+  clauseSupport_parityForbidClause _ _
+
+theorem clauseSupport_starClauseWith_eq_starClause {n : ℕ}
+    (G : FinGraph n) (v : Fin n) (S : Finset (FinEdge n)) :
+    clauseSupport (starClauseWith G v S) = clauseSupport (starClause G v) := by
+  rw [clauseSupport_starClauseWith, clauseSupport_starClause]
+
+/-- Selected polarity star CNF: one forbidding clause per vertex. -/
+def starCNFWith {n : ℕ} (G : FinGraph n)
+    (sel : Fin n → Finset (FinEdge n)) : CNF :=
+  (univ : Finset (Fin n)).image fun v => starClauseWith G v (sel v)
+
+/-- Under injective supports, Spreads yields SpreadsSupports on the support image. -/
+theorem spreadsSupports_of_spreads {F : CNF} {r γ : ℕ}
+    (_hinj : ∀ C ∈ F, ∀ D ∈ F, C ≠ D → clauseSupport C ≠ clauseSupport D)
+    (hsp : Spreads F r γ) :
+    SpreadsSupports (F.image clauseSupport) r γ := by
+  intro G hG hlo hhi
+  classical
+  -- Choose, for each support in G, a unique owning clause in F.
+  let owner : Finset ℕ → Clause := fun T =>
+    if h : ∃ C ∈ F, clauseSupport C = T then Classical.choose h else ∅
+  have howner : ∀ T ∈ G, owner T ∈ F ∧ clauseSupport (owner T) = T := by
+    intro T hT
+    have hEx : ∃ C ∈ F, clauseSupport C = T := by
+      obtain ⟨C, hC, rfl⟩ := mem_image.mp (hG hT)
+      exact ⟨C, hC, rfl⟩
+    simpa [owner, dif_pos hEx] using Classical.choose_spec hEx
+  let H : Finset Clause := G.image owner
+  have hHsub : H ⊆ F := by
+    intro C hC
+    obtain ⟨T, hT, rfl⟩ := mem_image.mp hC
+    exact (howner T hT).1
+  have hInjOwner : Set.InjOn owner G := by
+    intro T hT T' hT' hEq
+    have h1 := (howner T hT).2
+    have h2 := (howner T' hT').2
+    calc
+      T = clauseSupport (owner T) := h1.symm
+      _ = clauseSupport (owner T') := by rw [hEq]
+      _ = T' := h2
+  have hcard : H.card = G.card := card_image_of_injOn hInjOwner
+  have hloH : r / 2 ≤ H.card := by omega
+  have hhiH : H.card ≤ r := by omega
+  have hcov := hsp H hHsub hloH hhiH
+  have hU : H.biUnion clauseSupport = G.biUnion id := by
+    ext x
+    constructor
+    · intro hx
+      obtain ⟨C, hC, hxC⟩ := mem_biUnion.mp hx
+      obtain ⟨T, hT, rfl⟩ := mem_image.mp hC
+      have hCT : clauseSupport (owner T) = T := (howner T hT).2
+      exact mem_biUnion.mpr ⟨T, hT, by simpa [hCT] using hxC⟩
+    · intro hx
+      obtain ⟨T, hT, hxT⟩ := mem_biUnion.mp hx
+      refine mem_biUnion.mpr ⟨owner T, mem_image_of_mem _ hT, ?_⟩
+      have hCT : clauseSupport (owner T) = T := (howner T hT).2
+      simpa [hCT] using hxT
+  simpa [hcard, hU] using hcov
+
+/-- Disjoint triple `{3i, 3i+1, 3i+2}` used as a matching support block. -/
+def matchingTriple (i : ℕ) : Finset ℕ :=
+  ({3 * i, 3 * i + 1, 3 * i + 2} : Finset ℕ)
+
+theorem matchingTriple_card (i : ℕ) : (matchingTriple i).card = 3 := by
+  -- The three indices 3i, 3i+1, 3i+2 are pairwise distinct.
+  simp [matchingTriple]
+
+theorem matchingTriple_disjoint {i j : ℕ} (hne : i ≠ j) :
+    Disjoint (matchingTriple i) (matchingTriple j) := by
+  refine disjoint_left.mpr ?_
+  intro x hxI hxJ
+  have hxI' : x = 3 * i ∨ x = 3 * i + 1 ∨ x = 3 * i + 2 := by
+    simpa [matchingTriple, mem_insert, mem_singleton] using hxI
+  have hxJ' : x = 3 * j ∨ x = 3 * j + 1 ∨ x = 3 * j + 2 := by
+    simpa [matchingTriple, mem_insert, mem_singleton] using hxJ
+  have hle_i : 3 * i ≤ x ∧ x ≤ 3 * i + 2 := by
+    rcases hxI' with h | h | h <;> omega
+  have hle_j : 3 * j ≤ x ∧ x ≤ 3 * j + 2 := by
+    rcases hxJ' with h | h | h <;> omega
+  have : i = j := by omega
+  exact hne this
+
+theorem matchingTriple_injective {i j : ℕ}
+    (h : matchingTriple i = matchingTriple j) : i = j := by
+  by_contra hne
+  have hdis := matchingTriple_disjoint hne
+  have hne' : matchingTriple i ≠ matchingTriple j := by
+    intro heq
+    have hmem : (3 * i : ℕ) ∈ matchingTriple i := by
+      simp [matchingTriple]
+    have : (3 * i : ℕ) ∈ matchingTriple j := by simpa [heq] using hmem
+    exact (disjoint_left.mp hdis) hmem this
+  exact hne' h
+
+/-- Matching support system: `m` pairwise disjoint triples. -/
+def matchingTripleSupports (m : ℕ) : Finset (Finset ℕ) :=
+  (range m).image matchingTriple
+
+theorem mem_matchingTripleSupports {m : ℕ} {T : Finset ℕ} :
+    T ∈ matchingTripleSupports m ↔ ∃ i < m, matchingTriple i = T := by
+  simp [matchingTripleSupports, mem_image]
+
+theorem matchingTripleSupports_card (m : ℕ) :
+    (matchingTripleSupports m).card = m := by
+  classical
+  simpa [matchingTripleSupports] using
+    (card_image_of_injective (range m)
+      (fun {i j : ℕ} (h : matchingTriple i = matchingTriple j) =>
+        matchingTriple_injective h))
+
+/-- Any subcollection of a matching covers three fresh variables per triple. -/
+theorem card_biUnion_matchingTripleSupports_subset {m : ℕ}
+    {G : Finset (Finset ℕ)} (hG : G ⊆ matchingTripleSupports m) :
+    (G.biUnion id).card = 3 * G.card := by
+  classical
+  revert hG
+  refine Finset.induction_on G ?_ ?_
+  · intro _; simp
+  · intro T G hT IH hG'
+    have hTmem : T ∈ matchingTripleSupports m := hG' (mem_insert_self _ _)
+    have hGsub : G ⊆ matchingTripleSupports m :=
+      (subset_insert _ _).trans hG'
+    obtain ⟨i, hi, rfl⟩ := mem_matchingTripleSupports.mp hTmem
+    have hdis : Disjoint (matchingTriple i) (G.biUnion id) := by
+      refine disjoint_left.mpr ?_
+      intro x hxT hxU
+      obtain ⟨T', hT', hxT'⟩ := mem_biUnion.mp hxU
+      have hT'mem : T' ∈ matchingTripleSupports m := hGsub hT'
+      obtain ⟨j, hj, rfl⟩ := mem_matchingTripleSupports.mp hT'mem
+      have hne : i ≠ j := by
+        intro heq
+        have : matchingTriple i ∈ G := by simpa [heq] using hT'
+        exact hT this
+      exact (disjoint_left.mp (matchingTriple_disjoint hne)) hxT hxT'
+    have hcardT : (matchingTriple i).card = 3 := matchingTriple_card i
+    calc
+      ((insert (matchingTriple i) G).biUnion id).card =
+          ((matchingTriple i) ∪ G.biUnion id).card := by
+            simp [biUnion_insert]
+      _ = (matchingTriple i).card + (G.biUnion id).card :=
+          card_union_of_disjoint hdis
+      _ = 3 + (G.biUnion id).card := by rw [hcardT]
+      _ = 3 + 3 * G.card := by rw [IH hGsub]
+      _ = 3 * (G.card + 1) := by omega
+      _ = 3 * (insert (matchingTriple i) G).card := by
+            rw [card_insert_of_notMem hT]
+
+/-- Matching triples SpreadsSupports at rate 3 up to the matching size. -/
+theorem spreadsSupports_matchingTriples (m r : ℕ) (_hr : r ≤ m) :
+    SpreadsSupports (matchingTripleSupports m) r 3 := by
+  intro G hG _hlo _hhi
+  have hcard := card_biUnion_matchingTripleSupports_subset hG
+  have : 3 * G.card ≤ (G.biUnion id).card := by omega
+  exact this
+
+/-- Matching triples also SpreadsSupports at the CS rate γ = 2. -/
+theorem spreadsSupports_matchingTriples_two (m r : ℕ) (hr : r ≤ m) :
+    SpreadsSupports (matchingTripleSupports m) r 2 :=
+  SpreadsSupports.mono_gamma (spreadsSupports_matchingTriples m r hr) (by omega)
+
+/-- Non vacuous set system witness at the informative floor threshold `r = 8`. -/
+theorem exists_spreadsSupports_informative :
+    ∃ (U : Finset (Finset ℕ)) (r : ℕ),
+      8 ≤ r ∧ SpreadsSupports U r 2 :=
+  ⟨matchingTripleSupports 8, 8, le_rfl,
+    spreadsSupports_matchingTriples_two 8 8 le_rfl⟩
+
+/-- One concrete informative scale witness packages the matching of size 8. -/
+theorem spreadsSupports_matchingTriples_eight :
+    SpreadsSupports (matchingTripleSupports 8) 8 2 :=
+  spreadsSupports_matchingTriples_two 8 8 le_rfl
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -2312,10 +2529,15 @@ satisfiability and non informative floor, plus `SpreadsSupports`.
 
 Cycle 2026-08-10 (cubic handshaking): certified
 `handshaking_touching_of_regular3` (`2|touching|=3|S|+|∂S|`),
-`spreads_starCNF_of_expansion`, and `spreads_heawoodStarCNF_five`. Remaining for
-`exists_cs_clause_expanding_3cnf`: informative scale (`r ≥ 8`) with matchable
-unsat polarity (star CNFs are all positive hence satisfiable), or probabilistic
-`SpreadsSupports` existence. -/
+`spreads_starCNF_of_expansion`, and `spreads_heawoodStarCNF_five`.
+
+Cycle 2026-08-11 (changed approach: SpreadsSupports first): certified matching
+triple `SpreadsSupports` at informative `r = 8`, polarity independent
+`clauseSupport_parityForbidClause`, `starClauseWith` or `starCNFWith`, and
+`spreadsSupports_of_spreads`. Remaining for `exists_cs_clause_expanding_3cnf`:
+inhabit a CNF on an informative SpreadsSupports system with matchable unsat
+polarity (disjoint matchings alone are satisfiable clausewise), or a random
+method lift from the certified set system witness. -/
 
 namespace CSExpansionFrontier
 
