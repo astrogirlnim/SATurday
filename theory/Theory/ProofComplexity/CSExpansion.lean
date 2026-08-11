@@ -22,7 +22,10 @@ cubic handshaking `handshaking_touching_of_regular3` plus
 floor not informative). `SpreadsSupports` packages the probabilistic set system
 form. Cluster 15 certifies matching triple `SpreadsSupports` at informative
 `r ≥ 8`, polarity independent parity supports, and the Spreads or SpreadsSupports
-bridge; CNF polarity plus unsat inhabitation of that set system remains open.
+bridge. Cluster 16 certifies overlapping loose path `SpreadsSupports` at
+informative scale, polarity triple CNF encoding, and the matching polarity
+satisfiability obstruction; matchable unsat polarity on an overlapping system
+(or a probabilistic lift) remains open.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -2508,6 +2511,362 @@ theorem spreadsSupports_matchingTriples_eight :
     SpreadsSupports (matchingTripleSupports 8) 8 2 :=
   spreadsSupports_matchingTriples_two 8 8 le_rfl
 
+/-! ## Overlapping SpreadsSupports and polarity CNF packaging
+
+Matching systems SpreadsSupports at every scale but admit satisfying polarity
+assignments (each triple is independent). The next constructive step is an
+overlapping support system that still SpreadsSupports at informative `r ≥ 8`,
+together with a polarity encoding from supports to width-3 CNFs. Unsat polarity
+on such a system (or a probabilistic lift) remains the Frontier gap. -/
+
+/-- Width-3 clause on support `T` with per-variable polarity `p`. -/
+def triplePolarityClause (T : Finset ℕ) (p : ℕ → Bool) : Clause :=
+  T.image fun x => (⟨x, p x⟩ : Literal)
+
+theorem clauseSupport_triplePolarityClause (T : Finset ℕ) (p : ℕ → Bool) :
+    clauseSupport (triplePolarityClause T p) = T := by
+  ext x
+  constructor
+  · intro hx
+    obtain ⟨l, hl, rfl⟩ := mem_image.mp hx
+    obtain ⟨y, hy, rfl⟩ := mem_image.mp hl
+    exact hy
+  · intro hx
+    refine mem_image.mpr ⟨⟨x, p x⟩, ?_, rfl⟩
+    exact mem_image.mpr ⟨x, hx, rfl⟩
+
+theorem triplePolarityClause_card (T : Finset ℕ) (p : ℕ → Bool) :
+    (triplePolarityClause T p).card = T.card := by
+  classical
+  refine card_image_of_injective T ?_
+  intro x y h
+  exact congrArg Literal.var h
+
+/-- One polarity clause per support block. -/
+def cnfOfSupports (U : Finset (Finset ℕ)) (p : Finset ℕ → ℕ → Bool) : CNF :=
+  U.image fun T => triplePolarityClause T (p T)
+
+theorem mem_cnfOfSupports {U : Finset (Finset ℕ)} {p : Finset ℕ → ℕ → Bool}
+    {C : Clause} :
+    C ∈ cnfOfSupports U p ↔
+      ∃ T ∈ U, triplePolarityClause T (p T) = C := by
+  simp [cnfOfSupports, mem_image]
+
+theorem cnfOfSupports_cnfWidth_le (U : Finset (Finset ℕ))
+    (p : Finset ℕ → ℕ → Bool)
+    (h3 : ∀ T ∈ U, T.card ≤ 3) :
+    cnfWidth (cnfOfSupports U p) ≤ 3 := by
+  refine Finset.sup_le ?_
+  intro C hC
+  obtain ⟨T, hT, rfl⟩ := mem_cnfOfSupports.mp hC
+  have hcard : (triplePolarityClause T (p T)).card = T.card :=
+    triplePolarityClause_card T (p T)
+  have hT3 : T.card ≤ 3 := h3 T hT
+  omega
+
+/-- Image of supports recovers `U` for any polarity map. -/
+theorem image_clauseSupport_cnfOfSupports {U : Finset (Finset ℕ)}
+    (p : Finset ℕ → ℕ → Bool) :
+    (cnfOfSupports U p).image clauseSupport = U := by
+  ext T
+  constructor
+  · intro hT
+    obtain ⟨C, hC, rfl⟩ := mem_image.mp hT
+    obtain ⟨T', hT', rfl⟩ := mem_cnfOfSupports.mp hC
+    simpa [clauseSupport_triplePolarityClause] using hT'
+  · intro hT
+    refine mem_image.mpr ⟨triplePolarityClause T (p T), ?_, ?_⟩
+    · exact mem_cnfOfSupports.mpr ⟨T, hT, rfl⟩
+    · exact clauseSupport_triplePolarityClause T (p T)
+
+/-- Under SpreadsSupports, the polarity CNF inherits Spreads. -/
+theorem spreads_cnfOfSupports_of_spreadsSupports {U : Finset (Finset ℕ)}
+    {p : Finset ℕ → ℕ → Bool} {r γ : ℕ}
+    (hsp : SpreadsSupports U r γ) :
+    Spreads (cnfOfSupports U p) r γ := by
+  have himg := image_clauseSupport_cnfOfSupports (U := U) p
+  have hinj :
+      ∀ C ∈ cnfOfSupports U p, ∀ D ∈ cnfOfSupports U p, C ≠ D →
+        clauseSupport C ≠ clauseSupport D := by
+    intro C hC D hD hne hEq
+    obtain ⟨T, hT, rfl⟩ := mem_cnfOfSupports.mp hC
+    obtain ⟨T', hT', rfl⟩ := mem_cnfOfSupports.mp hD
+    have hTe :
+        clauseSupport (triplePolarityClause T (p T)) =
+          clauseSupport (triplePolarityClause T' (p T')) := hEq
+    have : T = T' := by
+      simpa [clauseSupport_triplePolarityClause] using hTe
+    exact hne (by simpa [this])
+  have himg' :
+      SpreadsSupports ((cnfOfSupports U p).image clauseSupport) r γ := by
+    simpa [himg] using hsp
+  exact spreads_of_spreadsSupports hinj himg'
+
+/-- Disjoint support blocks: any polarity assignment is satisfiable. -/
+theorem satisfiable_cnfOfSupports_of_pairwise_disjoint
+    (U : Finset (Finset ℕ)) (p : Finset ℕ → ℕ → Bool)
+    (hdis : ∀ T ∈ U, ∀ T' ∈ U, T ≠ T' → Disjoint T T')
+    (hne : ∀ T ∈ U, T.Nonempty) :
+    Satisfiable (cnfOfSupports U p) := by
+  classical
+  -- On each block set variables to the clause polarity; disjointness keeps this consistent.
+  let a : Assignment := fun x =>
+    if h : ∃ T ∈ U, x ∈ T then
+      let T := Classical.choose h
+      p T x
+    else
+      true
+  refine ⟨a, ?_⟩
+  intro C hC
+  obtain ⟨T, hT, rfl⟩ := mem_cnfOfSupports.mp hC
+  obtain ⟨x, hx⟩ := hne T hT
+  refine ⟨⟨x, p T x⟩, ?_, ?_⟩
+  · exact mem_image.mpr ⟨x, hx, rfl⟩
+  · have hex : ∃ T' ∈ U, x ∈ T' := ⟨T, hT, hx⟩
+    have hTeq : Classical.choose hex = T := by
+      have hspec := Classical.choose_spec hex
+      have hdis' := hdis (Classical.choose hex) hspec.1 T hT
+      by_cases hneT : Classical.choose hex = T
+      · exact hneT
+      · exact False.elim ((disjoint_left.mp (hdis' hneT)) hspec.2 hx)
+    simp [litSat, a, dif_pos hex, hTeq]
+
+/-- Matching triples are pairwise disjoint, so every polarity CNF is satisfiable. -/
+theorem satisfiable_matchingTripleSupports_cnf (m : ℕ)
+    (p : Finset ℕ → ℕ → Bool) :
+    Satisfiable (cnfOfSupports (matchingTripleSupports m) p) := by
+  refine satisfiable_cnfOfSupports_of_pairwise_disjoint _ p ?_ ?_
+  · intro T hT T' hT' hne
+    obtain ⟨i, hi, rfl⟩ := mem_matchingTripleSupports.mp hT
+    obtain ⟨j, hj, rfl⟩ := mem_matchingTripleSupports.mp hT'
+    have hij : i ≠ j := fun heq => hne (by simpa [heq])
+    exact matchingTriple_disjoint hij
+  · intro T hT
+    obtain ⟨i, hi, rfl⟩ := mem_matchingTripleSupports.mp hT
+    refine ⟨3 * i, ?_⟩
+    simp [matchingTriple]
+
+/-- Overlapping path block `{2i, 2i+1, 2i+2}` (adjacent blocks share one vertex). -/
+def loosePathTriple (i : ℕ) : Finset ℕ :=
+  ({2 * i, 2 * i + 1, 2 * i + 2} : Finset ℕ)
+
+theorem loosePathTriple_card (i : ℕ) : (loosePathTriple i).card = 3 := by
+  simp [loosePathTriple]
+
+theorem loosePathTriple_injective {i j : ℕ}
+    (h : loosePathTriple i = loosePathTriple j) : i = j := by
+  have hi : (2 * i + 1 : ℕ) ∈ loosePathTriple i := by simp [loosePathTriple]
+  have hj : (2 * i + 1 : ℕ) ∈ loosePathTriple j := by simpa [h] using hi
+  have hj' : 2 * i + 1 = 2 * j ∨ 2 * i + 1 = 2 * j + 1 ∨ 2 * i + 1 = 2 * j + 2 := by
+    simpa [loosePathTriple, mem_insert, mem_singleton] using hj
+  rcases hj' with h1 | h2 | h3
+  · omega
+  · omega
+  · omega
+
+/-- Adjacent path triples share exactly the glue vertex `2i+2`. -/
+theorem loosePathTriple_inter_succ (i : ℕ) :
+    loosePathTriple i ∩ loosePathTriple (i + 1) = ({2 * i + 2} : Finset ℕ) := by
+  ext x
+  constructor
+  · intro hx
+    have hxI := (mem_inter.mp hx).1
+    have hxJ := (mem_inter.mp hx).2
+    have hxI' : x = 2 * i ∨ x = 2 * i + 1 ∨ x = 2 * i + 2 := by
+      simpa [loosePathTriple, mem_insert, mem_singleton] using hxI
+    have hxJ' : x = 2 * (i + 1) ∨ x = 2 * (i + 1) + 1 ∨ x = 2 * (i + 1) + 2 := by
+      simpa [loosePathTriple, mem_insert, mem_singleton] using hxJ
+    rcases hxI' with h0 | h1 | h2
+    · rcases hxJ' with j0 | j1 | j2 <;> omega
+    · rcases hxJ' with j0 | j1 | j2 <;> omega
+    · simp [h2]
+  · intro hx
+    have : x = 2 * i + 2 := mem_singleton.mp hx
+    subst this
+    refine mem_inter.mpr ⟨?_, ?_⟩
+    · simp [loosePathTriple]
+    · -- `2i+2` is the left endpoint of the successor block.
+      have : (2 * i + 2 : ℕ) = 2 * (i + 1) := by omega
+      simpa [loosePathTriple, this]
+
+/-- Non adjacent path triples are disjoint. -/
+theorem loosePathTriple_disjoint_of_far {i j : ℕ} (h : 2 ≤ i - j ∨ 2 ≤ j - i) :
+    Disjoint (loosePathTriple i) (loosePathTriple j) := by
+  refine disjoint_left.mpr ?_
+  intro x hxI hxJ
+  have hxI' : x = 2 * i ∨ x = 2 * i + 1 ∨ x = 2 * i + 2 := by
+    simpa [loosePathTriple, mem_insert, mem_singleton] using hxI
+  have hxJ' : x = 2 * j ∨ x = 2 * j + 1 ∨ x = 2 * j + 2 := by
+    simpa [loosePathTriple, mem_insert, mem_singleton] using hxJ
+  rcases h with hji | hij
+  · rcases hxI' with h0 | h1 | h2 <;> rcases hxJ' with j0 | j1 | j2 <;> omega
+  · rcases hxI' with h0 | h1 | h2 <;> rcases hxJ' with j0 | j1 | j2 <;> omega
+
+/-- Overlapping path support system of length `m`. -/
+def loosePathSupports (m : ℕ) : Finset (Finset ℕ) :=
+  (range m).image loosePathTriple
+
+theorem mem_loosePathSupports {m : ℕ} {T : Finset ℕ} :
+    T ∈ loosePathSupports m ↔ ∃ i < m, loosePathTriple i = T := by
+  simp [loosePathSupports, mem_image]
+
+theorem loosePathSupports_card (m : ℕ) : (loosePathSupports m).card = m := by
+  classical
+  simpa [loosePathSupports] using
+    (card_image_of_injective (range m)
+      (fun {i j : ℕ} (h : loosePathTriple i = loosePathTriple j) =>
+        loosePathTriple_injective h))
+
+/-- Adjacent overlap witness: path length at least 2 is genuinely overlapping. -/
+theorem loosePathSupports_overlaps {m : ℕ} (hm : 2 ≤ m) :
+    ∃ T ∈ loosePathSupports m, ∃ T' ∈ loosePathSupports m,
+      T ≠ T' ∧ (T ∩ T').Nonempty := by
+  refine ⟨loosePathTriple 0, ?_, loosePathTriple 1, ?_, ?_, ?_⟩
+  · exact mem_loosePathSupports.mpr ⟨0, by omega, rfl⟩
+  · exact mem_loosePathSupports.mpr ⟨1, by omega, rfl⟩
+  · intro h
+    have : (0 : ℕ) = 1 := loosePathTriple_injective h
+    exact (by omega : False)
+  · rw [loosePathTriple_inter_succ]
+    exact singleton_nonempty _
+
+/-- Index set form of a path subcollection. -/
+def loosePathIndexSet {m : ℕ} (G : Finset (Finset ℕ))
+    (hG : G ⊆ loosePathSupports m) : Finset ℕ :=
+  (range m).filter fun i => loosePathTriple i ∈ G
+
+theorem mem_loosePathIndexSet {m : ℕ} {G : Finset (Finset ℕ)}
+    (hG : G ⊆ loosePathSupports m) {i : ℕ} :
+    i ∈ loosePathIndexSet G hG ↔ i < m ∧ loosePathTriple i ∈ G := by
+  simp [loosePathIndexSet, mem_filter]
+
+theorem card_loosePathIndexSet {m : ℕ} {G : Finset (Finset ℕ)}
+    (hG : G ⊆ loosePathSupports m) :
+    (loosePathIndexSet G hG).card = G.card := by
+  classical
+  have himg :
+      (loosePathIndexSet G hG).image loosePathTriple = G := by
+    ext T
+    constructor
+    · intro hT
+      obtain ⟨i, hi, rfl⟩ := mem_image.mp hT
+      exact ((mem_loosePathIndexSet hG).mp hi).2
+    · intro hT
+      obtain ⟨i, hi, rfl⟩ := mem_loosePathSupports.mp (hG hT)
+      exact mem_image.mpr ⟨i, (mem_loosePathIndexSet hG).mpr ⟨hi, hT⟩, rfl⟩
+  have hinj : Set.InjOn loosePathTriple (loosePathIndexSet G hG : Set ℕ) := by
+    intro i _ j _ hEq
+    exact loosePathTriple_injective hEq
+  calc
+    (loosePathIndexSet G hG).card =
+        ((loosePathIndexSet G hG).image loosePathTriple).card :=
+      (card_image_of_injOn hinj).symm
+    _ = G.card := by rw [himg]
+
+/-- Union size of a path subcollection: `|I|` private odds plus the even glue cover. -/
+theorem card_biUnion_loosePathSupports_subset {m : ℕ}
+    {G : Finset (Finset ℕ)} (hG : G ⊆ loosePathSupports m) :
+    2 * G.card ≤ (G.biUnion id).card := by
+  classical
+  set I := loosePathIndexSet G hG
+  have hIcard : I.card = G.card := card_loosePathIndexSet hG
+  let Evens : Finset ℕ :=
+    I.biUnion fun i => ({2 * i, 2 * i + 2} : Finset ℕ)
+  let Odds : Finset ℕ := I.image fun i => 2 * i + 1
+  have hU :
+      G.biUnion id = Evens ∪ Odds := by
+    ext x
+    constructor
+    · intro hx
+      obtain ⟨T, hT, hxT⟩ := mem_biUnion.mp hx
+      obtain ⟨i, hi, rfl⟩ := mem_loosePathSupports.mp (hG hT)
+      have hiI : i ∈ I := (mem_loosePathIndexSet hG).mpr ⟨hi, hT⟩
+      have hx' : x = 2 * i ∨ x = 2 * i + 1 ∨ x = 2 * i + 2 := by
+        simpa [loosePathTriple, mem_insert, mem_singleton] using hxT
+      rcases hx' with h0 | h1 | h2
+      · exact mem_union_left _ (mem_biUnion.mpr ⟨i, hiI, by simp [h0]⟩)
+      · exact mem_union_right _ (mem_image.mpr ⟨i, hiI, h1.symm⟩)
+      · exact mem_union_left _ (mem_biUnion.mpr ⟨i, hiI, by simp [h2]⟩)
+    · intro hx
+      rcases mem_union.mp hx with hxE | hxO
+      · obtain ⟨i, hiI, hxE'⟩ := mem_biUnion.mp hxE
+        have hT : loosePathTriple i ∈ G := ((mem_loosePathIndexSet hG).mp hiI).2
+        have hx' : x = 2 * i ∨ x = 2 * i + 2 := by
+          simpa [mem_insert, mem_singleton] using hxE'
+        refine mem_biUnion.mpr ⟨loosePathTriple i, hT, ?_⟩
+        rcases hx' with h0 | h2
+        · simpa [loosePathTriple, h0]
+        · simpa [loosePathTriple, h2]
+      · obtain ⟨i, hiI, rfl⟩ := mem_image.mp hxO
+        have hT : loosePathTriple i ∈ G := ((mem_loosePathIndexSet hG).mp hiI).2
+        exact mem_biUnion.mpr ⟨loosePathTriple i, hT, by simp [loosePathTriple]⟩
+  have hdisEO : Disjoint Evens Odds := by
+    refine disjoint_left.mpr ?_
+    intro x hxE hxO
+    obtain ⟨i, _, hxE'⟩ := mem_biUnion.mp hxE
+    have : x = 2 * i ∨ x = 2 * i + 2 := by
+      simpa [mem_insert, mem_singleton] using hxE'
+    obtain ⟨j, _, rfl⟩ := mem_image.mp hxO
+    rcases this with h0 | h2 <;> omega
+  have hOdds : Odds.card = I.card := by
+    refine card_image_of_injective I ?_
+    intro a b hEq
+    have h' : 2 * a + 1 = 2 * b + 1 := hEq
+    omega
+  have hLeftInj : Function.Injective fun i : ℕ => 2 * i := by
+    intro a b hEq
+    have h' : 2 * a = 2 * b := hEq
+    omega
+  have hLefts : (I.image fun i => 2 * i).card = I.card :=
+    card_image_of_injective I hLeftInj
+  have hLefts_sub : I.image (fun i => 2 * i) ⊆ Evens := by
+    intro x hx
+    obtain ⟨i, hi, rfl⟩ := mem_image.mp hx
+    exact mem_biUnion.mpr ⟨i, hi, by simp⟩
+  have hEvens_ge : I.card ≤ Evens.card := by
+    calc
+      I.card = (I.image fun i => 2 * i).card := hLefts.symm
+      _ ≤ Evens.card := card_le_card hLefts_sub
+  have : 2 * I.card ≤ (Evens ∪ Odds).card := by
+    have hsum : (Evens ∪ Odds).card = Evens.card + Odds.card :=
+      card_union_of_disjoint hdisEO
+    omega
+  simpa [hU, hIcard] using this
+
+/-- Overlapping path SpreadsSupports at rate 2 up to path length. -/
+theorem spreadsSupports_loosePath (m r : ℕ) (_hr : r ≤ m) :
+    SpreadsSupports (loosePathSupports m) r 2 := by
+  intro G hG _hlo _hhi
+  exact card_biUnion_loosePathSupports_subset hG
+
+/-- Informative overlapping SpreadsSupports witness (path length 16, scale 8). -/
+theorem exists_overlapping_spreadsSupports_informative :
+    ∃ (U : Finset (Finset ℕ)) (r : ℕ),
+      8 ≤ r ∧ SpreadsSupports U r 2 ∧
+        (∃ T ∈ U, ∃ T' ∈ U, T ≠ T' ∧ (T ∩ T').Nonempty) :=
+  ⟨loosePathSupports 16, 8, le_rfl,
+    spreadsSupports_loosePath 16 8 (by omega),
+    loosePathSupports_overlaps (by omega)⟩
+
+/-- Concrete overlapping informative package. -/
+theorem spreadsSupports_loosePath_sixteen :
+    SpreadsSupports (loosePathSupports 16) 8 2 :=
+  spreadsSupports_loosePath 16 8 (by omega)
+
+/-- All-true polarity on the informative overlapping path remains satisfiable
+(hypertree obstruction; overlap alone does not force unsat). -/
+theorem satisfiable_loosePathSupports_allTrue (m : ℕ) :
+    Satisfiable
+      (cnfOfSupports (loosePathSupports m) fun _ _ => true) := by
+  classical
+  refine ⟨fun _ => true, ?_⟩
+  intro C hC
+  obtain ⟨T, hT, rfl⟩ := mem_cnfOfSupports.mp hC
+  obtain ⟨i, hi, rfl⟩ := mem_loosePathSupports.mp hT
+  refine ⟨⟨2 * i, true⟩, ?_, ?_⟩
+  · simp [triplePolarityClause, loosePathTriple]
+  · simp [litSat]
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -2537,7 +2896,13 @@ triple `SpreadsSupports` at informative `r = 8`, polarity independent
 `spreadsSupports_of_spreads`. Remaining for `exists_cs_clause_expanding_3cnf`:
 inhabit a CNF on an informative SpreadsSupports system with matchable unsat
 polarity (disjoint matchings alone are satisfiable clausewise), or a random
-method lift from the certified set system witness. -/
+method lift from the certified set system witness.
+
+Cycle 2026-08-11 (overlapping path): certified `loosePathSupports` SpreadsSupports
+at informative `r = 8` with genuine adjacent overlaps, polarity encoding
+`triplePolarityClause` or `cnfOfSupports`, matching polarity satisfiability
+obstruction, and all-true path satisfiability. Overlap plus SpreadsSupports is
+therefore inhabited; matchable unsat polarity (or probabilistic lift) remains. -/
 
 namespace CSExpansionFrontier
 

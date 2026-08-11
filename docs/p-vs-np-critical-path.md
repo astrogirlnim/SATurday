@@ -32,10 +32,11 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       (`theory/Theory/ProofComplexity/CSExpansion.lean`).
       Accepted route recorded in file: matchable unsat 3 CNF with
       `Spreads F (n/4) 2`, then `hasCSClauseExpansion_one_of_spreads_two`.
-      Progress 2026-08-11: `exists_spreadsSupports_informative` certified
-      (matching triples at r = 8). Remaining blocker: matchable unsat polarity on
-      an overlapping SpreadsSupports system (pure matchings are satisfiable), or
-      probabilistic CNF lift.
+      Progress 2026-08-11: `exists_spreadsSupports_informative` and overlapping
+      `exists_overlapping_spreadsSupports_informative` (`loosePathSupports`)
+      certified, plus matching polarity satisfiability obstruction and
+      `cnfOfSupports` packaging. Remaining blocker: matchable unsat polarity
+      (path and matching CNFs stay satisfiable), or probabilistic CNF lift.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Human gate: move R2 from `prose_accepted` to `certified` only after the
@@ -98,9 +99,9 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: inhabit matchable unsat 3 CNF on an informative SpreadsSupports system
-   (overlapping supports; pure matchings are satisfiable), or probabilistic lift
-   of `exists_spreadsSupports_informative` toward
+1. R2: inhabit matchable unsat 3 CNF on an informative overlapping
+   SpreadsSupports system (path and matching polarities are sat), or prove a
+   probabilistic lift of SpreadsSupports toward
    `exists_cs_clause_expanding_3cnf`.
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).

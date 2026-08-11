@@ -44,7 +44,8 @@ R4-class results plus the certified R5 bridge.
     constructor merged 2026-08-10; single support starCNF encoding and
     SpreadsSupports scaffolding merged 2026-08-10; cubic handshaking and
     Heawood star Spreads at r = 5 merged 2026-08-10; matching
-    SpreadsSupports at informative r = 8 merged 2026-08-11;
+    SpreadsSupports at informative r = 8 merged 2026-08-11; overlapping
+    loose path SpreadsSupports and polarity CNF packaging merged 2026-08-11;
     exists_cs_clause_expanding_3cnf Frontier)
 
 - R3 stronger systems

@@ -8,6 +8,8 @@ clause-set pin restated 2026-08-09; Spreads reduction to HasCSClauseExpansion
 merged 2026-08-10; finite Spreads r=2 matchable unsat witness merged 2026-08-10;
 informative floor threshold and Spreads scale 3 constructor merged 2026-08-10;
 single support starCNF and SpreadsSupports scaffolding merged 2026-08-10;
+matching SpreadsSupports at informative r = 8 merged 2026-08-11; overlapping
+loose path SpreadsSupports and polarity CNF packaging merged 2026-08-11;
 existence `exists_cs_clause_expanding_3cnf` still Frontier)
 
 ## Statement
@@ -1424,3 +1426,21 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Next: formalize a matchable unsat CNF whose supports inject into an
   informative SpreadsSupports system (overlapping triples, not a pure matching),
   or prove a probabilistic existence lift.
+
+- 2026-08-11 formalize (overlapping SpreadsSupports plus polarity packaging):
+  PARTIAL toward `exists_cs_clause_expanding_3cnf`. Certified (axiom gate PASS):
+  `triplePolarityClause`, `cnfOfSupports`, support image and Spreads inheritance,
+  `satisfiable_cnfOfSupports_of_pairwise_disjoint`,
+  `satisfiable_matchingTripleSupports_cnf` (matching obstruction),
+  `loosePathTriple` or `loosePathSupports`, union lower bound,
+  `spreadsSupports_loosePath`, `exists_overlapping_spreadsSupports_informative`,
+  `spreadsSupports_loosePath_sixteen`, `satisfiable_loosePathSupports_allTrue`.
+  Honest limit: overlapping informative SpreadsSupports is inhabited, but path
+  and matching polarity CNFs remain satisfiable, so the Frontier pin is unchanged.
+  Most important thing learned: the sparse versus unsat tension is now certified
+  on both sides (matching always sat; path SpreadsSupports at r = 8 with overlap
+  but all true still sat); closing Block A needs a cyclic or random method lift,
+  not further SpreadsSupports scaffolding alone.
+  merge_certified auto applied per user blanket after green gate.
+  Next: prove or formalize a probabilistic existence lift to matchable unsat
+  Spreads at r = n/4, or construct an explicit cyclic overlapping unsat witness.
