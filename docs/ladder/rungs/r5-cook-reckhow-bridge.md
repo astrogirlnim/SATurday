@@ -504,3 +504,50 @@ lower bound via the bridge.
 
   Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
   scripts/accepted_declarations.txt
+
+- 2026-08-11 formalize (remaining first or second stack copy steps): PARTIAL.
+
+  Target this cycle: certify `seqComp_step_copyToAuxPop_nil`,
+  `seqComp_step_copyToAuxPop_cons`, and `seqComp_step_copyToInPush` under the
+  machine DecidableEq instance, then maximize toward
+  `compose_projFirst_bitEnc.outputsFun`.
+
+  Existing names verified before editing (no guessing):
+  - mathlib: Function.update_self, Function.update_of_ne, FinTM2.kDecidableEq,
+    TM2.step, TM2.stepAux, List.tail
+  - repo: SATurday.Bridge.seqCompComputer, seqCompStk, seqCompCfg,
+    seqCompStk_update_first, seqCompStk_update_second,
+    seqComp_step_copyToAuxPush, seqComp_step_copyToInPop_nil,
+    seqComp_step_copyToInPop_cons, BridgeFrontier.compose_projFirst_bitEnc
+  - docs: docs/ladder/rungs/r5-cook-reckhow-bridge.md
+
+  Variables and declarations used or added:
+  - update_self_of_eq_nil
+  - seqCompStk_update_first_nil_eq, seqCompStk_update_first_eq,
+    seqCompStk_update_second_eq (pointwise; take ambient CompK DecidableEq)
+  - seqComp_step_copyToAuxPop_nil, seqComp_step_copyToAuxPop_cons,
+    seqComp_step_copyToInPush (accepted)
+  - letI CompK DecidableEq := (seqCompComputer ...).kDecidableEq
+
+  Accepted (axiom gate PASS, merge_certified auto applied):
+  - SATurday.Bridge.update_self_of_eq_nil
+  - SATurday.Bridge.seqCompStk_update_first_nil_eq
+  - SATurday.Bridge.seqCompStk_update_first_eq
+  - SATurday.Bridge.seqCompStk_update_second_eq
+  - SATurday.Bridge.seqComp_step_copyToAuxPop_nil
+  - SATurday.Bridge.seqComp_step_copyToAuxPop_cons
+  - SATurday.Bridge.seqComp_step_copyToInPush
+
+  Frontier remaining: compose_projFirst_bitEnc.outputsFun, InP_implies_InNP,
+  classP_eq_classNP_implies_NP_eq_coNP (phase simulation still open).
+  Learned: opaque FinTM2.kDecidableEq blocks simp reduction of Function.update
+  at equal keys; Function.update_self with the machine instance closes the
+  residual stack equality after List.tail simplification.
+
+  Result: PARTIAL. All six order preserving copy steps are now accepted; full
+  P ⊆ NP still blocked on sequential phase simulation for outputsFun.
+  Next: formalize first then second phase simulation on seqCompComputer toward
+  compose_projFirst_bitEnc.outputsFun.
+
+  Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
+  scripts/accepted_declarations.txt

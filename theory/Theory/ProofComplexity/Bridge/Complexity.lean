@@ -1166,23 +1166,110 @@ theorem seqComp_step_copyToInPop_cons {βΓ : Type}
           rfl
       | inr k' => simp [seqCompStk, Function.update]
 
-/- Remaining copy steps that rewrite first or second stacks via Function.update
-stay in BridgeFrontier (FinTM2.kDecidableEq versus ambient update). -/
+/-- After empty pop of `k`, the stack family is unchanged when that stack is already `[]`. -/
+theorem update_self_of_eq_nil {K : Type} [DecidableEq K] {Γ : K → Type}
+    (S : ∀ k, List (Γ k)) (k : K) (h : S k = []) :
+    Function.update S k [] = S := by
+  funext k'
+  by_cases hk : k' = k
+  · subst hk; simp [Function.update, h]
+  · simp [Function.update, hk]
 
-end SATurday.Bridge
+/-- Pointwise: empty pop of first out stack leaves `seqCompStk` unchanged.
+Uses `Function.update_self` so the ambient `FinTM2.kDecidableEq` instance matches. -/
+theorem seqCompStk_update_first_nil_eq {βΓ : Type}
+    (tm1 tm2 : FinTM2)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    [DecidableEq (CompK tm1.K tm2.K)]
+    (hOut : S₁ tm1.k₁ = []) :
+    Function.update (seqCompStk S₁ aux S₂) (Sum.inl tm1.k₁) [] =
+      seqCompStk S₁ aux S₂ := by
+  funext t
+  by_cases ht : t = Sum.inl tm1.k₁
+  · subst ht
+    rw [Function.update_self]
+    simpa [seqCompStk] using hOut.symm
+  · rw [Function.update_of_ne ht]
 
-/-! ## Frontier: P ⊆ NP and bridge theorem 2
+/-- Pointwise: first out pop packages as `seqCompStk` of an updated first family. -/
+theorem seqCompStk_update_first_eq {βΓ : Type}
+    (tm1 tm2 : FinTM2)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (xs : List (tm1.Γ tm1.k₁))
+    [DecidableEq (CompK tm1.K tm2.K)]
+    [DecidableEq tm1.K] :
+    Function.update (seqCompStk S₁ aux S₂) (Sum.inl tm1.k₁) xs =
+      seqCompStk (Function.update S₁ tm1.k₁ xs) aux S₂ := by
+  funext t
+  by_cases ht : t = Sum.inl tm1.k₁
+  · subst ht
+    rw [Function.update_self]
+    simp [seqCompStk, Function.update]
+  · rw [Function.update_of_ne ht]
+    cases t with
+    | inl k' =>
+        have hk : ¬ k' = tm1.k₁ := by
+          intro h; exact ht (by rw [h])
+        simp [seqCompStk, Function.update, hk]
+    | inr t =>
+        cases t with
+        | inl u => cases u; simp [seqCompStk]
+        | inr k' => simp [seqCompStk]
 
-Accepted scaffolding includes order preserving `seqCompComputer`, stack helpers,
-and copy steps that touch only the aux stack. Remaining in Frontier: copy steps
-that update first or second stacks under `FinTM2.kDecidableEq`, phase simulation,
-`compose_projFirst_bitEnc.outputsFun`, `InP_implies_InNP`, and bridge theorem 2. -/
+/-- Pointwise: second input push packages as `seqCompStk` of an updated second family. -/
+theorem seqCompStk_update_second_eq {βΓ : Type}
+    (tm1 tm2 : FinTM2)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (v : List (tm2.Γ tm2.k₀))
+    [DecidableEq (CompK tm1.K tm2.K)]
+    [DecidableEq tm2.K] :
+    Function.update (seqCompStk S₁ aux S₂) (Sum.inr (Sum.inr tm2.k₀)) v =
+      seqCompStk S₁ aux (Function.update S₂ tm2.k₀ v) := by
+  funext t
+  by_cases ht : t = Sum.inr (Sum.inr tm2.k₀)
+  · subst ht
+    rw [Function.update_self]
+    simp [seqCompStk, Function.update]
+  · rw [Function.update_of_ne ht]
+    cases t with
+    | inl k' => simp [seqCompStk]
+    | inr t =>
+        cases t with
+        | inl u => cases u; simp [seqCompStk]
+        | inr k' =>
+            have hk : ¬ k' = tm2.k₀ := by
+              intro h; exact ht (by rw [h])
+            simp [seqCompStk, Function.update, hk]
 
-namespace SATurday.Bridge.BridgeFrontier
+/-- Empty out at `copyToAuxPop` jumps to aux→in without changing stacks. -/
+theorem seqComp_step_copyToAuxPop_nil {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (hOut : S₁ tm1.k₁ = []) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) S₁ aux S₂) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ aux S₂) := by
+  letI : DecidableEq tm1.K := tm1.kDecidableEq
+  letI : DecidableEq tm2.K := tm2.kDecidableEq
+  -- Use the machine's own DecidableEq so `Function.update` instances unify.
+  letI : DecidableEq (CompK tm1.K tm2.K) :=
+    (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).kDecidableEq
+  simp [seqCompComputer, seqCompCfg, seqCompStk, copyToAuxPopStmt, TM2.step,
+    TM2.stepAux, hOut, List.head?]
+  refine congrArg some ?_
+  refine congrArg (fun stk =>
+    (⟨some CompLabel.copyToInPop, (σ₁, σ₂, (none : Option βΓ)), stk⟩ :
+      (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).Cfg)) ?_
+  -- `[].tail` reduces to `[]`; empty update leaves the product stacks unchanged.
+  simp only [List.tail]
+  exact seqCompStk_update_first_nil_eq (βΓ := βΓ) tm1 tm2 S₁ aux S₂ hOut
 
-open SATurday.Bridge
-
-/-- Frontier: pop step of out→aux (nonempty). Blocked on stack update residual. -/
+/-- Nonempty out pop: buffer gets decoded head; first out stack drops that head. -/
 theorem seqComp_step_copyToAuxPop_cons {βΓ : Type}
     [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
     (tm1 tm2 : FinTM2)
@@ -1197,24 +1284,21 @@ theorem seqComp_step_copyToAuxPop_cons {βΓ : Type}
       some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPush)
         (σ₁, σ₂, some (decodeOut x))
         (Function.update S₁ tm1.k₁ xs) aux S₂) := by
-  sorry
+  letI : DecidableEq tm1.K := tm1.kDecidableEq
+  letI : DecidableEq tm2.K := tm2.kDecidableEq
+  letI : DecidableEq (CompK tm1.K tm2.K) :=
+    (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).kDecidableEq
+  simp [seqCompComputer, seqCompCfg, seqCompStk, copyToAuxPopStmt, TM2.step,
+    TM2.stepAux, hOut, List.head?]
+  refine congrArg some ?_
+  refine congrArg (fun stk =>
+    (⟨some CompLabel.copyToAuxPush, (σ₁, σ₂, some (decodeOut x)), stk⟩ :
+      (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).Cfg)) ?_
+  -- `(x :: xs).tail` reduces to `xs`; package via first-stack update lemma.
+  simp only [List.tail]
+  exact seqCompStk_update_first_eq (βΓ := βΓ) tm1 tm2 S₁ aux S₂ xs
 
-/-- Frontier: empty out jumps to aux→in. -/
-theorem seqComp_step_copyToAuxPop_nil {βΓ : Type}
-    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
-    (tm1 tm2 : FinTM2)
-    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
-    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
-    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
-    (hOut : S₁ tm1.k₁ = []) :
-    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
-      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
-        (σ₁, σ₂, none) S₁ aux S₂) =
-      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
-        (σ₁, σ₂, none) S₁ aux S₂) := by
-  sorry
-
-/-- Frontier: push step of aux→in (updates second input stack). -/
+/-- Push buffered symbol onto second input; return to aux→in pop. -/
 theorem seqComp_step_copyToInPush {βΓ : Type}
     [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
     (tm1 tm2 : FinTM2)
@@ -1228,7 +1312,30 @@ theorem seqComp_step_copyToInPush {βΓ : Type}
       some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
         (σ₁, σ₂, none) S₁ aux
         (Function.update S₂ tm2.k₀ (encodeIn b :: S₂ tm2.k₀))) := by
-  sorry
+  letI : DecidableEq tm1.K := tm1.kDecidableEq
+  letI : DecidableEq tm2.K := tm2.kDecidableEq
+  letI : DecidableEq (CompK tm1.K tm2.K) :=
+    (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).kDecidableEq
+  simp [seqCompComputer, seqCompCfg, seqCompStk, copyToInPushStmt, TM2.step,
+    TM2.stepAux]
+  refine congrArg some ?_
+  refine congrArg (fun stk =>
+    (⟨some CompLabel.copyToInPop, (σ₁, σ₂, (none : Option βΓ)), stk⟩ :
+      (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).Cfg)) ?_
+  exact seqCompStk_update_second_eq (βΓ := βΓ) tm1 tm2 S₁ aux S₂
+    (encodeIn b :: S₂ tm2.k₀)
+
+end SATurday.Bridge
+
+/-! ## Frontier: P ⊆ NP and bridge theorem 2
+
+Accepted scaffolding now includes all six order preserving copy steps.
+Remaining in Frontier: phase simulation / `outputsFun`, `InP_implies_InNP`, and
+bridge theorem 2. -/
+
+namespace SATurday.Bridge.BridgeFrontier
+
+open SATurday.Bridge
 
 /-- Local composition target: project the pair then run an InP characteristic.
 Machine skeleton is `seqCompComputer`; the evaluation proof is the remaining

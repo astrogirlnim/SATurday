@@ -835,3 +835,10 @@ SATurday.Bridge.seqComp_copy_steps_bound
 SATurday.Bridge.seqComp_step_copyToAuxPush
 SATurday.Bridge.seqComp_step_copyToInPop_nil
 SATurday.Bridge.seqComp_step_copyToInPop_cons
+SATurday.Bridge.update_self_of_eq_nil
+SATurday.Bridge.seqCompStk_update_first_nil_eq
+SATurday.Bridge.seqCompStk_update_first_eq
+SATurday.Bridge.seqCompStk_update_second_eq
+SATurday.Bridge.seqComp_step_copyToAuxPop_nil
+SATurday.Bridge.seqComp_step_copyToAuxPop_cons
+SATurday.Bridge.seqComp_step_copyToInPush
