@@ -4,6 +4,8 @@ Target: a complete, correct proof that `P != NP` or `P = NP`, with machine-check
 core arguments. Reboot of 2026-08-03: main attack relocked to the proof complexity
 ladder after the program audit (see docs/postmortems/).
 
+Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
+
 ## 0) Lock Problem Statement
 - [x] Fix exact target chain: proof system lower bounds -> NP != coNP -> P != NP
       (`P != NP` primary, `P = NP` secondary branch via a poly-bounded proof system).
