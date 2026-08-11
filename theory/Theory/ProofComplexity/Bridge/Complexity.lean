@@ -12,11 +12,12 @@ Cook Reckhow bridge pin. Constant bit InP nonvacuity, `encodePair`
 projection (`projFirstComputableInPolyTime`), local statement surgery toward
 composition (`seqCompComputer` with order preserving out→aux→in copy), and
 Bool right-constant composition (`comp_const_right`, NP nonvacuity) are
-certified. Closing `InP_implies_InNP` still needs sequential simulation of
-`compose_projFirst_bitEnc` (mathlib `TM2ComputableInPolyTime.comp` is
-`proof_wanted`).
+certified. Closing `InP_implies_InNP` still needs full-list copy induction glued to
+`compose_projFirst_bitEnc.outputsFun` (mathlib `TM2ComputableInPolyTime.comp` is
+`proof_wanted`). First or second phase `stepAux` lifts and multi-step iterate are
+certified; one-symbol copy evals are certified.
 
-LOG: R5 Bridge Complexity module (InP InNP seqComp order preserving copy)
+LOG: R5 Bridge Complexity module (InP InNP seqComp phase simulation)
 -/
 
 open Turing
@@ -1325,17 +1326,616 @@ theorem seqComp_step_copyToInPush {βΓ : Type}
   exact seqCompStk_update_second_eq (βΓ := βΓ) tm1 tm2 S₁ aux S₂
     (encodeIn b :: S₂ tm2.k₀)
 
+/-! ## First and second phase simulation (lift `stepAux` and multi-step) -/
+
+def liftFirstCfg {βΓ : Type} [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₂ : tm2.σ) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (c : tm1.Cfg) :
+    (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).Cfg :=
+  match c.l with
+  | none =>
+      seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (c.var, σ₂, none) c.stk aux S₂
+  | some l =>
+      seqCompCfg tm1 tm2 decodeOut encodeIn (some (.first l))
+        (c.var, σ₂, none) c.stk aux S₂
+
+def liftSecondCfg {βΓ : Type} [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ)
+    (c : tm2.Cfg) :
+    (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).Cfg :=
+  match c.l with
+  | none =>
+      seqCompCfg tm1 tm2 decodeOut encodeIn none
+        (σ₁, c.var, none) S₁ aux c.stk
+  | some l =>
+      seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second l))
+        (σ₁, c.var, none) S₁ aux c.stk
+
+theorem seqCompStk_update_first_inline {βΓ : Type}
+    (tm1 : FinTM2) {K₂ : Type} {Γ₂ : K₂ → Type}
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (Γ₂ k))
+    (k : tm1.K) (v : List (tm1.Γ k))
+    [DecidableEq (CompK tm1.K K₂)] [DecidableEq tm1.K] :
+    Function.update (seqCompStk (K₂ := K₂) (Γ₂ := Γ₂) S₁ aux S₂) (Sum.inl k) v =
+      seqCompStk (K₂ := K₂) (Γ₂ := Γ₂) (Function.update S₁ k v) aux S₂ := by
+  funext t
+  by_cases ht : t = Sum.inl k
+  · subst ht; rw [Function.update_self]; simp [seqCompStk, Function.update]
+  · rw [Function.update_of_ne ht]
+    cases t with
+    | inl k' =>
+        have hk : ¬ k' = k := by intro h; exact ht (by rw [h])
+        simp [seqCompStk, Function.update, hk]
+    | inr t =>
+        cases t with
+        | inl u => cases u; simp [seqCompStk]
+        | inr _ => simp [seqCompStk]
+
+theorem seqCompStk_update_second_inline {βΓ : Type}
+    {K₁ : Type} (tm2 : FinTM2) {Γ₁ : K₁ → Type}
+    (S₁ : ∀ k, List (Γ₁ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (k : tm2.K) (v : List (tm2.Γ k))
+    [DecidableEq (CompK K₁ tm2.K)] [DecidableEq tm2.K] :
+    Function.update (seqCompStk (K₁ := K₁) (Γ₁ := Γ₁) S₁ aux S₂) (Sum.inr (Sum.inr k)) v =
+      seqCompStk (K₁ := K₁) (Γ₁ := Γ₁) S₁ aux (Function.update S₂ k v) := by
+  funext t
+  by_cases ht : t = Sum.inr (Sum.inr k)
+  · subst ht; rw [Function.update_self]; simp [seqCompStk, Function.update]
+  · rw [Function.update_of_ne ht]
+    cases t with
+    | inl _ => simp [seqCompStk]
+    | inr t =>
+        cases t with
+        | inl u => cases u; simp [seqCompStk]
+        | inr k' =>
+            have hk : ¬ k' = k := by intro h; exact ht (by rw [h])
+            simp [seqCompStk, Function.update, hk]
+
+theorem firstPhase_stepAux {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (q : TM2.Stmt tm1.Γ tm1.Λ tm1.σ)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k)) :
+    TM2.stepAux
+      (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q)
+      (σ₁, σ₂, (none : Option βΓ)) (seqCompStk S₁ aux S₂) =
+    liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂ (TM2.stepAux q σ₁ S₁) := by
+  letI : DecidableEq tm1.K := tm1.kDecidableEq
+  letI : DecidableEq tm2.K := tm2.kDecidableEq
+  letI : DecidableEq (CompK tm1.K tm2.K) :=
+    (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).kDecidableEq
+  induction q generalizing σ₁ S₁ with
+  | push k f q ih =>
+      have hstk :
+          Function.update (seqCompStk S₁ aux S₂) (Sum.inl k) (f σ₁ :: S₁ k) =
+            seqCompStk (Function.update S₁ k (f σ₁ :: S₁ k)) aux S₂ :=
+        seqCompStk_update_first_inline (βΓ := βΓ) tm1 S₁ aux S₂ k (f σ₁ :: S₁ k)
+      have hq :
+          firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ)
+            (push k f q) =
+          push (Sum.inl k) (fun st : Compσ tm1.σ tm2.σ βΓ => f st.1)
+            (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q) :=
+        rfl
+      rw [hq]
+      change TM2.stepAux
+          (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q)
+          (σ₁, σ₂, none)
+          (Function.update (seqCompStk S₁ aux S₂) (Sum.inl k) (f σ₁ :: S₁ k)) =
+        liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂
+          (TM2.stepAux q σ₁ (Function.update S₁ k (f σ₁ :: S₁ k)))
+      rw [hstk]
+      exact ih σ₁ (Function.update S₁ k (f σ₁ :: S₁ k))
+  | peek k f q ih =>
+      have hq :
+          firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ)
+            (peek k f q) =
+          peek (Sum.inl k) (fun st o => (f st.1 o, st.2.1, st.2.2))
+            (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q) :=
+        rfl
+      rw [hq]
+      change TM2.stepAux
+          (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q)
+          (f σ₁ (S₁ k).head?, σ₂, none) (seqCompStk S₁ aux S₂) =
+        liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂
+          (TM2.stepAux q (f σ₁ (S₁ k).head?) S₁)
+      exact ih (f σ₁ (S₁ k).head?) S₁
+  | pop k f q ih =>
+      have hstk :
+          Function.update (seqCompStk S₁ aux S₂) (Sum.inl k) (S₁ k).tail =
+            seqCompStk (Function.update S₁ k (S₁ k).tail) aux S₂ :=
+        seqCompStk_update_first_inline (βΓ := βΓ) tm1 S₁ aux S₂ k (S₁ k).tail
+      have hq :
+          firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ)
+            (pop k f q) =
+          pop (Sum.inl k) (fun st o => (f st.1 o, st.2.1, st.2.2))
+            (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q) :=
+        rfl
+      rw [hq]
+      change TM2.stepAux
+          (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q)
+          (f σ₁ (S₁ k).head?, σ₂, none)
+          (Function.update (seqCompStk S₁ aux S₂) (Sum.inl k) (S₁ k).tail) =
+        liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂
+          (TM2.stepAux q (f σ₁ (S₁ k).head?) (Function.update S₁ k (S₁ k).tail))
+      rw [hstk]
+      exact ih (f σ₁ (S₁ k).head?) (Function.update S₁ k (S₁ k).tail)
+  | load f q ih =>
+      have hq :
+          firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ)
+            (load f q) =
+          load (fun st : Compσ tm1.σ tm2.σ βΓ => (f st.1, st.2.1, st.2.2))
+            (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q) :=
+        rfl
+      rw [hq, TM2.stepAux]
+      exact ih (f σ₁) S₁
+  | branch p q₁ q₂ ih₁ ih₂ =>
+      have hq :
+          firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ)
+            (branch p q₁ q₂) =
+          branch (fun st : Compσ tm1.σ tm2.σ βΓ => p st.1)
+            (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q₁)
+            (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ) q₂) :=
+        rfl
+      rw [hq, TM2.stepAux]
+      cases h : p σ₁ with
+      | true => simpa [h, cond] using ih₁ σ₁ S₁
+      | false => simpa [h, cond] using ih₂ σ₁ S₁
+  | goto f => rfl
+  | halt => rfl
+
+theorem secondPhase_stepAux {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (q : TM2.Stmt tm2.Γ tm2.Λ tm2.σ)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k)) :
+    TM2.stepAux
+      (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q)
+      (σ₁, σ₂, (none : Option βΓ)) (seqCompStk S₁ aux S₂) =
+    liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux (TM2.stepAux q σ₂ S₂) := by
+  letI : DecidableEq tm1.K := tm1.kDecidableEq
+  letI : DecidableEq tm2.K := tm2.kDecidableEq
+  letI : DecidableEq (CompK tm1.K tm2.K) :=
+    (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).kDecidableEq
+  induction q generalizing σ₂ S₂ with
+  | push k f q ih =>
+      have hstk :
+          Function.update (seqCompStk S₁ aux S₂) (Sum.inr (Sum.inr k)) (f σ₂ :: S₂ k) =
+            seqCompStk S₁ aux (Function.update S₂ k (f σ₂ :: S₂ k)) :=
+        seqCompStk_update_second_inline (βΓ := βΓ) tm2 S₁ aux S₂ k (f σ₂ :: S₂ k)
+      have hq :
+          secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ)
+            (push k f q) =
+          push (Sum.inr (Sum.inr k)) (fun st : Compσ tm1.σ tm2.σ βΓ => f st.2.1)
+            (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q) :=
+        rfl
+      rw [hq]
+      change TM2.stepAux
+          (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q)
+          (σ₁, σ₂, none)
+          (Function.update (seqCompStk S₁ aux S₂) (Sum.inr (Sum.inr k)) (f σ₂ :: S₂ k)) =
+        liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux
+          (TM2.stepAux q σ₂ (Function.update S₂ k (f σ₂ :: S₂ k)))
+      rw [hstk]
+      exact ih σ₂ (Function.update S₂ k (f σ₂ :: S₂ k))
+  | peek k f q ih =>
+      have hq :
+          secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ)
+            (peek k f q) =
+          peek (Sum.inr (Sum.inr k)) (fun st o => (st.1, f st.2.1 o, st.2.2))
+            (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q) :=
+        rfl
+      rw [hq]
+      change TM2.stepAux
+          (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q)
+          (σ₁, f σ₂ (S₂ k).head?, none) (seqCompStk S₁ aux S₂) =
+        liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux
+          (TM2.stepAux q (f σ₂ (S₂ k).head?) S₂)
+      exact ih (f σ₂ (S₂ k).head?) S₂
+  | pop k f q ih =>
+      have hstk :
+          Function.update (seqCompStk S₁ aux S₂) (Sum.inr (Sum.inr k)) (S₂ k).tail =
+            seqCompStk S₁ aux (Function.update S₂ k (S₂ k).tail) :=
+        seqCompStk_update_second_inline (βΓ := βΓ) tm2 S₁ aux S₂ k (S₂ k).tail
+      have hq :
+          secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ)
+            (pop k f q) =
+          pop (Sum.inr (Sum.inr k)) (fun st o => (st.1, f st.2.1 o, st.2.2))
+            (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q) :=
+        rfl
+      rw [hq]
+      change TM2.stepAux
+          (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q)
+          (σ₁, f σ₂ (S₂ k).head?, none)
+          (Function.update (seqCompStk S₁ aux S₂) (Sum.inr (Sum.inr k)) (S₂ k).tail) =
+        liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux
+          (TM2.stepAux q (f σ₂ (S₂ k).head?) (Function.update S₂ k (S₂ k).tail))
+      rw [hstk]
+      exact ih (f σ₂ (S₂ k).head?) (Function.update S₂ k (S₂ k).tail)
+  | load f q ih =>
+      have hq :
+          secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ)
+            (load f q) =
+          load (fun st : Compσ tm1.σ tm2.σ βΓ => (st.1, f st.2.1, st.2.2))
+            (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q) :=
+        rfl
+      rw [hq, TM2.stepAux]
+      exact ih (f σ₂) S₂
+  | branch p q₁ q₂ ih₁ ih₂ =>
+      have hq :
+          secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ)
+            (branch p q₁ q₂) =
+          branch (fun st : Compσ tm1.σ tm2.σ βΓ => p st.2.1)
+            (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q₁)
+            (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ) q₂) :=
+        rfl
+      rw [hq, TM2.stepAux]
+      cases h : p σ₂ with
+      | true => simpa [h, cond] using ih₁ σ₂ S₂
+      | false => simpa [h, cond] using ih₂ σ₂ S₂
+  | goto f => rfl
+  | halt => rfl
+
+
+theorem seqComp_step_first {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (l : tm1.Λ) (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k)) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some (.first l))
+        (σ₁, σ₂, none) S₁ aux S₂) =
+      some (liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂
+        (TM2.stepAux (tm1.m l) σ₁ S₁)) := by
+  change some
+      (TM2.stepAux
+        (firstPhaseStmt (K₂ := tm2.K) (Γ₂ := tm2.Γ) (βΓ := βΓ) (Λ₂ := tm2.Λ) (σ₂ := tm2.σ)
+          (tm1.m l))
+        (σ₁, σ₂, none) (seqCompStk S₁ aux S₂)) =
+    some (liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂
+      (TM2.stepAux (tm1.m l) σ₁ S₁))
+  exact congrArg some (firstPhase_stepAux tm1 tm2 decodeOut encodeIn (tm1.m l) σ₁ σ₂ S₁ aux S₂)
+
+theorem seqComp_step_second {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (l : tm2.Λ) (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k)) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second l))
+        (σ₁, σ₂, none) S₁ aux S₂) =
+      some (liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux
+        (TM2.stepAux (tm2.m l) σ₂ S₂)) := by
+  change some
+      (TM2.stepAux
+        (secondPhaseStmt (K₁ := tm1.K) (Γ₁ := tm1.Γ) (βΓ := βΓ) (Λ₁ := tm1.Λ) (σ₁ := tm1.σ)
+          (tm2.m l))
+        (σ₁, σ₂, none) (seqCompStk S₁ aux S₂)) =
+    some (liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux
+      (TM2.stepAux (tm2.m l) σ₂ S₂))
+  exact congrArg some (secondPhase_stepAux tm1 tm2 decodeOut encodeIn (tm2.m l) σ₁ σ₂ S₁ aux S₂)
+
+theorem liftFirstCfg_step {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₂ : tm2.σ) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (l : tm1.Λ) (var : tm1.σ) (stk : ∀ k, List (tm1.Γ k)) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂ ⟨some l, var, stk⟩) =
+      some (liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂
+        (TM2.stepAux (tm1.m l) var stk)) := by
+  simpa [liftFirstCfg] using
+    seqComp_step_first tm1 tm2 decodeOut encodeIn l var σ₂ stk aux S₂
+
+theorem option_bind_iterate_none {σ : Type} (f : σ → Option σ) :
+    ∀ n, (flip bind f)^[n] (none : Option σ) = none
+  | 0 => rfl
+  | n + 1 => by
+      simp only [Function.iterate_succ_apply, flip]
+      exact option_bind_iterate_none f n
+
+theorem liftFirstCfg_iterate {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₂ : tm2.σ) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (n : ℕ) (c c' : tm1.Cfg)
+    (h : (flip bind tm1.step)^[n] (some c) = some c') :
+    (flip bind (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m))^[n]
+      (some (liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂ c)) =
+      some (liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂ c') := by
+  induction n generalizing c with
+  | zero =>
+      injection h with h'
+      exact congrArg some (congrArg _ h')
+  | succ n ih =>
+      have h1 : (flip bind tm1.step)^[n] (tm1.step c) = some c' := by
+        simpa [Function.iterate_succ_apply, flip, Option.bind] using h
+      rcases c with ⟨lOpt, var, stk⟩
+      cases lOpt with
+      | none =>
+          have : (flip bind tm1.step)^[n] (none : Option tm1.Cfg) = some c' := by
+            simpa [FinTM2.step, TM2.step] using h1
+          rw [option_bind_iterate_none] at this
+          cases this
+      | some l =>
+          have hc : tm1.step ⟨some l, var, stk⟩ =
+              some (TM2.stepAux (tm1.m l) var stk) := by
+            simp [FinTM2.step, TM2.step]
+          have hstep :=
+            liftFirstCfg_step tm1 tm2 decodeOut encodeIn σ₂ aux S₂ l var stk
+          have h1' : (flip bind tm1.step)^[n]
+              (some (TM2.stepAux (tm1.m l) var stk)) = some c' := by
+            simpa [hc] using h1
+          have ih' := ih (TM2.stepAux (tm1.m l) var stk) h1'
+          simpa [Function.iterate_succ_apply, flip, Option.bind, hstep] using ih'
+
+/-- One product step lifts one second-machine step when the label is active. -/
+theorem liftSecondCfg_step {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ)
+    (l : tm2.Λ) (var : tm2.σ) (stk : ∀ k, List (tm2.Γ k)) :
+    TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+      (liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux ⟨some l, var, stk⟩) =
+      some (liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux
+        (TM2.stepAux (tm2.m l) var stk)) := by
+  simpa [liftSecondCfg] using
+    seqComp_step_second tm1 tm2 decodeOut encodeIn l σ₁ var S₁ aux stk
+
+/-- Multi-step second-phase lift (halt stays halt). -/
+theorem liftSecondCfg_iterate {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ)
+    (n : ℕ) (c c' : tm2.Cfg)
+    (h : (flip bind tm2.step)^[n] (some c) = some c') :
+    (flip bind (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m))^[n]
+      (some (liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux c)) =
+      some (liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux c') := by
+  induction n generalizing c with
+  | zero =>
+      injection h with h'
+      exact congrArg some (congrArg _ h')
+  | succ n ih =>
+      have h1 : (flip bind tm2.step)^[n] (tm2.step c) = some c' := by
+        simpa [Function.iterate_succ_apply, flip, Option.bind] using h
+      rcases c with ⟨lOpt, var, stk⟩
+      cases lOpt with
+      | none =>
+          have : (flip bind tm2.step)^[n] (none : Option tm2.Cfg) = some c' := by
+            simpa [FinTM2.step, TM2.step] using h1
+          rw [option_bind_iterate_none] at this
+          cases this
+      | some l =>
+          have hc : tm2.step ⟨some l, var, stk⟩ =
+              some (TM2.stepAux (tm2.m l) var stk) := by
+            simp [FinTM2.step, TM2.step]
+          have hstep :=
+            liftSecondCfg_step tm1 tm2 decodeOut encodeIn σ₁ S₁ aux l var stk
+          have h1' : (flip bind tm2.step)^[n]
+              (some (TM2.stepAux (tm2.m l) var stk)) = some c' := by
+            simpa [hc] using h1
+          have ih' := ih (TM2.stepAux (tm2.m l) var stk) h1'
+          simpa [Function.iterate_succ_apply, flip, Option.bind, hstep] using ih'
+
+/-- Package `EvalsToInTime` for a first-machine run into a product first-phase run. -/
+noncomputable def seqComp_evals_first {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₂ : tm2.σ) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (c c' : tm1.Cfg) (m : ℕ)
+    (h : EvalsToInTime tm1.step c (some c') m) :
+    EvalsToInTime
+      (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+      (liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂ c)
+      (some (liftFirstCfg tm1 tm2 decodeOut encodeIn σ₂ aux S₂ c')) m where
+  steps := h.steps
+  steps_le_m := h.steps_le_m
+  evals_in_steps := by
+    -- Coerce configs to `some` for the bind iterate.
+    simpa using
+      liftFirstCfg_iterate tm1 tm2 decodeOut encodeIn σ₂ aux S₂ h.steps c c'
+        (by simpa using h.evals_in_steps)
+
+/-- Package `EvalsToInTime` for a second-machine run into a product second-phase run. -/
+noncomputable def seqComp_evals_second {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ)
+    (c c' : tm2.Cfg) (m : ℕ)
+    (h : EvalsToInTime tm2.step c (some c') m) :
+    EvalsToInTime
+      (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+      (liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux c)
+      (some (liftSecondCfg tm1 tm2 decodeOut encodeIn σ₁ S₁ aux c')) m where
+  steps := h.steps
+  steps_le_m := h.steps_le_m
+  evals_in_steps := by
+    simpa using
+      liftSecondCfg_iterate tm1 tm2 decodeOut encodeIn σ₁ S₁ aux h.steps c c'
+        (by simpa using h.evals_in_steps)
+
+/-! ### Order preserving copy phase (list transfer) -/
+
+/-- One out→aux symbol: pop then push (2 steps). -/
+def seqComp_evals_copyToAux_one {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (x : tm1.Γ tm1.k₁) (xs : List (tm1.Γ tm1.k₁))
+    (hOut : S₁ tm1.k₁ = x :: xs) :
+    EvalsToInTime
+      (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) S₁ aux S₂)
+      (some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) (Function.update S₁ tm1.k₁ xs) (decodeOut x :: aux) S₂))
+      2 where
+  steps := 2
+  steps_le_m := by decide
+  evals_in_steps := by
+    change
+      ((some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+          (σ₁, σ₂, none) S₁ aux S₂)).bind
+        (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)).bind
+        (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) (Function.update S₁ tm1.k₁ xs) (decodeOut x :: aux) S₂)
+    rw [Option.bind, seqComp_step_copyToAuxPop_cons tm1 tm2 decodeOut encodeIn
+      σ₁ σ₂ S₁ aux S₂ x xs hOut]
+    change TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m
+        (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPush)
+          (σ₁, σ₂, some (decodeOut x)) (Function.update S₁ tm1.k₁ xs) aux S₂) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) (Function.update S₁ tm1.k₁ xs) (decodeOut x :: aux) S₂)
+    exact seqComp_step_copyToAuxPush tm1 tm2 decodeOut encodeIn σ₁ σ₂
+      (Function.update S₁ tm1.k₁ xs) aux S₂ (decodeOut x)
+
+/-- Empty out→aux pop jumps to aux→in (1 step). -/
+def seqComp_evals_copyToAux_nil {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (hOut : S₁ tm1.k₁ = []) :
+    EvalsToInTime
+      (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) S₁ aux S₂)
+      (some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ aux S₂))
+      1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) S₁ aux S₂)).bind
+        (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ aux S₂)
+    exact seqComp_step_copyToAuxPop_nil tm1 tm2 decodeOut encodeIn σ₁ σ₂ S₁ aux S₂ hOut
+
+/-- One aux→in symbol: pop then push (2 steps). -/
+def seqComp_evals_copyToIn_one {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (b : βΓ) (bs : List βΓ) (S₂ : ∀ k, List (tm2.Γ k)) :
+    EvalsToInTime
+      (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ (b :: bs) S₂)
+      (some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ bs
+        (Function.update S₂ tm2.k₀ (encodeIn b :: S₂ tm2.k₀))))
+      2 where
+  steps := 2
+  steps_le_m := by decide
+  evals_in_steps := by
+    change
+      ((some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+          (σ₁, σ₂, none) S₁ (b :: bs) S₂)).bind
+        (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)).bind
+        (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ bs
+        (Function.update S₂ tm2.k₀ (encodeIn b :: S₂ tm2.k₀)))
+    rw [Option.bind, seqComp_step_copyToInPop_cons tm1 tm2 decodeOut encodeIn
+      σ₁ σ₂ S₁ b bs S₂]
+    exact seqComp_step_copyToInPush tm1 tm2 decodeOut encodeIn σ₁ σ₂ S₁ bs S₂ b
+
+/-- Empty aux→in pop jumps to second main (1 step). -/
+def seqComp_evals_copyToIn_nil {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (S₂ : ∀ k, List (tm2.Γ k)) :
+    EvalsToInTime
+      (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ [] S₂)
+      (some (seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second tm2.main))
+        (σ₁, σ₂, none) S₁ [] S₂))
+      1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ [] S₂)).bind
+        (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m) =
+      some (seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second tm2.main))
+        (σ₁, σ₂, none) S₁ [] S₂)
+    exact seqComp_step_copyToInPop_nil tm1 tm2 decodeOut encodeIn σ₁ σ₂ S₁ S₂
+
 end SATurday.Bridge
 
 /-! ## Frontier: P ⊆ NP and bridge theorem 2
 
-Accepted scaffolding now includes all six order preserving copy steps.
-Remaining in Frontier: phase simulation / `outputsFun`, `InP_implies_InNP`, and
-bridge theorem 2. -/
+Accepted scaffolding includes copy steps, first or second phase `stepAux` lifts,
+multi-step phase iterate, and one-symbol copy evals.
+Remaining: induct full-list copy transfer, glue to `outputsFun`, `InP_implies_InNP`,
+and bridge theorem 2. -/
 
 namespace SATurday.Bridge.BridgeFrontier
 
 open SATurday.Bridge
+
+/-- Full out→aux list transfer (induction on the out stack). One-symbol steps are accepted. -/
+noncomputable def seqComp_evals_copyToAux {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k))
+    (xs : List (tm1.Γ tm1.k₁))
+    (hOut : S₁ tm1.k₁ = xs) :
+    EvalsToInTime
+      (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+        (σ₁, σ₂, none) S₁ aux S₂)
+      (some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) (Function.update S₁ tm1.k₁ [])
+        ((xs.map decodeOut).reverse ++ aux) S₂))
+      (2 * xs.length + 1) := by
+  sorry
+
+/-- Full aux→in list transfer (induction on aux). One-symbol steps are accepted. -/
+noncomputable def seqComp_evals_copyToIn {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (σ₁ : tm1.σ) (σ₂ : tm2.σ)
+    (S₁ : ∀ k, List (tm1.Γ k)) (aux : List βΓ) (S₂ : ∀ k, List (tm2.Γ k)) :
+    EvalsToInTime
+      (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+      (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+        (σ₁, σ₂, none) S₁ aux S₂)
+      (some (seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second tm2.main))
+        (σ₁, σ₂, none) S₁ []
+        (Function.update S₂ tm2.k₀ ((aux.map encodeIn).reverse ++ S₂ tm2.k₀))))
+      (2 * aux.length + 1) := by
+  sorry
 
 /-- Local composition target: project the pair then run an InP characteristic.
 Machine skeleton is `seqCompComputer`; the evaluation proof is the remaining

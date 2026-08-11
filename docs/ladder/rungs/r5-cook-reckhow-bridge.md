@@ -551,3 +551,53 @@ lower bound via the bridge.
 
   Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
   scripts/accepted_declarations.txt
+
+- 2026-08-11 formalize (seqComp first or second phase simulation): PARTIAL.
+
+  Target this cycle: prove first then copy then second phase evaluation for
+  `seqCompComputer`, enough to discharge `compose_projFirst_bitEnc.outputsFun`,
+  then finish `InP_implies_InNP`.
+
+  Existing names verified before editing (no guessing):
+  - mathlib: TM2.stepAux, FinTM2.step, EvalsToInTime, Function.update_self,
+    Function.update_of_ne, flip bind iterate
+  - repo: SATurday.Bridge.seqCompComputer, firstPhaseStmt, secondPhaseStmt,
+    seqComp_step_copyToAux*, seqComp_step_copyToIn*, BridgeFrontier.compose_projFirst_bitEnc
+  - docs: docs/ladder/rungs/r5-cook-reckhow-bridge.md
+
+  Variables and declarations used or added:
+  - liftFirstCfg, liftSecondCfg
+  - seqCompStk_update_first_inline, seqCompStk_update_second_inline
+  - firstPhase_stepAux, secondPhase_stepAux
+  - seqComp_step_first, seqComp_step_second
+  - liftFirstCfg_step, liftSecondCfg_step
+  - option_bind_iterate_none, liftFirstCfg_iterate, liftSecondCfg_iterate
+  - seqComp_evals_first, seqComp_evals_second
+  - seqComp_evals_copyToAux_one, seqComp_evals_copyToAux_nil
+  - seqComp_evals_copyToIn_one, seqComp_evals_copyToIn_nil
+  - Frontier: seqComp_evals_copyToAux, seqComp_evals_copyToIn,
+    compose_projFirst_bitEnc, InP_implies_InNP,
+    classP_eq_classNP_implies_NP_eq_coNP
+
+  Accepted (axiom gate PASS, merge_certified auto applied):
+  - SATurday.Bridge.liftFirstCfg, liftSecondCfg
+  - SATurday.Bridge.firstPhase_stepAux, secondPhase_stepAux
+  - SATurday.Bridge.liftFirstCfg_iterate, liftSecondCfg_iterate
+  - SATurday.Bridge.seqComp_evals_first, seqComp_evals_second
+  - SATurday.Bridge.seqComp_evals_copyToAux_one or _nil
+  - SATurday.Bridge.seqComp_evals_copyToIn_one or _nil
+
+  Frontier remaining: full-list copy induction (EvalsToInTime time field Nat
+  association blocked naive simpa), glue to outputsFun, InP_implies_InNP,
+  classP_eq_classNP_implies_NP_eq_coNP.
+  Learned: phase stepAux lifts need inline Function.update proofs under the
+  machine FinTM2.kDecidableEq instance; multi-step lift stops at remapped halt
+  (copyToAuxPop) without stepping the product past that config.
+
+  Result: PARTIAL. Phase simulation certified; full P ⊆ NP still blocked on
+  list copy induction then outputsFun glue.
+  Next: formalize seqComp_evals_copyToAux or copyToIn via evalsToInTime_le_mono
+  on the time field, then compose_projFirst_bitEnc.outputsFun.
+
+  Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
+  scripts/accepted_declarations.txt

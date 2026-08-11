@@ -842,3 +842,24 @@ SATurday.Bridge.seqCompStk_update_second_eq
 SATurday.Bridge.seqComp_step_copyToAuxPop_nil
 SATurday.Bridge.seqComp_step_copyToAuxPop_cons
 SATurday.Bridge.seqComp_step_copyToInPush
+
+# R5 Cook Reckhow bridge: seqComp first or second phase simulation (2026-08-11 formalize)
+SATurday.Bridge.liftFirstCfg
+SATurday.Bridge.liftSecondCfg
+SATurday.Bridge.seqCompStk_update_first_inline
+SATurday.Bridge.seqCompStk_update_second_inline
+SATurday.Bridge.firstPhase_stepAux
+SATurday.Bridge.secondPhase_stepAux
+SATurday.Bridge.seqComp_step_first
+SATurday.Bridge.seqComp_step_second
+SATurday.Bridge.liftFirstCfg_step
+SATurday.Bridge.option_bind_iterate_none
+SATurday.Bridge.liftFirstCfg_iterate
+SATurday.Bridge.liftSecondCfg_step
+SATurday.Bridge.liftSecondCfg_iterate
+SATurday.Bridge.seqComp_evals_first
+SATurday.Bridge.seqComp_evals_second
+SATurday.Bridge.seqComp_evals_copyToAux_one
+SATurday.Bridge.seqComp_evals_copyToAux_nil
+SATurday.Bridge.seqComp_evals_copyToIn_one
+SATurday.Bridge.seqComp_evals_copyToIn_nil
