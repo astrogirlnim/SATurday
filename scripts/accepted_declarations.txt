@@ -883,3 +883,20 @@ SATurday.Bridge.seqComp_evals_compose
 SATurday.Bridge.poly_eval_mono
 SATurday.Bridge.compose_projFirst_bitEnc
 SATurday.Bridge.InP_implies_InNP
+
+# R5 Cook Reckhow bridge: P closed under complement and NP eq coNP from P eq NP (2026-08-11 formalize)
+SATurday.Bridge.notBitComputer
+SATurday.Bridge.notBitCfg
+SATurday.Bridge.update_notBit_stk
+SATurday.Bridge.notBit_step_read
+SATurday.Bridge.notBit_step_write
+SATurday.Bridge.notBit_initList
+SATurday.Bridge.notBit_haltList
+SATurday.Bridge.notBit_evals_one
+SATurday.Bridge.notBitTime
+SATurday.Bridge.notBitTime_eval
+SATurday.Bridge.notBitComputableInPolyTime
+SATurday.Bridge.compose_notAfter
+SATurday.Bridge.not_chi_decides_complement
+SATurday.Bridge.InP_complement
+SATurday.Bridge.classP_eq_classNP_implies_NP_eq_coNP

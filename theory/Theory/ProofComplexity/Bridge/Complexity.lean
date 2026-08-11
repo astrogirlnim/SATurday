@@ -14,7 +14,8 @@ composition (`seqCompComputer` with order preserving out→aux→in copy), and
 Bool right-constant composition (`comp_const_right`, NP nonvacuity) are
 certified. Phase `stepAux` lifts, multi-step iterate, full-list order preserving
 copy, product `initList` / `haltList` packaging, and sequential `outputsFun`
-glue for `compose_projFirst_bitEnc` / `InP_implies_InNP` are certified
+glue for `compose_projFirst_bitEnc` / `InP_implies_InNP`, output bit flip
+closure of P, and `classP_eq_classNP_implies_NP_eq_coNP` are certified
 (mathlib `TM2ComputableInPolyTime.comp` remains `proof_wanted` in general).
 
 LOG: R5 Bridge Complexity module (InP InNP seqComp full-list copy)
@@ -2416,20 +2417,212 @@ theorem InP_implies_InNP (L : Language) (h : InP L) : InNP L := by
   refine ⟨zeroWitnessBound, ignoreWitness χ, ?_, ignoreWitness_zero_correct L χ hdec⟩
   simpa [ignoreWitness] using compose_projFirst_bitEnc hχ
 
-end SATurday.Bridge
+/-! ### P closed under complement and bridge theorem 2 -/
 
-/-! ## Frontier: bridge theorem 2
+/-- Flip one input bit onto the shared output stack: pop, push negation, reset state. -/
+def notBitComputer : FinTM2 where
+  K := Unit
+  k₀ := ⟨⟩
+  k₁ := ⟨⟩
+  Γ _ := Bool
+  Λ := Bool
+  main := false
+  σ := Bool
+  initialState := false
+  m
+    | false =>
+        TM2.Stmt.pop ⟨⟩ (fun _ o => Option.getD o false) <|
+          TM2.Stmt.goto fun _ => true
+    | true =>
+        TM2.Stmt.push ⟨⟩ (fun s => !s) <|
+          TM2.Stmt.load (fun _ => false) TM2.Stmt.halt
 
-`InP_implies_InNP` is accepted via `compose_projFirst_bitEnc`. Remaining:
-`classP_eq_classNP_implies_NP_eq_coNP` (uses complement closure once P = NP). -/
+def notBitCfg (l : Option Bool) (v : Bool) (s : List Bool) : notBitComputer.Cfg :=
+  ⟨l, v, fun _ => s⟩
 
-namespace SATurday.Bridge.BridgeFrontier
+theorem update_notBit_stk (s t : List Bool) :
+    Function.update (fun _ : Unit => s) PUnit.unit t = fun _ => t := by
+  funext k; cases k; simp [Function.update]
 
-open SATurday.Bridge
+theorem notBit_step_read (b : Bool) :
+    TM2.step notBitComputer.m (notBitCfg (some false) false [b]) =
+      some (notBitCfg (some true) b []) := by
+  simp [notBitComputer, notBitCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk => (⟨some true, b, stk⟩ : notBitComputer.Cfg))
+      (update_notBit_stk [b] [])
+
+theorem notBit_step_write (b : Bool) :
+    TM2.step notBitComputer.m (notBitCfg (some true) b []) =
+      some (notBitCfg none false [!b]) := by
+  simp [notBitComputer, notBitCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk => (⟨none, false, stk⟩ : notBitComputer.Cfg))
+      (update_notBit_stk [] [!b])
+
+theorem notBit_initList (s : List Bool) :
+    initList notBitComputer s = notBitCfg (some false) false s := by
+  simp [initList, notBitComputer, notBitCfg]
+
+theorem notBit_haltList (b : Bool) :
+    haltList notBitComputer [!b] = notBitCfg none false [!b] := by
+  simp [haltList, notBitComputer, notBitCfg]
+
+def notBit_evals_one (b : Bool) :
+    EvalsToInTime notBitComputer.step
+      (initList notBitComputer [b])
+      (some (haltList notBitComputer [!b])) 2 where
+  steps := 2
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change ((some (initList notBitComputer [b])).bind notBitComputer.step).bind
+        notBitComputer.step =
+      some (haltList notBitComputer [!b])
+    simp only [FinTM2.step, notBit_initList, notBit_haltList]
+    change (TM2.step notBitComputer.m (notBitCfg (some false) false [b])).bind
+        (TM2.step notBitComputer.m) =
+      some (notBitCfg none false [!b])
+    rw [notBit_step_read b]
+    exact notBit_step_write b
+
+noncomputable def notBitTime : Polynomial ℕ := 2
+
+theorem notBitTime_eval (n : ℕ) : notBitTime.eval n = 2 := by
+  simp [notBitTime]
+
+/-- Boolean negation under `bitEnc`. -/
+noncomputable def notBitComputableInPolyTime :
+    TM2ComputableInPolyTime bitEnc bitEnc (fun b => !b) where
+  tm := notBitComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := notBitTime
+  outputsFun a := by
+    change TM2OutputsInTime notBitComputer (List.map id (bitEnc a))
+      (some (List.map id (bitEnc (!a)))) (notBitTime.eval (bitEnc a).length)
+    simp only [bitEnc, List.map_id, notBitTime_eval]
+    exact notBit_evals_one a
+
+/-- Negate an InP characteristic after its bit output. -/
+noncomputable def compose_notAfter {χ : List Bool → Bool}
+    (hχ : TM2ComputableInPolyTime idBitEnc bitEnc χ) :
+    TM2ComputableInPolyTime idBitEnc bitEnc (fun x => !(χ x)) := by
+  let decodeOut : hχ.tm.Γ hχ.tm.k₁ → Bool := hχ.outputAlphabet
+  let encodeIn : Bool → notBitComputer.Γ notBitComputer.k₀ := id
+  let tm :=
+    seqCompComputer (βΓ := Bool) hχ.tm notBitComputer decodeOut encodeIn
+  let inA : tm.Γ tm.k₀ ≃ Bool := by
+    let e : tm.Γ tm.k₀ ≃ hχ.tm.Γ hχ.tm.k₀ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (hχ.tm.Γ hχ.tm.k₀))
+    exact e.trans hχ.inputAlphabet
+  let outA : tm.Γ tm.k₁ ≃ Bool := by
+    simpa [tm, seqCompComputer, CompΓ, CompK] using (Equiv.refl Bool)
+  refine
+    { tm := tm
+      inputAlphabet := inA
+      outputAlphabet := outA
+      -- Copy cost is 8 for a length-1 mid; seqCompTime at n=0 only budgets 6,
+      -- so add a constant 2 slack (still a polynomial).
+      time := seqCompTime hχ.time notBitTime + 2
+      outputsFun := ?out }
+  case out =>
+    intro x
+    change TM2OutputsInTime tm (List.map inA.invFun (idBitEnc x))
+      (some (List.map outA.invFun (bitEnc (!(χ x)))))
+      ((seqCompTime hχ.time notBitTime + 2).eval (idBitEnc x).length)
+    have hin :
+        List.map inA.invFun (idBitEnc x) =
+          List.map hχ.inputAlphabet.invFun (idBitEnc x) := by
+      apply congrArg (fun f : Bool → tm.Γ tm.k₀ => List.map f (idBitEnc x))
+      funext b
+      simp only [inA]
+      change (Equiv.refl _).symm (hχ.inputAlphabet.symm b) = hχ.inputAlphabet.symm b
+      rfl
+    have hout :
+        List.map outA.invFun (bitEnc (!(χ x))) = [!(χ x)] := by
+      change List.map (Equiv.refl Bool).symm (bitEnc (!(χ x))) = [!(χ x)]
+      simp [bitEnc]
+    have h1 := hχ.outputsFun x
+    have hmid :
+        (List.map hχ.outputAlphabet.invFun (bitEnc (χ x))).map (encodeIn ∘ decodeOut) =
+          [χ x] := by
+      simp [bitEnc, encodeIn, decodeOut]
+      rfl
+    have h2 : EvalsToInTime notBitComputer.step
+        (initList notBitComputer
+          ((List.map hχ.outputAlphabet.invFun (bitEnc (χ x))).map (encodeIn ∘ decodeOut)))
+        (some (haltList notBitComputer [!(χ x)])) 2 := by
+      rw [hmid]
+      exact notBit_evals_one (χ x)
+    have heval :=
+      seqComp_evals_compose (βΓ := Bool) hχ.tm notBitComputer decodeOut encodeIn
+        (List.map hχ.inputAlphabet.invFun (idBitEnc x))
+        (List.map hχ.outputAlphabet.invFun (bitEnc (χ x)))
+        [!(χ x)]
+        (hχ.time.eval (idBitEnc x).length) 2 h1 h2
+    -- mid has length 1, so compose time is time.eval + 3 + 3 + 2
+    have heval' :
+        EvalsToInTime (TM2.step tm.m)
+          (initList tm (List.map inA.invFun (idBitEnc x)))
+          (some (haltList tm (List.map outA.invFun (bitEnc (!(χ x))))))
+          (hχ.time.eval (idBitEnc x).length + 3 + 3 + 2) := by
+      have hlen :
+          (List.map hχ.outputAlphabet.invFun (bitEnc (χ x))).length = 1 := by
+        simp [bitEnc]
+      have h := heval
+      simp only [hlen, Nat.mul_one] at h
+      -- h : Evals ... (initList tm (map hχ.invFun ...)) (some (haltList tm [!χx])) (t+3+3+2)
+      rw [hin, hout]
+      exact h
+    have hbound :
+        hχ.time.eval (idBitEnc x).length + 3 + 3 + 2 ≤
+          (seqCompTime hχ.time notBitTime + 2).eval (idBitEnc x).length := by
+      simp only [seqCompTime_eval, notBitTime_eval, idBitEnc, Polynomial.eval_add,
+        Polynomial.eval_ofNat]
+      omega
+    exact evalsToInTime_le_mono heval' hbound
+
+
+/-- Negated characteristic decides the language complement. -/
+theorem not_chi_decides_complement (L : Language) (χ : List Bool → Bool)
+    (hdec : ∀ x, χ x = true ↔ L x) :
+    ∀ x, Bool.not (χ x) = true ↔ complement L x := by
+  intro x
+  cases hχx : χ x with
+  | false =>
+      have hL : ¬ L x := by
+        intro hL
+        have := (hdec x).mpr hL
+        exact Bool.noConfusion (hχx.symm.trans this)
+      simpa [complement] using hL
+  | true =>
+      have hL : L x := (hdec x).mp hχx
+      simp [complement, hL]
+
+/-- Deterministic poly time is closed under complement (flip the output bit). -/
+theorem InP_complement (L : Language) (h : InP L) : InP (complement L) := by
+  rcases h with ⟨χ, hχ, hdec⟩
+  refine ⟨fun x => Bool.not (χ x), compose_notAfter hχ, not_chi_decides_complement L χ hdec⟩
 
 /-- Bridge theorem 2: P = NP implies NP = coNP. -/
-theorem classP_eq_classNP_implies_NP_eq_coNP :
-    ClassP_eq_ClassNP → ClassNP_eq_ClassCoNP := by
-  sorry
+theorem classP_eq_classNP_implies_NP_eq_coNP
+    (h : ClassP_eq_ClassNP) : ClassNP_eq_ClassCoNP := by
+  intro L
+  constructor
+  · intro hNP
+    have hP : InP L := (h L).mpr hNP
+    exact InP_implies_InNP (complement L) (InP_complement L hP)
+  · intro hCo
+    have hPc : InP (complement L) := (h (complement L)).mpr (by simpa [InCoNP] using hCo)
+    have hP : InP L := by
+      simpa [complement_complement] using InP_complement (complement L) hPc
+    exact (h L).mp hP
 
-end SATurday.Bridge.BridgeFrontier
+end SATurday.Bridge
+
+/-! ## Frontier
+
+Cook Reckhow class equalities `InP_implies_InNP` and
+`classP_eq_classNP_implies_NP_eq_coNP` are accepted. Remaining R5 work is
+outside this module (FormulaEncoding / proof system pin). -/

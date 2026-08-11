@@ -676,3 +676,39 @@ lower bound via the bridge.
 
   Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
   scripts/accepted_declarations.txt
+
+- 2026-08-11 formalize (P complement closure and bridge theorem 2): SUCCESS.
+
+  Target this cycle: `InP_complement` via output bit flip, then
+  `classP_eq_classNP_implies_NP_eq_coNP`.
+
+  Existing names verified before editing (no guessing):
+  - SATurday.Bridge.seqComp_evals_compose, seqCompTime, InP_implies_InNP
+  - complement, complement_complement, ClassP_eq_ClassNP, ClassNP_eq_ClassCoNP
+  - constBitComputer pattern for Unit stack TM2
+  - mathlib: TM2.Stmt.pop, push, load, halt; TM2ComputableInPolyTime
+
+  Variables and declarations used or added:
+  - notBitComputer, notBitCfg, update_notBit_stk
+  - notBit_step_read, notBit_step_write, notBit_initList, notBit_haltList
+  - notBit_evals_one, notBitTime, notBitTime_eval, notBitComputableInPolyTime
+  - compose_notAfter (seqCompTime slack +2 for length-1 mid at n=0)
+  - not_chi_decides_complement, InP_complement
+  - classP_eq_classNP_implies_NP_eq_coNP (moved out of Frontier)
+
+  Accepted (axiom gate PASS, merge_certified auto applied):
+  - SATurday.Bridge.notBitComputer, compose_notAfter, InP_complement
+  - SATurday.Bridge.classP_eq_classNP_implies_NP_eq_coNP
+
+  Learned: seqCompTime at input length 0 budgets only 6 copy steps while a
+  length-1 mid needs 8; add a constant polynomial slack for bit flip compose.
+  Complexity.lean BridgeFrontier is now empty of sorries.
+
+  Result: SUCCESS for Cook Reckhow class equality bridge theorem 2 on pinned
+  TM2 classes.
+  Next: FormulaEncoding or proof system pin on R5, or audit the accepted
+  bridge package; R2 CS track remains a parallel active rung.
+
+  Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
+  scripts/accepted_declarations.txt
+
