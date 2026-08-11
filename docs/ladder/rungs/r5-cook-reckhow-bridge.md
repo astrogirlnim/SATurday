@@ -636,3 +636,43 @@ lower bound via the bridge.
 
   Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
   scripts/accepted_declarations.txt
+
+- 2026-08-11 formalize (seqComp init halt and InP implies InNP): SUCCESS.
+
+  Target this cycle: `seqComp_initList`, `seqComp_haltList`, full
+  `seqComp_evals_compose`, `compose_projFirst_bitEnc.outputsFun`, and
+  `InP_implies_InNP`.
+
+  Existing names verified before editing (no guessing):
+  - SATurday.Bridge.seqComp_evals_first, seqComp_evals_second
+  - seqComp_evals_copyToAux, seqComp_evals_copyToIn
+  - liftFirstCfg, liftSecondCfg, seqCompCfg, seqCompStk, emptyStk
+  - projFirst_evals, projFirstTime_bound, ignoreWitness, zeroWitnessBound
+  - mathlib: initList, haltList, TM2OutputsInTime, EvalsToInTime.trans
+    (accumulates as m₂ + m₁)
+
+  Variables and declarations used or added:
+  - initList_stk_k₀, initList_stk_of_ne, haltList_stk_k₁, haltList_stk_of_ne
+  - seqComp_initList, seqComp_haltList
+  - haltList_stk_cleared, initList_stk_eq_update_empty
+  - map_encode_decode_reverse_cancel, seqComp_evals_compose
+  - poly_eval_mono, compose_projFirst_bitEnc, InP_implies_InNP
+  - Frontier remaining: classP_eq_classNP_implies_NP_eq_coNP
+
+  Accepted (axiom gate PASS, merge_certified auto applied):
+  - SATurday.Bridge.seqComp_initList, seqComp_haltList
+  - SATurday.Bridge.seqComp_evals_compose
+  - SATurday.Bridge.compose_projFirst_bitEnc
+  - SATurday.Bridge.InP_implies_InNP
+
+  Learned: propositional rewrite on stk keys fails because Γ is key dependent;
+  unfold seqCompComputer so product k₀ or k₁ is definitionally Sum.inl or
+  Sum.inr. First halt remaps to copyToAuxPop via liftFirstCfg none branch.
+
+  Result: SUCCESS for PsubseteqNP on the pinned TM2 classes. Bridge theorem 2
+  remains Frontier.
+  Next: formalize classP_eq_classNP_implies_NP_eq_coNP using InP_implies_InNP
+  and complement closure, or audit the accepted PsubseteqNP certificate.
+
+  Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
+  scripts/accepted_declarations.txt

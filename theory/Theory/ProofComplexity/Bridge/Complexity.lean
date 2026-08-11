@@ -12,10 +12,10 @@ Cook Reckhow bridge pin. Constant bit InP nonvacuity, `encodePair`
 projection (`projFirstComputableInPolyTime`), local statement surgery toward
 composition (`seqCompComputer` with order preserving out→aux→in copy), and
 Bool right-constant composition (`comp_const_right`, NP nonvacuity) are
-certified. Closing `InP_implies_InNP` still needs `compose_projFirst_bitEnc.outputsFun`
-(mathlib `TM2ComputableInPolyTime.comp` is `proof_wanted`). Phase `stepAux`
-lifts, multi-step iterate, and full-list order preserving copy are certified;
-glue is blocked on `initList` / `haltList` packaging for `seqCompComputer`.
+certified. Phase `stepAux` lifts, multi-step iterate, full-list order preserving
+copy, product `initList` / `haltList` packaging, and sequential `outputsFun`
+glue for `compose_projFirst_bitEnc` / `InP_implies_InNP` are certified
+(mathlib `TM2ComputableInPolyTime.comp` remains `proof_wanted` in general).
 
 LOG: R5 Bridge Complexity module (InP InNP seqComp full-list copy)
 -/
@@ -26,6 +26,8 @@ open StateTransition
 open scoped Polynomial
 
 namespace SATurday.Bridge
+
+set_option maxHeartbeats 2000000
 
 /-! ## Class predicates (pinned 2026-08-04) -/
 
@@ -2011,51 +2013,419 @@ noncomputable def seqComp_evals_copyToIn {βΓ : Type}
       have h' := evalsToInTime_congr_end h (congrArg some hend)
       exact evalsToInTime_le_mono h' (by simp [List.length_cons]; omega)
 
-end SATurday.Bridge
+/-! ### Packaging: product initList / haltList as phase lifts -/
 
-/-! ## Frontier: P ⊆ NP and bridge theorem 2
+theorem initList_stk_k₀ (tm : FinTM2) (s : List (tm.Γ tm.k₀)) :
+    (initList tm s).stk tm.k₀ = s := by
+  simp [initList]
 
-Accepted scaffolding includes phase lifts and full-list order preserving copy.
-Remaining: glue to `outputsFun`, `InP_implies_InNP`, and bridge theorem 2. -/
+theorem initList_stk_of_ne (tm : FinTM2) (s : List (tm.Γ tm.k₀)) (k : tm.K)
+    (hne : k ≠ tm.k₀) : (initList tm s).stk k = [] := by
+  simp [initList, hne]
 
-namespace SATurday.Bridge.BridgeFrontier
+theorem haltList_stk_k₁ (tm : FinTM2) (s : List (tm.Γ tm.k₁)) :
+    (haltList tm s).stk tm.k₁ = s := by
+  simp [haltList]
 
-open SATurday.Bridge
+theorem haltList_stk_of_ne (tm : FinTM2) (s : List (tm.Γ tm.k₁)) (k : tm.K)
+    (hne : k ≠ tm.k₁) : (haltList tm s).stk k = [] := by
+  simp [haltList, hne]
 
-/-- Local composition target: project the pair then run an InP characteristic.
-Machine skeleton is `seqCompComputer`; the evaluation proof is the remaining
-obligation (same content as mathlib `TM2ComputableInPolyTime.comp` specialized
-to Bool pair encodings). -/
+theorem seqComp_initList {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (s : List (tm1.Γ tm1.k₀)) :
+    initList (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn) s =
+      liftFirstCfg tm1 tm2 decodeOut encodeIn tm2.initialState [] emptyStk
+        (initList tm1 s) := by
+  let tm := seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn
+  letI : DecidableEq tm1.K := tm1.kDecidableEq
+  letI : DecidableEq tm2.K := tm2.kDecidableEq
+  letI : DecidableEq (CompK tm1.K tm2.K) := tm.kDecidableEq
+  have hlift :
+      liftFirstCfg tm1 tm2 decodeOut encodeIn tm2.initialState [] emptyStk (initList tm1 s) =
+        seqCompCfg tm1 tm2 decodeOut encodeIn (some (.first tm1.main))
+          (tm1.initialState, tm2.initialState, none) (initList tm1 s).stk [] emptyStk := by
+    simp [liftFirstCfg, initList, seqCompCfg]
+  rw [hlift]
+  have hcfg :
+      initList tm s =
+        (⟨some (CompLabel.first tm1.main), (tm1.initialState, tm2.initialState, none),
+          (initList tm s).stk⟩ : tm.Cfg) := by
+    simp [initList, tm, seqCompComputer]
+  rw [hcfg]
+  refine congrArg (fun stk : ∀ k, List (tm.Γ k) =>
+      (⟨some (CompLabel.first tm1.main), (tm1.initialState, tm2.initialState, none), stk⟩ :
+        tm.Cfg)) ?_
+  funext k
+  change (initList tm s).stk k =
+    seqCompStk (initList tm1 s).stk ([] : List βΓ) emptyStk k
+  cases k with
+  | inl k1 =>
+      simp only [seqCompStk]
+      by_cases hk : k1 = tm1.k₀
+      · subst hk
+        -- Unfold tm so product k₀ is definitionally Sum.inl tm1.k₀
+            -- (propositional rw on stk keys fails: Γ is key-dependent).
+        simp only [tm, seqCompComputer]
+        exact (initList_stk_k₀ (seqCompComputer tm1 tm2 decodeOut encodeIn) s).trans
+          (initList_stk_k₀ tm1 s).symm
+      · have hneL : (Sum.inl k1 : CompK tm1.K tm2.K) ≠ tm.k₀ := by
+          simp only [tm, seqCompComputer]
+          exact fun h => hk (Sum.inl.inj h)
+        rw [initList_stk_of_ne tm s _ hneL, initList_stk_of_ne tm1 s k1 hk]
+        rfl
+  | inr u =>
+      cases u with
+      | inl v =>
+          cases v
+          simp only [seqCompStk]
+          have hne : (Sum.inr (Sum.inl ()) : CompK tm1.K tm2.K) ≠ tm.k₀ := by
+            simp only [tm, seqCompComputer]
+            intro h; cases h
+          exact initList_stk_of_ne tm s _ hne
+      | inr k2 =>
+          simp only [seqCompStk]
+          have hne : (Sum.inr (Sum.inr k2) : CompK tm1.K tm2.K) ≠ tm.k₀ := by
+            simp only [tm, seqCompComputer]
+            intro h; cases h
+          exact initList_stk_of_ne tm s _ hne
+
+theorem seqComp_haltList {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (s : List (tm2.Γ tm2.k₁)) :
+    haltList (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn) s =
+      liftSecondCfg tm1 tm2 decodeOut encodeIn tm1.initialState emptyStk []
+        (haltList tm2 s) := by
+  let tm := seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn
+  letI : DecidableEq tm1.K := tm1.kDecidableEq
+  letI : DecidableEq tm2.K := tm2.kDecidableEq
+  letI : DecidableEq (CompK tm1.K tm2.K) := tm.kDecidableEq
+  have hlift :
+      liftSecondCfg tm1 tm2 decodeOut encodeIn tm1.initialState emptyStk [] (haltList tm2 s) =
+        seqCompCfg tm1 tm2 decodeOut encodeIn none
+          (tm1.initialState, tm2.initialState, none) emptyStk [] (haltList tm2 s).stk := by
+    simp [liftSecondCfg, haltList, seqCompCfg]
+  rw [hlift]
+  have hcfg :
+      haltList tm s =
+        (⟨(none : Option (CompLabel tm1.Λ tm2.Λ)),
+          (tm1.initialState, tm2.initialState, none), (haltList tm s).stk⟩ : tm.Cfg) := by
+    simp [haltList, tm, seqCompComputer]
+  rw [hcfg]
+  refine congrArg (fun stk : ∀ k, List (tm.Γ k) =>
+      (⟨(none : Option (CompLabel tm1.Λ tm2.Λ)),
+        (tm1.initialState, tm2.initialState, none), stk⟩ : tm.Cfg)) ?_
+  funext k
+  change (haltList tm s).stk k =
+    seqCompStk (emptyStk : ∀ k, List (tm1.Γ k)) ([] : List βΓ) (haltList tm2 s).stk k
+  cases k with
+  | inl k1 =>
+      simp only [seqCompStk, emptyStk]
+      have hne : (Sum.inl k1 : CompK tm1.K tm2.K) ≠ tm.k₁ := by
+        simp only [tm, seqCompComputer]
+        intro h; cases h
+      exact haltList_stk_of_ne tm s _ hne
+  | inr u =>
+      cases u with
+      | inl v =>
+          cases v
+          simp only [seqCompStk]
+          have hne : (Sum.inr (Sum.inl ()) : CompK tm1.K tm2.K) ≠ tm.k₁ := by
+            simp only [tm, seqCompComputer]
+            intro h; cases h
+          exact haltList_stk_of_ne tm s _ hne
+      | inr k2 =>
+          simp only [seqCompStk]
+          by_cases hk : k2 = tm2.k₁
+          · subst hk
+        -- Unfold tm so product k₁ is definitionally Sum.inr (Sum.inr tm2.k₁)
+            -- (propositional rw on stk keys fails: Γ is key-dependent).
+            simp only [tm, seqCompComputer]
+            exact (haltList_stk_k₁ (seqCompComputer tm1 tm2 decodeOut encodeIn) s).trans
+              (haltList_stk_k₁ tm2 s).symm
+          · have hne : (Sum.inr (Sum.inr k2) : CompK tm1.K tm2.K) ≠ tm.k₁ := by
+              simp only [tm, seqCompComputer]
+              exact fun h => hk (by cases h; rfl)
+            rw [haltList_stk_of_ne tm s _ hne, haltList_stk_of_ne tm2 s k2 hk]
+            rfl
+
+/-! ### Full sequential evaluation (first, copy, second) -/
+
+theorem haltList_stk_cleared (tm : FinTM2) (s : List (tm.Γ tm.k₁)) :
+    Function.update (haltList tm s).stk tm.k₁ [] = emptyStk := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  funext k
+  by_cases hk : k = tm.k₁
+  · subst hk
+    rw [Function.update_self]
+    rfl
+  · rw [Function.update_of_ne hk, emptyStk, haltList_stk_of_ne tm s k hk]
+
+/-- initList stacks equal update of empty at the input key. -/
+theorem initList_stk_eq_update_empty (tm : FinTM2) (s : List (tm.Γ tm.k₀)) :
+    (initList tm s).stk = Function.update (emptyStk : ∀ k, List (tm.Γ k)) tm.k₀ s := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  funext k
+  by_cases hk : k = tm.k₀
+  · subst hk
+    rw [Function.update_self, initList_stk_k₀]
+  · rw [Function.update_of_ne hk, emptyStk, initList_stk_of_ne tm s k hk]
+
+/-- Double reverse of mapped mid recovers the composed encoding. -/
+theorem map_encode_decode_reverse_cancel {α β γ : Type}
+    (decodeOut : α → β) (encodeIn : β → γ) (mid : List α) :
+    ((mid.map decodeOut).reverse.map encodeIn).reverse =
+      mid.map (encodeIn ∘ decodeOut) := by
+  simp [List.map_reverse, List.reverse_reverse, List.map_map]
+
+/-- Full sequential evaluation: first run, out→aux→in copy, second run. -/
+noncomputable def seqComp_evals_compose {βΓ : Type}
+    [Inhabited βΓ] [Fintype βΓ] [DecidableEq βΓ]
+    (tm1 tm2 : FinTM2)
+    (decodeOut : tm1.Γ tm1.k₁ → βΓ) (encodeIn : βΓ → tm2.Γ tm2.k₀)
+    (inp : List (tm1.Γ tm1.k₀))
+    (mid : List (tm1.Γ tm1.k₁))
+    (out : List (tm2.Γ tm2.k₁))
+    (m1 m2 : ℕ)
+    (h1 : EvalsToInTime tm1.step (initList tm1 inp) (some (haltList tm1 mid)) m1)
+    (h2 : EvalsToInTime tm2.step
+      (initList tm2 (mid.map (encodeIn ∘ decodeOut)))
+      (some (haltList tm2 out)) m2) :
+    EvalsToInTime
+      (TM2.step (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn).m)
+      (initList (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn) inp)
+      (some (haltList (seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn) out))
+      (m1 + (2 * mid.length + 1) + (2 * mid.length + 1) + m2) := by
+  let tm := seqCompComputer (βΓ := βΓ) tm1 tm2 decodeOut encodeIn
+  letI : DecidableEq tm1.K := tm1.kDecidableEq
+  letI : DecidableEq tm2.K := tm2.kDecidableEq
+  have hInit :
+      initList tm inp =
+        liftFirstCfg tm1 tm2 decodeOut encodeIn tm2.initialState [] emptyStk
+          (initList tm1 inp) :=
+    seqComp_initList tm1 tm2 decodeOut encodeIn inp
+  have hFirst :=
+    seqComp_evals_first tm1 tm2 decodeOut encodeIn tm2.initialState [] emptyStk
+      (initList tm1 inp) (haltList tm1 mid) m1 h1
+  have hLiftHalt :
+      liftFirstCfg tm1 tm2 decodeOut encodeIn tm2.initialState [] emptyStk
+          (haltList tm1 mid) =
+        seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+          ((haltList tm1 mid).var, tm2.initialState, none)
+          (haltList tm1 mid).stk [] emptyStk := by
+    simp [liftFirstCfg, haltList]
+  have hCopyAux :=
+    seqComp_evals_copyToAux tm1 tm2 decodeOut encodeIn
+      (haltList tm1 mid).var tm2.initialState
+      (haltList tm1 mid).stk [] emptyStk mid
+      (haltList_stk_k₁ tm1 mid)
+  have hMid1 :
+      seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+          ((haltList tm1 mid).var, tm2.initialState, none)
+          (Function.update (haltList tm1 mid).stk tm1.k₁ [])
+          ((mid.map decodeOut).reverse ++ ([] : List βΓ)) emptyStk =
+        seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+          (tm1.initialState, tm2.initialState, none)
+          emptyStk (mid.map decodeOut).reverse emptyStk := by
+    have hv : (haltList tm1 mid).var = tm1.initialState := by simp [haltList]
+    have hs := haltList_stk_cleared tm1 mid
+    simp [hv, hs]
+  have hCopyAux' :=
+    evalsToInTime_congr_end hCopyAux (congrArg some hMid1)
+  -- Align copyAux time from reverse length to mid.length
+  have hlen : (mid.map decodeOut).reverse.length = mid.length := by
+    simp [List.length_reverse, List.length_map]
+  have hCopyAux'' :
+      EvalsToInTime (TM2.step tm.m)
+        (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToAuxPop)
+          ((haltList tm1 mid).var, tm2.initialState, none)
+          (haltList tm1 mid).stk [] emptyStk)
+        (some (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+          (tm1.initialState, tm2.initialState, none)
+          emptyStk (mid.map decodeOut).reverse emptyStk))
+        (2 * mid.length + 1) := by
+    -- hCopyAux' has time 2 * mid.length + 1 already (xs = mid)
+    exact hCopyAux'
+  have hCopyIn :=
+    seqComp_evals_copyToIn tm1 tm2 decodeOut encodeIn
+      tm1.initialState tm2.initialState emptyStk (mid.map decodeOut).reverse emptyStk
+  have hEnc := map_encode_decode_reverse_cancel decodeOut encodeIn mid
+  have hInit2Stk := initList_stk_eq_update_empty tm2 (mid.map (encodeIn ∘ decodeOut))
+  have hMid2 :
+      seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second tm2.main))
+          (tm1.initialState, tm2.initialState, none) emptyStk []
+          (Function.update (emptyStk : ∀ k, List (tm2.Γ k)) tm2.k₀
+            (((mid.map decodeOut).reverse.map encodeIn).reverse ++ emptyStk tm2.k₀)) =
+        liftSecondCfg tm1 tm2 decodeOut encodeIn tm1.initialState emptyStk []
+          (initList tm2 (mid.map (encodeIn ∘ decodeOut))) := by
+    have hstk :
+        Function.update (emptyStk : ∀ k, List (tm2.Γ k)) tm2.k₀
+            (((mid.map decodeOut).reverse.map encodeIn).reverse ++ emptyStk tm2.k₀) =
+          (initList tm2 (mid.map (encodeIn ∘ decodeOut))).stk := by
+      simp only [emptyStk, List.append_nil, hEnc]
+      exact hInit2Stk.symm
+    simp only [liftSecondCfg, initList]
+    exact congrArg (fun S₂ : ∀ k, List (tm2.Γ k) =>
+      seqCompCfg tm1 tm2 decodeOut encodeIn (some (.second tm2.main))
+        (tm1.initialState, tm2.initialState, none) emptyStk [] S₂) hstk
+  have hCopyIn' :=
+    evalsToInTime_congr_end hCopyIn (congrArg some hMid2)
+  have hCopyIn'' :
+      EvalsToInTime (TM2.step tm.m)
+        (seqCompCfg tm1 tm2 decodeOut encodeIn (some .copyToInPop)
+          (tm1.initialState, tm2.initialState, none)
+          emptyStk (mid.map decodeOut).reverse emptyStk)
+        (some (liftSecondCfg tm1 tm2 decodeOut encodeIn tm1.initialState emptyStk []
+          (initList tm2 (mid.map (encodeIn ∘ decodeOut)))))
+        (2 * mid.length + 1) := by
+    have h := hCopyIn'
+    -- time is 2 * reverse.length + 1
+    simpa [hlen] using h
+  have hSecond :=
+    seqComp_evals_second tm1 tm2 decodeOut encodeIn tm1.initialState emptyStk []
+      (initList tm2 (mid.map (encodeIn ∘ decodeOut))) (haltList tm2 out) m2 h2
+  have hHalt :
+      liftSecondCfg tm1 tm2 decodeOut encodeIn tm1.initialState emptyStk []
+          (haltList tm2 out) =
+        haltList tm out :=
+    (seqComp_haltList tm1 tm2 decodeOut encodeIn out).symm
+  have hSecond' :=
+    evalsToInTime_congr_end hSecond (congrArg some hHalt)
+  have hFirst' :
+      EvalsToInTime (TM2.step tm.m)
+        (initList tm inp)
+        (some (liftFirstCfg tm1 tm2 decodeOut encodeIn tm2.initialState [] emptyStk
+          (haltList tm1 mid))) m1 := by
+    simpa [hInit] using hFirst
+  have hFirst'' :=
+    evalsToInTime_congr_end hFirst' (congrArg some hLiftHalt)
+  -- EvalsToInTime.trans yields (m₂ + m₁); chain and reassociate at the end.
+  have t1 :=
+    EvalsToInTime.trans (TM2.step tm.m) m1 (2 * mid.length + 1) _ _ _
+      hFirst'' hCopyAux''
+  have t2 :=
+    EvalsToInTime.trans (TM2.step tm.m)
+      ((2 * mid.length + 1) + m1) (2 * mid.length + 1) _ _ _ t1 hCopyIn''
+  have t3 :=
+    EvalsToInTime.trans (TM2.step tm.m)
+      ((2 * mid.length + 1) + ((2 * mid.length + 1) + m1)) m2 _ _ _ t2 hSecond'
+  exact evalsToInTime_le_mono t3 (by omega)
+
+/-! ### P ⊆ NP via projFirst then characteristic -/
+
+theorem poly_eval_mono (p : Polynomial ℕ) {a b : ℕ} (h : a ≤ b) :
+    p.eval a ≤ p.eval b := by
+  simp only [Polynomial.eval_eq_sum]
+  refine Finset.sum_le_sum fun i _ => ?_
+  exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left h i)
+
 noncomputable def compose_projFirst_bitEnc {χ : List Bool → Bool}
     (hχ : TM2ComputableInPolyTime idBitEnc bitEnc χ) :
     TM2ComputableInPolyTime encodePair bitEnc (fun pw => χ pw.1) := by
+  let decodeOut : Bool → Bool := id
+  let encodeIn : Bool → hχ.tm.Γ hχ.tm.k₀ := hχ.inputAlphabet.symm
   let tm :=
-    seqCompComputer (βΓ := Bool) projFirstComputer hχ.tm
-      (fun b : Bool => b)
-      (fun b : Bool => hχ.inputAlphabet.symm b)
-  refine
-    { tm := tm
-      inputAlphabet := ?inA
-      outputAlphabet := ?outA
-      time := seqCompTime projFirstTime hχ.time
-      outputsFun := fun _ => by sorry }
-  case inA =>
-    -- Input stack is left injection of projFirst's Bool input stack.
+    seqCompComputer (βΓ := Bool) projFirstComputer hχ.tm decodeOut encodeIn
+  let inA : tm.Γ tm.k₀ ≃ Bool := by
     simpa [tm, seqCompComputer, CompΓ] using (Equiv.refl Bool)
-  case outA =>
-    -- Output stack is right injection of hχ's output stack.
+  let outA : tm.Γ tm.k₁ ≃ Bool := by
     let e : tm.Γ tm.k₁ ≃ hχ.tm.Γ hχ.tm.k₁ := by
       simpa [tm, seqCompComputer, CompΓ, CompK] using
         (Equiv.refl (hχ.tm.Γ hχ.tm.k₁))
     exact e.trans hχ.outputAlphabet
+  refine
+    { tm := tm
+      inputAlphabet := inA
+      outputAlphabet := outA
+      time := seqCompTime projFirstTime hχ.time
+      outputsFun := ?out }
+  case out =>
+    intro pw
+    rcases pw with ⟨x, w⟩
+    change TM2OutputsInTime tm (List.map inA.invFun (encodePair (x, w)))
+      (some (List.map outA.invFun (bitEnc (χ x))))
+      ((seqCompTime projFirstTime hχ.time).eval (encodePair (x, w)).length)
+    have hin :
+        List.map inA.invFun (encodePair (x, w)) = encodePair (x, w) := by
+      -- inA reduces to Equiv.refl Bool
+      change List.map (Equiv.refl Bool).symm (encodePair (x, w)) = encodePair (x, w)
+      simp [List.map_id]
+    have hout :
+        List.map outA.invFun (bitEnc (χ x)) =
+          List.map hχ.outputAlphabet.invFun (bitEnc (χ x)) := by
+      -- outputAlphabet.invFun : Bool → tm.Γ tm.k₁ embeds the bit encoding
+      apply congrArg (fun f : Bool → tm.Γ tm.k₁ => List.map f (bitEnc (χ x)))
+      funext b
+      simp only [outA]
+      -- (refl.trans e).symm b = e.symm (refl.symm b) = e.symm b
+      change (Equiv.refl _).symm (hχ.outputAlphabet.symm b) = hχ.outputAlphabet.symm b
+      rfl
+    have h1 := projFirst_evals x w
+    have hmid :
+        x.map (encodeIn ∘ decodeOut) =
+          List.map hχ.inputAlphabet.invFun (idBitEnc x) := by
+      simp [decodeOut, encodeIn, idBitEnc]
+    have h2 : EvalsToInTime hχ.tm.step
+        (initList hχ.tm (x.map (encodeIn ∘ decodeOut)))
+        (some (haltList hχ.tm (List.map hχ.outputAlphabet.invFun (bitEnc (χ x)))))
+        (hχ.time.eval (idBitEnc x).length) := by
+      simpa [hmid] using hχ.outputsFun x
+    have heval :=
+      seqComp_evals_compose (βΓ := Bool) projFirstComputer hχ.tm
+        decodeOut encodeIn (encodePair (x, w)) x
+        (List.map hχ.outputAlphabet.invFun (bitEnc (χ x)))
+        (3 * x.length + w.length + 3)
+        (hχ.time.eval (idBitEnc x).length) h1 h2
+    -- Rewrite endpoints to alphabet-mapped lists
+    have heval' :
+        EvalsToInTime (TM2.step tm.m)
+          (initList tm (List.map inA.invFun (encodePair (x, w))))
+          (some (haltList tm (List.map outA.invFun (bitEnc (χ x)))))
+          (3 * x.length + w.length + 3 + (2 * x.length + 1) + (2 * x.length + 1) +
+            hχ.time.eval (idBitEnc x).length) := by
+      rw [hin, hout]
+      exact heval
+    -- Time into seqCompTime.eval
+    set n := (encodePair (x, w)).length with hn_def
+    have hxlen : x.length ≤ n := by
+      simp [hn_def, length_encodePair]; omega
+    have h1le : 3 * x.length + w.length + 3 ≤ projFirstTime.eval n := by
+      simpa [hn_def] using projFirstTime_bound x w
+    have h2le : hχ.time.eval (idBitEnc x).length ≤ hχ.time.eval n := by
+      simpa [idBitEnc] using poly_eval_mono (hχ.time) hxlen
+    have hcopy : (2 * x.length + 1) + (2 * x.length + 1) ≤ 4 * (n + 1) := by
+      have : 4 * (x.length + 1) ≤ 4 * (n + 1) :=
+        Nat.mul_le_mul_left _ (Nat.add_le_add_right hxlen 1)
+      omega
+    have hbound :
+        3 * x.length + w.length + 3 + (2 * x.length + 1) + (2 * x.length + 1) +
+            hχ.time.eval (idBitEnc x).length ≤
+          (seqCompTime projFirstTime hχ.time).eval n := by
+      rw [seqCompTime_eval]
+      have hsum := Nat.add_le_add (Nat.add_le_add h1le hcopy) h2le
+      simpa [Nat.add_assoc] using hsum
+    simpa [hn_def] using evalsToInTime_le_mono heval' hbound
 
-/-- Every language in P is in NP (ignore the witness).
-Blocked on `compose_projFirst_bitEnc.outputsFun` (sequential simulation). -/
+/-- Every language in P is in NP (ignore the witness). -/
 theorem InP_implies_InNP (L : Language) (h : InP L) : InNP L := by
   rcases h with ⟨χ, hχ, hdec⟩
   refine ⟨zeroWitnessBound, ignoreWitness χ, ?_, ignoreWitness_zero_correct L χ hdec⟩
-  -- Need compose_projFirst_bitEnc hχ after transport ignoreWitness = χ ∘ fst.
-  sorry
+  simpa [ignoreWitness] using compose_projFirst_bitEnc hχ
+
+end SATurday.Bridge
+
+/-! ## Frontier: bridge theorem 2
+
+`InP_implies_InNP` is accepted via `compose_projFirst_bitEnc`. Remaining:
+`classP_eq_classNP_implies_NP_eq_coNP` (uses complement closure once P = NP). -/
+
+namespace SATurday.Bridge.BridgeFrontier
+
+open SATurday.Bridge
 
 /-- Bridge theorem 2: P = NP implies NP = coNP. -/
 theorem classP_eq_classNP_implies_NP_eq_coNP :
