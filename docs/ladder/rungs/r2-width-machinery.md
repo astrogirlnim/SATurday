@@ -1444,3 +1444,243 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   merge_certified auto applied per user blanket after green gate.
   Next: prove or formalize a probabilistic existence lift to matchable unsat
   Spreads at r = n/4, or construct an explicit cyclic overlapping unsat witness.
+
+- 2026-08-11 prove (pin probabilistic lift for
+  exists_cs_clause_expanding_3cnf): PARTIAL. Prose only; no Lean written.
+  Formalize is not ready: no inhabited matchable unsat Spreads at informative
+  scale, and single clause star or path polarities stay sat. Developed one
+  argument (random 3 CNF lift). Sketched then discarded as the developed route:
+  cyclic overlapping unsat witness and odd charge star reuse (see adversarial
+  pass). Details follow.
+
+  ### Statement restated with all quantifiers explicit
+
+  Target (already in Lean; Frontier; verified by ripgrep):
+  `SATurday.ProofComplexity.CSExpansionFrontier.exists_cs_clause_expanding_3cnf`
+
+  For every `N : ℕ` there exist `n : ℕ`, `F : CNF`, and `r α : ℕ` such that
+  `N ≤ n`, `(cnfVars F).card = n`, `cnfWidth F ≤ 3`, `α = 1`, `r = n / 4`,
+  `IsCSMatchable F r`, `HasCSClauseExpansion F r α`, `¬ Satisfiable F`, and
+  `cnfWidth F < csClauseWidthFloor r α`.
+
+  Classification: known (Chvatal and Szemeredi 1988; Ben Sasson and Wigderson
+  2001 packaging), adaptation into the clause set pin already certified for the
+  width machine. Gap class: hard.
+
+  ### Existing Lean names this argument consumes (verified present)
+
+  Predicates and floors:
+  `IsCSMatchable`, `HasCSClauseExpansion`, `csClauseWidthFloor`,
+  `Spreads`, `SpreadsSupports`, `cnfWidth`, `cnfVars`, `Satisfiable`,
+  `clauseSupport`.
+
+  Certified bridges and thresholds:
+  `hasCSClauseExpansion_one_of_spreads_two`,
+  `hasCSClauseExpansion_one_of_spreads_two_of_support_le`,
+  `spreads_of_spreadsSupports`, `spreadsSupports_of_spreads`,
+  `informative_cs_floor_requires_r_ge_eight`,
+  `informative_cs_floor_of_cnfWidth_eq_three`,
+  `isCSMatchable_of_minimallyUnsat`, `exists_minimallyUnsat_subset`,
+  `exists_matchable_subset_of_unsat`,
+  `cs_clause_expansion_width_lower_bound`.
+
+  Certified set system and polarity packaging (not yet a Frontier witness):
+  `matchingTripleSupports`, `exists_spreadsSupports_informative`,
+  `satisfiable_matchingTripleSupports_cnf`,
+  `loosePathSupports`, `exists_overlapping_spreadsSupports_informative`,
+  `cnfOfSupports`, `triplePolarityClause`,
+  `spreads_cnfOfSupports_of_spreadsSupports`,
+  `satisfiable_loosePathSupports_allTrue`,
+  `spreadWitnessCNF`, `exists_spreads_two_matchable_unsat_3cnf`
+  (informative floor fails at `r = 2`).
+
+  Star and Tseitin related (reuse limits recorded below):
+  `starCNF`, `starCNFWith`, `spreads_starCNF_of_expansion`,
+  `spreads_heawoodStarCNF_five`, `heawoodStarCNF_satisfiable`,
+  `tseitinCNF`, `tseitinCNF_unsat`, `oddCharge`, `parityForbidClause`.
+
+  ### Proposed new Lean names (ripgrep absent in theory and docs; do not create
+  files yet; edit `CSExpansion.lean` only when formalizing)
+
+  - `Ensemble3CNF (n m : ℕ)`: finite sample space of multisets of size `m` of
+    ordered triples from `n` variables, each triple equipped with a polarity
+    in `{true, false}^3`, represented as `CNF` after deduplication of identical
+    clauses.
+  - `random3CNF (n m : ℕ) (ω : EnsembleIndex n m) : CNF`: the concrete formula
+    at sample point `ω` (definitional; no probability axiom).
+  - `Spreads.supportsImage (F : CNF) (r γ : ℕ)`: sugar for
+    `SpreadsSupports (F.image clauseSupport) r γ` under injective supports.
+  - `exists_spreads_matchable_unsat_random3CNF`: for every `N`, there exist
+    `n ≥ max(N, 32)`, `m = Δ * n` with locked rational density `Δ`, and a
+    sample `ω`, such that writing `F := random3CNF n m ω` and `r := n / 4`
+    one has `cnfWidth F ≤ 3`, `Spreads F r 2`, `IsCSMatchable F r`,
+    `¬ Satisfiable F`, and `cnfWidth F < csClauseWidthFloor r 1`.
+  - `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`: packaging
+    lemma reducing the Frontier theorem to the previous inhabitant via
+    `hasCSClauseExpansion_one_of_spreads_two` and the floor threshold lemmas.
+
+  Density lock for formalization (explicit constant, not asymptotic prose):
+  take `Δ = 6` clauses per variable as the working density. Falsify calibration
+  at density `5.0` still saw SAT at small `n`; literature unsat threshold for
+  random 3 CNF sits near `4.267`, so `Δ = 6` is safely above unsat with room
+  for expansion and matchability error terms. The exact natural encoding is
+  `m = 6 * n` (no floats in Lean). If the counting inequalities fail at `6`,
+  the next try is `m = 7 * n`, still constant density.
+
+  ### Non vacuity
+
+  1. Width machine nonempty under hypotheses: certified by
+     `cs_clause_expansion_width_lower_bound` whenever `IsCSMatchable F r` and
+     `HasCSClauseExpansion F r 1` hold with `2 ≤ r`.
+  2. Informative floor nonempty as a numeric constraint: need `r ≥ 8` by
+     `informative_cs_floor_requires_r_ge_eight`, hence `n ≥ 32` under
+     `r = n / 4`. The probabilistic argument must produce some `n ≥ 32`.
+  3. Finite non informative CS inhabitant already exists
+     (`exists_spreads_two_matchable_unsat_3cnf`) so the predicates are not
+     empty of meaning; only the informative `∀ N` lift is open.
+  4. Ensemble nonempty: for every `n m` the finite set of polarity triple
+     sequences of length `m` is nonempty, so existence over samples is a
+     finite pigeonhole claim, not an analytic axiom.
+
+  ### Attack ideas sketched (exactly one developed)
+
+  A. Probabilistic random 3 CNF lift to matchable unsat Spreads at `r = n/4`
+     (DEVELOPED below).
+  B. Cyclic overlapping support system (`looseCycleSupports`, name absent)
+     with a polarity that is unsat while preserving SpreadsSupports at
+     informative `r`. Not developed: all true path polarity is certified sat,
+     and no absent name should be invented in Lean this cycle.
+  C. Odd charge reuse of `starCNFWith` or `tseitinCNF` on a cubic cage at
+     McGee scale. Not developed: `tseitinCNF_unsat` uses many clauses per
+     vertex (hurts Spreads by repeated supports), while single clause
+     `heawoodStarCNF` is certified satisfiable; these are different objects.
+
+  ### The one argument developed, in full
+
+  Fix `N : ℕ`. Set `n₀ := max(N, 32)`, and for each `n ≥ n₀` set `m := 6 * n`
+  and `r := n / 4` (so `r ≥ 8` and `csClauseWidthFloor r 1 = r / 2 ≥ 4 > 3`).
+
+  Step 1 (sample space). Let `Ω_n` be the finite set of length `m` sequences of
+  oriented 3 literal clauses on variable set `{0,...,n-1}`. Each `ω ∈ Ω_n`
+  determines `F_ω := random3CNF n m ω` after dropping duplicate clauses. Then
+  `cnfWidth F_ω ≤ 3` by construction, and `(cnfVars F_ω).card ≤ n`. For the pin
+  we further restrict to samples whose support uses every variable (standard
+  deletion or conditioning; probability of an isolated variable vanishes at
+  density 6). Target side lemma name when formalizing:
+  `random3CNF_cnfWidth_le` and `random3CNF_vars_card` (both absent today).
+
+  Step 2 (unsatisfiability with positive density). A fixed assignment
+  `a : Fin n → Bool` satisfies a uniform random 3 clause with probability
+  `7/8`. Independence over `m = 6 n` clauses gives
+  `Pr[a satisfies F_ω] ≤ (7/8)^(6 n)`. Union bound over `2^n` assignments:
+  `Pr[Satisfiable F_ω] ≤ 2^n * (7/8)^(6 n) = exp(n ln 2 + 6 n ln(7/8))`.
+  Numerically `ln(7/8) < -0.133`, so `6 * ln(7/8) + ln 2 < -0.10 < 0`, hence
+  the probability decays exponentially in `n`. For all sufficiently large `n`
+  a positive fraction of samples are unsatisfiable. Classification: known
+  first moment calculation; adaptation. Gap: routine arithmetic packaging in
+  Lean once a rational log inequality library path is chosen; hard only as
+  engineering of inequalities, not as new combinatorics.
+
+  Step 3 (Spreads at rate 2 on medium sets). Let `G` range over nonempty
+  subcollections of clauses of `F_ω` with `r/2 ≤ |G| ≤ r`. The failure event
+  that `|⋃_{C∈G} clauseSupport C| < 2 |G|` is a small union bound: the number
+  of candidate index sets of size `s ≤ r` is at most `C(m,s)`, and for each
+  the probability that all `s` random triples land inside a fixed vertex set
+  of size `u = 2 s - 1` is at most `(C(u,3)/C(n,3))^s` (ordered with
+  replacement bounds are equally fine). Summing
+  `∑_{s=r/2}^{r} C(m,s) * C(n, 2s-1) * (O(s^3 / n^3))^s` is `o(1)` for
+  `r = n/4` and `m = 6 n`, by the usual Chvatal and Szemeredi / Ben Sasson and
+  Wigderson estimates: medium clause sets expand because they would otherwise
+  concentrate on too few variables. On the injective support event (no two
+  sampled clauses share the exact same three variable support), this is exactly
+  `SpreadsSupports (F_ω.image clauseSupport) r 2`, and
+  `spreads_of_spreadsSupports` upgrades it to `Spreads F_ω r 2`. Classification:
+  known. Gap: hard (formal counting and factorial bounds in Lean).
+
+  Step 4 (matchability at scale `r`). Equivalent form used here: every subset
+  of at most `r` clauses is satisfiable. The complementary bad event is that
+  some `G ⊆ F_ω` with `|G| ≤ r` is unsatisfiable. Any unsatisfiable 3 CNF on
+  `u` variables needs at least `c u` clauses for an absolute `c > 0` in the
+  sparse regime, or more elementarily for the union bound: there are at most
+  `C(m,s)` candidate subsets of size `s ≤ r`, each lives on at most `3 s`
+  variables, and the probability a fixed `s` tuple is unsatisfiable is at most
+  the probability it covers all `2^{O(s)}` local assignments, which is
+  `≤ (7/8)^{Ω(s)}` after restricting to its own variables. Same shape as Step 2
+  at scale `s ≤ n/4` yields a union bound `o(1)`. Preferential formalization
+  path once unsat is known: extract a minimally unsatisfiable `G⋆ ⊆ F_ω` by
+  `exists_minimallyUnsat_subset`, note `|G⋆| > r` from the bad event failing,
+  then `isCSMatchable_of_minimallyUnsat` gives `IsCSMatchable F_ω (|G⋆| - 1)`
+  and hence `IsCSMatchable F_ω r` by `IsCSMatchable.mono`. Classification:
+  known. Gap: hard (matching the constants to `r = n/4` without silently
+  shrinking `r`).
+
+  Step 5 (package to the Frontier). From Steps 2 to 4, for all large `n` there
+  exists `ω` with `¬ Satisfiable F_ω`, `Spreads F_ω r 2`, and
+  `IsCSMatchable F_ω r`, together with `cnfWidth F_ω ≤ 3` and
+  `cnfWidth F_ω < csClauseWidthFloor r 1` by the `r ≥ 8` threshold. Apply
+  `hasCSClauseExpansion_one_of_spreads_two` to obtain
+  `HasCSClauseExpansion F_ω r 1`. If `(cnfVars F_ω).card` is slightly below
+  `n`, replace the pin witness `n` by that card and keep `r' := n' / 4` using
+  monotonicity of Spreads and matchability in `r` (need a short mono lemma for
+  `Spreads` in the scale parameter; name `Spreads.mono_r`, currently absent).
+  This yields `exists_cs_clause_expanding_3cnf`. No new axiom: only finite
+  counting over `Ω_n`.
+
+  Why certified constructive scaffolding does not already finish the lift:
+  `satisfiable_matchingTripleSupports_cnf` kills every polarity on a disjoint
+  matching; `satisfiable_loosePathSupports_allTrue` kills the simplest polarity
+  on the overlapping path; `spreadWitnessCNF` is matchable unsat Spreads but
+  only at `r = 2` (floor not informative). The probabilistic method is exactly
+  the remaining existence content of Block A under the present pin.
+
+  ### Gap list
+
+  1. Lean formalization of the finite ensemble and the three union bounds
+     (unsat, Spreads, matchability) at locked density `m = 6 n` and scale
+     `r = n / 4`. Gap class: hard.
+  2. Explicit natural number inequalities replacing `ln` prose (clear common
+     denominators; no analysis axioms). Gap class: hard engineering, routine
+     mathematics.
+  3. `Spreads.mono_r` and variable card cleanup so the witness `n` equals
+     `(cnfVars F).card` exactly as the Frontier quantifies. Gap class: routine.
+  4. Packaging theorem
+     `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` into the
+     Frontier sorry. Gap class: routine once gap 1 lands.
+  5. Optional constructive parallel (not this argument): inhabit a scalable
+     cyclic family only if a polarity is found that is unsat and still Spreads
+     at `r ≥ 8`; do not reopen matching or all true path polarities. Gap class:
+     unknown, and blocked twice already on related constructive attempts.
+
+  ### Self adversarial pass
+
+  - Quantifier order: the sample `ω` depends on `n`, which depends on `N`. No
+    uniformity across all `N` is claimed beyond existence.
+  - Hidden uniformity: Spreads and matchability are required on the same `F_ω`.
+    A proof that deletes clauses to restore matchability must recheck Spreads
+    after deletion; the argument above avoids deletion by union bound.
+  - Off by one: informative floor needs `r ≥ 8`, hence `n ≥ 32`, already in
+    `n₀`. Medium interval uses `r/2`, matching the certified expansion side.
+  - False friend with Tseitin: `tseitinCNF_unsat` does not give Spreads at cage
+    scale because multiple `parityForbidClause` rows share one vertex support;
+    citing it as a Block A closer would be unsound under the Spreads route.
+  - False friend with path overlap: overlap alone does not imply unsat
+    (`satisfiable_loosePathSupports_allTrue`).
+  - Does not secretly prove NP versus coNP or climb past resolution; it only
+    inhabits the hypothesis of the already certified CS width machine.
+  - Barrier audit: resolution level; classical barriers not applicable. No R3
+    flag required.
+  - Stop condition check: constructive matching and path polarity routes have
+    repeatedly hit satisfiability; this cycle changes approach to a pinned
+    probabilistic plan rather than grinding the same polarity search.
+
+  Most important thing learned: Block A is now a single counting obligation
+  over a finite ensemble at density `m = 6 n`, reducible through already
+  certified `hasCSClauseExpansion_one_of_spreads_two`; further SpreadsSupports
+  scaffolding without an unsat polarity or a random lift will not close the
+  Frontier.
+  Next: formalize `Ensemble3CNF` or `random3CNF` and the unsat first moment
+  bound as the first slice of
+  `exists_spreads_matchable_unsat_random3CNF`, else falsify only to calibrate
+  density `6` proof size curves (not required for the existence proof).
+  gate_pending: accept_prose for this probabilistic plan before deep
+  formalization spend.
