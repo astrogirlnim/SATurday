@@ -103,10 +103,11 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: formalize Spreads then matchability union bounds for
-   `exists_spreads_matchable_unsat_random3CNF` at density `m = 6 n` and scale
-   `r = n/4` (unsat first-moment `exists_unsat_random3CNF` done; edit
-   CSExpansion.lean only).
+1. R2: after accept_prose on the 2026-08-11 occupancy revision, formalize
+   occupancy Spreads fibers (not crude `spreadsFailureTerm`) then matchability
+   for `exists_spreads_matchable_unsat_random3CNF` at density `m = 6 n` and
+   scale `r = n/4` (unsat first-moment done; crude close certified dead at
+   `n = 32`; edit CSExpansion.lean only).
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or

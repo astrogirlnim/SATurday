@@ -1782,3 +1782,187 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   algebra on the same union bound.
   Next: prove cycle to revise the probabilistic Spreads plan, then formalize
   the revised count.
+
+- 2026-08-11 prove (revise probabilistic Spreads plan after crude obstruction):
+  PARTIAL. Prose only; no Lean written. Target statement remains
+  `CSExpansionFrontier.exists_spreads_matchable_unsat_random3CNF` feeding
+  `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` into
+  `CSExpansionFrontier.exists_cs_clause_expanding_3cnf`.
+
+  ### Verified Lean names (ripgrep; no guessing)
+
+  Accepted, used by the plan:
+  `EnsembleIndex`, `Ensemble3CNF`, `Oriented3Clause`, `Oriented3Clause.support`,
+  `Oriented3Clause.memSupport`, `random3CNFDensity`, `random3CNFClauseCount`,
+  `random3CNFMatchScale`, `random3CNF`, `mem_random3CNF`, `random3CNF_cnfWidth_le`,
+  `random3CNF_vars_subset_range`, `random3CNF_vars_card`, `ensembleIndex_nonempty`,
+  `card_oriented3Clause`, `card_ensembleIndex`, `exists_unsat_random3CNF`,
+  `exists_unsat_random3CNF_ge_thirty_two`, `indexSupport`, `indexSupportFin`,
+  `supportConcentrated`, `card_ensembleIndex_supportConcentrated`,
+  `SpreadsIndices`, `spreads_random3CNF_of_spreadsIndices`,
+  `exists_spreadsIndices_of_univ_card_lt`, `spreadsFailureTerm`,
+  `spreadsFailureTerm_lt_ensemble_iff`, `spreadsFailureTerm_core_lt_iff`,
+  `spreads_crude_core_ge_at_thirty_two`, `spreads_crude_core_not_lt_at_thirty_two`,
+  `spreads_crude_term_not_lt_eight_pow_at_thirty_two`,
+  `random3CNFMatchScale_thirty_two`, `random3CNFClauseCount_thirty_two`,
+  `isCSMatchable_of_unsat_min_card`, `isCSMatchable_of_minimallyUnsat_card_gt`,
+  `Spreads`, `Spreads.mono_r`, `IsCSMatchable`, `HasCSClauseExpansion`,
+  `hasCSClauseExpansion_one_of_spreads_two`, `csClauseWidthFloor`,
+  `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`.
+
+  Frontier (honest sorry):
+  `CSExpansionFrontier.exists_spreads_matchable_unsat_random3CNF`,
+  `CSExpansionFrontier.exists_cs_clause_expanding_3cnf`.
+
+  Absent names proposed for later formalization (verified absent today):
+  `card_ensembleIndex_support_card_lt`, `spreadsOccupancyTerm`,
+  `spreadsOccupancyTerm_lt_ensemble_iff`,
+  `exists_spreadsIndices_of_occupancy_sum_lt`.
+
+  ### Statement restated
+
+  For every `N : ℕ` there exist `n : ℕ` and
+  `ω : EnsembleIndex n (random3CNFClauseCount n)` such that, writing
+  `F := random3CNF n (random3CNFClauseCount n) ω` and
+  `r := random3CNFMatchScale n` (= `n / 4`), one has
+  `max N 32 ≤ n`, `(cnfVars F).card = n`, `cnfWidth F ≤ 3`,
+  `Spreads F r 2`, `IsCSMatchable F r`, `¬ Satisfiable F`, and
+  `cnfWidth F < csClauseWidthFloor r 1`.
+
+  Non vacuity: `ensembleIndex_nonempty` inhabits the sample space;
+  `exists_unsat_random3CNF` already produces unsat samples at every `n ≥ 1`;
+  `spreadWitnessCNF` inhabits the predicates `Spreads`, `IsCSMatchable`, and
+  unsat at non informative `r = 2`, so the quantified properties are not empty
+  of meaning. The open content is the joint informative lift.
+
+  ### Why the prior Step 3 close is dead (not just at n = 32)
+
+  Cluster 20 certified
+  `¬ (C(192,8) C(32,15) 15^24 < 32^24)` as
+  `spreads_crude_core_not_lt_at_thirty_two`, so the cancelled crude core from
+  `spreadsFailureTerm` fails at the informative minimum.
+
+  First principles kill more than that sample. For `s` linear in `n` with
+  `|U| = 2 s` and density `Δ = 6`, the standard estimate
+  `(e m / s)^s (e n / |U|)^{|U|} (|U|/n)^{3 s}` simplifies to
+  `(2 e^3 Δ)^s ≈ 241^s > 1` for every `s ≥ 1`. So enlarging `n` alone, or
+  shrinking the locked scale `r = n / 4` while keeping the same
+  `C(m,s) C(n,2s-1) ((2s-1)/n)^{3 s}` skeleton, cannot make the crude close
+  work at rate 2 and density 6. Lowering density enough for that skeleton
+  (`Δ < 1/(2 e^3)`) would break the certified unsat first moment
+  (`m ≥ 6 n` from `7^6 < 2^17`). Conclusion: Step 3 must change counting
+  method, not just parameters inside `spreadsFailureTerm`.
+
+  ### Attack ideas sketched (exactly one developed)
+
+  A. Occupancy large deviation on fixed index sets, then union only over
+     `C(m,s)` choices of `S` (DEVELOPED below). Keeps `m = 6 n` and
+     `r = n / 4`.
+  B. Frontier pin revision to a smaller scale such as `r = n / 8` together with
+     a non crude count. Not developed: pin change touches
+     `random3CNFMatchScale`, packaging, and both Frontier statements; try only
+     if A fails Nat calibration at large `n`.
+  C. Constructive cyclic or cage polarity. Not developed: matching and path
+     polarities already blocked; stop conditions forbid a third grind.
+
+  ### The one argument developed (revised Block A Step 3)
+
+  Keep Steps 1, 2, 4, and 5 of the bf4a212 plan and the Cluster 17 to 19
+  scaffolding. Replace only the Spreads failure estimate.
+
+  Fix `N : ℕ`. Choose `n₀ := max(N, n⋆)` for an absolute threshold `n⋆ ≥ 32`
+  large enough that the occupancy sums below are strictly less than
+  `|EnsembleIndex n (6 n)| = (8 n^3)^{6 n}` (existence only; `n⋆` is a finite
+  Nat witness, not an asymptotic gesture). Set `m := 6 * n`, `r := n / 4`.
+
+  Step 3 revised (occupancy, not crude `U` union). For each medium cardinality
+  `s` with `r / 2 ≤ s ≤ r` and each fixed `S : Finset (Fin m)` with
+  `S.card = s`, view the `3 s` coordinates of `(ω i)_{i ∈ S}` as throwing
+  `3 s` balls into `n` bins (oriented model: each atom contributes three
+  independent `Fin n` coordinates). Write `X_S(ω) := (indexSupportFin ω S).card`.
+  Then `¬ SpreadsIndices ω r` yields some medium `S` with `X_S(ω) < 2 s`
+  by `exists_concentrated_fin_of_not_spreadsIndices` plus
+  `card_indexSupportFin`.
+
+  Mean coverage at the hardest end `s = r = n / 4`:
+  `E[X] = n (1 - ((n-1)/n)^{3 s}) ≈ n (1 - e^{-3/4}) ≈ 0.528 n`, while the
+  Spreads failure threshold is `2 s = n / 2`. So the mean sits strictly above
+  the threshold by about `0.028 n` for large `n`. A Chernoff or relative
+  entropy lower tail on balls and bins therefore bounds
+  `|{ω : X_S(ω) < 2 s}| ≤ ρ^s (8 n^3)^{m}` for some `ρ < 1` depending only on
+  the locked density and scale (or an equivalent pure Nat form without naming
+  `ρ`). Crucially this bound is for a fixed `S`: there is no factor
+  `C(n, 2 s - 1)`.
+
+  Union over at most `C(m,s)` index sets and over `s ∈ [r/2, r]` gives a
+  failure count
+  `∑_s C(m,s) · |{ω : X_{S_0} < 2 s}|`
+  (any representative `S_0` of size `s`). Target inequality name when
+  formalizing: `spreadsOccupancyTerm_lt_ensemble_iff` and
+  `exists_spreadsIndices_of_occupancy_sum_lt`, feeding the already certified
+  `exists_spreadsIndices_of_univ_card_lt`. Then
+  `spreads_random3CNF_of_spreadsIndices` upgrades to `Spreads F r 2`.
+
+  Why this is tighter than Cluster 20: the crude term multiplies by
+  `C(n, 2 s - 1)`, which at `s = n / 4` is about `2^n / poly(n)` and is exactly
+  the entropy that cancelled the `((2 s)/n)^{3 s}` decay. Occupancy never
+  introduces that factor.
+
+  Steps 2 and 4 unchanged in content: unsat via `exists_unsat_random3CNF`;
+  matchability via large minimally unsat cores and
+  `isCSMatchable_of_unsat_min_card`. Same sample must satisfy all three; the
+  three bad event counts must sum to less than `|Ω|`. Classification of the
+  occupancy step: adaptation of classical balls and bins tails to the
+  oriented ensemble already formalized. Gap class: hard (Nat packaging of the
+  lower tail at `s = n / 4`, where the mean to threshold gap is thin).
+
+  Fallback recorded but not developed: if the `r = n / 4` lower tail refuses to
+  close in Nat arithmetic, revise the pin to `r = n / 8` (still
+  `csClauseWidthFloor r 1 = r / 2 ≥ 4` once `n ≥ 64`) so that at `s = r` one
+  has mean coverage `n (1 - e^{-3/8}) ≈ 0.313 n` against threshold `0.25 n`, a
+  wider margin. That fallback needs a human pin decision on
+  `random3CNFMatchScale` and both Frontier `r = n / 4` equations.
+
+  ### Gap list
+
+  1. Explicit Nat lower tail: for each `s ≤ n / 4`, bound
+     `Fintype.card { ω // (indexSupportFin ω S).card < 2 s }` without passing
+     through `C(n, 2 s - 1) (2 s - 1)^{3 s}`. Gap class: hard.
+  2. Sum over medium `s` of `C(6 n, s)` times that fiber strictly below
+     `(8 n^3)^{6 n}` for all `n ≥ n⋆`. Gap class: hard engineering.
+  3. Joint intersection with the unsat and matchability good sets (add the three
+     failure counts). Gap class: hard but routine once each fiber is closed.
+  4. Exact `(cnfVars F).card = n` cleanup under the existing
+     `Spreads.mono_r` path. Gap class: routine.
+  5. Optional pin fallback to `r = n / 8` if gap 2 fails at `r = n / 4`.
+     Gap class: unknown until gap 2 is attempted; requires accept_prose on a
+     pin patch before formalize.
+
+  ### Self adversarial pass
+
+  - Quantifier order: `n` depends on `N` and on `n⋆`; `ω` depends on `n`. No
+    uniformity beyond existence.
+  - Thin margin: at `s = n / 4` the occupancy mean is only about six percent
+    above `2 s`. Off by one in the threshold (`< 2 s` versus `≤ 2 s - 1`) or
+    in the with replacement model could erase the gap; proofs must track the
+    exact `indexSupportFin` cardinality and the oriented coordinate model.
+  - Hidden uniformity: same `ω` for unsat, Spreads, and matchability; no
+    deletion after the fact.
+  - Crude scaffolding reuse: `spreadsFailureTerm` and
+    `spreads_crude_core_not_lt_at_thirty_two` remain as obstruction certificates;
+    they must not be cited as a positive close.
+  - Larger `n` alone under crude counting would not work; this revision changes
+    the counting method, satisfying the stop rule against repeating a twice
+    blocked approach.
+  - Does not climb past resolution or claim NP versus coNP; it only aims to
+    inhabit hypotheses of the certified CS width machine.
+  - Barrier: resolution level; no R3 audit flag.
+
+  Most important thing learned: the Cluster 20 obstruction is structural for
+  crude rate 2 union bounds at density 6, so Block A Step 3 must switch to an
+  occupancy (fixed `S`) tail and only then union over index sets; parameter
+  tweaks inside `spreadsFailureTerm` are a dead branch.
+  Next: human gate accept_prose on this occupancy revision, then formalize Nat
+  occupancy fibers toward `exists_spreads_matchable_unsat_random3CNF` (not
+  approved until the gate passes).
+  gate_pending: accept_prose.

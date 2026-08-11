@@ -51,9 +51,12 @@ R4-class results plus the certified R5 bridge.
     (`exists_unsat_random3CNF`) merged 2026-08-11; Spreads and matchability
     union-bound scaffolding (`SpreadsIndices`, concentration fibers,
     `isCSMatchable_of_unsat_min_card`) merged 2026-08-11; Spreads summed choose
-    packaging and crude close obstruction at n = 32 merged 2026-08-11; Frontier
-    exists_spreads_matchable_unsat_random3CNF and exists_cs_clause_expanding_3cnf
-    still need a tighter Spreads count or pin revision)
+    packaging and crude close obstruction at n = 32 merged 2026-08-11; prove
+    revision 2026-08-11: abandon crude `spreadsFailureTerm` close, switch Step 3
+    to occupancy tails at locked `m = 6 n`, `r = n / 4` (pin shrink fallback
+    recorded); Frontier exists_spreads_matchable_unsat_random3CNF and
+    exists_cs_clause_expanding_3cnf still open, accept_prose pending on the
+    occupancy plan)
 
 - R3 stronger systems
   - status: proposed
