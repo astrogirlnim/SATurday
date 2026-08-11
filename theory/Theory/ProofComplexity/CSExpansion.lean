@@ -27,6 +27,13 @@ informative scale, polarity triple CNF encoding, and the matching polarity
 satisfiability obstruction; matchable unsat polarity on an overlapping system
 (or a probabilistic lift) remains open.
 
+Cluster 17 (probabilistic lift scaffolding): finite ensemble
+`Oriented3Clause` / `EnsembleIndex` / `Ensemble3CNF`, sample map `random3CNF`
+at locked density `m = 6 n` and scale `r = n / 4`, width and variable-card
+lemmas, `Spreads.mono_r`, and packaging
+`exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`. Frontier
+`exists_spreads_matchable_unsat_random3CNF` carries the counting existence.
+
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
 
@@ -2867,6 +2874,145 @@ theorem satisfiable_loosePathSupports_allTrue (m : ℕ) :
   · simp [triplePolarityClause, loosePathTriple]
   · simp [litSat]
 
+/-! ## Probabilistic lift scaffolding (pinned plan, density m = 6 n)
+
+Finite ensemble for the Chvatal–Szemeredi / Ben-Sasson–Wigderson random 3-CNF
+route into `exists_cs_clause_expanding_3cnf`. No probability axiom: samples are
+ordinary functions `Fin m → Oriented3Clause n`, and existence is a finite
+pigeonhole claim. Counting bounds that close the existence stay Frontier. -/
+
+/-- One oriented 3-literal atom on variables in `Fin n` (duplicates collapse in
+the clause Finset, so width stays at most 3). -/
+structure Oriented3Clause (n : ℕ) where
+  x : Fin n
+  y : Fin n
+  z : Fin n
+  px : Bool
+  py : Bool
+  pz : Bool
+deriving DecidableEq, Repr
+
+/-- Convert an oriented atom to a clause (at most three literals). -/
+def Oriented3Clause.toClause {n : ℕ} (c : Oriented3Clause n) : Clause :=
+  ({⟨c.x.val, c.px⟩, ⟨c.y.val, c.py⟩, ⟨c.z.val, c.pz⟩} : Clause)
+
+theorem Oriented3Clause.toClause_card_le {n : ℕ} (c : Oriented3Clause n) :
+    c.toClause.card ≤ 3 := by
+  classical
+  simp only [Oriented3Clause.toClause]
+  have h1 :=
+    card_insert_le (⟨c.x.val, c.px⟩ : Literal)
+      ({⟨c.y.val, c.py⟩, ⟨c.z.val, c.pz⟩} : Clause)
+  have h2 :=
+    card_insert_le (⟨c.y.val, c.py⟩ : Literal)
+      ({⟨c.z.val, c.pz⟩} : Clause)
+  have h3 : ({⟨c.z.val, c.pz⟩} : Clause).card ≤ 1 := by
+    simpa using (card_singleton (⟨c.z.val, c.pz⟩ : Literal))
+  omega
+
+theorem Oriented3Clause.mem_toClause_var_lt {n : ℕ} (c : Oriented3Clause n)
+    {v : ℕ} (hv : v ∈ clauseVars c.toClause) : v < n := by
+  simp only [Oriented3Clause.toClause, clauseVars, mem_image, mem_insert,
+    mem_singleton] at hv
+  obtain ⟨l, hl, rfl⟩ := hv
+  rcases hl with h | h | h <;> subst h <;> exact Fin.is_lt _
+
+/-- Sample index: length-`m` sequence of oriented 3-clauses on `n` variables. -/
+abbrev EnsembleIndex (n m : ℕ) := Fin m → Oriented3Clause n
+
+/-- Finite sample space of the random 3-CNF ensemble (alias of `EnsembleIndex`). -/
+abbrev Ensemble3CNF (n m : ℕ) := EnsembleIndex n m
+
+/-- Locked density Δ = 6 from the accepted probabilistic plan. -/
+def random3CNFDensity : ℕ := 6
+
+/-- Clause count at locked density: `m = 6 * n`. -/
+def random3CNFClauseCount (n : ℕ) : ℕ := random3CNFDensity * n
+
+/-- Matchability and Spreads scale in the pin: `r = n / 4`. -/
+def random3CNFMatchScale (n : ℕ) : ℕ := n / 4
+
+theorem random3CNFClauseCount_eq (n : ℕ) :
+    random3CNFClauseCount n = 6 * n := by
+  simp [random3CNFClauseCount, random3CNFDensity]
+
+/-- Informative floor for α = 1 requires `r ≥ 8`, hence `n ≥ 32` under `r = n/4`. -/
+theorem random3CNFMatchScale_ge_eight {n : ℕ} (hn : 32 ≤ n) :
+    8 ≤ random3CNFMatchScale n := by
+  simp only [random3CNFMatchScale]
+  omega
+
+theorem csClauseWidthFloor_of_random3CNFMatchScale {n : ℕ} (hn : 32 ≤ n) :
+    3 < csClauseWidthFloor (random3CNFMatchScale n) 1 := by
+  have hr : 8 ≤ random3CNFMatchScale n := random3CNFMatchScale_ge_eight hn
+  simp only [csClauseWidthFloor, random3CNFMatchScale] at hr ⊢
+  omega
+
+/-- Concrete CNF at sample `ω`: image of the `m` oriented clauses (duplicates
+collapse under Finset). -/
+def random3CNF (n m : ℕ) (ω : EnsembleIndex n m) : CNF :=
+  (univ : Finset (Fin m)).image fun i => (ω i).toClause
+
+theorem mem_random3CNF {n m : ℕ} {ω : EnsembleIndex n m} {C : Clause} :
+    C ∈ random3CNF n m ω ↔ ∃ i : Fin m, (ω i).toClause = C := by
+  simp [random3CNF, mem_image]
+
+/-- Every sample is a width-at-most-3 CNF by construction. -/
+theorem random3CNF_cnfWidth_le (n m : ℕ) (ω : EnsembleIndex n m) :
+    cnfWidth (random3CNF n m ω) ≤ 3 := by
+  refine Finset.sup_le ?_
+  intro C hC
+  obtain ⟨i, rfl⟩ := (mem_random3CNF (ω := ω)).mp hC
+  exact Oriented3Clause.toClause_card_le (ω i)
+
+/-- Variables of any sample lie in `range n`. -/
+theorem random3CNF_vars_subset_range (n m : ℕ) (ω : EnsembleIndex n m) :
+    cnfVars (random3CNF n m ω) ⊆ range n := by
+  intro v hv
+  obtain ⟨C, hC, hvC⟩ := mem_biUnion.mp hv
+  obtain ⟨i, rfl⟩ := (mem_random3CNF (ω := ω)).mp hC
+  exact mem_range.mpr (Oriented3Clause.mem_toClause_var_lt (ω i) hvC)
+
+/-- Variable support is at most `n` (pin uses equality after restricting to used
+variables, via mono lemmas). -/
+theorem random3CNF_vars_card (n m : ℕ) (ω : EnsembleIndex n m) :
+    (cnfVars (random3CNF n m ω)).card ≤ n := by
+  have hsub := random3CNF_vars_subset_range n m ω
+  exact (card_le_card hsub).trans (by simp [card_range])
+
+/-- Ensemble is inhabited whenever there is at least one variable (needed so
+existence over samples is a nonempty finite search). -/
+theorem ensembleIndex_nonempty {n m : ℕ} (hn : 0 < n) :
+    Nonempty (EnsembleIndex n m) := by
+  refine ⟨fun _ => ?_⟩
+  refine ⟨⟨0, hn⟩, ⟨0, hn⟩, ⟨0, hn⟩, true, true, true⟩
+
+/-- Spreads transfers to a smaller scale when the smaller medium interval sits
+inside the larger one (`r/2 ≤ r'/2` and `r' ≤ r`). -/
+theorem Spreads.mono_r {F : CNF} {r r' γ : ℕ}
+    (h : Spreads F r γ) (hlo : r / 2 ≤ r' / 2) (hhi : r' ≤ r) :
+    Spreads F r' γ := by
+  intro G hG hlo' hhi'
+  exact h G hG (le_trans hlo hlo') (le_trans hhi' hhi)
+
+/-- Packaging: matchable unsat Spreads at rate 2 and scale `n/4` yields the
+critical-path clause-set expansion inhabitant (α = 1). -/
+theorem exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat
+    (h : ∀ N : ℕ, ∃ (n : ℕ) (F : CNF),
+      N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        Spreads F (n / 4) 2 ∧ IsCSMatchable F (n / 4) ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor (n / 4) 1) :
+    ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (r α : ℕ),
+      N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        α = 1 ∧ r = n / 4 ∧
+          IsCSMatchable F r ∧ HasCSClauseExpansion F r α ∧
+            ¬ Satisfiable F ∧ cnfWidth F < csClauseWidthFloor r α := by
+  intro N
+  obtain ⟨n, F, hN, hvars, hw, hsp, hmatch, hunsat, hfloor⟩ := h N
+  refine ⟨n, F, n / 4, 1, hN, hvars, hw, rfl, rfl, hmatch, ?_, hunsat, ?_⟩
+  · exact hasCSClauseExpansion_one_of_spreads_two hw hsp
+  · simpa [csClauseWidthFloor] using hfloor
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -2902,7 +3048,10 @@ Cycle 2026-08-11 (overlapping path): certified `loosePathSupports` SpreadsSuppor
 at informative `r = 8` with genuine adjacent overlaps, polarity encoding
 `triplePolarityClause` or `cnfOfSupports`, matching polarity satisfiability
 obstruction, and all-true path satisfiability. Overlap plus SpreadsSupports is
-therefore inhabited; matchable unsat polarity (or probabilistic lift) remains. -/
+therefore inhabited; matchable unsat polarity (or probabilistic lift) remains.
+
+Cycle 2026-08-11 (probabilistic scaffolding): accepted ensemble and packaging;
+Frontier `exists_spreads_matchable_unsat_random3CNF` holds the counting gap. -/
 
 namespace CSExpansionFrontier
 
@@ -2932,14 +3081,27 @@ theorem exists_cs_expanding_3cnf :
 
 /-- Restated critical-path existence (pin 2026-08-09). Requires matchable,
 clause-set expanding, unsatisfiable 3-CNF with informative floor. Sufficient
-accepted route: `Spreads F (n/4) 2` plus `hasCSClauseExpansion_one_of_spreads_two`.
-Small-n witness search failed; probabilistic spreading remains open (sorry honest). -/
+accepted route: `Spreads F (n/4) 2` plus `hasCSClauseExpansion_one_of_spreads_two`,
+via packaging `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` once
+`exists_spreads_matchable_unsat_random3CNF` lands. Probabilistic counting remains
+open (sorry honest). -/
 theorem exists_cs_clause_expanding_3cnf :
     ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (r α : ℕ),
       N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
         α = 1 ∧ r = n / 4 ∧
           IsCSMatchable F r ∧ HasCSClauseExpansion F r α ∧
             ¬ Satisfiable F ∧ cnfWidth F < csClauseWidthFloor r α := by
+  sorry
+
+/-- Random 3-CNF existence at locked density `m = 6 n` and scale `r = n / 4`.
+Feeds the accepted packaging lemma once the three union bounds are formalized. -/
+theorem exists_spreads_matchable_unsat_random3CNF :
+    ∀ N : ℕ, ∃ (n : ℕ) (ω : EnsembleIndex n (random3CNFClauseCount n)),
+      let F := random3CNF n (random3CNFClauseCount n) ω
+      let r := random3CNFMatchScale n
+      max N 32 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        Spreads F r 2 ∧ IsCSMatchable F r ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor r 1 := by
   sorry
 
 end CSExpansionFrontier

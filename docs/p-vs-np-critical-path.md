@@ -33,12 +33,13 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       Accepted route recorded in file: matchable unsat 3 CNF with
       `Spreads F (n/4) 2`, then `hasCSClauseExpansion_one_of_spreads_two`.
       Progress 2026-08-11: SpreadsSupports matching and overlapping path
-      certified; polarity CNFs still satisfiable. Prove cycle pinned
-      probabilistic lift: density `m = 6 n`, scale `r = n/4`, proposed names
-      `Ensemble3CNF` / `random3CNF` /
-      `exists_spreads_matchable_unsat_random3CNF` (all absent until formalize).
-      Cyclic and odd charge star sketches rejected as the developed close.
-      Remaining: formalize the finite ensemble counting (accept_prose gate).
+      certified; polarity CNFs still satisfiable. Accept_prose approved for
+      probabilistic lift. Formalize cycle certified ensemble scaffolding:
+      `Ensemble3CNF` / `random3CNF` / packaging
+      `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` (axiom gate
+      green). Remaining: Frontier counting
+      `exists_spreads_matchable_unsat_random3CNF` (unsat, Spreads, matchability
+      union bounds at `m = 6 n`, `r = n/4`).
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Human gate: move R2 from `prose_accepted` to `certified` only after the
@@ -101,9 +102,9 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: human gate accept_prose on the 2026-08-11 probabilistic lift plan, then
-   formalize `random3CNF` and the unsat first moment slice toward
-   `exists_spreads_matchable_unsat_random3CNF` (edit CSExpansion.lean only).
+1. R2: formalize the unsat first moment Nat inequalities for
+   `exists_spreads_matchable_unsat_random3CNF` at density `m = 6 n`, then Spreads
+   and matchability union bounds (edit CSExpansion.lean only).
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or

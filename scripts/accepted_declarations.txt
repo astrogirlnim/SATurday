@@ -798,6 +798,28 @@ SATurday.ProofComplexity.exists_overlapping_spreadsSupports_informative
 SATurday.ProofComplexity.spreadsSupports_loosePath_sixteen
 SATurday.ProofComplexity.satisfiable_loosePathSupports_allTrue
 
+# R2 item 2 cluster 17: probabilistic lift ensemble scaffolding (2026-08-11)
+SATurday.ProofComplexity.Oriented3Clause
+SATurday.ProofComplexity.Oriented3Clause.toClause
+SATurday.ProofComplexity.Oriented3Clause.toClause_card_le
+SATurday.ProofComplexity.Oriented3Clause.mem_toClause_var_lt
+SATurday.ProofComplexity.EnsembleIndex
+SATurday.ProofComplexity.Ensemble3CNF
+SATurday.ProofComplexity.random3CNFDensity
+SATurday.ProofComplexity.random3CNFClauseCount
+SATurday.ProofComplexity.random3CNFMatchScale
+SATurday.ProofComplexity.random3CNFClauseCount_eq
+SATurday.ProofComplexity.random3CNFMatchScale_ge_eight
+SATurday.ProofComplexity.csClauseWidthFloor_of_random3CNFMatchScale
+SATurday.ProofComplexity.random3CNF
+SATurday.ProofComplexity.mem_random3CNF
+SATurday.ProofComplexity.random3CNF_cnfWidth_le
+SATurday.ProofComplexity.random3CNF_vars_subset_range
+SATurday.ProofComplexity.random3CNF_vars_card
+SATurday.ProofComplexity.ensembleIndex_nonempty
+SATurday.ProofComplexity.Spreads.mono_r
+SATurday.ProofComplexity.exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat
+
 # R5 Cook Reckhow bridge: Encoding and Complexity cluster (2026-08-10 formalize)
 SATurday.Bridge.bitEnc_eq_encodeBool
 SATurday.Bridge.decodePair_encodePair

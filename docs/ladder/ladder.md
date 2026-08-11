@@ -46,7 +46,9 @@ R4-class results plus the certified R5 bridge.
     Heawood star Spreads at r = 5 merged 2026-08-10; matching
     SpreadsSupports at informative r = 8 merged 2026-08-11; overlapping
     loose path SpreadsSupports and polarity CNF packaging merged 2026-08-11;
-    exists_cs_clause_expanding_3cnf Frontier)
+    probabilistic ensemble scaffolding (`Ensemble3CNF` / `random3CNF` /
+    packaging) merged 2026-08-11; exists_cs_clause_expanding_3cnf and
+    exists_spreads_matchable_unsat_random3CNF Frontier)
 
 - R3 stronger systems
   - status: proposed

@@ -1684,3 +1684,25 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   density `6` proof size curves (not required for the existence proof).
   gate_pending: accept_prose for this probabilistic plan before deep
   formalization spend.
+
+- 2026-08-11 formalize (probabilistic ensemble scaffolding toward
+  exists_cs_clause_expanding_3cnf): PARTIAL. Human gate accept_prose approved
+  ("go") for the bf4a212 probabilistic lift plan. Edited only
+  `theory/Theory/ProofComplexity/CSExpansion.lean` (no new files). Certified
+  (axiom gate PASS) cluster 17:
+  `Oriented3Clause`, `Oriented3Clause.toClause`,
+  `Oriented3Clause.toClause_card_le`, `Oriented3Clause.mem_toClause_var_lt`,
+  `EnsembleIndex`, `Ensemble3CNF`, `random3CNFDensity` (= 6),
+  `random3CNFClauseCount` (`m = 6 n`), `random3CNFMatchScale` (`r = n / 4`),
+  `random3CNFClauseCount_eq`, `random3CNFMatchScale_ge_eight`,
+  `csClauseWidthFloor_of_random3CNFMatchScale`, `random3CNF`, `mem_random3CNF`,
+  `random3CNF_cnfWidth_le`, `random3CNF_vars_subset_range`,
+  `random3CNF_vars_card`, `ensembleIndex_nonempty`, `Spreads.mono_r`,
+  `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`. Frontier
+  (honest sorry): `exists_spreads_matchable_unsat_random3CNF` plus prior
+  `exists_cs_clause_expanding_3cnf`. Most important thing learned: the Block A
+  gap is now a named counting theorem over an inhabited finite ensemble at the
+  locked density, with packaging already reducing it to the pin once the three
+  union bounds land. Next: formalize the unsat first moment slice of
+  `exists_spreads_matchable_unsat_random3CNF` (Nat inequalities at `m = 6 n`),
+  then Spreads and matchability union bounds.
