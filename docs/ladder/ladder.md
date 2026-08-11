@@ -49,9 +49,10 @@ R4-class results plus the certified R5 bridge.
     probabilistic ensemble scaffolding (`Ensemble3CNF` / `random3CNF` /
     packaging) merged 2026-08-11; unsat first-moment Nat bounds
     (`exists_unsat_random3CNF`) merged 2026-08-11; Spreads and matchability
-    union bounds plus
+    union-bound scaffolding (`SpreadsIndices`, concentration fibers,
+    `isCSMatchable_of_unsat_min_card`) merged 2026-08-11; Frontier
     exists_spreads_matchable_unsat_random3CNF and exists_cs_clause_expanding_3cnf
-    Frontier)
+    still need summed union bound inequalities)
 
 - R3 stronger systems
   - status: proposed

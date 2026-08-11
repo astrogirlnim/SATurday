@@ -1727,3 +1727,29 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   inequality `7^6 < 2^17`, already enough to inhabit unsat samples at density
   `m = 6 n`; Block A now waits only on Spreads and matchability fibers.
   Next: formalize Spreads union bound at `r = n/4`, then matchability.
+
+- 2026-08-11 formalize (Spreads and matchability union bound scaffolding):
+  PARTIAL. Edited only `theory/Theory/ProofComplexity/CSExpansion.lean` (plus
+  `scripts/accepted_declarations.txt`). Certified cluster 19 (axiom gate PASS):
+  `Oriented3Clause.support`, `Oriented3Clause.support_card_le`,
+  `clauseSupport_toClause_eq_support`, `Oriented3Clause.support_subset_range`,
+  `Oriented3Clause.memSupport`, `card_oriented3Clause_memSupport` (`8 |U|^3`),
+  `card_oriented3Clause_memSupport_le`, `indexSupport`, `supportConcentrated`,
+  `indexSupport_subset_of_concentrated`, `indexSupport_card_le_of_concentrated`,
+  `SpreadsIndices`, `exists_concentrated_of_not_spreadsIndices`,
+  `spreads_random3CNF_of_spreadsIndices`, `isCSMatchable_of_unsat_min_card`,
+  `isCSMatchable_of_minimallyUnsat_card_gt`, `isCSMatchable_of_minimallyUnsat_gt`,
+  `exists_unsat_subset_of_not_isCSMatchable`, `card_fun_memSupport`,
+  `card_ensembleIndex_supportConcentrated`,
+  `card_ensembleIndex_supportConcentrated_mul_lt_iff`,
+  `eight_mul_pow_card_lt_iff`, `pow_three_lt_pow_three`,
+  `random3CNFMatchScale_eq`, `medium_hi_eq_matchScale`,
+  `not_spreadsIndices_of_concentrated_small`. Frontier unchanged:
+  `exists_spreads_matchable_unsat_random3CNF` and
+  `exists_cs_clause_expanding_3cnf` still sorry (summed union bound
+  inequalities not yet closed). Most important thing learned: Spreads and
+  matchability now reduce to finite fiber comparisons against concentration
+  and large minimally unsat cores; the remaining gap is the summed choose
+  bound over medium `(S,U)` pairs, not new combinatorics.
+  Next: formalize the summed Spreads concentration inequality at `m = 6 n`
+  and `r = n / 4`, then package with `exists_unsat_random3CNF`.

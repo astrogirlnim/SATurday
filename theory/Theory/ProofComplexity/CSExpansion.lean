@@ -36,9 +36,12 @@ at locked density `m = 6 n` and scale `r = n / 4`, width and variable-card
 lemmas, `Spreads.mono_r`, and packaging
 `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`. Cluster 18:
 unsat first-moment Nat bounds (`seven_pow_six_lt_two_pow_seventeen`,
-`two_pow_mul_seven_pow_lt_eight_pow`, `exists_unsat_random3CNF`). Frontier
-`exists_spreads_matchable_unsat_random3CNF` still needs Spreads and
-matchability union bounds.
+`two_pow_mul_seven_pow_lt_eight_pow`, `exists_unsat_random3CNF`). Cluster 19:
+Spreads and matchability union bound scaffolding
+(`Oriented3Clause.support`, concentration fibers, index Spreads lift,
+`isCSMatchable_of_unsat_min_card`). Frontier
+`exists_spreads_matchable_unsat_random3CNF` still needs the summed
+union bound inequalities.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -3310,6 +3313,371 @@ theorem exists_unsat_random3CNF_ge_thirty_two {n : ℕ} (hn : 32 ≤ n) :
       ¬ Satisfiable (random3CNF n (random3CNFClauseCount n) ω) :=
   exists_unsat_random3CNF (lt_of_lt_of_le (by decide : (0 : ℕ) < 32) hn)
 
+/-! ## Spreads and matchability union-bound scaffolding (Cluster 19)
+
+Step 3 and Step 4 of the probabilistic plan: combinatorial packaging for the
+Spreads concentration event and the matchability extraction from large
+minimally unsat cores. Fiber cardinalities mirror Cluster 18 (no analysis
+axioms). The summed `∑_s C(m,s) C(n,2s-1) (O(s/n))^{3s}` inequality that
+closes the existence remains Frontier. -/
+
+/-- Variable support of an oriented atom as a `ℕ` Finset (at most three). -/
+def Oriented3Clause.support {n : ℕ} (c : Oriented3Clause n) : Finset ℕ :=
+  insert c.x.val (insert c.y.val ({c.z.val} : Finset ℕ))
+
+theorem Oriented3Clause.support_card_le {n : ℕ} (c : Oriented3Clause n) :
+    c.support.card ≤ 3 := by
+  classical
+  simp only [Oriented3Clause.support]
+  have h1 := card_insert_le c.x.val (insert c.y.val ({c.z.val} : Finset ℕ))
+  have h2 := card_insert_le c.y.val ({c.z.val} : Finset ℕ)
+  have h3 : ({c.z.val} : Finset ℕ).card ≤ 1 := by
+    simpa using (card_singleton c.z.val)
+  omega
+
+/-- Clause support equals the oriented support Finset. -/
+theorem clauseSupport_toClause_eq_support {n : ℕ} (c : Oriented3Clause n) :
+    clauseSupport c.toClause = c.support := by
+  classical
+  ext v
+  simp only [clauseSupport, clauseVars, Oriented3Clause.toClause,
+    Oriented3Clause.support, mem_image, mem_insert, mem_singleton]
+  constructor
+  · rintro ⟨l, hl, rfl⟩
+    rcases hl with h | h | h <;> subst h <;> simp
+  · intro hv
+    rcases hv with h | h | h <;> subst h
+    · exact ⟨⟨c.x.val, c.px⟩, by simp, rfl⟩
+    · exact ⟨⟨c.y.val, c.py⟩, by simp, rfl⟩
+    · exact ⟨⟨c.z.val, c.pz⟩, by simp, rfl⟩
+
+/-- Support variables all lie in `range n`. -/
+theorem Oriented3Clause.support_subset_range {n : ℕ} (c : Oriented3Clause n) :
+    c.support ⊆ range n := by
+  intro v hv
+  simp only [Oriented3Clause.support, mem_insert, mem_singleton] at hv
+  rcases hv with h | h | h <;> subst h <;> exact mem_range.mpr (Fin.is_lt _)
+
+/-- Oriented atoms whose three coordinates land in a fixed `Fin`-set `U`. -/
+def Oriented3Clause.memSupport (n : ℕ) (U : Finset (Fin n))
+    (c : Oriented3Clause n) : Prop :=
+  c.x ∈ U ∧ c.y ∈ U ∧ c.z ∈ U
+
+/-- Exactly `8 |U|^3` oriented atoms are supported inside `U`. -/
+theorem card_oriented3Clause_memSupport {n : ℕ} (U : Finset (Fin n)) :
+    Fintype.card
+        { c : Oriented3Clause n // Oriented3Clause.memSupport n U c } =
+      8 * U.card ^ 3 := by
+  classical
+  let e :
+      (U × U × U × Bool × Bool × Bool) ≃
+        { c : Oriented3Clause n // Oriented3Clause.memSupport n U c } :=
+    { toFun := fun p =>
+        ⟨⟨p.1.1, p.2.1.1, p.2.2.1.1, p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2⟩, by
+          refine ⟨p.1.2, p.2.1.2, p.2.2.1.2⟩⟩
+      invFun := fun c =>
+        ⟨⟨c.1.x, c.2.1⟩, ⟨c.1.y, c.2.2.1⟩, ⟨c.1.z, c.2.2.2⟩, c.1.px, c.1.py,
+          c.1.pz⟩
+      left_inv := fun _ => by
+        ext <;> rfl
+      right_inv := fun _ => by
+        ext <;> rfl }
+  rw [Fintype.card_congr e.symm]
+  simp [Fintype.card_prod, Fintype.card_fin, Fintype.card_coe]
+  ring
+
+/-- Crude bound: support-in-`U` fiber is at most `8 |U|^3` (and ≤ total). -/
+theorem card_oriented3Clause_memSupport_le {n : ℕ} (U : Finset (Fin n)) :
+    Fintype.card
+        { c : Oriented3Clause n // Oriented3Clause.memSupport n U c } ≤
+      8 * U.card ^ 3 :=
+  le_of_eq (card_oriented3Clause_memSupport U)
+
+/-- Index set support union under a sample. -/
+def indexSupport {n m : ℕ} (ω : EnsembleIndex n m) (S : Finset (Fin m)) :
+    Finset ℕ :=
+  S.biUnion fun i => (ω i).support
+
+/-- Concentration: every index in `S` has its three coordinates in `U`. -/
+def supportConcentrated {n m : ℕ} (ω : EnsembleIndex n m)
+    (S : Finset (Fin m)) (U : Finset (Fin n)) : Prop :=
+  ∀ i ∈ S, Oriented3Clause.memSupport n U (ω i)
+
+/-- Concentrated index supports sit inside the `ℕ` image of `U`. -/
+theorem indexSupport_subset_of_concentrated {n m : ℕ}
+    {ω : EnsembleIndex n m} {S : Finset (Fin m)} {U : Finset (Fin n)}
+    (h : supportConcentrated ω S U) :
+    indexSupport ω S ⊆ U.image Fin.val := by
+  intro v hv
+  obtain ⟨i, hi, hv'⟩ := mem_biUnion.mp hv
+  have hmem := h i hi
+  simp only [Oriented3Clause.support, mem_insert, mem_singleton] at hv'
+  rcases hv' with hv' | hv' | hv' <;> subst hv'
+  · exact mem_image.mpr ⟨(ω i).x, hmem.1, rfl⟩
+  · exact mem_image.mpr ⟨(ω i).y, hmem.2.1, rfl⟩
+  · exact mem_image.mpr ⟨(ω i).z, hmem.2.2, rfl⟩
+
+/-- Hence concentrated supports have cardinality at most `|U|`. -/
+theorem indexSupport_card_le_of_concentrated {n m : ℕ}
+    {ω : EnsembleIndex n m} {S : Finset (Fin m)} {U : Finset (Fin n)}
+    (h : supportConcentrated ω S U) :
+    (indexSupport ω S).card ≤ U.card := by
+  have hsub := indexSupport_subset_of_concentrated h
+  exact (card_le_card hsub).trans (card_image_le)
+
+/-- Index-level Spreads: medium index sets expand their oriented supports. -/
+def SpreadsIndices {n m : ℕ} (ω : EnsembleIndex n m) (r : ℕ) : Prop :=
+  ∀ S : Finset (Fin m),
+    r / 2 ≤ S.card → S.card ≤ r →
+      2 * S.card ≤ (indexSupport ω S).card
+
+/-- Failure of index Spreads yields a medium concentrated witness scale. -/
+theorem exists_concentrated_of_not_spreadsIndices {n m : ℕ}
+    {ω : EnsembleIndex n m} {r : ℕ} (h : ¬ SpreadsIndices ω r) :
+    ∃ S : Finset (Fin m),
+      r / 2 ≤ S.card ∧ S.card ≤ r ∧
+        (indexSupport ω S).card < 2 * S.card := by
+  classical
+  unfold SpreadsIndices at h
+  push Not at h
+  obtain ⟨S, hlo, hhi, hcard⟩ := h
+  exact ⟨S, hlo, hhi, hcard⟩
+
+/-- From index Spreads, the sampled CNF Spreads at rate 2 (choose one preimage
+index per clause; support unions agree). -/
+theorem spreads_random3CNF_of_spreadsIndices {n m : ℕ}
+    (ω : EnsembleIndex n m) {r : ℕ} (h : SpreadsIndices ω r) :
+    Spreads (random3CNF n m ω) r 2 := by
+  classical
+  intro G hG hlo hhi
+  have hpre :
+      ∀ C ∈ G, ∃ i : Fin m, (ω i).toClause = C := by
+    intro C hC
+    exact (mem_random3CNF (ω := ω)).mp (hG hC)
+  choose τ hτ using hpre
+  let S : Finset (Fin m) := G.attach.image fun C => τ C.1 C.2
+  have hSinj :
+      Function.Injective fun C : { x // x ∈ G } => τ C.1 C.2 := by
+    intro C₁ C₂ hEq
+    apply Subtype.ext
+    have hC1 : (ω (τ C₁.1 C₁.2)).toClause = C₁.1 := hτ C₁.1 C₁.2
+    have hC2 : (ω (τ C₂.1 C₂.2)).toClause = C₂.1 := hτ C₂.1 C₂.2
+    have hsame : (ω (τ C₁.1 C₁.2)).toClause = (ω (τ C₂.1 C₂.2)).toClause := by
+      simpa [hEq]
+    exact hC1.symm.trans (hsame.trans hC2)
+  have hScard : S.card = G.card := by
+    change (G.attach.image fun C : { x // x ∈ G } => τ C.1 C.2).card = G.card
+    rw [card_image_of_injective G.attach hSinj, card_attach]
+  have hSlo : r / 2 ≤ S.card := by simpa [hScard] using hlo
+  have hShi : S.card ≤ r := by simpa [hScard] using hhi
+  have hExp : 2 * S.card ≤ (indexSupport ω S).card := h S hSlo hShi
+  have hsupp :
+      ∀ C (hC : C ∈ G),
+        clauseSupport C = (ω (τ C hC)).support := by
+    intro C hC
+    calc
+      clauseSupport C = clauseSupport ((ω (τ C hC)).toClause) := by
+        rw [hτ C hC]
+      _ = (ω (τ C hC)).support := clauseSupport_toClause_eq_support _
+  have hU : G.biUnion clauseSupport = indexSupport ω S := by
+    ext v
+    constructor
+    · intro hv
+      obtain ⟨C, hC, hvC⟩ := mem_biUnion.mp hv
+      refine mem_biUnion.mpr ⟨τ C hC, ?_, ?_⟩
+      · exact mem_image.mpr ⟨⟨C, hC⟩, mem_attach _ _, rfl⟩
+      · simpa [hsupp C hC] using hvC
+    · intro hv
+      obtain ⟨i, hi, hv'⟩ := mem_biUnion.mp hv
+      obtain ⟨Csub, _, rfl⟩ := mem_image.mp hi
+      refine mem_biUnion.mpr ⟨Csub.1, Csub.2, ?_⟩
+      simpa [hsupp Csub.1 Csub.2] using hv'
+  have : 2 * G.card ≤ (G.biUnion clauseSupport).card := by
+    simpa [hScard, hU] using hExp
+  exact this
+
+/-- Matchability from a lower bound on every unsatisfiable subset. -/
+theorem isCSMatchable_of_unsat_min_card {F : CNF} {r : ℕ}
+    (h : ∀ G ⊆ F, ¬ Satisfiable G → r < G.card) :
+    IsCSMatchable F r := by
+  intro H hH hcard
+  by_contra hunsat
+  have := h H hH hunsat
+  exact (not_lt_of_ge hcard) this
+
+/-- Same extraction specialized to minimally unsat cores. -/
+theorem isCSMatchable_of_minimallyUnsat_card_gt {F : CNF} {r : ℕ}
+    (_hunsat : ¬ Satisfiable F)
+    (h : ∀ G ⊆ F, IsMinimallyUnsat G → r < G.card) :
+    IsCSMatchable F r := by
+  refine isCSMatchable_of_unsat_min_card ?_
+  intro H hH hunH
+  obtain ⟨G, hGsub, hGmin⟩ := exists_minimallyUnsat_subset hunH
+  have hrG : r < G.card := h G (hGsub.trans hH) hGmin
+  exact lt_of_lt_of_le hrG (card_le_card hGsub)
+
+/-- Minimally unsat cores larger than `r` yield matchability at scale `r`. -/
+theorem isCSMatchable_of_minimallyUnsat_gt {F : CNF} {r : ℕ}
+    (h : IsMinimallyUnsat F) (hr : r < F.card) :
+    IsCSMatchable F r :=
+  IsCSMatchable.mono (isCSMatchable_of_minimallyUnsat h)
+    (Nat.le_pred_of_lt hr)
+
+/-- Negation of matchability is existence of a small unsat subset. -/
+theorem exists_unsat_subset_of_not_isCSMatchable {F : CNF} {r : ℕ}
+    (h : ¬ IsCSMatchable F r) :
+    ∃ G ⊆ F, G.card ≤ r ∧ ¬ Satisfiable G := by
+  classical
+  unfold IsCSMatchable at h
+  push Not at h
+  obtain ⟨G, hG, hcard, hunsat⟩ := h
+  exact ⟨G, hG, hcard, hunsat⟩
+
+/-- Restricted product: functions on `S` into the `U`-supported atoms. -/
+theorem card_fun_memSupport {n m : ℕ} (S : Finset (Fin m))
+    (U : Finset (Fin n)) :
+    Fintype.card
+        (∀ _i : ↥S,
+          { c : Oriented3Clause n // Oriented3Clause.memSupport n U c }) =
+      (8 * U.card ^ 3) ^ S.card := by
+  classical
+  rw [Fintype.card_fun, card_oriented3Clause_memSupport, Fintype.card_coe]
+
+/-- Fiber: samples concentrated on `U` along `S`, free elsewhere.
+Cardinality `(8 |U|^3)^|S| · (8 n^3)^{m-|S|}`. -/
+theorem card_ensembleIndex_supportConcentrated {n m : ℕ}
+    (S : Finset (Fin m)) (U : Finset (Fin n)) :
+    Fintype.card
+        { ω : EnsembleIndex n m // supportConcentrated ω S U } =
+      (8 * U.card ^ 3) ^ S.card * (8 * n ^ 3) ^ (m - S.card) := by
+  classical
+  let Sc : Finset (Fin m) := univ \ S
+  have hSdisj : Disjoint S Sc := disjoint_sdiff
+  have hSuniv : S ∪ Sc = (univ : Finset (Fin m)) :=
+    union_sdiff_of_subset (subset_univ S)
+  have hcardSc : Sc.card = m - S.card := by
+    have : S.card + Sc.card = m := by
+      calc
+        S.card + Sc.card = (S ∪ Sc).card :=
+          (card_union_of_disjoint hSdisj).symm
+        _ = (univ : Finset (Fin m)).card := by rw [hSuniv]
+        _ = m := by simp [card_univ, Fintype.card_fin]
+    omega
+  let e :
+      { ω : EnsembleIndex n m // supportConcentrated ω S U } ≃
+        ((∀ i : ↥S,
+            { c : Oriented3Clause n // Oriented3Clause.memSupport n U c }) ×
+          (∀ i : ↥Sc, Oriented3Clause n)) :=
+    { toFun := fun ω =>
+        (fun i => ⟨ω.1 (i : Fin m), ω.2 (i : Fin m) i.2⟩,
+          fun i => ω.1 (i : Fin m))
+      invFun := fun τ =>
+        ⟨fun i =>
+          if hi : i ∈ S then (τ.1 ⟨i, hi⟩).1
+          else
+            have hiSc : i ∈ Sc := mem_sdiff.mpr ⟨mem_univ i, hi⟩
+            τ.2 ⟨i, hiSc⟩,
+          by
+            intro i hi
+            dsimp
+            simp [hi]
+            exact (τ.1 ⟨i, hi⟩).2⟩
+      left_inv := fun ω => by
+        apply Subtype.ext
+        funext i
+        by_cases hi : i ∈ S
+        · simp [hi]
+        · have hiSc : i ∈ Sc := mem_sdiff.mpr ⟨mem_univ i, hi⟩
+          simp [hi]
+      right_inv := fun τ => by
+        refine Prod.ext ?_ ?_
+        · funext i
+          simp [i.2]
+        · funext i
+          have hi : (i : Fin m) ∉ S := (mem_sdiff.mp i.2).2
+          simp [hi] }
+  rw [Fintype.card_congr e, Fintype.card_prod]
+  have hSfun := card_fun_memSupport (n := n) (m := m) S U
+  have hScfun :
+      Fintype.card (∀ _i : ↥Sc, Oriented3Clause n) =
+        (8 * n ^ 3) ^ Sc.card := by
+    classical
+    rw [Fintype.card_fun, card_oriented3Clause, Fintype.card_coe]
+  rw [hSfun, hScfun, hcardSc]
+
+/-- Ratio form: concentration probability bound as a Nat comparison. -/
+theorem card_ensembleIndex_supportConcentrated_mul_lt_iff {n m : ℕ}
+    (S : Finset (Fin m)) (U : Finset (Fin n))
+    (hpos : 0 < 8 * n ^ 3) :
+    (8 * U.card ^ 3) ^ S.card * (8 * n ^ 3) ^ (m - S.card) <
+        (8 * n ^ 3) ^ m ↔
+      (8 * U.card ^ 3) ^ S.card < (8 * n ^ 3) ^ S.card := by
+  have hle : S.card ≤ m := by
+    simpa [card_univ, Fintype.card_fin] using
+      (card_le_card (subset_univ S) : S.card ≤ (univ : Finset (Fin m)).card)
+  have hm : (8 * n ^ 3) ^ m =
+      (8 * n ^ 3) ^ S.card * (8 * n ^ 3) ^ (m - S.card) := by
+    rw [← Nat.pow_add]
+    congr 1
+    omega
+  constructor
+  · intro h
+    rw [hm] at h
+    exact lt_of_mul_lt_mul_right h (Nat.zero_le _)
+  · intro h
+    rw [hm]
+    exact Nat.mul_lt_mul_of_pos_right h (Nat.pow_pos hpos)
+
+/-- Cancel the common `8^s` factor in the concentration ratio. -/
+theorem eight_mul_pow_card_lt_iff {u n s : ℕ} (hs : 0 < s) :
+    (8 * u ^ 3) ^ s < (8 * n ^ 3) ^ s ↔ u ^ 3 < n ^ 3 := by
+  have h8pos : 0 < (8 : ℕ) := by decide
+  have hsne : s ≠ 0 := Nat.pos_iff_ne_zero.mp hs
+  constructor
+  · intro h
+    have hbase : 8 * u ^ 3 < 8 * n ^ 3 :=
+      (Nat.pow_lt_pow_iff_left hsne).mp h
+    exact lt_of_mul_lt_mul_left hbase (Nat.zero_le _)
+  · intro h
+    have hmul : 8 * u ^ 3 < 8 * n ^ 3 :=
+      Nat.mul_lt_mul_of_pos_left h h8pos
+    exact Nat.pow_lt_pow_left hmul hsne
+
+/-- Cube reflects strict inequality on the positive naturals. -/
+theorem pow_three_lt_pow_three {u n : ℕ} : u ^ 3 < n ^ 3 ↔ u < n := by
+  constructor
+  · intro h
+    by_contra hle
+    push Not at hle
+    have : n ^ 3 ≤ u ^ 3 := Nat.pow_le_pow_left hle 3
+    exact (not_lt_of_ge this) h
+  · intro h
+    exact Nat.pow_lt_pow_left h (by decide : (3 : ℕ) ≠ 0)
+
+/-- Locked scale: medium index sets for Spreads sit at most at `n/4`. -/
+theorem random3CNFMatchScale_eq (n : ℕ) :
+    random3CNFMatchScale n = n / 4 :=
+  rfl
+
+/-- Medium upper end equals the matchability scale. -/
+theorem medium_hi_eq_matchScale (n : ℕ) :
+    random3CNFMatchScale n = n / 4 :=
+  random3CNFMatchScale_eq n
+
+/-- If `|U| < 2 |S|` then concentration on `U` witnesses SpreadsIndices failure
+for that `S` (used by the union bound over pairs `(S,U)`). -/
+theorem not_spreadsIndices_of_concentrated_small {n m : ℕ}
+    {ω : EnsembleIndex n m} {r : ℕ} {S : Finset (Fin m)}
+    {U : Finset (Fin n)}
+    (hlo : r / 2 ≤ S.card) (hhi : S.card ≤ r)
+    (hconc : supportConcentrated ω S U)
+    (hU : U.card < 2 * S.card) :
+    ¬ SpreadsIndices ω r := by
+  intro hsp
+  have hExp := hsp S hlo hhi
+  have hle := indexSupport_card_le_of_concentrated hconc
+  omega
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -3352,7 +3720,11 @@ Frontier `exists_spreads_matchable_unsat_random3CNF` holds the counting gap.
 
 Cycle 2026-08-11 (unsat first moment): accepted Nat bounds
 `seven_pow_six_lt_two_pow_seventeen`, `two_pow_mul_seven_pow_lt_eight_pow`,
-`exists_unsat_random3CNF`. Remaining: Spreads and matchability union bounds. -/
+`exists_unsat_random3CNF`.
+
+Cycle 2026-08-11 (Spreads and matchability scaffolding): accepted support
+concentration fibers, `SpreadsIndices` lift, and matchability extraction from
+large minimally unsat cores. Remaining: summed union bound inequalities. -/
 
 namespace CSExpansionFrontier
 
