@@ -2509,3 +2509,41 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   dropping `C(n,2s-1)`. Block A must leave that skeleton and prove
   `HasCSClauseExpansion` by unique neighbor expansion (BSW style).
   gate_pending: accept_prose.
+
+- 2026-08-12 formalize (Cluster 24 Nat Chernoff LT and occupancy obstruction):
+  PARTIAL. Edited existing `theory/Theory/ProofComplexity/CSExpansion.lean`
+  only. Axiom gate PASS. Frontier existence remains honest sorry.
+
+  ### Names verified before edit (no duplicates)
+
+  New accepted: `spreads_chernoff_slice_core_lt_at_one_twenty_eight`,
+  `spreads_chernoff_slice_lt_eight_pow_at_one_twenty_eight`,
+  `spreadsChernoffSlice_one_twenty_eight_eight`,
+  `spreads_occupancy_chernoff_product_ge_at_one_twenty_eight`,
+  `spreads_occupancy_chernoff_product_ge_eight_pow_at_one_twenty_eight`,
+  `spreads_occupancy_fiber_not_lt_eight_pow_at_one_twenty_eight`,
+  `spreadsOccupancyTerm_core_not_lt_at_one_twenty_eight`, plus decide
+  seeds and choose or factorial helpers listed under cluster 24 in
+  `scripts/accepted_declarations.txt`.
+  Reused: `spreadsChernoffSlice`, `spreadsOccupancyFiberBound`,
+  `spreadsOccupancyFiberBound_ge_chernoff_slice`,
+  `exists_spreadsIndices_of_occupancy_sum_lt_ensemble` (not invoked).
+
+  ### What closed
+
+  - Chernoff cancelled core: `C(768,8) · 15^{24} < 128^{24}` (and eight_pow
+    form). Rate at α = 1/16 is negative without the `C(n,2s-1)` factor.
+  - Occupancy obstruction: `¬ C(768,8) · spreadsOccupancyFiberBound 128 8 16 <
+    (8 · 128^3)^8`, via product lower bound with `C(128,15)`.
+
+  ### What did not close
+
+  Cluster 21 packaging cannot fire at the active pin: the fibre upper bound
+  pays `∑_u C(n,u)` and already the Chernoff × `C(n,15)` seed overruns.
+  `exists_spreads_matchable_unsat_random3CNF` stays Frontier.
+
+  Most important thing learned: Cluster 24 machine checks the prose kill of
+  first moment Spreads at `n/16`: Chernoff without `C(n,u)` passes; occupancy
+  with `C(n,u)` fails. Next: wait for accept_prose on the unique neighbor
+  redesign, or formalize a fibre upper bound that does not pay full `C(n,u)`.
+  gate_pending: none.

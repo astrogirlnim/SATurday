@@ -68,7 +68,9 @@ R4-class results plus the certified R5 bridge.
     prior calibration omitted `C(n,2s-1)`, and the full slice rate
     `α(3+ln 12)` is positive for every linear `α`; revised Block A targets
     unique neighbor expansion into `HasCSClauseExpansion` directly
-    (accept_prose pending; do not Nat chase Chernoff at n=128 under Spreads))
+    (accept_prose pending); Cluster 24 (2026-08-12) certifies Chernoff core
+    LT without `C(n,u)` at `n = 128` and occupancy fibre NOT lt with
+    `C(n,15)`, machine confirming the first moment Spreads kill)
 
 - R3 stronger systems
   - status: proposed

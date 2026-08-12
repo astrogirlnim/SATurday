@@ -54,6 +54,11 @@ Cluster 23 (pin redesign, accept_prose 2026-08-12): active scale is
 `random3CNFMatchScale := n / 16` with informative threshold `n ≥ 128`;
 killed `r = n / 4` and recorded `r = n / 8` fallback under the same
 first-moment method; joint existence remains Frontier.
+Cluster 24 (2026-08-12): Nat Chernoff core closes at `n = 128`, `s = 8`
+(`spreads_chernoff_slice_core_lt_at_one_twenty_eight`), but the Cluster 21
+occupancy fibre upper bound still overruns
+(`spreads_occupancy_fiber_not_lt_eight_pow_at_one_twenty_eight`); existence
+remains Frontier pending a tighter fibre upper bound.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -4479,6 +4484,240 @@ theorem spreadsOccupancyTerm_core_not_lt_at_thirty_two :
         (8 * 32 ^ 3) ^ 8) :=
   spreads_occupancy_fiber_not_lt_eight_pow_at_thirty_two
 
+/-! ## Cluster 24: Chernoff core LT and occupancy obstruction at `n = 128`
+
+At the active pin `r = n / 16`, the cancelled Chernoff slice
+`C(6 n, s) (2 s - 1)^{3 s} < n^{3 s}` holds at the informative minimum
+`n = 128`, `s = 8` (rate negative). The Cluster 21 occupancy fibre still
+pays `∑_{u < 2 s} C(n,u)`, and already the single largest term
+`C(n, 2 s - 1) · spreadsChernoffSlice` overruns the cancelled budget, so
+`exists_spreadsIndices_of_occupancy_sum_lt_ensemble` cannot fire on that
+packaging. Next need: a fibre upper bound that does not pay full `C(n,u)`. -/
+
+set_option maxRecDepth 8192
+
+/-- Seed: `20250^2 < 2 · 16384^2` (feeds the Chernoff upper bound). -/
+theorem two_zero_two_fifty_sq_lt_two_mul_one_six_three_eight_four_sq :
+    (20250 : ℕ) ^ 2 < 2 * 16384 ^ 2 := by
+  decide
+
+/-- Seed: `6 · 15^3 = 20250`. -/
+theorem six_mul_fifteen_cube_eq : (6 : ℕ) * 15 ^ 3 = 20250 := by
+  decide
+
+/-- Seed: `128^2 = 16384`. -/
+theorem one_twenty_eight_sq_eq : (128 : ℕ) ^ 2 = 16384 := by
+  decide
+
+/-- Seed: `16 < 8!`. -/
+theorem sixteen_lt_factorial_eight : (16 : ℕ) < Nat.factorial 8 := by
+  decide
+
+/-- `(6 · 15^3)^8 < 128^{16} · 8!`. -/
+theorem six_mul_fifteen_cube_pow_lt_one_twenty_eight_pow_mul_factorial :
+    ((6 : ℕ) * 15 ^ 3) ^ 8 < (128 : ℕ) ^ 16 * Nat.factorial 8 := by
+  have hsq := two_zero_two_fifty_sq_lt_two_mul_one_six_three_eight_four_sq
+  have ha := six_mul_fifteen_cube_eq
+  have hb := one_twenty_eight_sq_eq
+  have h16 := sixteen_lt_factorial_eight
+  have hpow : ((20250 : ℕ) ^ 2) ^ 4 < (2 * 16384 ^ 2) ^ 4 :=
+    Nat.pow_lt_pow_left hsq (by decide : (4 : ℕ) ≠ 0)
+  have hcore : (20250 : ℕ) ^ 8 < 16 * 16384 ^ 8 := by
+    have hL : ((20250 : ℕ) ^ 2) ^ 4 = 20250 ^ 8 := by rw [← Nat.pow_mul]
+    have hR : (2 * 16384 ^ 2) ^ 4 = 16 * 16384 ^ 8 := by
+      have h2 : (2 : ℕ) ^ 4 = 16 := by decide
+      rw [Nat.mul_pow, h2, ← Nat.pow_mul]
+    rwa [hL, hR] at hpow
+  have hstrict : (20250 : ℕ) ^ 8 < Nat.factorial 8 * 16384 ^ 8 :=
+    lt_trans hcore (Nat.mul_lt_mul_of_pos_right h16 (Nat.pow_pos (by decide)))
+  have hR2 : (128 : ℕ) ^ 16 = 16384 ^ 8 := by
+    calc
+      (128 : ℕ) ^ 16 = ((128 : ℕ) ^ 2) ^ 8 := by rw [← Nat.pow_mul]
+      _ = 16384 ^ 8 := by rw [hb]
+  calc
+    ((6 : ℕ) * 15 ^ 3) ^ 8 = 20250 ^ 8 := by rw [ha]
+    _ < Nat.factorial 8 * 16384 ^ 8 := hstrict
+    _ = Nat.factorial 8 * (128 : ℕ) ^ 16 := by rw [hR2]
+    _ = (128 : ℕ) ^ 16 * Nat.factorial 8 := Nat.mul_comm _ _
+
+/-- Binomial upper: `C(n,k) · k! ≤ n^k`. -/
+theorem choose_mul_factorial_le_pow_nat (n k : ℕ) :
+    Nat.choose n k * Nat.factorial k ≤ n ^ k := by
+  calc
+    Nat.choose n k * Nat.factorial k
+        = Nat.factorial k * Nat.choose n k := Nat.mul_comm _ _
+    _ = Nat.descFactorial n k :=
+        (Nat.descFactorial_eq_factorial_mul_choose n k).symm
+    _ ≤ n ^ k := Nat.descFactorial_le_pow n k
+
+/-- Named gap: cancelled Chernoff core is strictly below budget at `n = 128`,
+`s = 8`. -/
+theorem spreads_chernoff_slice_core_lt_at_one_twenty_eight :
+    Nat.choose (6 * 128) 8 * (15 : ℕ) ^ 24 < (128 : ℕ) ^ 24 := by
+  have h6 : (6 * 128 : ℕ) = 768 := by decide
+  rw [h6]
+  have hmul := choose_mul_factorial_le_pow_nat 768 8
+  have hpow768 : (768 : ℕ) ^ 8 = (6 : ℕ) ^ 8 * (128 : ℕ) ^ 8 := by
+    have h : (768 : ℕ) = 6 * 128 := by decide
+    rw [h, Nat.mul_pow]
+  have hcore := six_mul_fifteen_cube_pow_lt_one_twenty_eight_pow_mul_factorial
+  have hcore' : (6 : ℕ) ^ 8 * (15 : ℕ) ^ 24 < (128 : ℕ) ^ 16 * Nat.factorial 8 := by
+    have : ((6 : ℕ) * 15 ^ 3) ^ 8 = (6 : ℕ) ^ 8 * (15 : ℕ) ^ 24 := by
+      rw [Nat.mul_pow, ← Nat.pow_mul]
+    rwa [this] at hcore
+  have hlt :
+      Nat.choose 768 8 * (15 : ℕ) ^ 24 * Nat.factorial 8 <
+        (128 : ℕ) ^ 24 * Nat.factorial 8 := by
+    calc
+      Nat.choose 768 8 * (15 : ℕ) ^ 24 * Nat.factorial 8
+          = Nat.choose 768 8 * Nat.factorial 8 * (15 : ℕ) ^ 24 := by ring
+      _ ≤ 768 ^ 8 * (15 : ℕ) ^ 24 := Nat.mul_le_mul_right _ hmul
+      _ = (6 : ℕ) ^ 8 * (128 : ℕ) ^ 8 * (15 : ℕ) ^ 24 := by rw [hpow768]
+      _ = (6 : ℕ) ^ 8 * (15 : ℕ) ^ 24 * (128 : ℕ) ^ 8 := by ring
+      _ < (128 : ℕ) ^ 16 * Nat.factorial 8 * (128 : ℕ) ^ 8 :=
+          Nat.mul_lt_mul_of_pos_right hcore' (Nat.pow_pos (by decide))
+      _ = (128 : ℕ) ^ 16 * (128 : ℕ) ^ 8 * Nat.factorial 8 := by ring
+      _ = (128 : ℕ) ^ 24 * Nat.factorial 8 := by rw [← Nat.pow_add]
+  exact Nat.lt_of_mul_lt_mul_right hlt
+
+/-- Same Chernoff inequality before cancelling `8^s`. -/
+theorem spreads_chernoff_slice_lt_eight_pow_at_one_twenty_eight :
+    Nat.choose (6 * 128) 8 * (8 * 15 ^ 3) ^ 8 < (8 * 128 ^ 3) ^ 8 := by
+  have hcore := spreads_chernoff_slice_core_lt_at_one_twenty_eight
+  have hL : (8 * 15 ^ 3) ^ 8 = 8 ^ 8 * (15 : ℕ) ^ 24 := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  have hR : (8 * 128 ^ 3) ^ 8 = 8 ^ 8 * (128 : ℕ) ^ 24 := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  rw [hL, hR]
+  have hre :
+      Nat.choose (6 * 128) 8 * (8 ^ 8 * (15 : ℕ) ^ 24) =
+        (Nat.choose (6 * 128) 8 * (15 : ℕ) ^ 24) * 8 ^ 8 := by ring
+  have hre2 : 8 ^ 8 * (128 : ℕ) ^ 24 = (128 : ℕ) ^ 24 * 8 ^ 8 := by ring
+  rw [hre, hre2]
+  exact Nat.mul_lt_mul_of_pos_right hcore (Nat.pow_pos (by decide))
+
+/-- Alias: Chernoff slice at the active calibration point. -/
+theorem spreadsChernoffSlice_one_twenty_eight_eight :
+    spreadsChernoffSlice 128 8 = (8 * 15 ^ 3) ^ 8 :=
+  rfl
+
+/-- Helper: `n · (a · b · c) = a · b · (n · c)`. -/
+theorem mul_left_move_last_nat (a b c n : ℕ) :
+    n * (a * b * c) = a * b * (n * c) := by
+  calc
+    n * (a * b * c) = n * (a * (b * c)) := by rw [mul_assoc]
+    _ = a * (n * (b * c)) := by rw [mul_left_comm]
+    _ = a * (b * (n * c)) := by rw [mul_left_comm n b]
+    _ = a * b * (n * c) := by rw [← mul_assoc]
+
+/-- `C(128,3) ≤ C(128,15)` by left half monotonicity. -/
+theorem choose_one_twenty_eight_three_le_fifteen :
+    Nat.choose 128 3 ≤ Nat.choose 128 15 := by
+  have s3 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 3) (by decide)
+  have s4 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 4) (by decide)
+  have s5 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 5) (by decide)
+  have s6 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 6) (by decide)
+  have s7 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 7) (by decide)
+  have s8 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 8) (by decide)
+  have s9 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 9) (by decide)
+  have s10 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 10) (by decide)
+  have s11 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 11) (by decide)
+  have s12 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 12) (by decide)
+  have s13 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 13) (by decide)
+  have s14 := Nat.choose_le_succ_of_lt_half_left (n := 128) (r := 14) (by decide)
+  exact le_trans s3 (le_trans s4 (le_trans s5 (le_trans s6 (le_trans s7
+    (le_trans s8 (le_trans s9 (le_trans s10 (le_trans s11 (le_trans s12
+      (le_trans s13 s14))))))))))
+
+/-- `8! ≤ C(128,15)`. -/
+theorem factorial_eight_le_choose_one_twenty_eight_fifteen :
+    Nat.factorial 8 ≤ Nat.choose 128 15 := by
+  have h3 : Nat.factorial 8 ≤ Nat.choose 128 3 := by decide
+  exact le_trans h3 choose_one_twenty_eight_three_le_fifteen
+
+/-- Seed: `128^3 ≤ 761 · 15^3`. -/
+theorem seven_six_one_mul_fifteen_cube_ge_one_twenty_eight_cube :
+    (128 : ℕ) ^ 3 ≤ 761 * 15 ^ 3 := by
+  decide
+
+/-- `128^{24} ≤ 761^8 · 15^{24}`. -/
+theorem seven_six_one_pow_mul_fifteen_pow_ge_one_twenty_eight_pow :
+    (128 : ℕ) ^ 24 ≤ (761 : ℕ) ^ 8 * (15 : ℕ) ^ 24 := by
+  have h := seven_six_one_mul_fifteen_cube_ge_one_twenty_eight_cube
+  have hpow : ((128 : ℕ) ^ 3) ^ 8 ≤ (761 * 15 ^ 3) ^ 8 :=
+    Nat.pow_le_pow_left h 8
+  have hL : ((128 : ℕ) ^ 3) ^ 8 = (128 : ℕ) ^ 24 := by rw [← Nat.pow_mul]
+  have hR : (761 * 15 ^ 3) ^ 8 = (761 : ℕ) ^ 8 * (15 : ℕ) ^ 24 := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  rwa [hL, hR] at hpow
+
+/-- `761^8 ≤ C(768,8) · 8!`. -/
+theorem seven_six_one_pow_le_choose_mul_factorial :
+    (761 : ℕ) ^ 8 ≤ Nat.choose 768 8 * Nat.factorial 8 := by
+  have hsub : (768 + 1 - 8 : ℕ) = 761 := by decide
+  have hdesc : (768 + 1 - 8 : ℕ) ^ 8 ≤ Nat.descFactorial 768 8 :=
+    Nat.pow_sub_le_descFactorial 768 8
+  have hdesc' : (761 : ℕ) ^ 8 ≤ Nat.descFactorial 768 8 := by
+    rwa [hsub] at hdesc
+  calc
+    (761 : ℕ) ^ 8 ≤ Nat.descFactorial 768 8 := hdesc'
+    _ = Nat.factorial 8 * Nat.choose 768 8 :=
+        Nat.descFactorial_eq_factorial_mul_choose 768 8
+    _ = Nat.choose 768 8 * Nat.factorial 8 := Nat.mul_comm _ _
+
+/-- Occupancy lower seed: Chernoff slice times `C(n,15)` already meets the
+cancelled target, so the fibre upper bound cannot sit strictly below. -/
+theorem spreads_occupancy_chernoff_product_ge_at_one_twenty_eight :
+    (128 : ℕ) ^ 24 ≤
+      Nat.choose (6 * 128) 8 * Nat.choose 128 15 * (15 : ℕ) ^ 24 := by
+  have h6 : (6 * 128 : ℕ) = 768 := by decide
+  rw [h6]
+  have hfac := factorial_eight_le_choose_one_twenty_eight_fifteen
+  have h761 := seven_six_one_pow_le_choose_mul_factorial
+  have hpow := seven_six_one_pow_mul_fifteen_pow_ge_one_twenty_eight_pow
+  refine le_trans hpow (le_trans (Nat.mul_le_mul_right _ h761) ?_)
+  exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hfac)
+
+/-- Lift the product lower bound through the common `8^s` factor. -/
+theorem spreads_occupancy_chernoff_product_ge_eight_pow_at_one_twenty_eight :
+    (8 * 128 ^ 3) ^ 8 ≤
+      Nat.choose (6 * 128) 8 * Nat.choose 128 15 * (8 * 15 ^ 3) ^ 8 := by
+  have hcore := spreads_occupancy_chernoff_product_ge_at_one_twenty_eight
+  have hL : (8 * 128 ^ 3) ^ 8 = 8 ^ 8 * (128 : ℕ) ^ 24 := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  have hR : (8 * 15 ^ 3) ^ 8 = 8 ^ 8 * (15 : ℕ) ^ 24 := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  rw [hL, hR]
+  have h := Nat.mul_le_mul_left (8 ^ 8) hcore
+  rwa [mul_left_move_last_nat] at h
+
+/-- Honest obstruction: Cluster 21 cancelled occupancy fails at the active
+pin `n = 128`, `s = 8` (dominates Chernoff × `C(n,15)`). -/
+theorem spreads_occupancy_fiber_not_lt_eight_pow_at_one_twenty_eight :
+    ¬ (Nat.choose (6 * 128) 8 * spreadsOccupancyFiberBound 128 8 (2 * 8) <
+        (8 * 128 ^ 3) ^ 8) := by
+  intro hlt
+  have hs : (0 : ℕ) < 8 := by decide
+  have hle : 2 * 8 - 1 ≤ 128 := by decide
+  have hdom :=
+    spreadsOccupancyFiberBound_ge_chernoff_slice (n := 128) (s := 8) hs hle
+  have hge := spreads_occupancy_chernoff_product_ge_eight_pow_at_one_twenty_eight
+  have hslice :
+      Nat.choose (6 * 128) 8 * Nat.choose 128 15 * (8 * 15 ^ 3) ^ 8 ≤
+        Nat.choose (6 * 128) 8 * spreadsOccupancyFiberBound 128 8 (2 * 8) := by
+    have hEq := spreadsChernoffSlice_one_twenty_eight_eight
+    have : Nat.choose 128 15 * spreadsChernoffSlice 128 8 ≤
+        spreadsOccupancyFiberBound 128 8 (2 * 8) := hdom
+    simpa [hEq] using Nat.mul_le_mul_left (Nat.choose (6 * 128) 8) this
+  exact not_lt_of_ge (le_trans hge hslice) hlt
+
+/-- Convenience: Cluster 21 cancelled occupancy predicate fails at `n = 128`,
+`s = 8`. -/
+theorem spreadsOccupancyTerm_core_not_lt_at_one_twenty_eight :
+    ¬ (Nat.choose (6 * 128) 8 * spreadsOccupancyFiberBound 128 8 (2 * 8) <
+        (8 * 128 ^ 3) ^ 8) :=
+  spreads_occupancy_fiber_not_lt_eight_pow_at_one_twenty_eight
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -4544,8 +4783,9 @@ dropping the inner `∑_u C(n,u)`.
 
 Cycle 2026-08-12 (Cluster 23 pin redesign): human accept_prose activated
 `random3CNFMatchScale := n / 16` with threshold `n ≥ 128`; packaging and both
-Frontier equations retargeted to `r = n / 16`. Remaining: Nat Chernoff or
-occupancy close at some `n ≥ 128`, then joint unsat and matchability. -/
+Frontier equations retargeted to `r = n / 16`. Cluster 24: Chernoff core LT
+at `n = 128` certified; occupancy fibre still overruns; need a tighter fibre
+upper bound, then joint unsat and matchability. -/
 
 namespace CSExpansionFrontier
 
