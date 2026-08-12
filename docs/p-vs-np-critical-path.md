@@ -103,11 +103,11 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: tighten occupancy fibers (Chernoff or relative entropy, not the inner
-   `∑_u C(n,u)` union) then close joint unsat and matchability for
-   `exists_spreads_matchable_unsat_random3CNF` at density `m = 6 n` and scale
-   `r = n/4` (occupancy packaging Cluster 21 merged; edit CSExpansion.lean
-   only; fallback pin `r = n/8` recorded but inactive).
+1. R2: prove pin redesign after Cluster 22 Chernoff slice obstruction
+   (`spreads_chernoff_slice_not_lt_eight_pow_at_thirty_two`): first moment at
+   `m = 6 n`, `r = n/4` is blocked even without the inner `∑_u C(n,u)`. Options:
+   constant informative scale, activate recorded `r = n/8` after accept_prose,
+   or non-random Spreads witness. Edit CSExpansion.lean only after prose gate.
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or

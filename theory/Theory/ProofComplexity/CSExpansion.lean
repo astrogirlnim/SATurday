@@ -47,8 +47,11 @@ honest obstruction that the crude `C(m,s) C(n,2s-1) (u/n)^{3s}` close fails
 at locked `n = 32`. Cluster 21: occupancy packaging on fixed index sets
 (`card_ensembleIndex_support_card_lt`, `spreadsOccupancyTerm`,
 `exists_spreadsIndices_of_occupancy_sum_lt`) at locked `m = 6 n`,
-`r = n / 4`, with recorded `r = n / 8` fallback alias; Chernoff fiber
-tightening and joint existence remain Frontier.
+`r = n / 4`, with recorded `r = n / 8` fallback alias. Cluster 22:
+Chernoff style single slice occupancy fiber (drop the inner
+`∑_u C(n,u)` from the first moment budget) plus certified obstruction that
+even one fixed `U` of size `2s-1` already overruns the cancelled inequality
+at locked `n = 32`, `s = 8`; joint existence remains Frontier.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -4288,6 +4291,179 @@ theorem two_mul_matchScaleFallback_le_div_four (n : ℕ) :
   simp only [random3CNFMatchScaleFallback]
   omega
 
+/-! ## Chernoff style occupancy fiber and pin obstruction (Cluster 22)
+
+The Cluster 21 fiber `∑_{u < 2s} C(n,u) (8 u^3)^s` still carries an inner
+choose sum. A Chernoff or balls and bins first moment only needs one fixed
+support side `U` of size `2s-1`: every sample concentrated on that `U` is a
+genuine occupancy failure on `S`. That single slice is already a lower bound
+on the true fixed-`S` bad count, with no `∑_u C(n,u)` factor.
+
+At the locked informative minimum `n = 32`, `s = r = 8`, the cancelled
+comparison `C(6n,s) (8 (2s-1)^3)^s < (8 n^3)^s` fails (certified below).
+Therefore no first moment close that routes through
+`C(m,s) · |{ω : X_S(ω) < 2s}| < |Ω|` can succeed at this pin: the left hand
+side is at least the overrun single slice. Removing the inner choose sum
+tightens the upper bound packaging but cannot rescue the locked
+`m = 6 n`, `r = n / 4` union bound. Pin redesign (including the recorded
+`r = n / 8` fallback) needs a separate prove or accept_prose cycle. -/
+
+/-- Single slice Chernoff or occupancy seed: one fixed `U` of size `2s-1`.
+Mathematical intent: drop `∑_u C(n,u)` from the first moment budget.
+The ambient `n` is retained for call site uniformity with other fiber terms. -/
+def spreadsChernoffSlice (_n s : ℕ) : ℕ :=
+  (8 * (2 * s - 1) ^ 3) ^ s
+
+/-- Occupancy fiber bound dominates the single Chernoff slice times `C(n,2s-1)`. -/
+theorem spreadsOccupancyFiberBound_ge_chernoff_slice {n s : ℕ}
+    (hs : 0 < s) (_hle : 2 * s - 1 ≤ n) :
+    Nat.choose n (2 * s - 1) * spreadsChernoffSlice n s ≤
+      spreadsOccupancyFiberBound n s (2 * s) := by
+  have hmem : 2 * s - 1 ∈ range (2 * s) := by
+    refine mem_range.mpr ?_
+    have : 2 * s - 1 < 2 * s :=
+      Nat.sub_lt (Nat.mul_pos (by decide : 0 < 2) hs) (by decide)
+    exact this
+  have hterm :
+      Nat.choose n (2 * s - 1) * (8 * (2 * s - 1) ^ 3) ^ s ≤
+        ∑ u ∈ range (2 * s), Nat.choose n u * (8 * u ^ 3) ^ s := by
+    simpa using
+      (Finset.single_le_sum
+        (f := fun u : ℕ => Nat.choose n u * (8 * u ^ 3) ^ s)
+        (fun _ _ => Nat.zero_le _) hmem)
+  simpa [spreadsOccupancyFiberBound, spreadsChernoffSlice] using hterm
+
+/-- Concentrated samples on a fixed `U` with `|U| < 2 |S|` are occupancy
+failures on `S`. -/
+theorem supportCardLt_of_concentrated_lt {n m : ℕ}
+    {ω : EnsembleIndex n m} {S : Finset (Fin m)} {U : Finset (Fin n)}
+    (h : supportConcentrated ω S U) (hlt : U.card < 2 * S.card) :
+    supportCardLt ω S (2 * S.card) := by
+  have hle := indexSupport_card_le_of_concentrated h
+  have hceq := card_indexSupportFin ω S
+  have : (indexSupportFin ω S).card < 2 * S.card := by
+    have : (indexSupport ω S).card < 2 * S.card := lt_of_le_of_lt hle hlt
+    omega
+  exact this
+
+/-- Fixed-`S` occupancy fiber is at least one concentrated slice on a concrete
+`U` (Chernoff style lower seed; no choose sum). -/
+theorem card_ensembleIndex_support_card_lt_ge_concentrated {n m : ℕ}
+    (S : Finset (Fin m)) (U : Finset (Fin n))
+    (hlt : U.card < 2 * S.card) :
+    (8 * U.card ^ 3) ^ S.card * (8 * n ^ 3) ^ (m - S.card) ≤
+      Fintype.card
+        { ω : EnsembleIndex n m // (indexSupportFin ω S).card < 2 * S.card } := by
+  classical
+  let f :
+      { ω : EnsembleIndex n m // supportConcentrated ω S U } →
+        { ω : EnsembleIndex n m // (indexSupportFin ω S).card < 2 * S.card } :=
+    fun ω => ⟨ω.1, supportCardLt_of_concentrated_lt ω.2 hlt⟩
+  have hinj : Function.Injective f := by
+    intro ω₁ ω₂ hef
+    have hval : ω₁.1 = ω₂.1 := congrArg (fun z => z.1) hef
+    exact Subtype.ext hval
+  have hcard := card_ensembleIndex_supportConcentrated (n := n) (m := m) S U
+  have hle := Fintype.card_le_of_injective f hinj
+  simpa [hcard] using hle
+
+/-- Specialise the lower seed to `|U| = 2s-1` (rate 2 threshold minus one). -/
+theorem card_ensembleIndex_support_card_lt_ge_chernoff_slice {n m s : ℕ}
+    (S : Finset (Fin m)) (U : Finset (Fin n))
+    (hS : S.card = s) (hU : U.card = 2 * s - 1) (hs : 0 < s) :
+    spreadsChernoffSlice n s * (8 * n ^ 3) ^ (m - s) ≤
+      Fintype.card
+        { ω : EnsembleIndex n m // (indexSupportFin ω S).card < 2 * s } := by
+  have hlt : U.card < 2 * S.card := by
+    have : 2 * s - 1 < 2 * s :=
+      Nat.sub_lt (Nat.mul_pos (by decide : 0 < 2) hs) (by decide)
+    omega
+  have h := card_ensembleIndex_support_card_lt_ge_concentrated (S := S) (U := U) hlt
+  simpa [hS, hU, spreadsChernoffSlice] using h
+
+/-- From `32^2 < 15^3`, raise to the eighth power: `32^{16} ≤ 15^{24}`.
+Reuses the Cluster 20 power lemma. -/
+theorem fifteen_pow_twenty_four_ge_thirty_two_pow_sixteen :
+    (32 : ℕ) ^ 16 ≤ (15 : ℕ) ^ 24 :=
+  Nat.le_of_lt thirty_two_pow_sixteen_lt_fifteen_pow_twenty_four
+
+/-- Single slice cancelled core at `n = 32`, `s = 8`: already at least
+`32^{24}` with no `C(n,15)` factor. -/
+theorem spreads_chernoff_slice_core_ge_at_thirty_two :
+    (32 : ℕ) ^ 24 ≤ Nat.choose (6 * 32) 8 * (15 : ℕ) ^ 24 := by
+  have h6 : (6 * 32 : ℕ) = 192 := by decide
+  rw [h6]
+  have hch := choose_one_ninety_two_eight_ge_thirty_two_pow_eight
+  have hge := fifteen_pow_twenty_four_ge_thirty_two_pow_sixteen
+  -- `32^{24} = 32^8 * 32^{16} ≤ C(192,8) * 15^{24}`.
+  have hsplit : (32 : ℕ) ^ 24 = (32 : ℕ) ^ 8 * (32 : ℕ) ^ 16 := by
+    rw [show (24 : ℕ) = 8 + 16 from rfl, Nat.pow_add]
+  rw [hsplit]
+  exact Nat.mul_le_mul hch hge
+
+/-- Negation form: single slice core is not strictly below `32^{24}`. -/
+theorem spreads_chernoff_slice_core_not_lt_at_thirty_two :
+    ¬ (Nat.choose (6 * 32) 8 * (15 : ℕ) ^ 24 < (32 : ℕ) ^ 24) :=
+  not_lt_of_ge spreads_chernoff_slice_core_ge_at_thirty_two
+
+/-- Same obstruction before cancelling `8^s` (feeds the ensemble comparison). -/
+theorem spreads_chernoff_slice_not_lt_eight_pow_at_thirty_two :
+    ¬ (Nat.choose (6 * 32) 8 * (8 * 15 ^ 3) ^ 8 < (8 * 32 ^ 3) ^ 8) := by
+  intro hlt
+  have hL : (8 * 15 ^ 3) ^ 8 = 8 ^ 8 * (15 : ℕ) ^ 24 := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  have hR : (8 * 32 ^ 3) ^ 8 = 8 ^ 8 * (32 : ℕ) ^ 24 := by
+    rw [Nat.mul_pow, ← Nat.pow_mul]
+  rw [hL, hR] at hlt
+  have hre :
+      Nat.choose (6 * 32) 8 * (8 ^ 8 * (15 : ℕ) ^ 24) =
+        (Nat.choose (6 * 32) 8 * (15 : ℕ) ^ 24) * 8 ^ 8 := by
+    ring
+  have hre2 : 8 ^ 8 * (32 : ℕ) ^ 24 = (32 : ℕ) ^ 24 * 8 ^ 8 := by ring
+  rw [hre, hre2] at hlt
+  have hcore :
+      Nat.choose (6 * 32) 8 * (15 : ℕ) ^ 24 < (32 : ℕ) ^ 24 :=
+    Nat.lt_of_mul_lt_mul_right hlt
+  exact spreads_chernoff_slice_core_not_lt_at_thirty_two hcore
+
+/-- Alias: Chernoff slice equals `(8 (2s-1)^3)^s` at `n = 32`, `s = 8`. -/
+theorem spreadsChernoffSlice_thirty_two_eight :
+    spreadsChernoffSlice 32 8 = (8 * 15 ^ 3) ^ 8 :=
+  rfl
+
+/-- Occupancy fibre upper bound itself cannot meet the cancelled target at the
+locked pin (it dominates the overrun Chernoff slice times `C(n,15)`). -/
+theorem spreads_occupancy_fiber_not_lt_eight_pow_at_thirty_two :
+    ¬ (Nat.choose (6 * 32) 8 * spreadsOccupancyFiberBound 32 8 (2 * 8) <
+        (8 * 32 ^ 3) ^ 8) := by
+  intro hlt
+  have hs : (0 : ℕ) < 8 := by decide
+  have hle : 2 * 8 - 1 ≤ 32 := by decide
+  have hdom :=
+    spreadsOccupancyFiberBound_ge_chernoff_slice (n := 32) (s := 8) hs hle
+  have hslice :
+      Nat.choose (6 * 32) 8 * spreadsChernoffSlice 32 8 ≤
+        Nat.choose (6 * 32) 8 * spreadsOccupancyFiberBound 32 8 (2 * 8) := by
+    have hch : 1 ≤ Nat.choose 32 15 := choose_thirty_two_fifteen_pos
+    have h1 :
+        spreadsChernoffSlice 32 8 ≤
+          Nat.choose 32 15 * spreadsChernoffSlice 32 8 :=
+      Nat.le_mul_of_pos_left _ hch
+    exact Nat.mul_le_mul_left _ (le_trans h1 hdom)
+  have hge :
+      Nat.choose (6 * 32) 8 * spreadsChernoffSlice 32 8 < (8 * 32 ^ 3) ^ 8 :=
+    lt_of_le_of_lt hslice hlt
+  have hEq := spreadsChernoffSlice_thirty_two_eight
+  rw [hEq] at hge
+  exact spreads_chernoff_slice_not_lt_eight_pow_at_thirty_two hge
+
+/-- Convenience: the Cluster 21 cancelled occupancy predicate fails at
+`n = 32`, `s = 8`. -/
+theorem spreadsOccupancyTerm_core_not_lt_at_thirty_two :
+    ¬ (Nat.choose (6 * 32) 8 * spreadsOccupancyFiberBound 32 8 (2 * 8) <
+        (8 * 32 ^ 3) ^ 8) :=
+  spreads_occupancy_fiber_not_lt_eight_pow_at_thirty_two
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -4344,8 +4520,13 @@ locked `n = 32`.
 Cycle 2026-08-11 (occupancy packaging): accepted fixed-`S` occupancy fibers,
 `spreadsOccupancyTerm`, and
 `exists_spreadsIndices_of_occupancy_sum_lt` (crude outer `C(n,2s-1)` removed).
-Remaining: Chernoff or relative entropy fiber bound that beats
-`∑_u C(n,u) (8u^3)^s`, then joint unsat and matchability intersection. -/
+
+Cycle 2026-08-11 (Chernoff slice obstruction): accepted single slice lower seed
+`spreadsChernoffSlice` and certified that
+`C(6n,s) (8 (2s-1)^3)^s < (8 n^3)^s` already fails at locked `n = 32`,
+`s = 8`, so the first moment close at `m = 6 n`, `r = n / 4` is blocked
+even after dropping the inner `∑_u C(n,u)`. Remaining: pin redesign or a
+non union-bound Spreads argument, then joint unsat and matchability. -/
 
 namespace CSExpansionFrontier
 

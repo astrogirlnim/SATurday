@@ -2024,3 +2024,59 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   matchability intersection.
   gate_pending: none.
 
+- 2026-08-11 formalize (Chernoff slice occupancy obstruction):
+  PARTIAL. Edited only
+  `theory/Theory/ProofComplexity/CSExpansion.lean` (Cluster 22).
+
+  ### Verified Lean names used or added (ripgrep; no guessing)
+
+  Pre-existing:
+  `indexSupportFin`, `supportConcentrated`,
+  `card_ensembleIndex_supportConcentrated`, `indexSupport_card_le_of_concentrated`,
+  `card_indexSupportFin`, `supportCardLt`, `spreadsOccupancyFiberBound`,
+  `spreadsOccupancyTerm`, `choose_one_ninety_two_eight_ge_thirty_two_pow_eight`,
+  `thirty_two_pow_sixteen_lt_fifteen_pow_twenty_four`,
+  `choose_thirty_two_fifteen_pos`,
+  `spreads_crude_term_not_lt_eight_pow_at_thirty_two`,
+  `CSExpansionFrontier.exists_spreads_matchable_unsat_random3CNF`.
+
+  New accepted Cluster 22:
+  `spreadsChernoffSlice`,
+  `spreadsOccupancyFiberBound_ge_chernoff_slice`,
+  `supportCardLt_of_concentrated_lt`,
+  `card_ensembleIndex_support_card_lt_ge_concentrated`,
+  `card_ensembleIndex_support_card_lt_ge_chernoff_slice`,
+  `fifteen_pow_twenty_four_ge_thirty_two_pow_sixteen`,
+  `spreads_chernoff_slice_core_ge_at_thirty_two`,
+  `spreads_chernoff_slice_core_not_lt_at_thirty_two`,
+  `spreads_chernoff_slice_not_lt_eight_pow_at_thirty_two`,
+  `spreadsChernoffSlice_thirty_two_eight`,
+  `spreads_occupancy_fiber_not_lt_eight_pow_at_thirty_two`,
+  `spreadsOccupancyTerm_core_not_lt_at_thirty_two`.
+
+  ### What compiled
+
+  Single slice lower seed `(8 (2s-1)^3)^s` injects into the true fixed-`S`
+  occupancy failure set (no inner `∑_u C(n,u)`). At locked `n = 32`, `s = 8`,
+  `C(192,8) (15)^{24} ≥ 32^{24}` and therefore
+  `¬ C(6n,s) (8 (2s-1)^3)^s < (8 n^3)^s`. The Cluster 21 fiber upper bound
+  inherits the same obstruction. Axiom gate PASS.
+
+  ### Honest limit
+
+  Dropping the inner choose sum does not rescue the first moment close at
+  `m = 6 n`, `r = n / 4`: even one fixed `U` of size `2s-1` overruns the
+  cancelled budget at the informative minimum. Frontier
+  `exists_spreads_matchable_unsat_random3CNF` remains open. The recorded
+  `r = n / 8` fallback is still inactive and needs accept_prose before any
+  pin patch; calibration also suggests constant scale `r ≥ 8` (not linear
+  `r = n/4`) is the regime where a union bound can close.
+
+  Most important thing learned: Chernoff style removal of `∑_u C(n,u)` is
+  real progress on the fiber shape, but the locked linear rate-2 pin is
+  first-moment blocked at `n = 32` already; next work is a prove cycle to
+  redesign the Spreads pin or method, not more fiber algebra at `r = n/4`.
+  Next: prove pin redesign (constant informative `r`, weaker rate, or
+  non-random witness), with accept_prose before any Frontier equation patch.
+  gate_pending: none.
+
