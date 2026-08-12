@@ -34,24 +34,26 @@ satisfiability obstruction; matchable unsat polarity on an overlapping system
 
 Cluster 17 (probabilistic lift scaffolding): finite ensemble
 `Oriented3Clause` / `EnsembleIndex` / `Ensemble3CNF`, sample map `random3CNF`
-at locked density `m = 6 n` and scale `r = n / 4`, width and variable-card
-lemmas, `Spreads.mono_r`, and packaging
-`exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`. Cluster 18:
-unsat first-moment Nat bounds (`seven_pow_six_lt_two_pow_seventeen`,
-`two_pow_mul_seven_pow_lt_eight_pow`, `exists_unsat_random3CNF`). Cluster 19:
-Spreads and matchability union bound scaffolding
-(`Oriented3Clause.support`, concentration fibers, index Spreads lift,
-`isCSMatchable_of_unsat_min_card`). Cluster 20: Spreads summed choose
+at locked density `m = 6 n`, width and variable-card lemmas, `Spreads.mono_r`,
+and packaging `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`.
+Cluster 18: unsat first-moment Nat bounds
+(`seven_pow_six_lt_two_pow_seventeen`, `two_pow_mul_seven_pow_lt_eight_pow`,
+`exists_unsat_random3CNF`). Cluster 19: Spreads and matchability union bound
+scaffolding (`Oriented3Clause.support`, concentration fibers, index Spreads
+lift, `isCSMatchable_of_unsat_min_card`). Cluster 20: Spreads summed choose
 packaging (`indexSupportFin`, failure terms, card comparison bridge) plus
 honest obstruction that the crude `C(m,s) C(n,2s-1) (u/n)^{3s}` close fails
-at locked `n = 32`. Cluster 21: occupancy packaging on fixed index sets
+at the old informative minimum `n = 32` under the killed `r = n / 4` pin.
+Cluster 21: occupancy packaging on fixed index sets
 (`card_ensembleIndex_support_card_lt`, `spreadsOccupancyTerm`,
-`exists_spreadsIndices_of_occupancy_sum_lt`) at locked `m = 6 n`,
-`r = n / 4`, with recorded `r = n / 8` fallback alias. Cluster 22:
-Chernoff style single slice occupancy fiber (drop the inner
-`∑_u C(n,u)` from the first moment budget) plus certified obstruction that
-even one fixed `U` of size `2s-1` already overruns the cancelled inequality
-at locked `n = 32`, `s = 8`; joint existence remains Frontier.
+`exists_spreadsIndices_of_occupancy_sum_lt`) at locked `m = 6 n`.
+Cluster 22: Chernoff style single slice occupancy fiber plus certified
+obstruction that one fixed `U` of size `2s-1` already overruns the cancelled
+inequality at the killed pin `n = 32`, `s = 8` with `r = n / 4`.
+Cluster 23 (pin redesign, accept_prose 2026-08-12): active scale is
+`random3CNFMatchScale := n / 16` with informative threshold `n ≥ 128`;
+killed `r = n / 4` and recorded `r = n / 8` fallback under the same
+first-moment method; joint existence remains Frontier.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -2948,20 +2950,21 @@ def random3CNFDensity : ℕ := 6
 /-- Clause count at locked density: `m = 6 * n`. -/
 def random3CNFClauseCount (n : ℕ) : ℕ := random3CNFDensity * n
 
-/-- Matchability and Spreads scale in the pin: `r = n / 4`. -/
-def random3CNFMatchScale (n : ℕ) : ℕ := n / 4
+/-- Matchability and Spreads scale in the pin: `r = n / 16`
+(Cluster 23 redesign after Chernoff kill of `n / 4` and `n / 8`). -/
+def random3CNFMatchScale (n : ℕ) : ℕ := n / 16
 
 theorem random3CNFClauseCount_eq (n : ℕ) :
     random3CNFClauseCount n = 6 * n := by
   simp [random3CNFClauseCount, random3CNFDensity]
 
-/-- Informative floor for α = 1 requires `r ≥ 8`, hence `n ≥ 32` under `r = n/4`. -/
-theorem random3CNFMatchScale_ge_eight {n : ℕ} (hn : 32 ≤ n) :
+/-- Informative floor for α = 1 requires `r ≥ 8`, hence `n ≥ 128` under `r = n/16`. -/
+theorem random3CNFMatchScale_ge_eight {n : ℕ} (hn : 128 ≤ n) :
     8 ≤ random3CNFMatchScale n := by
   simp only [random3CNFMatchScale]
   omega
 
-theorem csClauseWidthFloor_of_random3CNFMatchScale {n : ℕ} (hn : 32 ≤ n) :
+theorem csClauseWidthFloor_of_random3CNFMatchScale {n : ℕ} (hn : 128 ≤ n) :
     3 < csClauseWidthFloor (random3CNFMatchScale n) 1 := by
   have hr : 8 ≤ random3CNFMatchScale n := random3CNFMatchScale_ge_eight hn
   simp only [csClauseWidthFloor, random3CNFMatchScale] at hr ⊢
@@ -3014,21 +3017,21 @@ theorem Spreads.mono_r {F : CNF} {r r' γ : ℕ}
   intro G hG hlo' hhi'
   exact h G hG (le_trans hlo hlo') (le_trans hhi' hhi)
 
-/-- Packaging: matchable unsat Spreads at rate 2 and scale `n/4` yields the
+/-- Packaging: matchable unsat Spreads at rate 2 and scale `n/16` yields the
 critical-path clause-set expansion inhabitant (α = 1). -/
 theorem exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat
     (h : ∀ N : ℕ, ∃ (n : ℕ) (F : CNF),
       N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
-        Spreads F (n / 4) 2 ∧ IsCSMatchable F (n / 4) ∧ ¬ Satisfiable F ∧
-          cnfWidth F < csClauseWidthFloor (n / 4) 1) :
+        Spreads F (n / 16) 2 ∧ IsCSMatchable F (n / 16) ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor (n / 16) 1) :
     ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (r α : ℕ),
       N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
-        α = 1 ∧ r = n / 4 ∧
+        α = 1 ∧ r = n / 16 ∧
           IsCSMatchable F r ∧ HasCSClauseExpansion F r α ∧
             ¬ Satisfiable F ∧ cnfWidth F < csClauseWidthFloor r α := by
   intro N
   obtain ⟨n, F, hN, hvars, hw, hsp, hmatch, hunsat, hfloor⟩ := h N
-  refine ⟨n, F, n / 4, 1, hN, hvars, hw, rfl, rfl, hmatch, ?_, hunsat, ?_⟩
+  refine ⟨n, F, n / 16, 1, hN, hvars, hw, rfl, rfl, hmatch, ?_, hunsat, ?_⟩
   · exact hasCSClauseExpansion_one_of_spreads_two hw hsp
   · simpa [csClauseWidthFloor] using hfloor
 
@@ -3664,14 +3667,14 @@ theorem pow_three_lt_pow_three {u n : ℕ} : u ^ 3 < n ^ 3 ↔ u < n := by
   · intro h
     exact Nat.pow_lt_pow_left h (by decide : (3 : ℕ) ≠ 0)
 
-/-- Locked scale: medium index sets for Spreads sit at most at `n/4`. -/
+/-- Locked scale: medium index sets for Spreads sit at most at `n/16`. -/
 theorem random3CNFMatchScale_eq (n : ℕ) :
-    random3CNFMatchScale n = n / 4 :=
+    random3CNFMatchScale n = n / 16 :=
   rfl
 
 /-- Medium upper end equals the matchability scale. -/
 theorem medium_hi_eq_matchScale (n : ℕ) :
-    random3CNFMatchScale n = n / 4 :=
+    random3CNFMatchScale n = n / 16 :=
   random3CNFMatchScale_eq n
 
 /-- If `|U| < 2 |S|` then concentration on `U` witnesses SpreadsIndices failure
@@ -3693,9 +3696,9 @@ theorem not_spreadsIndices_of_concentrated_small {n m : ℕ}
 Finite packaging for Step 3: Fin valued supports, crude failure terms
 `C(m,s) C(n,2s-1) (8 (2s-1)^3)^s (8 n^3)^{m-s}`, and the card comparison
 bridge from a strict inequality against `|Ω|` to an inhabited
-`SpreadsIndices` sample. The crude close at locked `m = 6 n`, `r = n / 4`
-fails already at the informative minimum `n = 32` (certified obstruction
-below); a tighter count or pin revision is required before
+`SpreadsIndices` sample. The crude close at killed `m = 6 n`, `r = n / 4`
+fails already at the old informative minimum `n = 32` (certified obstruction
+below); active pin is Cluster 23 `r = n / 16` with `n ≥ 128` before
 `exists_spreads_matchable_unsat_random3CNF` can land. -/
 
 /-- Fin valued support of an index set (coordinates, not `ℕ` images). -/
@@ -3975,14 +3978,25 @@ theorem spreads_crude_term_not_lt_eight_pow_at_thirty_two :
     Nat.lt_of_mul_lt_mul_right hlt
   exact spreads_crude_core_not_lt_at_thirty_two hcore
 
-/-- Medium scale at `n = 32` is `r = 8`. -/
+/-- Historical evaluation at the old informative minimum: under the active
+`r = n / 16` pin, `n = 32` yields only `r = 2` (not informative for α = 1). -/
 theorem random3CNFMatchScale_thirty_two :
-    random3CNFMatchScale 32 = 8 :=
+    random3CNFMatchScale 32 = 2 :=
   rfl
 
 /-- Clause count at `n = 32` is `m = 192`. -/
 theorem random3CNFClauseCount_thirty_two :
     random3CNFClauseCount 32 = 192 :=
+  rfl
+
+/-- Active pin calibration: at `n = 128` the scale is exactly informative `r = 8`. -/
+theorem random3CNFMatchScale_one_twenty_eight :
+    random3CNFMatchScale 128 = 8 :=
+  rfl
+
+/-- Clause count at `n = 128` is `m = 768`. -/
+theorem random3CNFClauseCount_one_twenty_eight :
+    random3CNFClauseCount 128 = 768 :=
   rfl
 
 /-! ## Occupancy Spreads packaging (Cluster 21)
@@ -3994,20 +4008,21 @@ outer `C(n, 2s-1)` factor in `spreadsFailureTerm`. This cluster certifies the
 Nat packaging and the card comparison bridge. The fiber bound below is the
 honest union of concentration subtypes over `|U| < 2s`; a Chernoff or relative
 entropy lower tail that removes the inner `∑_u C(n,u)` remains for a later
-cycle. Locked pins stay `m = 6 n` and `r = n / 4`; `random3CNFMatchScaleFallback`
-records the `r = n / 8` pin shrink if the tighter fiber refuses to close. -/
+cycle. Active pin (Cluster 23): `m = 6 n` and `r = n / 16` with `n ≥ 128`.
+Historical `random3CNFMatchScaleFallback` (`r = n / 8`) is a killed alias
+kept for obstruction documentation only. -/
 
-/-- Recorded pin fallback scale (`r = n / 8`) from the occupancy revision.
-Not active in Frontier statements; use only after an explicit pin patch. -/
+/-- Killed pin fallback scale (`r = n / 8`) from the occupancy revision.
+Chernoff first-moment asymptotics still diverge at α = 1/8; not active. -/
 def random3CNFMatchScaleFallback (n : ℕ) : ℕ := n / 8
 
-/-- Fallback scale is informative for α = 1 once `n ≥ 64`. -/
+/-- Historical: fallback scale would be informative for α = 1 once `n ≥ 64`. -/
 theorem random3CNFMatchScaleFallback_ge_eight {n : ℕ} (hn : 64 ≤ n) :
     8 ≤ random3CNFMatchScaleFallback n := by
   simp only [random3CNFMatchScaleFallback]
   omega
 
-/-- Floor under the fallback scale is informative once `n ≥ 64`. -/
+/-- Historical: floor under the killed fallback scale once `n ≥ 64`. -/
 theorem csClauseWidthFloor_of_random3CNFMatchScaleFallback {n : ℕ}
     (hn : 64 ≤ n) :
     3 < csClauseWidthFloor (random3CNFMatchScaleFallback n) 1 := by
@@ -4285,7 +4300,7 @@ theorem two_mul_matchScale_le_div_two (n : ℕ) :
   simp only [random3CNFMatchScale]
   omega
 
-/-- Fallback rate-2 threshold never exceeds `n / 4`. -/
+/-- Killed fallback rate-2 threshold never exceeds `n / 4`. -/
 theorem two_mul_matchScaleFallback_le_div_four (n : ℕ) :
     2 * random3CNFMatchScaleFallback n ≤ n / 4 := by
   simp only [random3CNFMatchScaleFallback]
@@ -4299,14 +4314,14 @@ support side `U` of size `2s-1`: every sample concentrated on that `U` is a
 genuine occupancy failure on `S`. That single slice is already a lower bound
 on the true fixed-`S` bad count, with no `∑_u C(n,u)` factor.
 
-At the locked informative minimum `n = 32`, `s = r = 8`, the cancelled
-comparison `C(6n,s) (8 (2s-1)^3)^s < (8 n^3)^s` fails (certified below).
-Therefore no first moment close that routes through
-`C(m,s) · |{ω : X_S(ω) < 2s}| < |Ω|` can succeed at this pin: the left hand
+At the killed informative minimum `n = 32`, `s = 8` under `r = n / 4`, the
+cancelled comparison `C(6n,s) (8 (2s-1)^3)^s < (8 n^3)^s` fails (certified
+below). Therefore no first moment close that routes through
+`C(m,s) · |{ω : X_S(ω) < 2s}| < |Ω|` can succeed at that pin: the left hand
 side is at least the overrun single slice. Removing the inner choose sum
-tightens the upper bound packaging but cannot rescue the locked
-`m = 6 n`, `r = n / 4` union bound. Pin redesign (including the recorded
-`r = n / 8` fallback) needs a separate prove or accept_prose cycle. -/
+tightens the upper bound packaging but cannot rescue `m = 6 n`, `r = n / 4`
+(nor the recorded `r = n / 8` fallback). Active pin is Cluster 23:
+`r = n / 16` with `n ≥ 128`. -/
 
 /-- Single slice Chernoff or occupancy seed: one fixed `U` of size `2s-1`.
 Mathematical intent: drop `∑_u C(n,u)` from the first moment budget.
@@ -4523,10 +4538,14 @@ Cycle 2026-08-11 (occupancy packaging): accepted fixed-`S` occupancy fibers,
 
 Cycle 2026-08-11 (Chernoff slice obstruction): accepted single slice lower seed
 `spreadsChernoffSlice` and certified that
-`C(6n,s) (8 (2s-1)^3)^s < (8 n^3)^s` already fails at locked `n = 32`,
-`s = 8`, so the first moment close at `m = 6 n`, `r = n / 4` is blocked
-even after dropping the inner `∑_u C(n,u)`. Remaining: pin redesign or a
-non union-bound Spreads argument, then joint unsat and matchability. -/
+`C(6n,s) (8 (2s-1)^3)^s < (8 n^3)^s` already fails at killed `n = 32`,
+`s = 8` under `r = n / 4`, so that first moment close is blocked even after
+dropping the inner `∑_u C(n,u)`.
+
+Cycle 2026-08-12 (Cluster 23 pin redesign): human accept_prose activated
+`random3CNFMatchScale := n / 16` with threshold `n ≥ 128`; packaging and both
+Frontier equations retargeted to `r = n / 16`. Remaining: Nat Chernoff or
+occupancy close at some `n ≥ 128`, then joint unsat and matchability. -/
 
 namespace CSExpansionFrontier
 
@@ -4554,27 +4573,29 @@ theorem exists_cs_expanding_3cnf :
           cnfWidth F < csWidthFloor n β α := by
   sorry
 
-/-- Restated critical-path existence (pin 2026-08-09). Requires matchable,
-clause-set expanding, unsatisfiable 3-CNF with informative floor. Sufficient
-accepted route: `Spreads F (n/4) 2` plus `hasCSClauseExpansion_one_of_spreads_two`,
-via packaging `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` once
-`exists_spreads_matchable_unsat_random3CNF` lands. Probabilistic counting remains
-open (sorry honest). -/
+/-- Restated critical-path existence (pin Cluster 23, 2026-08-12). Requires
+matchable, clause-set expanding, unsatisfiable 3-CNF with informative floor.
+Sufficient accepted route: `Spreads F (n/16) 2` plus
+`hasCSClauseExpansion_one_of_spreads_two`, via packaging
+`exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` once
+`exists_spreads_matchable_unsat_random3CNF` lands. Probabilistic counting
+remains open (sorry honest). -/
 theorem exists_cs_clause_expanding_3cnf :
     ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (r α : ℕ),
       N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
-        α = 1 ∧ r = n / 4 ∧
+        α = 1 ∧ r = n / 16 ∧
           IsCSMatchable F r ∧ HasCSClauseExpansion F r α ∧
             ¬ Satisfiable F ∧ cnfWidth F < csClauseWidthFloor r α := by
   sorry
 
-/-- Random 3-CNF existence at locked density `m = 6 n` and scale `r = n / 4`.
-Feeds the accepted packaging lemma once the three union bounds are formalized. -/
+/-- Random 3-CNF existence at locked density `m = 6 n` and scale `r = n / 16`.
+Feeds the accepted packaging lemma once the occupancy or Chernoff Nat close
+and matchability union bound are formalized at some `n ≥ 128`. -/
 theorem exists_spreads_matchable_unsat_random3CNF :
     ∀ N : ℕ, ∃ (n : ℕ) (ω : EnsembleIndex n (random3CNFClauseCount n)),
       let F := random3CNF n (random3CNFClauseCount n) ω
       let r := random3CNFMatchScale n
-      max N 32 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+      max N 128 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
         Spreads F r 2 ∧ IsCSMatchable F r ∧ ¬ Satisfiable F ∧
           cnfWidth F < csClauseWidthFloor r 1 := by
   sorry

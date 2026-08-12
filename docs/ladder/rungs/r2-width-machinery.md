@@ -2296,3 +2296,44 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   `exists_spreads_matchable_unsat_random3CNF`.
   gate_pending: accept_prose.
 
+
+- 2026-08-12 formalize (Cluster 23 Block A pin activation after accept_prose):
+  PARTIAL. Human gate accept_prose approved the prove 2026-08-11 redesign.
+  Edited existing `theory/Theory/ProofComplexity/CSExpansion.lean` only (no
+  new modules). Axiom gate PASS on accepted tree; Frontier existence remains
+  honest sorry.
+
+  ### Names verified before edit (no duplicates)
+
+  Edited in place: `random3CNFMatchScale`, `random3CNFMatchScale_ge_eight`,
+  `csClauseWidthFloor_of_random3CNFMatchScale`, `random3CNFMatchScale_eq`,
+  `medium_hi_eq_matchScale`, `random3CNFMatchScale_thirty_two`,
+  `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`,
+  `two_mul_matchScale_le_div_two`, comments on
+  `random3CNFMatchScaleFallback` (kept as killed `n / 8` historical alias),
+  `CSExpansionFrontier.exists_cs_clause_expanding_3cnf`,
+  `CSExpansionFrontier.exists_spreads_matchable_unsat_random3CNF`.
+  Added accepted calibration: `random3CNFMatchScale_one_twenty_eight`,
+  `random3CNFClauseCount_one_twenty_eight`.
+  Unchanged: `random3CNFClauseCount`, `exists_unsat_random3CNF`,
+  occupancy and Chernoff obstruction lemmas at historical `n = 32`.
+
+  ### What changed
+
+  - `random3CNFMatchScale n := n / 16` (was `n / 4`).
+  - Informative hypotheses retargeted to `128 ≤ n`.
+  - Packaging and both Frontier equations use `r = n / 16`;
+    `exists_spreads_matchable_unsat_random3CNF` now requires `max N 128 ≤ n`.
+  - `random3CNFMatchScale_thirty_two` now states `= 2` under the active pin;
+    new `random3CNFMatchScale_one_twenty_eight` states `= 8`.
+
+  ### Gate
+
+  `scripts/check_axioms.sh` PASS (build green, accepted tree sorry free,
+  axioms within propext, Classical.choice, Quot.sound). New accepted names
+  listed in `scripts/accepted_declarations.txt` under cluster 23.
+
+  Most important thing learned: the pin patch itself is routine Lean; Block A
+  remains open on the Nat Chernoff or occupancy close at some `n ≥ 128`
+  toward `exists_spreads_matchable_unsat_random3CNF`.
+  gate_pending: none.

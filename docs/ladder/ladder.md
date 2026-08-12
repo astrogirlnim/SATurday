@@ -56,14 +56,16 @@ R4-class results plus the certified R5 bridge.
     to occupancy tails at locked `m = 6 n`, `r = n / 4` (pin shrink fallback
     recorded); occupancy packaging Cluster 21 merged 2026-08-11 after human
     accept_prose on that revision (`spreadsOccupancyTerm`,
-    `exists_spreadsIndices_of_occupancy_sum_lt`);     Frontier
+    `exists_spreadsIndices_of_occupancy_sum_lt`); Frontier
     exists_spreads_matchable_unsat_random3CNF and
     exists_cs_clause_expanding_3cnf still open: Cluster 22 certified that
     Chernoff single slice occupancy already overruns the first moment budget
     at locked `n = 32`, `s = 8`, so the `m = 6 n`, `r = n / 4` union bound
     is blocked; prove 2026-08-11 kills that pin and the recorded `r = n / 8`
-    fallback under the same first moment method, and pins
-    `random3CNFMatchScale := n / 16` with `n ≥ 128` pending accept_prose)
+    fallback under the same first moment method; Cluster 23 (2026-08-12,
+    human accept_prose) activates `random3CNFMatchScale := n / 16` with
+    `n ≥ 128`, retargets packaging and Frontier equations; existence still
+    Frontier pending Nat Chernoff or occupancy close)
 
 - R3 stronger systems
   - status: proposed

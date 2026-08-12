@@ -36,16 +36,16 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       certified; unsat first moment `exists_unsat_random3CNF` certified.
       Cluster 22 killed first moment Spreads close at locked `m = 6 n`,
       `r = n / 4`. Prove 2026-08-11 also kills recorded `r = n / 8` fallback
-      under `spreadsChernoffSlice` asymptotics and pins revised scale
-      `random3CNFMatchScale := n / 16` with `n ≥ 128` (gate_pending
-      accept_prose before Frontier equation patch). Remaining after gate:
-      Nat Chernoff or occupancy close toward
+      under `spreadsChernoffSlice` asymptotics. Cluster 23 (2026-08-12,
+      human accept_prose) activates `random3CNFMatchScale := n / 16` with
+      `n ≥ 128` and retargets packaging plus Frontier equations (axiom gate
+      PASS on defs and lemmas; existence remains Frontier). Remaining: Nat
+      Chernoff or occupancy close toward
       `exists_spreads_matchable_unsat_random3CNF` at the new pin.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
-- [ ] Human gate: accept_prose on the `n / 16` pin redesign; then move R2
-      from `prose_accepted` to `certified` only after the existence pin is
-      axiom gate green.
+- [ ] Move R2 from `prose_accepted` to `certified` only after the existence
+      pin is axiom gate green (merge_certified human gate).
 
 ### Block B: R3 one bound above resolution (blocks credible R4)
 
