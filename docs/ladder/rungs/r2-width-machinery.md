@@ -2337,3 +2337,175 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   remains open on the Nat Chernoff or occupancy close at some `n ≥ 128`
   toward `exists_spreads_matchable_unsat_random3CNF`.
   gate_pending: none.
+
+- 2026-08-12 prove (kill Cluster 23 n/16 first moment; revise Block A): SUCCESS
+  with human gate accept_prose. Prose only; no Lean this cycle.
+
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "prove",
+    "target": "kill random3CNFMatchScale n/16 first-moment Spreads close; revise Block A to unique-neighbor HasCSClauseExpansion",
+    "rationale": "Prior accept_prose calibrated the wrong quantity (omitted C(n,2s-1)); full spreadsChernoffSlice first moment fails at every linear alpha."
+  }
+  ```
+
+  ### Statement restated with all quantifiers explicit
+
+  Still aiming at: for every `N : ℕ` there exist `n : ℕ` and a width-3 CNF
+  `F` on `n` variables such that `N ≤ n`, `IsCSMatchable F r`,
+  `HasCSClauseExpansion F r 1`, `¬ Satisfiable F`, and
+  `cnfWidth F < csClauseWidthFloor r 1` for some informative linear scale
+  `r = Θ(n)`. The Cluster 23 packaging that routes through
+  `Spreads F (n/16) 2` plus occupancy or Chernoff first moment is no longer
+  the proposed closer.
+
+  ### Non vacuity
+
+  Unchanged witnesses: `ensembleIndex_nonempty`, `exists_unsat_random3CNF`,
+  `exists_spreads_two_matchable_unsat_3cnf`, Heawood star Spreads at fixed
+  informative scales. These show predicates are inhabited; they do not close
+  the unbounded random existence pin.
+
+  ### Attack ideas sketched (exactly one developed)
+
+  A. Shrink `α = r/n` further under the same
+     `∑ C(m,s) C(n,2s-1) ((2s-1)/n)^{3s}` first moment (rejected below: no
+     linear `α` has negative rate).
+  B. Keep first moment but drop `C(n,2s-1)` via a pure balls and bins LD on
+     `X_S` (rejected below: union entropy still beats the thin lower tail at
+     Spreads rate 2 for every linear `α`).
+  C. Symmetric LLL on Spreads rate 2 bad events with clause intersection
+     dependency (rejected as primary: leading term `α ln(6e) > 0`).
+  D. Direct unique neighbor expansion first moment into
+     `HasCSClauseExpansion` at `α = 1`, bypassing Spreads rate 2 and
+     `spreadsChernoffSlice` (DEVELOPED).
+
+  ### Kill: Cluster 23 n/16 first moment under full slice
+
+  The Cluster 23 accept_prose calibrated
+  `∑_{s=r/2}^{r} C(6n,s) ((2s-1)/n)^{3s}`
+  and claimed about `2.1e-4` at `n = 128`, `r = 8`. That formula is not an
+  upper bound on the formalized occupancy failure count, and it is not the
+  Chernoff slice quantity that Cluster 22 relates to
+  `spreadsOccupancyFiberBound`. The matching full slice is
+  `∑_{s=r/2}^{r} C(6n,s) C(n,2s-1) ((2s-1)/n)^{3s}`,
+  which lower bounds the cancelled occupancy comparison because
+  `Nat.choose n (2s-1) * spreadsChernoffSlice n s ≤ spreadsOccupancyFiberBound n s (2s)`.
+
+  Explicit calibration:
+  - incomplete (bug) at `n=128`, `r=8`: sum about `2.12e-4` (false pass);
+  - full slice at `n=128`, `r=8`: sum about `1.73e15` (hard fail);
+  - dominant term `s=8`: about `1.72e15`.
+
+  Asymptotic rate of the full mid term at `s = α n`, `m = 6 n`:
+  `(1/n) ln = 6 H(α/6) + H(2α) + 3α ln(2α)`.
+  For small `α` this is `α (3 + ln 12) + O(α^2)` with `3 + ln 12 ≈ 5.485 > 0`.
+  So every sufficiently small linear `α` diverges. Numerics:
+  - `α = 1/4, 1/8, 1/16, 1/32, 1/64`: all positive full rates;
+  - bug rates without `H(2α)` were negative at `α ≤ 1/12`, which is exactly
+    how Cluster 23 was misled.
+
+  Finite full sums grow with `n` at fixed linear `α` (example:
+  `α = 1/16` gives about `1.7e15` at `n=128` and about `2.6e70` at `n=512`).
+  Larger `n` cannot rescue `r = n/16` under this method. Same death as
+  Cluster 22 for `r = n/4` and the prove kill of `r = n/8`, now extended to
+  the activated Cluster 23 pin and to every linear scale.
+
+  Constant `r = 8` only: full slice is `Θ(1/n)` times `(12 e^3)^8`, so it
+  eventually drops below 1 only for enormous `n` (order `10^{17}`), and even
+  then yields only constant width, hence no exponential BSW size. Not a Block A
+  closer.
+
+  True occupancy LD without routing through `C(n,u)` also fails the first
+  moment union at Spreads rate 2: Poissonized `Bin(n, 1-e^{-3α})` lower tails
+  have KL only about `0.001` to `0.01` while `6 H(α/6)` stays about `0.2` to
+  `1.0`, so `C(6n, αn) exp(-n KL)` diverges for every tested linear `α`.
+
+  Therefore: stop chasing Nat Chernoff or occupancy closes at `n ≥ 128` under
+  `spreadsChernoffSlice` or `spreadsOccupancyTerm` for Spreads rate 2. The
+  method is dead, not merely the pin.
+
+  ### The one argument developed (revised Block A)
+
+  Change counting target from Spreads rate 2 to unique neighbor expansion,
+  which implies clause boundary expansion directly.
+
+  Fix `N : ℕ`. Choose `n ≥ max(N, n⋆)` with `m = 6 n` and a linear scale
+  `r = ⌊α⋆ n⌋` where `α⋆ > 0` is the classical Ben Sasson Wigderson
+  (or Chvatal Szemeredi) unique neighbor window for 3 CNF at density 6
+  (concrete `α⋆` to be pinned from the inequality below; expected order
+  constant, not `1/16` from the false calibration).
+
+  Step 1 to 2. Same ensemble and unsat first moment as certified.
+
+  Step 3 revised (unique neighbors, not Spreads slice). For each axiom index
+  set `S` with `r/2 ≤ |S| ≤ r`, let `U_1(S)` be the set of variables that
+  appear in exactly one clause of the sampled support of `S`. The bad event
+  `B_S` is `|U_1(S)| < |S|`. A standard first moment on ordered clause
+  variable incidences bounds
+  `P(B_S) ≤ exp(-c |S|)` for an absolute `c > 0` once `α⋆` is small enough
+  relative to density 6 (adaptation of the BSW random CNF expansion lemma;
+  classification: known). Union over at most `∑_s C(m,s)` medium index sets
+  is `o(1)` for all large `n` inside that window. On the complement, every
+  medium axiom set has at least `|S|` unique neighbors, hence
+  `|clauseSetBoundary G| ≥ |G|`, i.e. `HasCSClauseExpansion F r 1`, with no
+  appeal to `Spreads F r 2` and no `spreadsChernoffSlice` factor
+  `C(n,2s-1) ((2s-1)/n)^{3s}`.
+
+  Step 4. Matchability at the same `r` via minimally unsat cores as before
+  (easier at whatever `α⋆` the expansion window forces). Classification: known.
+
+  Step 5. Package with a new or retargeted lemma
+  `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding`
+  that no longer requires Spreads. Classification: routine once Steps 3 to 4
+  land; requires accept_prose before formalize because Frontier equations and
+  packaging currently hard code Spreads at `n/16`.
+
+  Why this is not another pin shrink: the obstruction was the Spreads rate 2
+  first moment skeleton (critical at `γ = 2`, rate `α(3+ln 12)`), not the
+  particular constant 16. Unique neighbor counting is a different skeleton
+  with a genuine negative rate window in the literature.
+
+  ### Gap list
+
+  1. Human accept_prose to abandon Cluster 23 Spreads first moment closes
+     (including Nat Chernoff at `n=128`) and to authorize a packaging pin that
+     targets `HasCSClauseExpansion` via unique neighbors. Gap class: gate.
+  2. Explicit constant `α⋆` and Nat form of the unique neighbor first moment
+     inequality at density 6. Gap class: hard.
+  3. Lean definitions for unique neighbor sets on `EnsembleIndex` samples and
+     the failure term replacing `spreadsOccupancyTerm`. Gap class: hard.
+  4. Matchability union bound at scale `r = ⌊α⋆ n⌋` jointly with unsat and
+     expansion. Gap class: hard.
+  5. Retarget Frontier
+     `exists_spreads_matchable_unsat_random3CNF` (rename or replace) and
+     `exists_cs_clause_expanding_3cnf` equations away from mandatory Spreads
+     at `n/16`. Gap class: routine after gate.
+  6. Optional fallback if unique neighbor first moment refuses density 6:
+     lopsided LLL or alteration on the same bad events; not developed now.
+     Gap class: unknown.
+
+  ### Self adversarial pass
+
+  - Quantifier order: existence only; `α⋆` is absolute, `n` depends on `N`.
+  - Do not reuse Cluster 23 calibration numbers; they omit `C(n,2s-1)`.
+  - Do not claim symmetric LLL on Spreads rate 2 is already shown; it was
+    only sketched with a positive leading term and rejected as primary.
+  - Off by one: unique neighbor count versus `clauseSetBoundary` needs the
+    exact incidence identity already certified in `clauseSetBoundary_card_add_sum_ge`.
+  - Constructive polarity remains blocked twice; this cycle does not revive it.
+  - Weak Spreads `γ ∈ (1.5, 2)` with first moment only yields tiny medium
+    windows and pathetic BSW rates; not chosen as primary.
+  - Barrier: resolution level; no R3 flag.
+  - Stop condition: first moment Spreads closes are now blocked across crude,
+    Chernoff slice, occupancy U union, and pins `n/4`, `n/8`, `n/16`. This
+    session changes method rather than grinding a fourth pin.
+
+  Most important thing learned: under the full slice
+  `C(m,s) C(n,2s-1) ((2s-1)/n)^{3s}` matching `spreadsChernoffSlice`, no
+  linear Spreads rate 2 pin survives at `m = 6 n`; Cluster 23 passed only by
+  dropping `C(n,2s-1)`. Block A must leave that skeleton and prove
+  `HasCSClauseExpansion` by unique neighbor expansion (BSW style).
+  gate_pending: accept_prose.
