@@ -44,8 +44,11 @@ Spreads and matchability union bound scaffolding
 `isCSMatchable_of_unsat_min_card`). Cluster 20: Spreads summed choose
 packaging (`indexSupportFin`, failure terms, card comparison bridge) plus
 honest obstruction that the crude `C(m,s) C(n,2s-1) (u/n)^{3s}` close fails
-at locked `n = 32`. Frontier `exists_spreads_matchable_unsat_random3CNF`
-still open pending a tighter count or parameter revision.
+at locked `n = 32`. Cluster 21: occupancy packaging on fixed index sets
+(`card_ensembleIndex_support_card_lt`, `spreadsOccupancyTerm`,
+`exists_spreadsIndices_of_occupancy_sum_lt`) at locked `m = 6 n`,
+`r = n / 4`, with recorded `r = n / 8` fallback alias; Chernoff fiber
+tightening and joint existence remain Frontier.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -3979,6 +3982,312 @@ theorem random3CNFClauseCount_thirty_two :
     random3CNFClauseCount 32 = 192 :=
   rfl
 
+/-! ## Occupancy Spreads packaging (Cluster 21)
+
+Accepted revise of Block A Step 3 (prove 2026-08-11, human gate accept_prose):
+bound SpreadsIndices failure by union over medium index sets `S` only, with an
+occupancy fiber on each fixed `S` (support card `< 2 |S|`), not by the crude
+outer `C(n, 2s-1)` factor in `spreadsFailureTerm`. This cluster certifies the
+Nat packaging and the card comparison bridge. The fiber bound below is the
+honest union of concentration subtypes over `|U| < 2s`; a Chernoff or relative
+entropy lower tail that removes the inner `∑_u C(n,u)` remains for a later
+cycle. Locked pins stay `m = 6 n` and `r = n / 4`; `random3CNFMatchScaleFallback`
+records the `r = n / 8` pin shrink if the tighter fiber refuses to close. -/
+
+/-- Recorded pin fallback scale (`r = n / 8`) from the occupancy revision.
+Not active in Frontier statements; use only after an explicit pin patch. -/
+def random3CNFMatchScaleFallback (n : ℕ) : ℕ := n / 8
+
+/-- Fallback scale is informative for α = 1 once `n ≥ 64`. -/
+theorem random3CNFMatchScaleFallback_ge_eight {n : ℕ} (hn : 64 ≤ n) :
+    8 ≤ random3CNFMatchScaleFallback n := by
+  simp only [random3CNFMatchScaleFallback]
+  omega
+
+/-- Floor under the fallback scale is informative once `n ≥ 64`. -/
+theorem csClauseWidthFloor_of_random3CNFMatchScaleFallback {n : ℕ}
+    (hn : 64 ≤ n) :
+    3 < csClauseWidthFloor (random3CNFMatchScaleFallback n) 1 := by
+  have hr : 8 ≤ random3CNFMatchScaleFallback n :=
+    random3CNFMatchScaleFallback_ge_eight hn
+  simp only [csClauseWidthFloor, random3CNFMatchScaleFallback] at hr ⊢
+  omega
+
+/-- Number of `Finset (Fin n)` with a fixed cardinality. -/
+theorem card_finset_eq_card (n k : ℕ) :
+    Fintype.card { U : Finset (Fin n) // U.card = k } = Nat.choose n k := by
+  classical
+  let e : { U : Finset (Fin n) // U.card = k } ≃
+      { U : Finset (Fin n) // U ∈ powersetCard k (univ : Finset (Fin n)) } :=
+    { toFun := fun U =>
+        ⟨U.1, mem_powersetCard.mpr ⟨subset_univ U.1, U.2⟩⟩
+      invFun := fun U => ⟨U.1, (mem_powersetCard.mp U.2).2⟩
+      left_inv := fun _ => rfl
+      right_inv := fun _ => rfl }
+  rw [Fintype.card_congr e, Fintype.card_coe, card_powersetCard, card_univ,
+    Fintype.card_fin]
+
+/-- Occupancy failure on a fixed index set: Fin support below threshold `t`. -/
+def supportCardLt {n m : ℕ} (ω : EnsembleIndex n m) (S : Finset (Fin m))
+    (t : ℕ) : Prop :=
+  (indexSupportFin ω S).card < t
+
+/-- Inner Nat bound for one fixed `S`: sum over small support sizes.
+Mathematical intent: `|U| < t` union of concentration fibers. -/
+def spreadsOccupancyFiberBound (n s t : ℕ) : ℕ :=
+  ∑ u ∈ range t, Nat.choose n u * (8 * u ^ 3) ^ s
+
+/-- Occupancy failure term at scale `s`: outer `C(m,s)` times the fixed-`S`
+fiber bound. No lone outer `C(n, 2s-1)` factor (contrast `spreadsFailureTerm`). -/
+def spreadsOccupancyTerm (n m s : ℕ) : ℕ :=
+  Nat.choose m s * spreadsOccupancyFiberBound n s (2 * s) *
+    (8 * n ^ 3) ^ (m - s)
+
+/-- Cancel the free `(8 n^3)^{m-s}` factor against `|Ω|`. -/
+theorem spreadsOccupancyTerm_lt_ensemble_iff {n m s : ℕ}
+    (hpos : 0 < 8 * n ^ 3) (_hle : s ≤ m) :
+    spreadsOccupancyTerm n m s < (8 * n ^ 3) ^ m ↔
+      Nat.choose m s * spreadsOccupancyFiberBound n s (2 * s) <
+        (8 * n ^ 3) ^ s := by
+  unfold spreadsOccupancyTerm
+  have hm : (8 * n ^ 3) ^ m =
+      (8 * n ^ 3) ^ s * (8 * n ^ 3) ^ (m - s) := by
+    rw [← Nat.pow_add]
+    congr 1
+    omega
+  constructor
+  · intro h
+    rw [hm] at h
+    exact Nat.lt_of_mul_lt_mul_right h
+  · intro h
+    rw [hm]
+    exact Nat.mul_lt_mul_of_pos_right h (Nat.pow_pos hpos)
+
+/-- Fixed-`S` occupancy fiber is at most the union of concentration subtypes
+over all `U` with `|U| < t`. -/
+theorem card_ensembleIndex_support_card_lt {n m : ℕ}
+    (S : Finset (Fin m)) (t : ℕ) :
+    Fintype.card
+        { ω : EnsembleIndex n m // (indexSupportFin ω S).card < t } ≤
+      spreadsOccupancyFiberBound n S.card t *
+        (8 * n ^ 3) ^ (m - S.card) := by
+  classical
+  -- Tag each failing sample by the card and identity of its Fin support.
+  let Target :=
+    Σ u : Fin t,
+      Σ U : { U : Finset (Fin n) // U.card = (u : ℕ) },
+        { ω : EnsembleIndex n m // supportConcentrated ω S U.1 }
+  let f : { ω : EnsembleIndex n m // (indexSupportFin ω S).card < t } → Target :=
+    fun ω =>
+      ⟨⟨(indexSupportFin ω.1 S).card, ω.2⟩,
+        ⟨indexSupportFin ω.1 S, rfl⟩,
+        ⟨ω.1, supportConcentrated_indexSupportFin ω.1 S⟩⟩
+  have hinj : Function.Injective f := by
+    intro ω₁ ω₂ h
+    apply Subtype.ext
+    exact congrArg (fun z : Target => z.2.2.1) h
+  have hle := Fintype.card_le_of_injective f hinj
+  have hTarget :
+      Fintype.card Target =
+        ∑ u : Fin t,
+          Nat.choose n u.val * (8 * u.val ^ 3) ^ S.card *
+            (8 * n ^ 3) ^ (m - S.card) := by
+    dsimp only [Target]
+    rw [Fintype.card_sigma]
+    refine Finset.sum_congr rfl ?_
+    intro u _
+    have hUcard :
+        Fintype.card { U : Finset (Fin n) // U.card = (u : ℕ) } =
+          Nat.choose n u.val :=
+      card_finset_eq_card n u.val
+    have hterm :
+        ∀ U : { U : Finset (Fin n) // U.card = (u : ℕ) },
+          Fintype.card
+              { ω : EnsembleIndex n m // supportConcentrated ω S U.1 } =
+            (8 * u.val ^ 3) ^ S.card * (8 * n ^ 3) ^ (m - S.card) := by
+      intro U
+      have hconc := card_ensembleIndex_supportConcentrated (n := n) (m := m) S U.1
+      have hUc : U.1.card = u.val := U.2
+      simpa [hUc] using hconc
+    rw [Fintype.card_sigma]
+    simp only [hterm, Finset.sum_const, Finset.card_univ, hUcard, smul_eq_mul]
+    ring
+  have hrange :
+      (∑ u : Fin t,
+          Nat.choose n u.val * (8 * u.val ^ 3) ^ S.card *
+            (8 * n ^ 3) ^ (m - S.card)) =
+        (∑ u ∈ range t,
+            Nat.choose n u * (8 * u ^ 3) ^ S.card) *
+          (8 * n ^ 3) ^ (m - S.card) := by
+    have h1 :
+        (∑ u : Fin t,
+            Nat.choose n u.val * (8 * u.val ^ 3) ^ S.card *
+              (8 * n ^ 3) ^ (m - S.card)) =
+          ∑ u ∈ range t,
+            Nat.choose n u * (8 * u ^ 3) ^ S.card *
+              (8 * n ^ 3) ^ (m - S.card) := by
+      rw [Fin.sum_univ_eq_sum_range fun i =>
+        Nat.choose n i * (8 * i ^ 3) ^ S.card * (8 * n ^ 3) ^ (m - S.card)]
+    have h2 :
+        (∑ u ∈ range t,
+            Nat.choose n u * (8 * u ^ 3) ^ S.card *
+              (8 * n ^ 3) ^ (m - S.card)) =
+          (∑ u ∈ range t, Nat.choose n u * (8 * u ^ 3) ^ S.card) *
+            (8 * n ^ 3) ^ (m - S.card) := by
+      have hL :
+          (∑ u ∈ range t,
+              Nat.choose n u * (8 * u ^ 3) ^ S.card *
+                (8 * n ^ 3) ^ (m - S.card)) =
+            ∑ u ∈ range t,
+              (Nat.choose n u * (8 * u ^ 3) ^ S.card) *
+                (8 * n ^ 3) ^ (m - S.card) := by
+        refine sum_congr rfl fun u _ => by ring
+      rw [hL]
+      exact (Finset.sum_mul (range t)
+          (fun u => Nat.choose n u * (8 * u ^ 3) ^ S.card)
+          ((8 * n ^ 3) ^ (m - S.card))).symm
+    exact h1.trans h2
+  calc
+    Fintype.card
+        { ω : EnsembleIndex n m // (indexSupportFin ω S).card < t } ≤
+        Fintype.card Target := hle
+    _ = ∑ u : Fin t,
+          Nat.choose n u.val * (8 * u.val ^ 3) ^ S.card *
+            (8 * n ^ 3) ^ (m - S.card) := hTarget
+    _ = spreadsOccupancyFiberBound n S.card t *
+          (8 * n ^ 3) ^ (m - S.card) := by
+        simpa [spreadsOccupancyFiberBound] using hrange
+
+/-- Fiber card at a concrete scale `s` for every index set of that size. -/
+theorem card_ensembleIndex_support_card_lt_of_card {n m s : ℕ}
+    (S : Finset (Fin m)) (hS : S.card = s) :
+    Fintype.card
+        { ω : EnsembleIndex n m // (indexSupportFin ω S).card < 2 * s } ≤
+      spreadsOccupancyFiberBound n s (2 * s) * (8 * n ^ 3) ^ (m - s) := by
+  have h := card_ensembleIndex_support_card_lt (n := n) (m := m) S (2 * s)
+  simpa [hS] using h
+
+/-- One scale of the occupancy cover: sum over `|S| = s` of fiber cards. -/
+theorem sum_card_support_card_lt_le_occupancyTerm {n m s : ℕ} :
+    (∑ S : { S : Finset (Fin m) // S.card = s },
+        Fintype.card
+          { ω : EnsembleIndex n m //
+            (indexSupportFin ω S.1).card < 2 * s }) ≤
+      spreadsOccupancyTerm n m s := by
+  classical
+  have hUcard :
+      Fintype.card { S : Finset (Fin m) // S.card = s } = Nat.choose m s :=
+    card_finset_eq_card m s
+  have hpoint :
+      ∀ S : { S : Finset (Fin m) // S.card = s },
+        Fintype.card
+            { ω : EnsembleIndex n m //
+              (indexSupportFin ω S.1).card < 2 * s } ≤
+          spreadsOccupancyFiberBound n s (2 * s) * (8 * n ^ 3) ^ (m - s) :=
+    fun S => card_ensembleIndex_support_card_lt_of_card S.1 S.2
+  calc
+    (∑ S : { S : Finset (Fin m) // S.card = s },
+        Fintype.card
+          { ω : EnsembleIndex n m //
+            (indexSupportFin ω S.1).card < 2 * s }) ≤
+        ∑ _S : { S : Finset (Fin m) // S.card = s },
+          spreadsOccupancyFiberBound n s (2 * s) * (8 * n ^ 3) ^ (m - s) :=
+      sum_le_sum fun S _ => hpoint S
+    _ = Nat.choose m s *
+          (spreadsOccupancyFiberBound n s (2 * s) * (8 * n ^ 3) ^ (m - s)) := by
+      simp only [Finset.sum_const, Finset.card_univ, hUcard, smul_eq_mul]
+    _ = spreadsOccupancyTerm n m s := by
+      simp only [spreadsOccupancyTerm, mul_assoc]
+
+/-- Medium SpreadsIndices failures inject into the occupancy term cover. -/
+theorem card_not_spreadsIndices_le_occupancy_sum {n m r : ℕ} :
+    Fintype.card { ω : EnsembleIndex n m // ¬ SpreadsIndices ω r } ≤
+      ∑ s ∈ Icc (r / 2) r, spreadsOccupancyTerm n m s := by
+  classical
+  -- Cover failures by triples `(s, S, ω)` with `|S| = s` medium and small support.
+  let Cover :=
+    Σ s : ↥(Icc (r / 2) r),
+      Σ S : { S : Finset (Fin m) // S.card = (s : ℕ) },
+        { ω : EnsembleIndex n m // (indexSupportFin ω S.1).card < 2 * (s : ℕ) }
+  let f : { ω : EnsembleIndex n m // ¬ SpreadsIndices ω r } → Cover := fun ω =>
+    let hEx := exists_concentrated_of_not_spreadsIndices ω.2
+    let S := Classical.choose hEx
+    let hS := Classical.choose_spec hEx
+    have hFin : (indexSupportFin ω.1 S).card < 2 * S.card := by
+      have hceq := card_indexSupportFin ω.1 S
+      have hcard : (indexSupport ω.1 S).card < 2 * S.card := hS.2.2
+      omega
+    ⟨⟨S.card, mem_Icc.mpr ⟨hS.1, hS.2.1⟩⟩, ⟨S, rfl⟩, ⟨ω.1, hFin⟩⟩
+  have hinj : Function.Injective f := by
+    intro ω₁ ω₂ h
+    apply Subtype.ext
+    exact congrArg (fun z : Cover => z.2.2.1) h
+  refine le_trans (Fintype.card_le_of_injective f hinj) ?_
+  -- Expand and apply the per-scale occupancy term bound.
+  have hsigma :
+      Fintype.card Cover =
+        ∑ s : ↥(Icc (r / 2) r),
+          ∑ S : { S : Finset (Fin m) // S.card = (s : ℕ) },
+            Fintype.card
+              { ω : EnsembleIndex n m //
+                (indexSupportFin ω S.1).card < 2 * (s : ℕ) } := by
+    dsimp only [Cover]
+    rw [Fintype.card_sigma]
+    refine sum_congr rfl fun _ _ => ?_
+    rw [Fintype.card_sigma]
+  rw [hsigma]
+  -- Reindex subtype sum to an `Icc` sum.
+  have hreindex :
+      (∑ s : ↥(Icc (r / 2) r),
+          ∑ S : { S : Finset (Fin m) // S.card = (s : ℕ) },
+            Fintype.card
+              { ω : EnsembleIndex n m //
+                (indexSupportFin ω S.1).card < 2 * (s : ℕ) }) =
+        ∑ s ∈ Icc (r / 2) r,
+          ∑ S : { S : Finset (Fin m) // S.card = s },
+            Fintype.card
+              { ω : EnsembleIndex n m //
+                (indexSupportFin ω S.1).card < 2 * s } := by
+    simpa using
+      (Finset.sum_coe_sort (Icc (r / 2) r) fun s =>
+        ∑ S : { S : Finset (Fin m) // S.card = s },
+          Fintype.card
+            { ω : EnsembleIndex n m //
+              (indexSupportFin ω S.1).card < 2 * s })
+  rw [hreindex]
+  exact sum_le_sum fun s _ =>
+    sum_card_support_card_lt_le_occupancyTerm (n := n) (m := m) (s := s)
+
+/-- If the summed occupancy terms sit strictly below `|Ω|`, some sample
+spreads at index level (feeds `spreads_random3CNF_of_spreadsIndices`). -/
+theorem exists_spreadsIndices_of_occupancy_sum_lt {n m r : ℕ}
+    (h : (∑ s ∈ Icc (r / 2) r, spreadsOccupancyTerm n m s) <
+      Fintype.card (EnsembleIndex n m)) :
+    ∃ ω : EnsembleIndex n m, SpreadsIndices ω r := by
+  have hcard := card_not_spreadsIndices_le_occupancy_sum (n := n) (m := m) (r := r)
+  exact exists_spreadsIndices_of_univ_card_lt (lt_of_le_of_lt hcard h)
+
+/-- Convenience form at the locked ensemble cardinality `(8 n^3)^m`. -/
+theorem exists_spreadsIndices_of_occupancy_sum_lt_ensemble {n m r : ℕ}
+    (h : (∑ s ∈ Icc (r / 2) r, spreadsOccupancyTerm n m s) <
+      (8 * n ^ 3) ^ m) :
+    ∃ ω : EnsembleIndex n m, SpreadsIndices ω r := by
+  have hcard : Fintype.card (EnsembleIndex n m) = (8 * n ^ 3) ^ m :=
+    card_ensembleIndex n m
+  exact exists_spreadsIndices_of_occupancy_sum_lt (hcard.symm ▸ h)
+
+/-- Spreads rate-2 threshold never exceeds `n / 2` at the locked scale. -/
+theorem two_mul_matchScale_le_div_two (n : ℕ) :
+    2 * random3CNFMatchScale n ≤ n / 2 := by
+  simp only [random3CNFMatchScale]
+  omega
+
+/-- Fallback rate-2 threshold never exceeds `n / 4`. -/
+theorem two_mul_matchScaleFallback_le_div_four (n : ℕ) :
+    2 * random3CNFMatchScaleFallback n ≤ n / 4 := by
+  simp only [random3CNFMatchScaleFallback]
+  omega
+
 /-! ## Frontier: restated existence plus quarantined variable-side names
 
 Critical path existence is `exists_cs_clause_expanding_3cnf` (clause-set pin).
@@ -4030,8 +4339,13 @@ large minimally unsat cores. Remaining: summed union bound inequalities.
 Cycle 2026-08-11 (summed choose packaging): accepted `indexSupportFin`,
 failure term algebra, card comparison bridge, and obstruction
 `spreads_crude_core_not_lt_at_thirty_two` showing the crude close fails at
-locked `n = 32`. Remaining: tighter Spreads count or pin revision, then
-matchability, then package `exists_spreads_matchable_unsat_random3CNF`. -/
+locked `n = 32`.
+
+Cycle 2026-08-11 (occupancy packaging): accepted fixed-`S` occupancy fibers,
+`spreadsOccupancyTerm`, and
+`exists_spreadsIndices_of_occupancy_sum_lt` (crude outer `C(n,2s-1)` removed).
+Remaining: Chernoff or relative entropy fiber bound that beats
+`∑_u C(n,u) (8u^3)^s`, then joint unsat and matchability intersection. -/
 
 namespace CSExpansionFrontier
 

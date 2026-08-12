@@ -1966,3 +1966,61 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   occupancy fibers toward `exists_spreads_matchable_unsat_random3CNF` (not
   approved until the gate passes).
   gate_pending: accept_prose.
+
+- 2026-08-11 formalize (occupancy Spreads packaging after accept_prose):
+  PARTIAL. Human gate accept_prose approved ("go") for the occupancy revision
+  pinned in commit 8301b98. Edited only
+  `theory/Theory/ProofComplexity/CSExpansion.lean` (Cluster 21).
+
+  ### Verified Lean names used or added (ripgrep; no guessing)
+
+  Pre-existing (edited around):
+  `EnsembleIndex`, `indexSupportFin`, `supportConcentrated`,
+  `card_ensembleIndex_supportConcentrated`, `SpreadsIndices`,
+  `exists_concentrated_of_not_spreadsIndices`, `card_indexSupportFin`,
+  `exists_spreadsIndices_of_univ_card_lt`, `spreadsFailureTerm`,
+  `random3CNFMatchScale`, `random3CNFClauseCount`, `card_ensembleIndex`,
+  `CSExpansionFrontier.exists_spreads_matchable_unsat_random3CNF`,
+  `CSExpansionFrontier.exists_cs_clause_expanding_3cnf`.
+
+  New accepted Cluster 21:
+  `random3CNFMatchScaleFallback`,
+  `random3CNFMatchScaleFallback_ge_eight`,
+  `csClauseWidthFloor_of_random3CNFMatchScaleFallback`,
+  `card_finset_eq_card`, `supportCardLt`, `spreadsOccupancyFiberBound`,
+  `spreadsOccupancyTerm`, `spreadsOccupancyTerm_lt_ensemble_iff`,
+  `card_ensembleIndex_support_card_lt`,
+  `card_ensembleIndex_support_card_lt_of_card`,
+  `sum_card_support_card_lt_le_occupancyTerm`,
+  `card_not_spreadsIndices_le_occupancy_sum`,
+  `exists_spreadsIndices_of_occupancy_sum_lt`,
+  `exists_spreadsIndices_of_occupancy_sum_lt_ensemble`,
+  `two_mul_matchScale_le_div_two`,
+  `two_mul_matchScaleFallback_le_div_four`.
+
+  ### What compiled
+
+  Fixed-`S` occupancy fiber bound via union of concentration subtypes over
+  `|U| < t`; outer failure term `C(m,s) * spreadsOccupancyFiberBound * (8 n^3)^{m-s}`
+  with no lone outer `C(n,2s-1)`; card comparison bridge
+  `exists_spreadsIndices_of_occupancy_sum_lt`; recorded inactive fallback
+  `random3CNFMatchScaleFallback` (`r = n / 8`). Axiom gate PASS after adding
+  the new declarations to `scripts/accepted_declarations.txt`.
+
+  ### Honest limit
+
+  The inner fiber bound still sums `∑_{u < 2s} C(n,u) (8 u^3)^s`, which is not
+  yet a Chernoff or relative entropy lower tail. Nat calibration shows that
+  packaging alone does not close at locked `m = 6 n`, `r = n / 4`. Frontier
+  `exists_spreads_matchable_unsat_random3CNF` and
+  `exists_cs_clause_expanding_3cnf` remain sorry.
+
+  Most important thing learned: occupancy packaging removes the crude outer
+  `C(n,2s-1)` factor and gives a machine-checkable bridge from a summed
+  occupancy inequality to `SpreadsIndices`; the remaining hard gap is the
+  fixed-`S` lower tail constant, not more choose algebra on `spreadsFailureTerm`.
+  Next: formalize a Chernoff-style Nat fiber bound (or activate the recorded
+  `r = n / 8` pin after a separate accept_prose), then joint unsat and
+  matchability intersection.
+  gate_pending: none.
+

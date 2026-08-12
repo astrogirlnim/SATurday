@@ -54,9 +54,12 @@ R4-class results plus the certified R5 bridge.
     packaging and crude close obstruction at n = 32 merged 2026-08-11; prove
     revision 2026-08-11: abandon crude `spreadsFailureTerm` close, switch Step 3
     to occupancy tails at locked `m = 6 n`, `r = n / 4` (pin shrink fallback
-    recorded); Frontier exists_spreads_matchable_unsat_random3CNF and
-    exists_cs_clause_expanding_3cnf still open, accept_prose pending on the
-    occupancy plan)
+    recorded); occupancy packaging Cluster 21 merged 2026-08-11 after human
+    accept_prose on that revision (`spreadsOccupancyTerm`,
+    `exists_spreadsIndices_of_occupancy_sum_lt`); Frontier
+    exists_spreads_matchable_unsat_random3CNF and
+    exists_cs_clause_expanding_3cnf still open pending Chernoff fiber
+    tightening)
 
 - R3 stronger systems
   - status: proposed
