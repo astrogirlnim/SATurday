@@ -61,7 +61,9 @@ R4-class results plus the certified R5 bridge.
     exists_cs_clause_expanding_3cnf still open: Cluster 22 certified that
     Chernoff single slice occupancy already overruns the first moment budget
     at locked `n = 32`, `s = 8`, so the `m = 6 n`, `r = n / 4` union bound
-    is blocked; pin redesign pending)
+    is blocked; prove 2026-08-11 kills that pin and the recorded `r = n / 8`
+    fallback under the same first moment method, and pins
+    `random3CNFMatchScale := n / 16` with `n ≥ 128` pending accept_prose)
 
 - R3 stronger systems
   - status: proposed

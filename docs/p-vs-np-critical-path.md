@@ -30,21 +30,22 @@ hardness plus a fully certified R5 bridge. Neither is complete.
 
 - [ ] Close Frontier `CSExpansionFrontier.exists_cs_clause_expanding_3cnf`
       (`theory/Theory/ProofComplexity/CSExpansion.lean`).
-      Accepted route recorded in file: matchable unsat 3 CNF with
-      `Spreads F (n/4) 2`, then `hasCSClauseExpansion_one_of_spreads_two`.
-      Progress 2026-08-11: SpreadsSupports matching and overlapping path
-      certified; polarity CNFs still satisfiable. Accept_prose approved for
-      probabilistic lift. Formalize cycle certified ensemble scaffolding:
-      `Ensemble3CNF` / `random3CNF` / packaging
-      `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` (axiom gate
-      green). Remaining: Frontier counting
-      `exists_spreads_matchable_unsat_random3CNF` (Spreads and matchability
-      union bounds at `m = 6 n`, `r = n/4`; unsat first-moment
-      `exists_unsat_random3CNF` certified 2026-08-11).
+      Route: matchable unsat 3 CNF with `Spreads F r 2` then
+      `hasCSClauseExpansion_one_of_spreads_two`. Ensemble scaffolding and
+      packaging `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`
+      certified; unsat first moment `exists_unsat_random3CNF` certified.
+      Cluster 22 killed first moment Spreads close at locked `m = 6 n`,
+      `r = n / 4`. Prove 2026-08-11 also kills recorded `r = n / 8` fallback
+      under `spreadsChernoffSlice` asymptotics and pins revised scale
+      `random3CNFMatchScale := n / 16` with `n ≥ 128` (gate_pending
+      accept_prose before Frontier equation patch). Remaining after gate:
+      Nat Chernoff or occupancy close toward
+      `exists_spreads_matchable_unsat_random3CNF` at the new pin.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
-- [ ] Human gate: move R2 from `prose_accepted` to `certified` only after the
-      existence pin is axiom gate green (or redesign the pin and re prove).
+- [ ] Human gate: accept_prose on the `n / 16` pin redesign; then move R2
+      from `prose_accepted` to `certified` only after the existence pin is
+      axiom gate green.
 
 ### Block B: R3 one bound above resolution (blocks credible R4)
 

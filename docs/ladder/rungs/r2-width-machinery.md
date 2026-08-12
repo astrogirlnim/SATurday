@@ -2080,3 +2080,219 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   non-random witness), with accept_prose before any Frontier equation patch.
   gate_pending: none.
 
+- 2026-08-11 prove (Block A Spreads pin redesign after Cluster 22): SUCCESS
+  on the redesigned plan, pending human accept_prose before any Frontier
+  equation patch. Prose only; no Lean edited this cycle.
+
+  ### Choice and rationale (JSON contract)
+
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "prove",
+    "target": "redesign Block A Spreads pin after Chernoff first-moment kill of m=6n r=n/4",
+    "rationale": "Cluster 22 blocks the locked occupancy close; stop condition requires a new approach rather than more fiber algebra at r=n/4."
+  }
+  ```
+
+  ### Files and Lean names verified before this pin (no duplicates)
+
+  Existing (edit in place after accept_prose; do not create new modules):
+  `theory/Theory/ProofComplexity/CSExpansion.lean` only for later formalize.
+  Density and scale: `random3CNFDensity`, `random3CNFClauseCount`,
+  `random3CNFMatchScale` (today `n / 4`), `random3CNFMatchScaleFallback`
+  (today `n / 8`, inactive), `random3CNFMatchScale_ge_eight`,
+  `csClauseWidthFloor_of_random3CNFMatchScale`,
+  `random3CNFMatchScaleFallback_ge_eight`,
+  `csClauseWidthFloor_of_random3CNFMatchScaleFallback`,
+  `random3CNFMatchScale_thirty_two`, `random3CNFClauseCount_thirty_two`.
+  Ensemble and unsat: `EnsembleIndex`, `Ensemble3CNF`, `random3CNF`,
+  `exists_unsat_random3CNF`, `exists_unsat_random3CNF_ge_thirty_two`.
+  Spreads counting: `SpreadsIndices`, `spreadsFailureTerm`,
+  `spreadsOccupancyFiberBound`, `spreadsOccupancyTerm`,
+  `spreadsChernoffSlice`, `exists_spreadsIndices_of_occupancy_sum_lt`,
+  `exists_spreadsIndices_of_occupancy_sum_lt_ensemble`,
+  `spreads_chernoff_slice_not_lt_eight_pow_at_thirty_two`,
+  `spreadsOccupancyTerm_core_not_lt_at_thirty_two`.
+  Packaging and Frontiers:
+  `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`,
+  `CSExpansionFrontier.exists_spreads_matchable_unsat_random3CNF`,
+  `CSExpansionFrontier.exists_cs_clause_expanding_3cnf`,
+  `hasCSClauseExpansion_one_of_spreads_two`, `Spreads`, `IsCSMatchable`,
+  `HasCSClauseExpansion`, `csClauseWidthFloor`,
+  `informative_cs_floor_requires_r_ge_eight`.
+  Constructive scaffolding (not chosen this cycle):
+  `matchingTripleSupports`, `loosePathSupports`,
+  `exists_overlapping_spreadsSupports_informative`,
+  `satisfiable_matchingTripleSupports_cnf`,
+  `satisfiable_loosePathSupports_allTrue`, `spreadWitnessCNF`.
+  Absent name still not introduced: `looseCycleSupports`.
+
+  Proposed definitional edits after accept_prose (same file, same names):
+  redefine `random3CNFMatchScale n := n / 16`; retarget
+  `random3CNFMatchScale_ge_eight` and
+  `csClauseWidthFloor_of_random3CNFMatchScale` to hypothesis `128 ≤ n`;
+  deprecate `random3CNFMatchScaleFallback` as a dead alias or repoint it to
+  `n / 16` only as a historical synonym; rewrite Frontier equations and
+  packaging from `r = n / 4` to `r = n / 16` with `max N 128 ≤ n`.
+  Calibration lemmas to add later (names absent today):
+  `random3CNFMatchScale_one_twenty_eight`,
+  `spreads_chernoff_slice_core_lt_at_one_twenty_eight`
+  (Nat witness that the Chernoff core is strictly below budget at
+  `n = 128`, `s = 8`).
+
+  ### Statement restated with all quantifiers explicit
+
+  Target after pin patch: for every `N : ℕ` there exist `n : ℕ` and
+  `ω : EnsembleIndex n (random3CNFClauseCount n)` such that, writing
+  `F := random3CNF n (random3CNFClauseCount n) ω` and
+  `r := random3CNFMatchScale n` with the new definition `r = n / 16`,
+  one has `max N 128 ≤ n`, `(cnfVars F).card = n`, `cnfWidth F ≤ 3`,
+  `Spreads F r 2`, `IsCSMatchable F r`, `¬ Satisfiable F`, and
+  `cnfWidth F < csClauseWidthFloor r 1`. Packaging through
+  `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` then yields
+  `exists_cs_clause_expanding_3cnf` with the matching equation `r = n / 16`
+  (not `r = n / 4`).
+
+  ### Non vacuity
+
+  1. Ensemble nonempty: `ensembleIndex_nonempty` for `0 < n`.
+  2. Unsat samples exist at density 6: `exists_unsat_random3CNF` (and the
+     `32 ≤ n` specialization).
+  3. Informative floor: `informative_cs_floor_requires_r_ge_eight` forces
+     `r ≥ 8`, hence under `r = n / 16` one needs `n ≥ 128`.
+  4. Predicates inhabited at small scale already:
+     `exists_spreads_two_matchable_unsat_3cnf` (non informative floor).
+
+  ### Attack ideas sketched (exactly one developed)
+
+  A. Keep probabilistic occupancy or Chernoff first moment, but shrink the
+     linear scale so the certified slice bound has negative asymptotic rate
+     (DEVELOPED: pin `r = n / 16`).
+  B. Activate recorded `random3CNFMatchScaleFallback` (`r = n / 8`). Rejected
+     below: same Chernoff slice still has positive asymptotic rate.
+  C. Constant informative scale `r = 8` with growing `n`. Rejected as the
+     primary Block A pin: it beats `csClauseWidthFloor` but only yields
+     constant width, hence only constant size via BSW, which fails the R2
+     random k CNF exponential size obligation. Useful as a calibration
+     sandbox only.
+  D. Constructive cyclic overlapping unsat (`looseCycleSupports`, still
+     absent). Not developed: related constructive polarity routes already
+     blocked twice (`satisfiable_matchingTripleSupports_cnf`,
+     `satisfiable_loosePathSupports_allTrue`).
+
+  ### First principles kill of the locked plan
+
+  Cluster 22 certified
+  `spreads_chernoff_slice_not_lt_eight_pow_at_thirty_two`: at `n = 32`,
+  `s = 8`, already
+  `¬ Nat.choose (6 * n) s * spreadsChernoffSlice n s < (8 * n ^ 3) ^ s`.
+  That is a lower seed on the occupancy fiber, so no packaging that upper
+  bounds failure by a multiple of this slice can close at those parameters.
+
+  This is not a small `n` fluke. With `m = 6 n` and medium end `s = α n`,
+  the Chernoff core behaves like
+  `exp(n α (ln(6 e / α) + 3 ln(2 α)))`. The rate is positive for every
+  `α > 1 / sqrt(48 e) ≈ 0.0875`. In particular:
+  - `α = 1/4` (locked `r = n / 4`): rate about `+0.52` (diverges; worse as
+    `n` grows).
+  - `α = 1/8` (recorded fallback): rate about `+0.089` (still diverges).
+  - `α = 1/12`: marginally negative.
+  - `α = 1/16`: rate about `-0.042` (converges with margin).
+
+  Finite calibration of the medium sum
+  `∑_{s = r/2}^{r} C(6 n, s) ((2 s - 1)/n)^{3 s}`:
+  - `n = 128`, `r = n / 8 = 16`: sum about `1.8 e3` (fails).
+  - `n = 128`, `r = n / 16 = 8`: sum about `2.1 e-4` (passes).
+  - `n = 256`, `r = 16`: sum about `6 e-7` (passes harder).
+
+  Therefore: larger `n` cannot rescue `r = n / 4`; the recorded
+  `r = n / 8` fallback is also dead under the same first moment method;
+  raising density worsens Spreads; the honest surviving linear pin under
+  `spreadsChernoffSlice` is `r = n / 16` (or smaller).
+
+  ### The one argument developed (revised Block A)
+
+  Fix `N : ℕ`. Set `n₀ := max(N, 128)`, and for each `n ≥ n₀` set
+  `m := random3CNFClauseCount n = 6 * n` and
+  `r := random3CNFMatchScale n = n / 16` (so `r ≥ 8` and
+  `csClauseWidthFloor r 1 = r / 2 ≥ 4 > 3`).
+
+  Step 1 (sample space). Unchanged packaging:
+  `EnsembleIndex`, `random3CNF`, `random3CNF_cnfWidth_le`,
+  `random3CNF_vars_card`.
+
+  Step 2 (unsat). Unchanged: `exists_unsat_random3CNF` already closes the
+  first moment at density 6 for every positive `n`. Classification: known
+  (certified).
+
+  Step 3 (Spreads at rate 2). Keep the accepted occupancy method of Cluster
+  21 to 22: bound non `SpreadsIndices` by
+  `∑_{s ∈ Icc (r/2) r} spreadsOccupancyTerm n m s`, and seed each fiber by
+  `spreadsChernoffSlice` (or a tighter relative entropy bound later). At the
+  new pin the Chernoff core sum is `o(1)` for all large `n` by the rate
+  calculation above; once the Nat inequality
+  `∑ spreadsOccupancyTerm < (8 n^3)^m` is formalized at some `n ≥ 128`,
+  invoke `exists_spreadsIndices_of_occupancy_sum_lt_ensemble` and
+  `spreads_random3CNF_of_spreadsIndices`. Classification: adaptation of the
+  accepted occupancy plan to a viable scale. Gap: hard Nat arithmetic at
+  `n = 128`, `r = 8` (routine mathematics, hard engineering).
+
+  Step 4 (matchability). Same extraction as before via minimally unsat cores
+  and `isCSMatchable_of_unsat_min_card` / `IsCSMatchable.mono`, now only up
+  to scale `r = n / 16` (strictly easier union bound than `n / 4`).
+  Classification: known. Gap: hard constants, easier than the old pin.
+
+  Step 5 (package). After Steps 2 to 4, apply
+  `hasCSClauseExpansion_one_of_spreads_two` and the retargeted packaging
+  lemma with equation `r = n / 16` into
+  `exists_cs_clause_expanding_3cnf`. Classification: routine once Step 3
+  lands, but blocked on the human pin patch.
+
+  ### Gap list
+
+  1. Human accept_prose on redefining `random3CNFMatchScale` to `n / 16` and
+     rewriting both Frontier equations plus packaging from `n / 4` to
+     `n / 16` with threshold `128`. Gap class: gate (not mathematics).
+  2. Nat proof that the Chernoff or occupancy sum is strictly below the
+     ensemble card at some concrete `n ≥ 128` (seed name
+     `spreads_chernoff_slice_core_lt_at_one_twenty_eight`). Gap class: hard.
+  3. Matchability union bound at the new scale, then joint intersection with
+     unsat and Spreads. Gap class: hard.
+  4. Variable card cleanup via `Spreads.mono_r` so `(cnfVars F).card = n`
+     exactly. Gap class: routine.
+  5. Optional later strengthening back toward classical `Θ(n)` medium sets
+     with a non first moment method (LLL, alteration, or second moment). Not
+     required to close the present pin. Gap class: unknown; out of scope.
+
+  ### Self adversarial pass
+
+  - Quantifier order: `ω` depends on `n`, which depends on `N`. No uniformity
+    beyond existence.
+  - Hidden weakening: `r = n / 16` still gives linear width
+    `csClauseWidthFloor r 1 = n / 32`, hence exponential size through BSW
+    with a weaker explicit rate than `n / 8`. Constant `r = 8` would not.
+  - Off by one: informative floor needs `r ≥ 8`, so `n ≥ 128` under
+    sixteenth scale; do not keep the old `32` threshold.
+  - Do not revive `r = n / 8` without a new counting method: Cluster 22 style
+    seeds already diverge at that α.
+  - Do not claim the old occupancy accept_prose still authorizes formalize of
+    Frontier equations that say `r = n / 4`; that plan is dead.
+  - Constructive polarity search remains blocked twice; this cycle changes
+    approach inside the probabilistic method rather than grinding
+    `loosePathSupports` again.
+  - Barrier: resolution level; no R3 flag.
+  - Stop condition: same cause (first moment at aggressive linear scale)
+    blocked through crude and Chernoff packaging; this session changes the
+    pin instead of grinding `r = n / 4` a third time.
+
+  Most important thing learned: under the certified `spreadsChernoffSlice`
+  lower seed, first moment Spreads at `m = 6 n` is asymptotically impossible
+  at `r = n / 4` and still impossible at the recorded `r = n / 8` fallback;
+  the viable linear pin is `r = n / 16` with `n ≥ 128`, preserving Ω(n)
+  width while making the medium Chernoff sum about `2 e-4` already at the
+  informative minimum. Next: human gate accept_prose on this pin patch,
+  then formalize Nat Chernoff close at `n = 128` toward
+  `exists_spreads_matchable_unsat_random3CNF`.
+  gate_pending: accept_prose.
+
