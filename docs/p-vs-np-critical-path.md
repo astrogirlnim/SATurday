@@ -39,9 +39,11 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       `r = n / 16`, but prove 2026-08-12 kills that first moment plan too:
       full slice `C(m,s) C(n,2s-1) ((2s-1)/n)^{3s}` is about `1.7e15` at
       `n=128`, `r=8`, and rate `α(3+ln 12)>0` for every linear `α`. Do not
-      Nat chase Chernoff under Spreads rate 2. Revised Block A (accept_prose
-      pending): unique neighbor expansion first moment into
-      `HasCSClauseExpansion`, bypassing Spreads slice packaging.
+      Nat chase Chernoff under Spreads rate 2. Cluster 25 certified
+      `ExpandsIndices` lift and Spreads free packaging
+      `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding`.
+      Revised Block A (accept_prose pending): unique neighbor first moment
+      into `ExpandsIndices`, then that packaging.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Move R2 from `prose_accepted` to `certified` only after the existence
@@ -105,9 +107,10 @@ Complexity half is done. Remaining modules from the R5 plan
 ## Suggested saturday priority when you resume
 
 1. R2: human gate accept_prose on prove 2026-08-12 (kill n/16 Spreads first
-   moment; switch Block A to unique neighbor `HasCSClauseExpansion`). After
-   gate: formalize unique neighbor packaging; do not Nat chase Chernoff at
-   `n=128` under `spreadsChernoffSlice`.
+   moment; switch Block A to unique neighbor `ExpandsIndices`). Packaging
+   lift is already Cluster 25. After gate: pin `α⋆` and Nat close for
+   `ExpandsIndices`; do not Nat chase Chernoff at `n=128` under
+   `spreadsChernoffSlice`.
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or

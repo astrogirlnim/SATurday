@@ -915,6 +915,15 @@ SATurday.ProofComplexity.spreads_occupancy_chernoff_product_ge_eight_pow_at_one_
 SATurday.ProofComplexity.spreads_occupancy_fiber_not_lt_eight_pow_at_one_twenty_eight
 SATurday.ProofComplexity.spreadsOccupancyTerm_core_not_lt_at_one_twenty_eight
 
+# R2 item 2 cluster 25: unique neighbor ExpandsIndices lift and Spreads-free packaging (2026-08-13)
+SATurday.ProofComplexity.mem_clauseSetBoundary_iff_occ
+SATurday.ProofComplexity.indexOcc
+SATurday.ProofComplexity.indexUniqueNeighbors
+SATurday.ProofComplexity.mem_indexUniqueNeighbors_iff
+SATurday.ProofComplexity.ExpandsIndices
+SATurday.ProofComplexity.hasCSClauseExpansion_random3CNF_of_expandsIndices
+SATurday.ProofComplexity.exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding
+
 # R2 item 2 cluster 21: occupancy Spreads packaging (2026-08-11)
 SATurday.ProofComplexity.random3CNFMatchScaleFallback
 SATurday.ProofComplexity.random3CNFMatchScaleFallback_ge_eight

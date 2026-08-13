@@ -70,7 +70,10 @@ R4-class results plus the certified R5 bridge.
     unique neighbor expansion into `HasCSClauseExpansion` directly
     (accept_prose pending); Cluster 24 (2026-08-12) certifies Chernoff core
     LT without `C(n,u)` at `n = 128` and occupancy fibre NOT lt with
-    `C(n,15)`, machine confirming the first moment Spreads kill)
+    `C(n,15)`, machine confirming the first moment Spreads kill; Cluster 25
+    (2026-08-13) certifies `ExpandsIndices` lift to `HasCSClauseExpansion`
+    and Spreads free packaging
+    `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding`)
 
 - R3 stronger systems
   - status: proposed

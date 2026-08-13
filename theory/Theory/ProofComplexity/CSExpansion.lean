@@ -57,8 +57,13 @@ first-moment method; joint existence remains Frontier.
 Cluster 24 (2026-08-12): Nat Chernoff core closes at `n = 128`, `s = 8`
 (`spreads_chernoff_slice_core_lt_at_one_twenty_eight`), but the Cluster 21
 occupancy fibre upper bound still overruns
-(`spreads_occupancy_fiber_not_lt_eight_pow_at_one_twenty_eight`); existence
-remains Frontier pending a tighter fibre upper bound.
+(`spreads_occupancy_fiber_not_lt_eight_pow_at_one_twenty_eight`); first moment
+Spreads at `n/16` is machine dead. Cluster 25 (2026-08-13): unique neighbor
+index expansion `ExpandsIndices` lifts to `HasCSClauseExpansion`, and
+Spreads free packaging
+`exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding` lets Block A
+bypass Spreads once a sample with `ExpandsIndices` lands. Existence remains
+Frontier.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -1027,6 +1032,12 @@ the incidence identity `|∂G| + ∑|supp C| ≥ 2|⋃ supp|`, which yields
 /-- Occurrence count of a variable inside an axiom set. -/
 def clauseOcc (G : Finset Clause) (x : ℕ) : ℕ :=
   (G.filter fun C => x ∈ clauseSupport C).card
+
+/-- Unique neighbors are exactly the clause-set boundary (definition unpack). -/
+theorem mem_clauseSetBoundary_iff_occ (G : Finset Clause) (x : ℕ) :
+    x ∈ clauseSetBoundary G ↔
+      x ∈ G.biUnion clauseSupport ∧ clauseOcc G x = 1 := by
+  simp [mem_clauseSetBoundary_iff, clauseOcc]
 
 /-- Double count pairs `(C, x)` with `x ∈ clauseSupport C`. -/
 theorem sum_clauseSupport_card_eq_sum_occ (G : Finset Clause) :
@@ -3022,6 +3033,25 @@ theorem Spreads.mono_r {F : CNF} {r r' γ : ℕ}
   intro G hG hlo' hhi'
   exact h G hG (le_trans hlo hlo') (le_trans hhi' hhi)
 
+/-- Packaging that does not route through Spreads: matchable unsat 3-CNF with
+direct clause-set expansion at the active scale `n/16` yields the critical path
+inhabitant. Unique neighbor first moment targets this hypothesis, not Spreads. -/
+theorem exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding
+    (h : ∀ N : ℕ, ∃ (n : ℕ) (F : CNF),
+      N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        IsCSMatchable F (n / 16) ∧ HasCSClauseExpansion F (n / 16) 1 ∧
+          ¬ Satisfiable F ∧
+            cnfWidth F < csClauseWidthFloor (n / 16) 1) :
+    ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (r α : ℕ),
+      N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        α = 1 ∧ r = n / 16 ∧
+          IsCSMatchable F r ∧ HasCSClauseExpansion F r α ∧
+            ¬ Satisfiable F ∧ cnfWidth F < csClauseWidthFloor r α := by
+  intro N
+  obtain ⟨n, F, hN, hvars, hw, hmatch, hexp, hunsat, hfloor⟩ := h N
+  refine ⟨n, F, n / 16, 1, hN, hvars, hw, rfl, rfl, hmatch, hexp, hunsat, ?_⟩
+  simpa [csClauseWidthFloor] using hfloor
+
 /-- Packaging: matchable unsat Spreads at rate 2 and scale `n/16` yields the
 critical-path clause-set expansion inhabitant (α = 1). -/
 theorem exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat
@@ -3513,6 +3543,129 @@ theorem spreads_random3CNF_of_spreadsIndices {n m : ℕ}
   have : 2 * G.card ≤ (G.biUnion clauseSupport).card := by
     simpa [hScard, hU] using hExp
   exact this
+
+/-! ## Unique neighbor index expansion (Cluster 25)
+
+`clauseSetBoundary` is already the unique neighbor set (occurrence 1). The
+Spreads rate 2 first moment is dead (Clusters 22 to 24). Direct unique neighbor
+expansion at the index level is the remaining first moment skeleton for
+`HasCSClauseExpansion` at α = 1. -/
+
+/-- How many sampled atoms in `S` contain variable `v`. -/
+def indexOcc {n m : ℕ} (ω : EnsembleIndex n m) (S : Finset (Fin m)) (v : ℕ) : ℕ :=
+  (S.filter fun i => v ∈ (ω i).support).card
+
+/-- Unique neighbors of an index set: support variables with occurrence 1. -/
+def indexUniqueNeighbors {n m : ℕ} (ω : EnsembleIndex n m) (S : Finset (Fin m)) :
+    Finset ℕ :=
+  (indexSupport ω S).filter fun v => indexOcc ω S v = 1
+
+theorem mem_indexUniqueNeighbors_iff {n m : ℕ} (ω : EnsembleIndex n m)
+    (S : Finset (Fin m)) (v : ℕ) :
+    v ∈ indexUniqueNeighbors ω S ↔
+      v ∈ indexSupport ω S ∧ indexOcc ω S v = 1 := by
+  simp [indexUniqueNeighbors]
+
+/-- Index-level unique neighbor expansion: every medium index set has at least
+as many unique neighbors as members. This is `HasCSClauseExpansion` at α = 1
+before collapsing duplicate clauses. -/
+def ExpandsIndices {n m : ℕ} (ω : EnsembleIndex n m) (r : ℕ) : Prop :=
+  ∀ S : Finset (Fin m),
+    r / 2 ≤ S.card → S.card ≤ r →
+      S.card ≤ (indexUniqueNeighbors ω S).card
+
+/-- From index unique neighbor expansion, the sampled CNF expands at α = 1.
+Preimage of each clause is injective, index unique neighbors inject into
+`clauseSetBoundary`, and `|S| = |G|`. -/
+theorem hasCSClauseExpansion_random3CNF_of_expandsIndices {n m : ℕ}
+    (ω : EnsembleIndex n m) {r : ℕ} (h : ExpandsIndices ω r) :
+    HasCSClauseExpansion (random3CNF n m ω) r 1 := by
+  classical
+  intro G hG hlo hhi
+  have hpre :
+      ∀ C ∈ G, ∃ i : Fin m, (ω i).toClause = C := by
+    intro C hC
+    exact (mem_random3CNF (ω := ω)).mp (hG hC)
+  choose τ hτ using hpre
+  let S : Finset (Fin m) := G.attach.image fun C => τ C.1 C.2
+  have hSinj :
+      Function.Injective fun C : { x // x ∈ G } => τ C.1 C.2 := by
+    intro C₁ C₂ hEq
+    apply Subtype.ext
+    have hC1 : (ω (τ C₁.1 C₁.2)).toClause = C₁.1 := hτ C₁.1 C₁.2
+    have hC2 : (ω (τ C₂.1 C₂.2)).toClause = C₂.1 := hτ C₂.1 C₂.2
+    have hsame : (ω (τ C₁.1 C₁.2)).toClause = (ω (τ C₂.1 C₂.2)).toClause := by
+      simpa [hEq]
+    exact hC1.symm.trans (hsame.trans hC2)
+  have hScard : S.card = G.card := by
+    change (G.attach.image fun C : { x // x ∈ G } => τ C.1 C.2).card = G.card
+    rw [card_image_of_injective G.attach hSinj, card_attach]
+  have hSlo : r / 2 ≤ S.card := by simpa [hScard] using hlo
+  have hShi : S.card ≤ r := by simpa [hScard] using hhi
+  have hExp : S.card ≤ (indexUniqueNeighbors ω S).card := h S hSlo hShi
+  have hsupp :
+      ∀ C (hC : C ∈ G),
+        clauseSupport C = (ω (τ C hC)).support := by
+    intro C hC
+    calc
+      clauseSupport C = clauseSupport ((ω (τ C hC)).toClause) := by
+        rw [hτ C hC]
+      _ = (ω (τ C hC)).support := clauseSupport_toClause_eq_support _
+  have hmemS : ∀ C (hC : C ∈ G), τ C hC ∈ S := by
+    intro C hC
+    exact mem_image.mpr ⟨⟨C, hC⟩, mem_attach _ _, rfl⟩
+  have hsub : indexUniqueNeighbors ω S ⊆ clauseSetBoundary G := by
+    intro v hv
+    have hvUN := (mem_indexUniqueNeighbors_iff ω S v).mp hv
+    have hvSupp : v ∈ G.biUnion clauseSupport := by
+      obtain ⟨i, hi, hv'⟩ := mem_biUnion.mp hvUN.1
+      obtain ⟨Csub, _, rfl⟩ := mem_image.mp hi
+      refine mem_biUnion.mpr ⟨Csub.1, Csub.2, ?_⟩
+      simpa [hsupp Csub.1 Csub.2] using hv'
+    have hocc : clauseOcc G v = 1 := by
+      have hle : clauseOcc G v ≤ indexOcc ω S v := by
+        set Gv := G.filter fun D => v ∈ clauseSupport D
+        let f : { x // x ∈ Gv } → Fin m := fun C =>
+          τ C.1 (mem_filter.mp C.2).1
+        have hinj : Function.Injective f := by
+          intro C₁ C₂ hEq
+          apply Subtype.ext
+          have hG1 : C₁.1 ∈ G := (mem_filter.mp C₁.2).1
+          have hG2 : C₂.1 ∈ G := (mem_filter.mp C₂.2).1
+          have hC1 : (ω (τ C₁.1 hG1)).toClause = C₁.1 := hτ C₁.1 hG1
+          have hC2 : (ω (τ C₂.1 hG2)).toClause = C₂.1 := hτ C₂.1 hG2
+          have hsame : (ω (τ C₁.1 hG1)).toClause = (ω (τ C₂.1 hG2)).toClause := by
+            simpa [f, hEq]
+          exact hC1.symm.trans (hsame.trans hC2)
+        have himg : Gv.attach.image f ⊆ S.filter fun i => v ∈ (ω i).support := by
+          intro i hi
+          obtain ⟨Csub, _, rfl⟩ := mem_image.mp hi
+          have hG : Csub.1 ∈ G := (mem_filter.mp Csub.2).1
+          have hvC : v ∈ clauseSupport Csub.1 := (mem_filter.mp Csub.2).2
+          refine mem_filter.mpr ⟨hmemS Csub.1 hG, ?_⟩
+          simpa [hsupp Csub.1 hG] using hvC
+        have hcard : Gv.card = (Gv.attach.image f).card := by
+          rw [card_image_of_injective Gv.attach hinj, card_attach]
+        calc
+          Gv.card = (Gv.attach.image f).card := hcard
+          _ ≤ (S.filter fun i => v ∈ (ω i).support).card := card_le_card himg
+      have hpos : 0 < clauseOcc G v := by
+        obtain ⟨C, hC, hvC⟩ := mem_biUnion.mp hvSupp
+        exact Nat.pos_of_ne_zero fun h0 => by
+          have : C ∈ G.filter (fun D => v ∈ clauseSupport D) :=
+            mem_filter.mpr ⟨hC, hvC⟩
+          have hempty : G.filter (fun D => v ∈ clauseSupport D) = ∅ :=
+            card_eq_zero.mp (by simpa [clauseOcc] using h0)
+          simp [hempty] at this
+      have : clauseOcc G v ≤ 1 := by
+        simpa [hvUN.2] using hle
+      omega
+    exact (mem_clauseSetBoundary_iff_occ G v).mpr ⟨hvSupp, hocc⟩
+  have : G.card ≤ (clauseSetBoundary G).card := by
+    have hcard : S.card ≤ (clauseSetBoundary G).card :=
+      hExp.trans (card_le_card hsub)
+    simpa [hScard] using hcard
+  simpa using this
 
 /-- Matchability from a lower bound on every unsatisfiable subset. -/
 theorem isCSMatchable_of_unsat_min_card {F : CNF} {r : ℕ}
@@ -4784,8 +4937,9 @@ dropping the inner `∑_u C(n,u)`.
 Cycle 2026-08-12 (Cluster 23 pin redesign): human accept_prose activated
 `random3CNFMatchScale := n / 16` with threshold `n ≥ 128`; packaging and both
 Frontier equations retargeted to `r = n / 16`. Cluster 24: Chernoff core LT
-at `n = 128` certified; occupancy fibre still overruns; need a tighter fibre
-upper bound, then joint unsat and matchability. -/
+at `n = 128` certified; occupancy fibre still overruns. Cluster 25: unique
+neighbor `ExpandsIndices` lifts to `HasCSClauseExpansion`; Spreads free
+packaging is accepted. Existence counting remains open. -/
 
 namespace CSExpansionFrontier
 

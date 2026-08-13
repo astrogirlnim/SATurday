@@ -2547,3 +2547,50 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   with `C(n,u)` fails. Next: wait for accept_prose on the unique neighbor
   redesign, or formalize a fibre upper bound that does not pay full `C(n,u)`.
   gate_pending: none.
+
+- 2026-08-13 formalize (Cluster 25 unique neighbor lift and Spreads free packaging):
+  PARTIAL. Edited existing `theory/Theory/ProofComplexity/CSExpansion.lean`
+  only. Axiom gate PASS. Frontier existence remains honest sorry. Did not
+  retarget Frontier equations (still `r = n / 16` plus Spreads existence
+  theorem); that pin change still wants human accept_prose.
+
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 25 unique-neighbor ExpandsIndices lift and Spreads-free packaging",
+    "rationale": "clauseSetBoundary is already unique neighbors; land the index lift and Spreads-free packaging the pending unique-neighbor plan needs without grinding dead Chernoff or self-approving a pin change."
+  }
+  ```
+
+  ### Names verified before edit (no duplicates)
+
+  New accepted: `mem_clauseSetBoundary_iff_occ`, `indexOcc`,
+  `indexUniqueNeighbors`, `mem_indexUniqueNeighbors_iff`, `ExpandsIndices`,
+  `hasCSClauseExpansion_random3CNF_of_expandsIndices`,
+  `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding`.
+  Reused: `clauseSetBoundary`, `clauseOcc`, `EnsembleIndex`, `random3CNF`,
+  `SpreadsIndices` lift pattern, `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat`
+  (kept), Frontier `exists_cs_clause_expanding_3cnf` (unchanged equations).
+
+  ### What closed
+
+  - Unique neighbors unpack to `clauseSetBoundary` via `clauseOcc = 1`.
+  - Index unique neighbor expansion `ExpandsIndices` lifts to
+    `HasCSClauseExpansion (random3CNF n m ω) r 1` by injective clause
+    preimages: index unique neighbors inject into the clause-set boundary
+    and `|S| = |G|`.
+  - Spreads free packaging: matchable unsat expanding 3-CNF at scale
+    `n / 16` implies the Frontier inhabitant shape.
+
+  ### What did not close
+
+  No unique neighbor first moment inequality. No `α⋆` pin. No existence
+  sample. `exists_spreads_matchable_unsat_random3CNF` still requires Spreads.
+
+  Most important thing learned: Block A no longer needs Spreads as a
+  packaging hypothesis; the remaining gap is a first moment (or LLL) close
+  for `ExpandsIndices` at some linear `r`, which still needs accept_prose
+  before grinding Nat bounds or rewriting Frontier equations.
+  gate_pending: accept_prose.
