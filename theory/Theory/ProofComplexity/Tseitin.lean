@@ -23,7 +23,14 @@ exceeding half-size union). Width LB uses the sharp floor. Coarse form
 sharp floor 3 do not beat `cnfWidth = 3`. Heawood has `HasExpansion _ 1` and
 unconditional width ≥ 4 (sharp floor beats regular axiom width 3).
 
-LOG: R2 Tseitin Heawood unconditional expander width LB
+Cluster 26 (2026-08-15, accept_prose on Tseitin Block A pivot): informative
+floor threshold `n ≥ 14`, cubic expander packaging into width or size lower
+bounds, and Spreads free reduction from an unbounded `HasExpansion` family.
+Frontier holds the family existence pins (hard: construct Margulis, Gabber
+Galil, LPS, or equivalent). Random CS existence stays secondary in
+`CSExpansionFrontier`.
+
+LOG: R2 Tseitin Cluster 26 cubic expander family packaging
 -/
 
 namespace SATurday.ProofComplexity
@@ -1412,5 +1419,111 @@ theorem tseitin_heawood_width_floor_gt_cnfWidth :
     cnfWidth (tseitinCNF heawoodGraph (oddCharge_single 14 ⟨0, by omega⟩)) <
       1 * tseitinMediumFloor 14 :=
   tseitin_heawood_width_beats_cnfWidth _ (oddCharge_single_odd 14 ⟨0, by omega⟩)
+
+/-! ## Cluster 26: unbounded cubic expander family packaging (Block A pivot)
+
+Random CS first moment into `HasCSClauseExpansion` is dead (prove 2026-08-15).
+Primary unbounded existence is Tseitin on 3-regular `HasExpansion _ 1` graphs
+of unbounded order. The width machine is already accepted; this cluster lands
+the informative threshold, the single graph packaging, and the family
+reduction. Family inhabitants remain Frontier. -/
+
+/-- Informative sharp floor: `n ≥ 14` forces `tseitinMediumFloor n > 3`, so a
+3-regular Tseitin axiom width is strictly below the expander width lower
+bound at `α = 1`. Matches the Heawood non vacuity scale. -/
+theorem tseitinMediumFloor_gt_three_of_fourteen {n : ℕ} (hn : 14 ≤ n) :
+    3 < tseitinMediumFloor n := by
+  simp only [tseitinMediumFloor]
+  have hdiv : 7 ≤ n / 2 := by omega
+  have : 4 ≤ (n / 2 + 2) / 2 := by omega
+  omega
+
+/-- Single cubic expander packaging: regular 3, expansion 1, and `n ≥ 14` yield
+unsat odd charge Tseitin with informative width floor and every refutation
+width at least that floor. -/
+theorem tseitin_cubic_expander_informative {n : ℕ} {G : FinGraph n}
+    (hreg : IsRegular G 3) (hα : HasExpansion G 1) (hn : 14 ≤ n)
+    (χ : Charge n) (hχ : oddCharge χ) :
+    ¬ Satisfiable (tseitinCNF G χ) ∧
+      cnfWidth (tseitinCNF G χ) = 3 ∧
+        3 < 1 * tseitinMediumFloor n ∧
+          ∀ d : Derivation (tseitinCNF G χ) (∅ : Clause),
+            1 * tseitinMediumFloor n ≤ d.width := by
+  refine ⟨tseitinCNF_unsat G χ hχ, ?_, ?_, ?_⟩
+  · exact cnfWidth_tseitinCNF_of_regular hreg (by omega : 0 < n) (by omega : 0 < 3)
+  · simpa using tseitinMediumFloor_gt_three_of_fourteen hn
+  · intro d
+    exact tseitin_expander_width_lower_bound hα (by omega : 1 ≤ 1) d (by omega : 2 ≤ n)
+
+/-- Size form of the same packaging (BSW via the accepted expander size LB). -/
+theorem tseitin_cubic_expander_size_informative {n : ℕ} {G : FinGraph n}
+    (_hreg : IsRegular G 3) (hα : HasExpansion G 1) (hn : 14 ≤ n)
+    (χ : Charge n) (hχ : oddCharge χ)
+    (d : Derivation (tseitinCNF G χ) (∅ : Clause)) :
+    let W := 1 * tseitinMediumFloor n
+    2 ^ ((W - cnfWidth (tseitinCNF G χ)) * (W - cnfWidth (tseitinCNF G χ)) /
+          (bswRateConst * (cnfVars (tseitinCNF G χ)).card)) ≤ d.size := by
+  exact tseitin_expander_size_lower_bound hα (by omega : 1 ≤ 1) hχ d (by omega : 2 ≤ n)
+
+/-- Heawood is the base informative cubic expander witness (n = 14). -/
+theorem tseitin_heawood_cubic_expander_informative
+    (χ : Charge 14) (hχ : oddCharge χ) :
+    ¬ Satisfiable (tseitinCNF heawoodGraph χ) ∧
+      cnfWidth (tseitinCNF heawoodGraph χ) = 3 ∧
+        3 < 1 * tseitinMediumFloor 14 ∧
+          ∀ d : Derivation (tseitinCNF heawoodGraph χ) (∅ : Clause),
+            1 * tseitinMediumFloor 14 ≤ d.width :=
+  tseitin_cubic_expander_informative heawoodGraph_regular heawoodGraph_expansion
+    (le_rfl : 14 ≤ 14) χ hχ
+
+/-- Family reduction: an unbounded cubic `HasExpansion _ 1` family yields the
+Block A Tseitin hardness family (informative width for every `N`). -/
+theorem exists_tseitin_expander_hard_family_of_cubic_expanders
+    (hfam :
+      ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n),
+        max N 14 ≤ n ∧ IsRegular G 3 ∧ HasExpansion G 1) :
+    ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n) (χ : Charge n),
+      N ≤ n ∧ IsRegular G 3 ∧ HasExpansion G 1 ∧ oddCharge χ ∧
+        ¬ Satisfiable (tseitinCNF G χ) ∧
+          cnfWidth (tseitinCNF G χ) = 3 ∧
+            3 < 1 * tseitinMediumFloor n ∧
+              ∀ d : Derivation (tseitinCNF G χ) (∅ : Clause),
+                1 * tseitinMediumFloor n ≤ d.width := by
+  intro N
+  obtain ⟨n, G, hn, hreg, hα⟩ := hfam N
+  have h14 : 14 ≤ n := le_trans (le_max_right N 14) hn
+  have hN : N ≤ n := le_trans (le_max_left N 14) hn
+  let χ := oddCharge_single n ⟨0, by omega⟩
+  have hχ : oddCharge χ := oddCharge_single_odd n ⟨0, by omega⟩
+  obtain ⟨hunsat, hw, hfloor, hwidth⟩ :=
+    tseitin_cubic_expander_informative hreg hα h14 χ hχ
+  exact ⟨n, G, χ, hN, hreg, hα, hχ, hunsat, hw, hfloor, hwidth⟩
+
+namespace TseitinFrontier
+
+/-- Unbounded family of 3-regular integer expanders at factor 1.
+Classical constructions: Margulis, Gabber Galil, LPS Ramanujan graphs.
+Lean inhabitant is the remaining hard gap for Block A after the 2026-08-15
+pivot. Heawood and Petersen are fixed order witnesses only. -/
+theorem exists_cubic_hasExpansion_family :
+    ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n),
+      max N 14 ≤ n ∧ IsRegular G 3 ∧ HasExpansion G 1 := by
+  sorry
+
+/-- Block A primary existence pin (Tseitin route): for every `N` an informative
+odd charge Tseitin instance on a cubic expander of order at least `N`.
+Follows from `exists_cubic_hasExpansion_family` via
+`exists_tseitin_expander_hard_family_of_cubic_expanders` once that lands. -/
+theorem exists_tseitin_expander_hard_family :
+    ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n) (χ : Charge n),
+      N ≤ n ∧ IsRegular G 3 ∧ HasExpansion G 1 ∧ oddCharge χ ∧
+        ¬ Satisfiable (tseitinCNF G χ) ∧
+          cnfWidth (tseitinCNF G χ) = 3 ∧
+            3 < 1 * tseitinMediumFloor n ∧
+              ∀ d : Derivation (tseitinCNF G χ) (∅ : Clause),
+                1 * tseitinMediumFloor n ≤ d.width := by
+  sorry
+
+end TseitinFrontier
 
 end SATurday.ProofComplexity

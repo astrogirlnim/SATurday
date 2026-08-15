@@ -2752,3 +2752,48 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   first moment window. Block A primary existence should move to an unbounded
   Tseitin expander family and reuse the accepted width machine.
   gate_pending: accept_prose.
+
+- 2026-08-15 formalize (Cluster 26 cubic expander family packaging): PARTIAL.
+  Human accept_prose applied on prove 2026-08-15 Tseitin Block A pivot.
+  Edited existing `theory/Theory/ProofComplexity/Tseitin.lean` only. Axiom gate
+  PASS. Family existence remains honest Frontier sorry.
+
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 26 cubic expander family packaging and TseitinFrontier pins",
+    "rationale": "Gate accepted the pivot; land informative threshold and packaging that reduces hard Tseitin family to cubic HasExpansion family without constructing Margulis yet."
+  }
+  ```
+
+  ### Names verified before edit (no duplicates)
+
+  New accepted: `tseitinMediumFloor_gt_three_of_fourteen`,
+  `tseitin_cubic_expander_informative`,
+  `tseitin_cubic_expander_size_informative`,
+  `tseitin_heawood_cubic_expander_informative`,
+  `exists_tseitin_expander_hard_family_of_cubic_expanders`.
+  New Frontier (sorry): `TseitinFrontier.exists_cubic_hasExpansion_family`,
+  `TseitinFrontier.exists_tseitin_expander_hard_family`.
+  Reused: `HasExpansion`, `IsRegular`, `tseitinCNF_unsat`,
+  `cnfWidth_tseitinCNF_of_regular`, `tseitin_expander_width_lower_bound`,
+  `tseitin_expander_size_lower_bound`, `heawoodGraph_regular`,
+  `heawoodGraph_expansion`, `oddCharge_single`.
+
+  ### What closed
+
+  - Informative floor: `14 ≤ n` implies `3 < tseitinMediumFloor n`.
+  - Single graph packaging from cubic regular plus `HasExpansion _ 1`.
+  - Heawood as base informative witness via that packaging.
+  - Family reduction: cubic expander family implies Tseitin hard family.
+
+  ### What did not close
+
+  No unbounded `HasExpansion` inhabitant. Margulis, Gabber Galil, and LPS
+  remain external. Random CS Frontier unchanged (secondary).
+
+  Most important thing learned: Block A is now a pure expander construction
+  gap; all Tseitin width wiring for the family pin is accepted.
+  gate_pending: none.

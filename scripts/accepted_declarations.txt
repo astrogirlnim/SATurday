@@ -1108,3 +1108,10 @@ SATurday.Bridge.compose_notAfter
 SATurday.Bridge.not_chi_decides_complement
 SATurday.Bridge.InP_complement
 SATurday.Bridge.classP_eq_classNP_implies_NP_eq_coNP
+
+# R2 item 2 cluster 26: cubic expander family packaging Block A Tseitin pivot (2026-08-15)
+SATurday.ProofComplexity.tseitinMediumFloor_gt_three_of_fourteen
+SATurday.ProofComplexity.tseitin_cubic_expander_informative
+SATurday.ProofComplexity.tseitin_cubic_expander_size_informative
+SATurday.ProofComplexity.tseitin_heawood_cubic_expander_informative
+SATurday.ProofComplexity.exists_tseitin_expander_hard_family_of_cubic_expanders

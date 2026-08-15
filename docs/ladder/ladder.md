@@ -72,7 +72,11 @@ R4-class results plus the certified R5 bridge.
     `ExpandsIndices` lift and Spreads free packaging; prove 2026-08-15 kills
     unique neighbor first moment as equivalent to Spreads rate 2 and pivots
     Block A primary existence to an unbounded Tseitin expander family
-    (accept_prose pending; random CS Frontier secondary))
+    (accept_prose 2026-08-15); Cluster 26 (2026-08-15) certifies informative
+    floor `n ≥ 14`, cubic expander packaging, and family reduction;
+    Frontier `exists_cubic_hasExpansion_family` and
+    `exists_tseitin_expander_hard_family` still open; random CS Frontier
+    secondary))
 
 - R3 stronger systems
   - status: proposed

@@ -44,9 +44,10 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding`.
       Prove 2026-08-15: unique neighbor first moment is equivalent to Spreads
       rate 2 for 3 CNF (dead at unsat densities); do not Nat chase `α⋆`.
-      Revised Block A (accept_prose pending): primary unbounded existence via
-      Tseitin on an infinite 3 regular expander family, reusing accepted
-      `tseitin_expander_width_lower_bound`; random CS Frontier secondary.
+      Accept_prose applied; Cluster 26 certified informative floor `n ≥ 14`,
+      cubic expander packaging, and reduction to
+      `exists_cubic_hasExpansion_family`. Next: inhabit that Frontier family
+      (Margulis, Gabber Galil, LPS, or equivalent). Random CS Frontier secondary.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Move R2 from `prose_accepted` to `certified` only after the existence
@@ -109,11 +110,10 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: human gate accept_prose on prove 2026-08-15 (kill unique neighbor first
-   moment; pivot Block A to unbounded Tseitin expanders). After gate:
-   formalize or construct an infinite 3 regular `HasExpansion` family and
-   package size or width lower bounds via existing Tseitin lemmas. Do not
-   Nat chase Spreads or `ExpandsIndices` first moment.
+1. R2: formalize an unbounded 3 regular `HasExpansion _ 1` family
+   (`TseitinFrontier.exists_cubic_hasExpansion_family`), then discharge
+   `exists_tseitin_expander_hard_family` via the accepted Cluster 26 reduction.
+   Do not Nat chase Spreads or `ExpandsIndices` first moment.
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or
