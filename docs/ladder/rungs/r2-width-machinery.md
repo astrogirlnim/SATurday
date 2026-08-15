@@ -2594,3 +2594,161 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   for `ExpandsIndices` at some linear `r`, which still needs accept_prose
   before grinding Nat bounds or rewriting Frontier equations.
   gate_pending: accept_prose.
+
+- 2026-08-15 prove (kill unique neighbor first moment; pivot Block A to unbounded
+  Tseitin expanders): SUCCESS with human gate accept_prose. Prose only; no Lean
+  this cycle.
+
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "prove",
+    "target": "kill ExpandsIndices first moment at density 6; pivot Block A existence to unbounded Tseitin expanders",
+    "rationale": "Unique neighbor |U1|>=|S| is equivalent to Spreads rate 2 for 3 CNF, so the pending redesign does not escape the dead first moment skeleton."
+  }
+  ```
+
+  ### Statement restated with all quantifiers explicit
+
+  Item 2 still needs, for every `N : ℕ`, some width 3 unsatisfiable CNF `F` on
+  `n ≥ N` variables whose resolution width (hence size via BSW) grows with `n`.
+  Two routes remain on the rung statement: (i) random 3 CNF with
+  `HasCSClauseExpansion` at linear scale, currently packaged as Frontier
+  `exists_cs_clause_expanding_3cnf`; (ii) Tseitin CNF on 3 regular expanders,
+  where the width machine `tseitin_expander_width_lower_bound` is already
+  accepted and Heawood or Petersen give only fixed `n` witnesses.
+
+  ### Non vacuity
+
+  Unchanged: `exists_unsat_random3CNF`, finite Spreads and SpreadsSupports
+  witnesses, `tseitinCNF_unsat` under `oddCharge`, Heawood and Petersen
+  expansion and width floor lemmas. None of these close unbounded random CS
+  existence or an unbounded expander family.
+
+  ### Attack ideas sketched (exactly one developed)
+
+  A. Pin an explicit `α⋆` and close `ExpandsIndices` by unique neighbor first
+     moment at density `m = 6 n` (rejected below: same death as Spreads rate 2).
+  B. Weaken to `|U1| ≥ ε|S|` with fractional Lean `α` and first moment or
+     alteration (rejected below: KL on `U` still loses to `C(6n, αn)` for every
+     tested `ε` and linear `α` at density 6).
+  C. Symmetric LLL or alteration on the same strong bad events (rejected as
+     primary: under the same Poisson KL lower tail, `E[# bad]` has positive
+     leading rate, so alteration matches the failed union bound).
+  D. Pivot primary Block A existence from random CS first moment to an
+     unbounded family of 3 regular edge expanders plus odd charge Tseitin,
+     reusing the accepted Tseitin width machine (DEVELOPED).
+
+  ### Kill: unique neighbor first moment is Spreads rate 2
+
+  Lean ensemble `Oriented3Clause` has `|Ω| = 8 n^3`, so
+  `P(v ∈ support) = 1 − ((n−1)/n)^3 ∼ 3/n`. For fixed index set `S` of size
+  `s = α n`,
+  `E[|U1(S)|]/s ∼ 3 e^{−3α}`.
+  In particular the mean clears `|U1| ≥ |S|` for every small linear `α`.
+
+  Equivalence for exact total degree `3s` (distinct support 3 CNF, and the
+  same leading asymptotics with replacement): handshaking gives
+  `u1 ≥ 2|V| − 3s`. Thus `|V| ≥ 2s` implies `u1 ≥ s`, and `u1 < s` implies
+  `|V| < 2s`. So `ExpandsIndices` at rate 1 and `Spreads _ _ 2` are the same
+  threshold on medium sets. Cluster 25 packaging that lifts `ExpandsIndices`
+  into `HasCSClauseExpansion` is still correct as a lemma; it does not supply
+  a new counting skeleton.
+
+  First moment and alteration under Poisson KL lower tails for `|U1| < |S|`
+  have positive leading rate against `C(6n, αn)` for every tested linear `α`
+  (examples: `α ∈ {0.001, 0.01, 0.05, 0.1}`, margins about `−8` to `−4` in
+  `(1/n) log`). Weak targets `|U1| ≥ ε|S|` for `ε ∈ {0.01, ..., 0.5}` likewise
+  never beat `1 + ln(6/α)`. Support first moment for Spreads rate `γ = 2`
+  stays positive at every density that still admits the unsat first moment
+  (`m/n > ln 2 / ln(8/7) ≈ 5.191`, including density 6). Weak Spreads
+  `γ ∈ (1, 1.5)` has a tiny negative rate window but cannot force `u1 ≥ s`.
+
+  Therefore: stop waiting on accept_prose to Nat chase `α⋆` for
+  `ExpandsIndices`. The 2026-08-12 unique neighbor redesign does not evade
+  Clusters 22 to 24. Same cause (first moment at strong medium expansion,
+  density compatible with unsat) is now blocked again; this session changes
+  approach.
+
+  ### The one argument developed (Block A pivot)
+
+  Make the primary unbounded existence route Tseitin on expanders, not random
+  CS first moment.
+
+  Step 1. Keep as accepted: for every finite 3 regular `G` with
+  `HasExpansion G α` (`α ≥ 1`) and odd charge `χ`, every resolution refutation
+  of `tseitinCNF G χ` has width at least the certified Tseitin floor (lemmas
+  `tseitin_expander_width_lower_bound` and size corollaries). Classification:
+  known (already Lean).
+
+  Step 2. Pin an unbounded family: for every `N`, there exist `n ≥ N` and a
+  3 regular graph `G` on `n` vertices with `HasExpansion G 1` (or some fixed
+  positive integer expansion factor). Classical constructions exist
+  (Margulis; Gabber Galil; LPS Ramanujan graphs for suitable congruences).
+  Classification: known externally; Lean inhabitant is the hard gap.
+
+  Step 3. For each such `G`, take `χ = oddCharge_single n 0` (or any odd
+  charge). Then `¬ Satisfiable (tseitinCNF G χ)` and the width or size lower
+  bound scales with `n`. Classification: routine once Step 2 lands, by
+  existing lemmas.
+
+  Step 4. Record random CS Frontier
+  `exists_cs_clause_expanding_3cnf` / `exists_spreads_matchable_unsat_random3CNF`
+  as secondary: either a future non first moment method (second moment,
+  spectral, or a theorem imported after barrier audit) or archival relative to
+  the Tseitin family pin. Do not spend further saturday cycles on
+  `spreadsChernoffSlice` or unique neighbor first moment Nat closes.
+  Classification: stop condition compliance.
+
+  Step 5. Optional parallel: start R5 `FormulaEncoding` in other sessions; it
+  does not substitute for R2 existence.
+
+  Why this is not another pin shrink: the obstruction was the strong medium
+  expansion first moment at unsat densities, shared by Spreads rate 2 and
+  `ExpandsIndices`. Switching to an explicit expander family changes the
+  existence obligation from a probabilistic counting close to a constructive
+  or classical expander close, which matches the already certified Tseitin
+  width machine.
+
+  ### Gap list
+
+  1. Human accept_prose to abandon unique neighbor first moment as Block A
+     primary and to authorize the unbounded Tseitin expander family as the
+     existence pin for item 2 size lower bounds. Gap class: gate.
+  2. Lean construction or axiom free proof of an infinite family of 3 regular
+     graphs with `HasExpansion _ 1` (or fixed `α ≥ 1`) and unbounded order.
+     Gap class: hard.
+  3. Wire family members into `tseitinCNF` and package
+     `∀ N, ∃ n ≥ N, … width or size lower bound` as an accepted theorem
+     (Frontier until then). Gap class: routine after Step 2.
+  4. Decision on random CS Frontier theorems: keep as secondary open, restate,
+     or mark killed as a subroute. Gap class: gate (may share accept_prose).
+  5. If expander formalization stalls thrice, consider importing a single
+     external combinatorial theorem with an explicit barrier audit, or propose
+     `kill_rung` or restatement of R2 item 2 scope. Gap class: unknown.
+
+  ### Self adversarial pass
+
+  - Quantifier order: family must be unbounded in `n`; Heawood and Petersen
+    alone do not close `∀ N`.
+  - Do not claim Margulis or LPS is already in mathlib at this pin; verify
+    before formalize.
+  - Circulant families remain excluded as hardness expanders (falsifier and
+    prior audits).
+  - Random CS is not proved impossible; only first moment or alteration under
+    the KL on `U` bound is dead. A future spectral argument could reopen it
+    without contradicting this kill.
+  - Off by one: replacement ensemble degrees are not exactly `3s`; the
+    equivalence is asymptotic or under a distinct support refinement already
+    used in Spreads counting. Leading rates are unchanged.
+  - Barrier: resolution level; no R3 flag.
+  - Stop condition: first moment strong expansion closes are blocked across
+    Spreads pins `n/4`, `n/8`, `n/16`, occupancy, Chernoff slice, and unique
+    neighbor redesign. Approach change is mandatory.
+
+  Most important thing learned: `ExpandsIndices` and Spreads rate 2 share the
+  same medium set threshold for 3 CNF, so Cluster 25 does not unlock a new
+  first moment window. Block A primary existence should move to an unbounded
+  Tseitin expander family and reuse the accepted width machine.
+  gate_pending: accept_prose.

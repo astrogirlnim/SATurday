@@ -42,8 +42,11 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       Nat chase Chernoff under Spreads rate 2. Cluster 25 certified
       `ExpandsIndices` lift and Spreads free packaging
       `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding`.
-      Revised Block A (accept_prose pending): unique neighbor first moment
-      into `ExpandsIndices`, then that packaging.
+      Prove 2026-08-15: unique neighbor first moment is equivalent to Spreads
+      rate 2 for 3 CNF (dead at unsat densities); do not Nat chase `α⋆`.
+      Revised Block A (accept_prose pending): primary unbounded existence via
+      Tseitin on an infinite 3 regular expander family, reusing accepted
+      `tseitin_expander_width_lower_bound`; random CS Frontier secondary.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Move R2 from `prose_accepted` to `certified` only after the existence
@@ -106,11 +109,11 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: human gate accept_prose on prove 2026-08-12 (kill n/16 Spreads first
-   moment; switch Block A to unique neighbor `ExpandsIndices`). Packaging
-   lift is already Cluster 25. After gate: pin `α⋆` and Nat close for
-   `ExpandsIndices`; do not Nat chase Chernoff at `n=128` under
-   `spreadsChernoffSlice`.
+1. R2: human gate accept_prose on prove 2026-08-15 (kill unique neighbor first
+   moment; pivot Block A to unbounded Tseitin expanders). After gate:
+   formalize or construct an infinite 3 regular `HasExpansion` family and
+   package size or width lower bounds via existing Tseitin lemmas. Do not
+   Nat chase Spreads or `ExpandsIndices` first moment.
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or

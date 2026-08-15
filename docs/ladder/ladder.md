@@ -66,14 +66,13 @@ R4-class results plus the certified R5 bridge.
     human accept_prose) activates `random3CNFMatchScale := n / 16` with
     `n ≥ 128`; prove 2026-08-12 kills that n/16 first moment plan too:
     prior calibration omitted `C(n,2s-1)`, and the full slice rate
-    `α(3+ln 12)` is positive for every linear `α`; revised Block A targets
-    unique neighbor expansion into `HasCSClauseExpansion` directly
-    (accept_prose pending); Cluster 24 (2026-08-12) certifies Chernoff core
-    LT without `C(n,u)` at `n = 128` and occupancy fibre NOT lt with
-    `C(n,15)`, machine confirming the first moment Spreads kill; Cluster 25
-    (2026-08-13) certifies `ExpandsIndices` lift to `HasCSClauseExpansion`
-    and Spreads free packaging
-    `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding`)
+    `α(3+ln 12)` is positive for every linear `α`; Cluster 24 (2026-08-12)
+    certifies Chernoff core LT without `C(n,u)` at `n = 128` and occupancy
+    fibre NOT lt with `C(n,15)`; Cluster 25 (2026-08-13) certifies
+    `ExpandsIndices` lift and Spreads free packaging; prove 2026-08-15 kills
+    unique neighbor first moment as equivalent to Spreads rate 2 and pivots
+    Block A primary existence to an unbounded Tseitin expander family
+    (accept_prose pending; random CS Frontier secondary))
 
 - R3 stronger systems
   - status: proposed
