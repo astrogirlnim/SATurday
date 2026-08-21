@@ -289,18 +289,179 @@ theorem truthTableProofSystem_length_ge (π : List Bool) (k : ℕ) (hk : 1 ≤ k
             omega
           · exact (hne h.symm).elim
 
+
+/-! ## Polynomial versus exponential (closes not poly bounded) -/
+
+/-- Squares fall below powers of two for `m ≥ 5`. -/
+theorem sq_lt_two_pow (m : ℕ) (hm : 5 ≤ m) : m ^ 2 < 2 ^ m := by
+  have hlin : ∀ n ≥ 5, 2 * n + 1 ≤ 2 ^ n := by
+    intro n hn
+    induction n, hn using Nat.le_induction with
+    | base => decide
+    | succ n hn ih =>
+        calc
+          2 * (n + 1) + 1 = 2 * n + 1 + 2 := by ring
+          _ ≤ 2 ^ n + 2 := by omega
+          _ ≤ 2 ^ n + 2 ^ n := by
+            have : (2 : ℕ) ≤ 2 ^ n :=
+              Nat.pow_le_pow_right (by decide : 1 ≤ (2 : ℕ)) (by omega : 1 ≤ n)
+            omega
+          _ = 2 ^ (n + 1) := by ring
+  induction m, hm using Nat.le_induction with
+  | base => decide
+  | succ m hm ih =>
+      calc
+        (m + 1) ^ 2 = m ^ 2 + 2 * m + 1 := by ring
+        _ < 2 ^ m + 2 * m + 1 := by omega
+        _ ≤ 2 ^ m + 2 ^ m := by
+          have := hlin m hm
+          omega
+        _ = 2 ^ (m + 1) := by ring
+
+/-- Linear versus exponential: `k * m` is eventually below `2^m`. -/
+theorem exists_const_mul_lt_two_pow (k : ℕ) :
+    ∃ m0 : ℕ, ∀ m ≥ m0, k * m < 2 ^ m := by
+  refine ⟨max 5 (2 * k + 1), ?_⟩
+  intro m hm
+  have hm5 : 5 ≤ m := by omega
+  have hk : k ≤ m := by omega
+  calc
+    k * m ≤ m * m := by gcongr
+    _ = m ^ 2 := by ring
+    _ < 2 ^ m := sq_lt_two_pow m hm5
+
+/-- `k * log 2 n` is eventually strictly below `n`. -/
+theorem exists_log_mul_lt (k : ℕ) :
+    ∃ N : ℕ, ∀ n ≥ N, k * Nat.log 2 n < n := by
+  obtain ⟨m0, hm0⟩ := exists_const_mul_lt_two_pow k
+  refine ⟨2 ^ m0, ?_⟩
+  intro n hn
+  have hn0 : n ≠ 0 :=
+    (Nat.pos_iff_ne_zero.mp (lt_of_lt_of_le (Nat.two_pow_pos m0) hn))
+  have hm : m0 ≤ Nat.log 2 n :=
+    Nat.le_log_of_pow_le (by decide : 1 < 2) hn
+  have hpow : k * Nat.log 2 n < 2 ^ Nat.log 2 n := hm0 _ hm
+  exact lt_of_lt_of_le hpow (Nat.pow_log_le_self 2 hn0)
+
+/-- Nat log of a product: at most the sum of logs plus one. -/
+theorem log_mul_le_add_one (a b : ℕ) (ha : 0 < a) (hb : 0 < b) :
+    Nat.log 2 (a * b) ≤ Nat.log 2 a + Nat.log 2 b + 1 := by
+  have ha' : a < 2 ^ (Nat.log 2 a + 1) :=
+    Nat.lt_pow_of_log_lt (by decide : 1 < 2) (Nat.lt_succ_self _)
+  have hb' : b < 2 ^ (Nat.log 2 b + 1) :=
+    Nat.lt_pow_of_log_lt (by decide : 1 < 2) (Nat.lt_succ_self _)
+  have hmul : a * b < 2 ^ (Nat.log 2 a + Nat.log 2 b + 2) := by
+    have h1 : a * b < 2 ^ (Nat.log 2 a + 1) * b :=
+      Nat.mul_lt_mul_of_pos_right ha' hb
+    have h2 : 2 ^ (Nat.log 2 a + 1) * b <
+        2 ^ (Nat.log 2 a + 1) * 2 ^ (Nat.log 2 b + 1) :=
+      Nat.mul_lt_mul_of_pos_left hb' (Nat.two_pow_pos _)
+    calc
+      a * b < 2 ^ (Nat.log 2 a + 1) * 2 ^ (Nat.log 2 b + 1) := lt_trans h1 h2
+      _ = 2 ^ (Nat.log 2 a + Nat.log 2 b + 2) := by rw [← pow_add]; ring
+  have : Nat.log 2 (a * b) < Nat.log 2 a + Nat.log 2 b + 2 :=
+    Nat.log_lt_of_lt_pow (mul_ne_zero ha.ne' hb.ne') hmul
+  omega
+
+/-- `log 2 (n ^ d) ≤ d * log 2 n + d`. -/
+theorem log_pow_le_add (n d : ℕ) (hn : 0 < n) :
+    Nat.log 2 (n ^ d) ≤ d * Nat.log 2 n + d := by
+  induction d with
+  | zero => simp
+  | succ d ih =>
+      rw [pow_succ]
+      have hnd : 0 < n ^ d := pow_pos hn _
+      calc
+        Nat.log 2 (n ^ d * n) ≤ Nat.log 2 (n ^ d) + Nat.log 2 n + 1 :=
+          log_mul_le_add_one _ _ hnd hn
+        _ ≤ d * Nat.log 2 n + d + Nat.log 2 n + 1 := by omega
+        _ = (d + 1) * Nat.log 2 n + (d + 1) := by ring
+
+/-- `A * n^d` is eventually strictly below `2^n`. -/
+theorem exists_const_mul_pow_lt_two_pow (A d : ℕ) :
+    ∃ N : ℕ, ∀ n ≥ N, A * n ^ d < 2 ^ n := by
+  obtain ⟨N1, h1⟩ := exists_log_mul_lt (2 * (d + 1))
+  refine ⟨max N1 (max A (2 * (d + 1) + 1)), ?_⟩
+  intro n hn
+  by_cases hA0 : A = 0
+  · simp [hA0]
+  · have hn0 : 0 < n := by omega
+    have hAn : A ≤ n := by omega
+    have hle : A * n ^ d ≤ n ^ (d + 1) := by
+      calc
+        A * n ^ d ≤ n * n ^ d := by gcongr
+        _ = n ^ (d + 1) := by rw [pow_succ']
+    have hne : n ^ (d + 1) ≠ 0 := (pow_pos hn0 _).ne'
+    have hlog : Nat.log 2 (n ^ (d + 1)) ≤ (d + 1) * Nat.log 2 n + (d + 1) :=
+      log_pow_le_add n (d + 1) hn0
+    have hroom : (d + 1) * Nat.log 2 n + (d + 1) < n := by
+      have h2 : 2 * ((d + 1) * Nat.log 2 n) < n := by
+        simpa [mul_assoc] using h1 n (le_trans (le_max_left _ _) hn)
+      have h2d : 2 * (d + 1) ≤ n := by omega
+      omega
+    have : Nat.log 2 (n ^ (d + 1)) < n := lt_of_le_of_lt hlog hroom
+    have hpow : n ^ (d + 1) < 2 ^ n :=
+      (Nat.log_lt_iff_lt_pow (by decide : 1 < 2) hne).1 this
+    omega
+
+/-- Polynomial evaluation bound: `q.eval n ≤ C * n^deg` for `n ≥ 1`. -/
+theorem Polynomial.eval_le_sum_coeff_mul_pow (q : Polynomial ℕ) {n : ℕ}
+    (hn : 1 ≤ n) :
+    q.eval n ≤ (∑ i ∈ q.support, q.coeff i) * n ^ q.natDegree := by
+  classical
+  simp only [Polynomial.eval_eq_sum, Polynomial.sum]
+  have hle :
+      (∑ i ∈ q.support, q.coeff i * n ^ i) ≤
+        ∑ i ∈ q.support, q.coeff i * n ^ q.natDegree := by
+    refine Finset.sum_le_sum fun i hi => ?_
+    exact Nat.mul_le_mul_left _
+      (Nat.pow_le_pow_right hn (Polynomial.le_natDegree_of_mem_supp i hi))
+  have hmul :
+      (∑ i ∈ q.support, q.coeff i * n ^ q.natDegree) =
+        (∑ i ∈ q.support, q.coeff i) * n ^ q.natDegree := by
+    rw [← Finset.sum_mul]
+  exact hle.trans (le_of_eq hmul)
+
+/-- Polynomials fall below `2^(k+1)` along the line `2k+10`. -/
+theorem Polynomial.exists_eval_two_k_ten_lt_two_pow (q : Polynomial ℕ) :
+    ∃ k : ℕ, 1 ≤ k ∧ q.eval (2 * k + 10) < 2 ^ (k + 1) := by
+  classical
+  let C : ℕ := ∑ i ∈ q.support, q.coeff i
+  let d : ℕ := q.natDegree
+  obtain ⟨N, hN⟩ := exists_const_mul_pow_lt_two_pow (C * 3 ^ d) d
+  refine ⟨max N 10, le_trans (by decide : 1 ≤ 10) (le_max_right _ _), ?_⟩
+  set k := max N 10
+  have hEv : C * 3 ^ d * (k + 1) ^ d < 2 ^ (k + 1) := by
+    simpa [mul_assoc] using hN (k + 1) (by omega)
+  have hC : C * (2 * k + 10) ^ d ≤ C * 3 ^ d * (k + 1) ^ d := by
+    have hbase : 2 * k + 10 ≤ 3 * (k + 1) := by omega
+    calc
+      C * (2 * k + 10) ^ d ≤ C * (3 * (k + 1)) ^ d :=
+        Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hbase _)
+      _ = C * (3 ^ d * (k + 1) ^ d) := by rw [Nat.mul_pow]
+      _ = C * 3 ^ d * (k + 1) ^ d := by ac_rfl
+  have hbound : q.eval (2 * k + 10) ≤ C * (2 * k + 10) ^ d := by
+    simpa [C, d] using
+      Polynomial.eval_le_sum_coeff_mul_pow q (n := 2 * k + 10) (by omega)
+  omega
+
+theorem truthTable_not_poly_bounded :
+    ¬ PolynomiallyBounded truthTableProofSystem := by
+  intro h
+  rcases h with ⟨q, hq⟩
+  obtain ⟨k, hk1, hklt⟩ := Polynomial.exists_eval_two_k_ten_lt_two_pow q
+  obtain ⟨π, hπ, hlen⟩ := hq (encodeFormula (tautSeedAt k)) (tautSeedAt_mem_TAUT k)
+  have hge := truthTableProofSystem_length_ge π k hk1 hπ
+  have hle : π.length ≤ q.eval (2 * k + 10) := by
+    simpa [length_encodeFormula_tautSeedAt k] using hlen
+  omega
+
 namespace ProofSystemFrontier
 
 /-- Full `IsPropProofSystem` instance once a TM2 poly time witness for
 `truthTableProofSystem` is certified (verification is poly in the proof length). -/
 theorem truthTable_is_prop_proof_system :
     Nonempty (IsPropProofSystem truthTableProofSystem) := by
-  sorry
-
-/-- Close with `truthTableProofSystem_length_ge` plus polynomial versus exponential
-growth: for every `q`, some `k ≥ 1` has `q.eval (2k+10) < 2^(k+1)`. -/
-theorem truthTable_not_poly_bounded :
-    ¬ PolynomiallyBounded truthTableProofSystem := by
   sorry
 
 end ProofSystemFrontier

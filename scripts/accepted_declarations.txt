@@ -1188,3 +1188,14 @@ SATurday.Bridge.length_encodeFormula_tautSeedAt
 SATurday.Bridge.tautSeedAt_mem_TAUT
 SATurday.Bridge.encodeFormula_tautSeedAt_ne_tautSeed
 SATurday.Bridge.truthTableProofSystem_length_ge
+
+# R5 ProofSystem cluster 3: truthTable_not_poly_bounded via Nat log growth (2026-08-21)
+SATurday.Bridge.sq_lt_two_pow
+SATurday.Bridge.exists_const_mul_lt_two_pow
+SATurday.Bridge.exists_log_mul_lt
+SATurday.Bridge.log_mul_le_add_one
+SATurday.Bridge.log_pow_le_add
+SATurday.Bridge.exists_const_mul_pow_lt_two_pow
+SATurday.Bridge.Polynomial.eval_le_sum_coeff_mul_pow
+SATurday.Bridge.Polynomial.exists_eval_two_k_ten_lt_two_pow
+SATurday.Bridge.truthTable_not_poly_bounded

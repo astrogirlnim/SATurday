@@ -914,3 +914,21 @@ lower bound via the bridge.
   Most important thing learned: avoid Real asymptotics for this Nat growth fact;
   the cast path burned a cycle without landing the certificate.
   gate_pending: none (accept_prose auto under loop: plan matches critical path).
+
+- 2026-08-21 formalize (truthTable_not_poly_bounded): DONE.
+  Closed ProofSystem cluster 3 with pure Nat log growth (no Real isLittleO).
+  Accepted: sq_lt_two_pow, exists_const_mul_lt_two_pow, exists_log_mul_lt,
+  log_mul_le_add_one, log_pow_le_add, exists_const_mul_pow_lt_two_pow,
+  Polynomial.eval_le_sum_coeff_mul_pow,
+  Polynomial.exists_eval_two_k_ten_lt_two_pow, truthTable_not_poly_bounded.
+  Axiom gate PASS. Remaining Frontier: truthTable_is_prop_proof_system (TM2).
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "exists_const_mul_pow_lt_two_pow plus truthTable_not_poly_bounded",
+    "rationale": "Prove pin accepted; close not poly bounded without TM2."
+  }
+  ```
+  gate_pending: none.
