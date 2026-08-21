@@ -616,6 +616,302 @@ noncomputable def projFirstComputableInPolyTime :
     simp only [idBitEnc, List.map_id, id_eq]
     exact evalsToInTime_le_mono (projFirst_evals x w) (projFirstTime_bound x w)
 
+/-! ## Prefix false copy TM (decodePairResult on encodePair inputs) -/
+
+inductive PrefixStack where
+  | inp | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype PrefixStack where
+  elems := {.inp, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive PrefixLabel where
+  | writeFalse | copy | rev
+  deriving DecidableEq, Repr
+
+instance : Fintype PrefixLabel where
+  elems := {.writeFalse, .copy, .rev}
+  complete s := by cases s <;> simp
+
+/-- Push `false` onto the work stack, copy input onto work, reverse onto out.
+Realizes `fun s => false :: s` in `2|s| + 2` steps. -/
+def prefixFalseCopyComputer : FinTM2 where
+  K := PrefixStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := PrefixLabel
+  main := .writeFalse
+  σ := Option Bool
+  initialState := none
+  m
+    | .writeFalse =>
+        push PrefixStack.work (fun _ => false) <|
+          load (fun _ => none) <|
+            goto fun _ => PrefixLabel.copy
+    | .copy =>
+        pop PrefixStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => PrefixLabel.rev)
+            (push PrefixStack.work (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => PrefixLabel.copy)
+    | .rev =>
+        pop PrefixStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            halt
+            (push PrefixStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => PrefixLabel.rev)
+
+def prefixStk (inp work out : List Bool) : PrefixStack → List Bool
+  | .inp => inp
+  | .work => work
+  | .out => out
+
+def prefixCfg (l : Option PrefixLabel) (v : Option Bool)
+    (inp work out : List Bool) : prefixFalseCopyComputer.Cfg :=
+  ⟨l, v, prefixStk inp work out⟩
+
+theorem prefix_step_writeFalse (inp work out : List Bool) :
+    TM2.step prefixFalseCopyComputer.m
+      (prefixCfg (some .writeFalse) none inp work out) =
+      some (prefixCfg (some .copy) none inp (false :: work) out) := by
+  simp [prefixFalseCopyComputer, prefixCfg, prefixStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PrefixLabel.copy, (none : Option Bool), stk⟩ : prefixFalseCopyComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, prefixStk]
+
+theorem prefix_step_copy_cons (b : Bool) (rest work out : List Bool) (v : Option Bool) :
+    TM2.step prefixFalseCopyComputer.m
+      (prefixCfg (some .copy) v (b :: rest) work out) =
+      some (prefixCfg (some .copy) none rest (b :: work) out) := by
+  simp [prefixFalseCopyComputer, prefixCfg, prefixStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PrefixLabel.copy, (none : Option Bool), stk⟩ : prefixFalseCopyComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, prefixStk]
+
+theorem prefix_step_copy_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step prefixFalseCopyComputer.m
+      (prefixCfg (some .copy) v [] work out) =
+      some (prefixCfg (some .rev) none [] work out) := by
+  simp [prefixFalseCopyComputer, prefixCfg, prefixStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PrefixLabel.rev, (none : Option Bool), stk⟩ : prefixFalseCopyComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, prefixStk]
+
+theorem prefix_step_rev_cons (b : Bool) (rest inp out : List Bool) (v : Option Bool) :
+    TM2.step prefixFalseCopyComputer.m
+      (prefixCfg (some .rev) v inp (b :: rest) out) =
+      some (prefixCfg (some .rev) none inp rest (b :: out)) := by
+  simp [prefixFalseCopyComputer, prefixCfg, prefixStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PrefixLabel.rev, (none : Option Bool), stk⟩ : prefixFalseCopyComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, prefixStk]
+
+theorem prefix_step_rev_nil (inp out : List Bool) (v : Option Bool) :
+    TM2.step prefixFalseCopyComputer.m
+      (prefixCfg (some .rev) v inp [] out) =
+      some (prefixCfg none none inp [] out) := by
+  simp [prefixFalseCopyComputer, prefixCfg, prefixStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option PrefixLabel), (none : Option Bool), stk⟩ : prefixFalseCopyComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, prefixStk]
+
+theorem prefixFalseCopy_initList (s : List Bool) :
+    initList prefixFalseCopyComputer s =
+      prefixCfg (some .writeFalse) none s [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some PrefixLabel.writeFalse, (none : Option Bool), stk⟩ :
+        prefixFalseCopyComputer.Cfg)) ?_
+  funext k; cases k <;> simp [prefixFalseCopyComputer, prefixStk]
+
+theorem prefixFalseCopy_haltList (s : List Bool) :
+    haltList prefixFalseCopyComputer s =
+      prefixCfg none none [] [] s := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option PrefixLabel), (none : Option Bool), stk⟩ :
+        prefixFalseCopyComputer.Cfg)) ?_
+  funext k; cases k <;> simp [prefixFalseCopyComputer, prefixStk]
+
+def prefix_evals_writeFalse (inp : List Bool) :
+    EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .writeFalse) none inp [] [])
+      (some (prefixCfg (some .copy) none inp [false] [])) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (prefixCfg (some .writeFalse) none inp [] [])).bind
+        prefixFalseCopyComputer.step =
+      some (prefixCfg (some .copy) none inp [false] [])
+    simp only [FinTM2.step]
+    exact prefix_step_writeFalse inp [] []
+
+def prefix_evals_copy_one (b : Bool) (rest work out : List Bool) (v : Option Bool) :
+    EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .copy) v (b :: rest) work out)
+      (some (prefixCfg (some .copy) none rest (b :: work) out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (prefixCfg (some .copy) v (b :: rest) work out)).bind
+        prefixFalseCopyComputer.step =
+      some (prefixCfg (some .copy) none rest (b :: work) out)
+    simp only [FinTM2.step]
+    exact prefix_step_copy_cons b rest work out v
+
+def prefix_evals_copy_nil (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .copy) v [] work out)
+      (some (prefixCfg (some .rev) none [] work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (prefixCfg (some .copy) v [] work out)).bind
+        prefixFalseCopyComputer.step =
+      some (prefixCfg (some .rev) none [] work out)
+    simp only [FinTM2.step]
+    exact prefix_step_copy_nil work out v
+
+noncomputable def prefix_evals_copy (inp work out : List Bool) (v : Option Bool) :
+    EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .copy) v inp work out)
+      (some (prefixCfg (some .rev) none [] (inp.reverse ++ work) out))
+      (inp.length + 1) := by
+  induction inp generalizing work v with
+  | nil =>
+      simpa using prefix_evals_copy_nil work out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans prefixFalseCopyComputer.step 1 (bs.length + 1)
+        _ _ _ (prefix_evals_copy_one b bs work out v) (ih (b :: work) none)
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+def prefix_evals_rev_one (b : Bool) (rest out : List Bool) (v : Option Bool) :
+    EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .rev) v [] (b :: rest) out)
+      (some (prefixCfg (some .rev) none [] rest (b :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (prefixCfg (some .rev) v [] (b :: rest) out)).bind
+        prefixFalseCopyComputer.step =
+      some (prefixCfg (some .rev) none [] rest (b :: out))
+    simp only [FinTM2.step]
+    exact prefix_step_rev_cons b rest [] out v
+
+def prefix_evals_rev_nil (out : List Bool) (v : Option Bool) :
+    EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .rev) v [] [] out)
+      (some (prefixCfg none none [] [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (prefixCfg (some .rev) v [] [] out)).bind
+        prefixFalseCopyComputer.step =
+      some (prefixCfg none none [] [] out)
+    simp only [FinTM2.step]
+    exact prefix_step_rev_nil [] out v
+
+noncomputable def prefix_evals_rev (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .rev) v [] work out)
+      (some (prefixCfg none none [] [] (work.reverse ++ out)))
+      (work.length + 1) := by
+  induction work generalizing out v with
+  | nil =>
+      simpa using prefix_evals_rev_nil out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans prefixFalseCopyComputer.step 1 (bs.length + 1)
+        _ _ _ (prefix_evals_rev_one b bs out v) (ih (b :: out) none)
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+noncomputable def prefixFalseCopy_evals (s : List Bool) :
+    TM2OutputsInTime prefixFalseCopyComputer s (some (false :: s))
+      (2 * s.length + 4) := by
+  have h0 := prefix_evals_writeFalse s
+  -- after writeFalse: work = [false]
+  have h1 := prefix_evals_copy s [false] [] none
+  -- after copy: work = s.reverse ++ [false]
+  have h01 := EvalsToInTime.trans prefixFalseCopyComputer.step 1 (s.length + 1)
+    _ _ _ h0 h1
+  have h01' : EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .writeFalse) none s [] [])
+      (some (prefixCfg (some .rev) none [] (s.reverse ++ [false]) []))
+      (1 + (s.length + 1)) :=
+    evalsToInTime_le_mono h01 (by omega)
+  have h2 : EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .rev) none [] (s.reverse ++ [false]) [])
+      (some (prefixCfg none none [] [] ((s.reverse ++ [false]).reverse ++ [])))
+      ((s.reverse ++ [false]).length + 1) :=
+    prefix_evals_rev (s.reverse ++ [false]) [] none
+  have h2' : EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .rev) none [] (s.reverse ++ [false]) [])
+      (some (prefixCfg none none [] [] (false :: s)))
+      (s.length + 2) := by
+    have hout : (s.reverse ++ [false]).reverse = false :: s := by
+      simp [List.reverse_append, List.reverse_reverse]
+    simpa [List.length_append, List.length_reverse, List.length_singleton, hout,
+      List.append_nil] using h2
+  have h3 := EvalsToInTime.trans prefixFalseCopyComputer.step (1 + (s.length + 1))
+      (s.length + 2) _ _ _ h01' h2'
+  have h3' : EvalsToInTime prefixFalseCopyComputer.step
+      (prefixCfg (some .writeFalse) none s [] [])
+      (some (prefixCfg none none [] [] (false :: s)))
+      (2 * s.length + 4) :=
+    evalsToInTime_le_mono h3 (by omega)
+  have : EvalsToInTime prefixFalseCopyComputer.step
+      (initList prefixFalseCopyComputer s)
+      (some (haltList prefixFalseCopyComputer (false :: s)))
+      (2 * s.length + 4) := by
+    rw [prefixFalseCopy_initList, prefixFalseCopy_haltList]
+    exact h3'
+  exact this
+
+noncomputable def prefixFalseCopyTime : Polynomial ℕ := 2 * Polynomial.X + 4
+
+theorem prefixFalseCopyTime_eval (n : ℕ) :
+    prefixFalseCopyTime.eval n = 2 * n + 4 := by
+  simp [prefixFalseCopyTime, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+    Polynomial.eval_ofNat]
+
+/-- `false :: encodePair` is poly time on the `encodePair` domain; equals
+`decodePairResult ∘ encodePair`. -/
+noncomputable def decodePairResult_on_encodePair_computableInPolyTime :
+    TM2ComputableInPolyTime encodePair idBitEnc
+      (fun p => decodePairResult (encodePair p)) where
+  tm := prefixFalseCopyComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := prefixFalseCopyTime
+  outputsFun p := by
+    change TM2OutputsInTime prefixFalseCopyComputer (List.map id (encodePair p))
+      (some (List.map id (idBitEnc (decodePairResult (encodePair p)))))
+      (prefixFalseCopyTime.eval (encodePair p).length)
+    simp only [idBitEnc, List.map_id, id_eq, decodePairResult_encodePair,
+      prefixFalseCopyTime_eval]
+    exact prefixFalseCopy_evals (encodePair p)
+
+/-- Same TM as computing `fun s => false :: s` under identity encodings. -/
+noncomputable def prefixFalseCopyComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc (fun s => false :: s) where
+  tm := prefixFalseCopyComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := prefixFalseCopyTime
+  outputsFun s := by
+    change TM2OutputsInTime prefixFalseCopyComputer (List.map id (idBitEnc s))
+      (some (List.map id (idBitEnc (false :: s))))
+      (prefixFalseCopyTime.eval (idBitEnc s).length)
+    simp only [idBitEnc, List.map_id, id_eq, prefixFalseCopyTime_eval]
+    exact prefixFalseCopy_evals s
 
 /-- Same TM as an InP witness, reindexed to pairs under the abstract first
 projection encoding `fun pw => pw.1` (not yet `encodePair`). Composition of

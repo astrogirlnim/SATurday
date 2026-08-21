@@ -1035,3 +1035,22 @@ lower bound via the bridge.
   Most important thing learned: separate the Nat cost and option tape encoding
   from the FinTM2 engineering so cluster A does not stall on Stmt plumbing.
   gate_pending: none.
+
+- 2026-08-21 formalize (prefixFalseCopy FinTM2): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "prefixFalseCopyComputer realizing decodePairResult on encodePair",
+    "rationale": "Well formed decodePairResult is false then copy; FinTM2 for that slice unblocks cluster A."
+  }
+  ```
+  Accepted: decodePairResult_encodePair, prefixFalseCopyComputer family,
+  prefixFalseCopyComputableInPolyTime,
+  decodePairResult_on_encodePair_computableInPolyTime.
+  Frontier unchanged: decodePairResult_computableInPolyTime on arbitrary
+  idBitEnc inputs (malformed none branch still open).
+  Most important thing learned: push false onto work before copy so reverse
+  yields false :: s; out first gave s ++ [false].
+  gate_pending: none.

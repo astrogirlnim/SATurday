@@ -206,6 +206,11 @@ theorem length_fst_le_of_decodePair {π x w : List Bool}
                     simp at this ⊢
                     omega
 
+/-- On well formed pairs, `decodePairResult` is `false` then the encoding. -/
+theorem decodePairResult_encodePair (p : List Bool × List Bool) :
+    decodePairResult (encodePair p) = false :: encodePair p := by
+  simp [decodePairResult, encodeDecodePairResult, decodePair_encodePair]
+
 /-- Output length of `decodePairResult` is O(|π|). -/
 theorem length_decodePairResult_le (π : List Bool) :
     (decodePairResult π).length ≤ 3 * π.length + 2 := by
@@ -218,7 +223,6 @@ theorem length_decodePairResult_le (π : List Bool) :
       rcases pw with ⟨x, w⟩
       have hx := length_fst_le_of_decodePair h
       have hw := length_ge_snd_of_decodePair h
-      -- |false :: encodePair| = 2|x| + 2 + |w| ≤ 2|π| + 2 + |π| = 3|π| + 2
       simp only [length_encodePair, List.length_cons]
       omega
 
