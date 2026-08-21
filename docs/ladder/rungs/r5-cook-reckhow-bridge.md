@@ -866,3 +866,51 @@ lower bound via the bridge.
   Most important thing learned: pair decode length lower bound by induction on
   the first component avoids fragile `encodePair` left inverse proofs.
   gate_pending: none.
+
+- 2026-08-21 prove (pin poly versus exp for not_poly_bounded): PARTIAL.
+  Prose only after a formalize attempt on Real asymptotics stalled (import and
+  cast friction). Length lower bound already accepted.
+
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "prove",
+    "target": "pin exists_const_mul_pow_lt_two_pow then truthTable_not_poly_bounded",
+    "rationale": "Cluster 2 left only poly versus exponential growth between length_ge and not_poly_bounded."
+  }
+  ```
+
+  ### Argument
+
+  Goal: `¬ PolynomiallyBounded truthTableProofSystem`.
+
+  Assume `∃ q, ∀ φ ∈ TAUT, ∃ π, f(π)=φ ∧ |π| ≤ q.eval |φ|`.
+  For `k ≥ 1` let `φ_k = encodeFormula (tautSeedAt k)`. Then `|φ_k| = 2k+10`
+  and any proof satisfies `|π| ≥ 2^(k+1)` by
+  `truthTableProofSystem_length_ge`.
+
+  So it is enough to produce `k ≥ 1` with `q.eval (2k+10) < 2^(k+1)`.
+
+  Lemma (Nat): for all `A d`, eventually `A * n^d < 2^n`.
+  Proof plan: induct on `d`. Base `d = 0` uses `A < 2^n` for `n > A` via
+  `Nat.lt_two_pow_self`. Succ step: reduce to the claim for degree `d` after
+  the bound `2k+10 ≤ 3(k+1)` for `k ≥ 10`, so
+  `C * (2k+10)^d ≤ (C * 3^d) * (k+1)^d`, then apply the lemma at `n = k+1`.
+
+  Polynomial bound: `q.eval n ≤ C * n^deg` for `n ≥ 1` with
+  `C = ∑ coeffs` (each `n^i ≤ n^deg`).
+
+  Then `truthTable_not_poly_bounded` is immediate from length_ge plus the lemma.
+
+  Prefer pure Nat induction (no Real `isLittleO`) on the next formalize.
+
+  ### Gap list
+
+  1. Complete Nat induction for `exists_const_mul_pow_lt_two_pow`. Gap class: routine.
+  2. Wire `eval_le_sum_coeff_mul_pow`. Gap class: routine.
+  3. TM2 poly witness for TT map. Gap class: hard.
+
+  Most important thing learned: avoid Real asymptotics for this Nat growth fact;
+  the cast path burned a cycle without landing the certificate.
+  gate_pending: none (accept_prose auto under loop: plan matches critical path).
