@@ -17,3 +17,7 @@ When the agent is running a `/loop` saturday cycle (wake sentinel
   shells before re-arming.
 - Prefer finishing in-progress formalize clusters (build, axiom gate, rung
   memory, session record, commit without push) over idle ticks.
+- Cadence is **dynamic**: one-shot wakes (not a fixed 30m while loop). After each
+  cycle, re-arm `sleep <seconds>` then `AGENT_LOOP_WAKE_saturday` with a delay
+  fit to the work (short after prose or light Lean; longer only after heavy
+  builds). Never leave a fixed `while true; sleep 1800` saturday loop running.
