@@ -913,6 +913,168 @@ noncomputable def prefixFalseCopyComputableInPolyTime :
     simp only [idBitEnc, List.map_id, id_eq, prefixFalseCopyTime_eval]
     exact prefixFalseCopy_evals s
 
+/-! ## Constant singleton `[true]` TM (decodePairResult none branch) -/
+
+inductive ConstTrueStack where
+  | inp | out
+  deriving DecidableEq, Repr
+
+instance : Fintype ConstTrueStack where
+  elems := {.inp, .out}
+  complete s := by cases s <;> simp
+
+inductive ConstTrueLabel where
+  | clear | write
+  deriving DecidableEq, Repr
+
+instance : Fintype ConstTrueLabel where
+  elems := {.clear, .write}
+  complete s := by cases s <;> simp
+
+/-- Clear input, then push `true` and halt. Step count `n + 2`. -/
+def constTrueListComputer : FinTM2 where
+  K := ConstTrueStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := ConstTrueLabel
+  main := .clear
+  σ := Bool
+  initialState := false
+  m
+    | .clear =>
+        pop ConstTrueStack.inp (fun _ o => decide (o = none)) <|
+          branch id
+            (goto fun _ => ConstTrueLabel.write)
+            (goto fun _ => ConstTrueLabel.clear)
+    | .write =>
+        load (fun _ => false) <|
+          push ConstTrueStack.out (fun _ => true) TM2.Stmt.halt
+
+def constTrueStk (inp out : List Bool) : ConstTrueStack → List Bool
+  | .inp => inp
+  | .out => out
+
+def constTrueCfg (l : Option ConstTrueLabel) (v : Bool) (inp out : List Bool) :
+    constTrueListComputer.Cfg :=
+  ⟨l, v, constTrueStk inp out⟩
+
+theorem constTrue_step_clear_cons (x : Bool) (xs out : List Bool) :
+    TM2.step constTrueListComputer.m
+      (constTrueCfg (some .clear) false (x :: xs) out) =
+      some (constTrueCfg (some .clear) false xs out) := by
+  simp [constTrueListComputer, constTrueCfg, constTrueStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ConstTrueLabel.clear, false, stk⟩ : constTrueListComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, constTrueStk]
+
+theorem constTrue_step_clear_nil (out : List Bool) :
+    TM2.step constTrueListComputer.m
+      (constTrueCfg (some .clear) false [] out) =
+      some (constTrueCfg (some .write) true [] out) := by
+  simp [constTrueListComputer, constTrueCfg, constTrueStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ConstTrueLabel.write, true, stk⟩ : constTrueListComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, constTrueStk]
+
+theorem constTrue_step_write (inp out : List Bool) :
+    TM2.step constTrueListComputer.m
+      (constTrueCfg (some .write) true inp out) =
+      some (constTrueCfg none false inp (true :: out)) := by
+  simp [constTrueListComputer, constTrueCfg, constTrueStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option ConstTrueLabel), false, stk⟩ : constTrueListComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, constTrueStk]
+
+theorem constTrueList_initList (s : List Bool) :
+    initList constTrueListComputer s = constTrueCfg (some .clear) false s [] := by
+  refine congrArg (fun stk =>
+      (⟨some ConstTrueLabel.clear, false, stk⟩ : constTrueListComputer.Cfg)) ?_
+  funext k; cases k <;> simp [constTrueListComputer, constTrueStk]
+
+theorem constTrueList_haltList :
+    haltList constTrueListComputer [true] = constTrueCfg none false [] [true] := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option ConstTrueLabel), false, stk⟩ : constTrueListComputer.Cfg)) ?_
+  funext k; cases k <;> simp [constTrueListComputer, constTrueStk]
+
+def constTrue_evals_clear_one (x : Bool) (xs out : List Bool) :
+    EvalsToInTime constTrueListComputer.step
+      (constTrueCfg (some .clear) false (x :: xs) out)
+      (some (constTrueCfg (some .clear) false xs out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (constTrueCfg (some .clear) false (x :: xs) out)).bind
+        constTrueListComputer.step =
+      some (constTrueCfg (some .clear) false xs out)
+    simp only [FinTM2.step]
+    exact constTrue_step_clear_cons x xs out
+
+def constTrue_evals_nil :
+    EvalsToInTime constTrueListComputer.step
+      (constTrueCfg (some .clear) false [] [])
+      (some (constTrueCfg none false [] [true])) 2 where
+  steps := 2
+  steps_le_m := by decide
+  evals_in_steps := by
+    change ((some (constTrueCfg (some .clear) false [] [])).bind
+        constTrueListComputer.step).bind constTrueListComputer.step =
+      some (constTrueCfg none false [] [true])
+    simp only [FinTM2.step]
+    change ((TM2.step constTrueListComputer.m
+        (constTrueCfg (some .clear) false [] [])).bind
+        (TM2.step constTrueListComputer.m)) =
+      some (constTrueCfg none false [] [true])
+    rw [constTrue_step_clear_nil]
+    change TM2.step constTrueListComputer.m
+        (constTrueCfg (some .write) true [] []) =
+      some (constTrueCfg none false [] [true])
+    exact constTrue_step_write [] []
+
+noncomputable def constTrueList_evals (s : List Bool) :
+    TM2OutputsInTime constTrueListComputer s (some [true]) (s.length + 2) := by
+  induction s with
+  | nil =>
+      have h : EvalsToInTime constTrueListComputer.step
+          (initList constTrueListComputer [])
+          (some (haltList constTrueListComputer [true])) 2 := by
+        rw [constTrueList_initList, constTrueList_haltList]
+        simpa using constTrue_evals_nil
+      exact h
+  | cons x xs ih =>
+      have h1 := constTrue_evals_clear_one x xs []
+      have h1' : EvalsToInTime constTrueListComputer.step
+          (initList constTrueListComputer (x :: xs))
+          (some (initList constTrueListComputer xs)) 1 := by
+        rw [constTrueList_initList, constTrueList_initList]
+        exact h1
+      have h := EvalsToInTime.trans constTrueListComputer.step 1 (xs.length + 2)
+        _ _ _ h1' ih
+      simpa [List.length_cons, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using h
+
+noncomputable def constTrueListTime : Polynomial ℕ := Polynomial.X + 2
+
+theorem constTrueListTime_eval (n : ℕ) : constTrueListTime.eval n = n + 2 := by
+  simp [constTrueListTime, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_ofNat]
+
+/-- Constant `[true]` function is poly time (decodePairResult none branch). -/
+noncomputable def constTrueListComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc (fun _ : List Bool => [true]) where
+  tm := constTrueListComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := constTrueListTime
+  outputsFun s := by
+    change TM2OutputsInTime constTrueListComputer (List.map id (idBitEnc s))
+      (some (List.map id (idBitEnc [true])))
+      (constTrueListTime.eval (idBitEnc s).length)
+    simp only [idBitEnc, List.map_id, id_eq, constTrueListTime_eval]
+    exact constTrueList_evals s
+
 /-- Same TM as an InP witness, reindexed to pairs under the abstract first
 projection encoding `fun pw => pw.1` (not yet `encodePair`). Composition of
 `projFirstComputableInPolyTime` with this witness is the remaining gap for

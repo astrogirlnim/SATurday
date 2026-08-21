@@ -1054,3 +1054,20 @@ lower bound via the bridge.
   Most important thing learned: push false onto work before copy so reverse
   yields false :: s; out first gave s ++ [false].
   gate_pending: none.
+
+- 2026-08-21 formalize (decodePair inverse plus constTrueList): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "encodePair_of_decodePair and constTrueListComputableInPolyTime",
+    "rationale": "Both decodePairResult branches now have FinTM2 witnesses; glue remains."
+  }
+  ```
+  Accepted: encodePair_of_decodePair, decodePairResult_of_some,
+  decodePairResult_of_none, constTrueListComputer family,
+  constTrueListComputableInPolyTime.
+  Next: branch FinTM2 that runs prefixFalseCopy on success and constTrueList
+  on failure (closes decodePairResult_computableInPolyTime).
+  gate_pending: none.

@@ -1236,3 +1236,24 @@ SATurday.Bridge.prefixFalseCopyTime
 SATurday.Bridge.prefixFalseCopyTime_eval
 SATurday.Bridge.decodePairResult_on_encodePair_computableInPolyTime
 SATurday.Bridge.prefixFalseCopyComputableInPolyTime
+
+# R5 Encoding/Complexity: decodePair inverse and constTrueList none branch (2026-08-21)
+SATurday.Bridge.encodePair_of_decodePair
+SATurday.Bridge.decodePairResult_of_some
+SATurday.Bridge.decodePairResult_of_none
+SATurday.Bridge.ConstTrueStack
+SATurday.Bridge.ConstTrueLabel
+SATurday.Bridge.constTrueListComputer
+SATurday.Bridge.constTrueStk
+SATurday.Bridge.constTrueCfg
+SATurday.Bridge.constTrue_step_clear_cons
+SATurday.Bridge.constTrue_step_clear_nil
+SATurday.Bridge.constTrue_step_write
+SATurday.Bridge.constTrueList_initList
+SATurday.Bridge.constTrueList_haltList
+SATurday.Bridge.constTrue_evals_clear_one
+SATurday.Bridge.constTrue_evals_nil
+SATurday.Bridge.constTrueList_evals
+SATurday.Bridge.constTrueListTime
+SATurday.Bridge.constTrueListTime_eval
+SATurday.Bridge.constTrueListComputableInPolyTime

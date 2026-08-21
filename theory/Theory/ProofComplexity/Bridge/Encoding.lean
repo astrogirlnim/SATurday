@@ -206,6 +206,57 @@ theorem length_fst_le_of_decodePair {π x w : List Bool}
                     simp at this ⊢
                     omega
 
+/-- Successful decode recovers the canonical `encodePair` encoding. -/
+theorem encodePair_of_decodePair {π : List Bool} {x w : List Bool}
+    (h : decodePair π = some (x, w)) : encodePair (x, w) = π := by
+  suffices ∀ n π x w, π.length = n → decodePair π = some (x, w) →
+      encodePair (x, w) = π by
+    exact this _ _ _ _ rfl h
+  intro n
+  induction n using Nat.strong_induction_on with
+  | h n ihn =>
+      intro π x w hlen hdec
+      match π with
+      | [] => simp [decodePair] at hdec
+      | a :: rest =>
+          cases a with
+          | false =>
+              simp only [decodePair, Option.some.injEq, Prod.mk.injEq] at hdec
+              rcases hdec with ⟨rfl, rfl⟩
+              rfl
+          | true =>
+              match rest with
+              | [] => simp [decodePair] at hdec
+              | b :: rest' =>
+                  simp only [decodePair] at hdec
+                  cases hrest : decodePair rest' with
+                  | none => simp [hrest] at hdec
+                  | some pw =>
+                      rcases pw with ⟨x', w'⟩
+                      simp only [hrest, Option.some.injEq, Prod.mk.injEq] at hdec
+                      rcases hdec with ⟨rfl, rfl⟩
+                      have hlt : rest'.length < n := by
+                        have : n = (true :: b :: rest').length := hlen.symm
+                        simp at this
+                        omega
+                      have hx' : encodePair (x', w') = rest' :=
+                        ihn rest'.length hlt rest' x' w' rfl hrest
+                      -- encodePair (b :: x', w') = true :: b :: encodePair (x', w')
+                      change true :: b :: encodePair (x', w') = true :: b :: rest'
+                      rw [hx']
+
+/-- On successful decode, `decodePairResult` prefixes `false` to the input. -/
+theorem decodePairResult_of_some {π x w : List Bool}
+    (h : decodePair π = some (x, w)) :
+    decodePairResult π = false :: π := by
+  have henc := encodePair_of_decodePair h
+  simp [decodePairResult, encodeDecodePairResult, h, henc]
+
+/-- On failed decode, `decodePairResult` is the singleton `[true]`. -/
+theorem decodePairResult_of_none {π : List Bool} (h : decodePair π = none) :
+    decodePairResult π = [true] := by
+  simp [decodePairResult, encodeDecodePairResult, h]
+
 /-- On well formed pairs, `decodePairResult` is `false` then the encoding. -/
 theorem decodePairResult_encodePair (p : List Bool × List Bool) :
     decodePairResult (encodePair p) = false :: encodePair p := by
