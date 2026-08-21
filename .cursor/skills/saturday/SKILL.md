@@ -143,17 +143,36 @@ Append exactly one JSON line to `search/logs/saturday_sessions.jsonl`:
 Then update the checklist minimally: in `docs/p-vs-np-solve-checklist.md`, mark
 only items directly completed by this cycle. No speculative checkoffs.
 
-## Human Gates (never self-approve)
+## Human Gates (30 second autonomy under loop)
 
-Three decisions belong to the human and are recorded as gate_pending in the session
-record, then presented at session end:
+Three decisions are recorded as `gate_pending` in the session record and presented
+at session end:
 
 - adopting or killing a rung (ladder status change to active or killed),
 - accepting a prose proof for formalization (status prose_accepted),
 - merging a certified result into the accepted tree (status certified).
 
-Stop immediately after writing the session record and, if applicable, presenting
-the pending gate question.
+### Interactive (no `/loop`)
+
+Stop after the session record and wait for an explicit human reply before the
+next cycle. Do not self approve.
+
+### Under `/loop` saturday (autonomous)
+
+1. Present the pending gate in one short question at session end.
+2. Do not block the research program on silence. If no human reply arrives
+   within **30 seconds** of presenting the gate, apply best judgment and
+   continue on the next tick (or immediately if the same turn must choose).
+3. Best judgment defaults:
+   - `accept_prose`: approve when the prose is coherent, matches the critical
+     path, and does not revive a twice blocked method.
+   - `merge_certified`: approve when `scripts/check_axioms.sh` PASS and the
+     new decls are listed in `scripts/accepted_declarations.txt`.
+   - `adopt_rung` / `kill_rung`: only auto apply when stop conditions already
+     force the change; otherwise leave pending and work a parallel active rung
+     (for example R5) until a human replies.
+4. Record the auto decision in the next session notes with `gate_auto: true`
+   and one sentence of rationale. Never stall a loop tick waiting for chat.
 
 ## Invariants
 

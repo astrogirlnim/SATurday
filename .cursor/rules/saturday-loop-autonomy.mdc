@@ -1,0 +1,19 @@
+---
+description: Saturday research loop autonomy when human gates time out
+alwaysApply: true
+---
+
+# Saturday loop autonomy
+
+When the agent is running a `/loop` saturday cycle (wake sentinel
+`AGENT_LOOP_WAKE_saturday` or equivalent):
+
+- Run exactly one saturday cycle per wake (skill: `.cursor/skills/saturday/SKILL.md`).
+- After presenting a human gate, do not wait indefinitely.
+- If the human does not reply within 30 seconds, proceed with best judgment
+  per the saturday skill Human Gates section (accept_prose and merge_certified
+  when justified; avoid auto kill or adopt unless stop conditions force it).
+- Keep exactly one saturday wake loop armed. Kill duplicate `AGENT_LOOP_WAKE_saturday`
+  shells before re-arming.
+- Prefer finishing in-progress formalize clusters (build, axiom gate, rung
+  memory, session record, commit without push) over idle ticks.
