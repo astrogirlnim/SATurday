@@ -1075,6 +1075,938 @@ noncomputable def constTrueListComputableInPolyTime :
     simp only [idBitEnc, List.map_id, id_eq, constTrueListTime_eval]
     exact constTrueList_evals s
 
+/-! ## Branching FinTM2 for `decodePairResult` (cluster A glue)
+
+Duplicate the input, validate the `encodePair` shape on the copy, then either
+run the prefix false copy success branch or the constant `[true]` failure
+branch. Semantically matches `decodePairResult_eq`. -/
+
+inductive DPRStack where
+  | inp | aux | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype DPRStack where
+  elems := {.inp, .aux, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive DPRLabel where
+  | dupToAux | split
+  | parse | expectBit
+  | clearWorkSucc
+  | writeFalse | copy | rev
+  | clearInpFail | clearWorkFail | writeTrue
+  deriving DecidableEq, Repr
+
+instance : Fintype DPRLabel where
+  elems := {.dupToAux, .split, .parse, .expectBit, .clearWorkSucc, .writeFalse, .copy,
+    .rev, .clearInpFail, .clearWorkFail, .writeTrue}
+  complete s := by cases s <;> simp
+
+/-- Branching machine realizing `decodePairResult`. -/
+def decodePairResultComputer : FinTM2 where
+  K := DPRStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := DPRLabel
+  main := .dupToAux
+  σ := Option Bool
+  initialState := none
+  m
+    | .dupToAux =>
+        pop DPRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DPRLabel.split)
+            (push DPRStack.aux (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => DPRLabel.dupToAux)
+    | .split =>
+        pop DPRStack.aux (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DPRLabel.parse)
+            (push DPRStack.inp (fun s => s.getD false) <|
+              push DPRStack.work (fun s => s.getD false) <|
+                load (fun _ => none) <|
+                  goto fun _ => DPRLabel.split)
+    | .parse =>
+        pop DPRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DPRLabel.clearInpFail)
+            (branch (fun s => decide (s = some false))
+              (goto fun _ => DPRLabel.clearWorkSucc)
+              (goto fun _ => DPRLabel.expectBit))
+    | .expectBit =>
+        pop DPRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DPRLabel.clearInpFail)
+            (load (fun _ => none) <|
+              goto fun _ => DPRLabel.parse)
+    | .clearWorkSucc =>
+        pop DPRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DPRLabel.writeFalse)
+            (goto fun _ => DPRLabel.clearWorkSucc)
+    | .writeFalse =>
+        push DPRStack.work (fun _ => false) <|
+          load (fun _ => none) <|
+            goto fun _ => DPRLabel.copy
+    | .copy =>
+        pop DPRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DPRLabel.rev)
+            (push DPRStack.work (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => DPRLabel.copy)
+    | .rev =>
+        pop DPRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            halt
+            (push DPRStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => DPRLabel.rev)
+    | .clearInpFail =>
+        pop DPRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DPRLabel.clearWorkFail)
+            (goto fun _ => DPRLabel.clearInpFail)
+    | .clearWorkFail =>
+        pop DPRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DPRLabel.writeTrue)
+            (goto fun _ => DPRLabel.clearWorkFail)
+    | .writeTrue =>
+        push DPRStack.out (fun _ => true) <|
+          load (fun _ => none) <|
+            halt
+
+def dprStk (inp aux work out : List Bool) : DPRStack → List Bool
+  | .inp => inp
+  | .aux => aux
+  | .work => work
+  | .out => out
+
+def dprCfg (l : Option DPRLabel) (v : Option Bool)
+    (inp aux work out : List Bool) : decodePairResultComputer.Cfg :=
+  ⟨l, v, dprStk inp aux work out⟩
+
+theorem dpr_step_dup_cons (b : Bool) (rest aux work out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .dupToAux) none (b :: rest) aux work out) =
+      some (dprCfg (some .dupToAux) none rest (b :: aux) work out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.dupToAux, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_dup_nil (aux work out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .dupToAux) none [] aux work out) =
+      some (dprCfg (some .split) none [] aux work out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.split, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_split_cons (b : Bool) (rest inp work out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .split) none inp (b :: rest) work out) =
+      some (dprCfg (some .split) none (b :: inp) rest (b :: work) out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.split, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_split_nil (inp work out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .split) none inp [] work out) =
+      some (dprCfg (some .parse) none inp [] work out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.parse, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_parse_nil (inp aux out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .parse) none inp aux [] out) =
+      some (dprCfg (some .clearInpFail) none inp aux [] out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.clearInpFail, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_parse_false (rest inp aux out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .parse) none inp aux (false :: rest) out) =
+      some (dprCfg (some .clearWorkSucc) (some false) inp aux rest out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.clearWorkSucc, some false, stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_parse_true (b : Bool) (rest inp aux out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .parse) none inp aux (true :: b :: rest) out) =
+      some (dprCfg (some .expectBit) (some true) inp aux (b :: rest) out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.expectBit, some true, stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_expectBit (b : Bool) (rest inp aux out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .expectBit) (some true) inp aux (b :: rest) out) =
+      some (dprCfg (some .parse) none inp aux rest out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.parse, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_expectBit_nil (inp aux out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .expectBit) (some true) inp aux [] out) =
+      some (dprCfg (some .clearInpFail) none inp aux [] out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.clearInpFail, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_clearWorkSucc_cons (b : Bool) (rest inp aux out : List Bool)
+    (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .clearWorkSucc) v inp aux (b :: rest) out) =
+      some (dprCfg (some .clearWorkSucc) (some b) inp aux rest out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.clearWorkSucc, some b, stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_clearWorkSucc_nil (inp aux out : List Bool) (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .clearWorkSucc) v inp aux [] out) =
+      some (dprCfg (some .writeFalse) none inp aux [] out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.writeFalse, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_writeFalse (inp aux work out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .writeFalse) none inp aux work out) =
+      some (dprCfg (some .copy) none inp aux (false :: work) out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.copy, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_copy_cons (b : Bool) (rest aux work out : List Bool) (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .copy) v (b :: rest) aux work out) =
+      some (dprCfg (some .copy) none rest aux (b :: work) out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.copy, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_copy_nil (aux work out : List Bool) (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .copy) v [] aux work out) =
+      some (dprCfg (some .rev) none [] aux work out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.rev, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_rev_cons (b : Bool) (rest inp aux out : List Bool) (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .rev) v inp aux (b :: rest) out) =
+      some (dprCfg (some .rev) none inp aux rest (b :: out)) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.rev, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_rev_nil (inp aux out : List Bool) (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .rev) v inp aux [] out) =
+      some (dprCfg none none inp aux [] out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option DPRLabel), (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_clearInpFail_cons (b : Bool) (rest aux work out : List Bool)
+    (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .clearInpFail) v (b :: rest) aux work out) =
+      some (dprCfg (some .clearInpFail) (some b) rest aux work out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.clearInpFail, some b, stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_clearInpFail_nil (aux work out : List Bool) (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .clearInpFail) v [] aux work out) =
+      some (dprCfg (some .clearWorkFail) none [] aux work out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.clearWorkFail, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_clearWorkFail_cons (b : Bool) (rest inp aux out : List Bool)
+    (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .clearWorkFail) v inp aux (b :: rest) out) =
+      some (dprCfg (some .clearWorkFail) (some b) inp aux rest out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.clearWorkFail, some b, stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_clearWorkFail_nil (inp aux out : List Bool) (v : Option Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .clearWorkFail) v inp aux [] out) =
+      some (dprCfg (some .writeTrue) none inp aux [] out) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DPRLabel.writeTrue, (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem dpr_step_writeTrue (inp aux work out : List Bool) :
+    TM2.step decodePairResultComputer.m
+      (dprCfg (some .writeTrue) none inp aux work out) =
+      some (dprCfg none none inp aux work (true :: out)) := by
+  simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option DPRLabel), (none : Option Bool), stk⟩ : decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dprStk]
+
+theorem decodePairResult_initList (s : List Bool) :
+    initList decodePairResultComputer s =
+      dprCfg (some .dupToAux) none s [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some DPRLabel.dupToAux, (none : Option Bool), stk⟩ :
+        decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [decodePairResultComputer, dprStk]
+
+theorem decodePairResult_haltList (s : List Bool) :
+    haltList decodePairResultComputer s =
+      dprCfg none none [] [] [] s := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option DPRLabel), (none : Option Bool), stk⟩ :
+        decodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [decodePairResultComputer, dprStk]
+
+def dpr_evals_dup_one (b : Bool) (rest aux work out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .dupToAux) none (b :: rest) aux work out)
+      (some (dprCfg (some .dupToAux) none rest (b :: aux) work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .dupToAux) none (b :: rest) aux work out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .dupToAux) none rest (b :: aux) work out)
+    simp only [FinTM2.step]
+    exact dpr_step_dup_cons b rest aux work out
+
+noncomputable def dpr_evals_dup (s aux work out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .dupToAux) none s aux work out)
+      (some (dprCfg (some .dupToAux) none [] (s.reverse ++ aux) work out))
+      s.length := by
+  induction s generalizing aux with
+  | nil =>
+      simpa using EvalsToInTime.refl decodePairResultComputer.step
+        (dprCfg (some .dupToAux) none [] aux work out)
+  | cons b bs ih =>
+      have h1 := dpr_evals_dup_one b bs aux work out
+      have h2 := ih (b :: aux)
+      have h := EvalsToInTime.trans decodePairResultComputer.step 1 bs.length
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+def dpr_evals_dup_nil (aux work out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .dupToAux) none [] aux work out)
+      (some (dprCfg (some .split) none [] aux work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .dupToAux) none [] aux work out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .split) none [] aux work out)
+    simp only [FinTM2.step]
+    exact dpr_step_dup_nil aux work out
+
+def dpr_evals_split_one (b : Bool) (rest inp work out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .split) none inp (b :: rest) work out)
+      (some (dprCfg (some .split) none (b :: inp) rest (b :: work) out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .split) none inp (b :: rest) work out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .split) none (b :: inp) rest (b :: work) out)
+    simp only [FinTM2.step]
+    exact dpr_step_split_cons b rest inp work out
+
+noncomputable def dpr_evals_split (t inp work out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .split) none inp t work out)
+      (some (dprCfg (some .split) none (t.reverse ++ inp) [] (t.reverse ++ work) out))
+      t.length := by
+  induction t generalizing inp work with
+  | nil =>
+      simpa using EvalsToInTime.refl decodePairResultComputer.step
+        (dprCfg (some .split) none inp [] work out)
+  | cons b bs ih =>
+      have h1 := dpr_evals_split_one b bs inp work out
+      have h2 := ih (b :: inp) (b :: work)
+      have h := EvalsToInTime.trans decodePairResultComputer.step 1 bs.length
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+def dpr_evals_split_nil (inp work out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .split) none inp [] work out)
+      (some (dprCfg (some .parse) none inp [] work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .split) none inp [] work out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .parse) none inp [] work out)
+    simp only [FinTM2.step]
+    exact dpr_step_split_nil inp work out
+
+/-- Duplicate phase: reach parse with both `inp` and `work` holding `s`. -/
+noncomputable def dpr_evals_to_parse (s : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .dupToAux) none s [] [] [])
+      (some (dprCfg (some .parse) none s [] s []))
+      (2 * s.length + 2) := by
+  have hdup := dpr_evals_dup s [] [] []
+  have hdup' : EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .dupToAux) none s [] [] [])
+      (some (dprCfg (some .dupToAux) none [] s.reverse [] [])) s.length := by
+    simpa using hdup
+  have htoSplit := dpr_evals_dup_nil s.reverse [] []
+  have h1 := EvalsToInTime.trans decodePairResultComputer.step s.length 1
+    _ _ _ hdup' htoSplit
+  have hsplit := dpr_evals_split s.reverse [] [] []
+  have hsplit' : EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .split) none [] s.reverse [] [])
+      (some (dprCfg (some .split) none s [] s [])) s.reverse.length := by
+    simpa [List.reverse_reverse] using hsplit
+  have h2 := EvalsToInTime.trans decodePairResultComputer.step (1 + s.length)
+    s.reverse.length _ _ _ h1 hsplit'
+  have htoParse := dpr_evals_split_nil s s []
+  have h3 := EvalsToInTime.trans decodePairResultComputer.step
+    (s.reverse.length + (1 + s.length)) 1 _ _ _ h2 htoParse
+  refine ⟨h3.toEvalsTo, le_trans h3.steps_le_m ?_⟩
+  simp [List.length_reverse]; omega
+
+def dpr_evals_parse_one_bit (b : Bool) (rest inp aux out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .parse) none inp aux (true :: b :: rest) out)
+      (some (dprCfg (some .parse) none inp aux rest out)) 2 where
+  steps := 2
+  steps_le_m := by decide
+  evals_in_steps := by
+    change ((some (dprCfg (some .parse) none inp aux (true :: b :: rest) out)).bind
+        decodePairResultComputer.step).bind decodePairResultComputer.step =
+      some (dprCfg (some .parse) none inp aux rest out)
+    simp only [FinTM2.step]
+    change ((TM2.step decodePairResultComputer.m
+        (dprCfg (some .parse) none inp aux (true :: b :: rest) out)).bind
+        (TM2.step decodePairResultComputer.m)) =
+      some (dprCfg (some .parse) none inp aux rest out)
+    rw [dpr_step_parse_true]
+    exact dpr_step_expectBit b rest inp aux out
+
+noncomputable def dpr_evals_parse_prefix (x rest inp aux out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .parse) none inp aux
+        ((x.flatMap fun b => [true, b]) ++ rest) out)
+      (some (dprCfg (some .parse) none inp aux rest out))
+      (2 * x.length) := by
+  induction x with
+  | nil =>
+      simpa using EvalsToInTime.refl decodePairResultComputer.step
+        (dprCfg (some .parse) none inp aux rest out)
+  | cons b xs ih =>
+      have h1 := dpr_evals_parse_one_bit b
+        ((xs.flatMap fun b => [true, b]) ++ rest) inp aux out
+      have h2 := ih
+      have h := EvalsToInTime.trans decodePairResultComputer.step 2 (2 * xs.length)
+        _ _ _ (by simpa [List.flatMap] using h1) h2
+      simpa [List.flatMap, Nat.mul_succ, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc,
+        two_mul] using h
+
+def dpr_evals_parse_false (w inp aux out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .parse) none inp aux (false :: w) out)
+      (some (dprCfg (some .clearWorkSucc) (some false) inp aux w out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .parse) none inp aux (false :: w) out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .clearWorkSucc) (some false) inp aux w out)
+    simp only [FinTM2.step]
+    exact dpr_step_parse_false w inp aux out
+
+def dpr_evals_clearWork_one (b : Bool) (rest inp aux out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearWorkSucc) v inp aux (b :: rest) out)
+      (some (dprCfg (some .clearWorkSucc) (some b) inp aux rest out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .clearWorkSucc) v inp aux (b :: rest) out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .clearWorkSucc) (some b) inp aux rest out)
+    simp only [FinTM2.step]
+    exact dpr_step_clearWorkSucc_cons b rest inp aux out v
+
+def dpr_evals_clearWork_nil (inp aux out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearWorkSucc) v inp aux [] out)
+      (some (dprCfg (some .writeFalse) none inp aux [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .clearWorkSucc) v inp aux [] out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .writeFalse) none inp aux [] out)
+    simp only [FinTM2.step]
+    exact dpr_step_clearWorkSucc_nil inp aux out v
+
+noncomputable def dpr_evals_clearWork (w inp aux out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearWorkSucc) v inp aux w out)
+      (some (dprCfg (some .writeFalse) none inp aux [] out))
+      (w.length + 1) := by
+  induction w generalizing v with
+  | nil =>
+      simpa using dpr_evals_clearWork_nil inp aux out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans decodePairResultComputer.step 1 (bs.length + 1)
+        _ _ _ (dpr_evals_clearWork_one b bs inp aux out v) (ih (some b))
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+def dpr_evals_writeFalse (inp aux out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .writeFalse) none inp aux [] out)
+      (some (dprCfg (some .copy) none inp aux [false] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .writeFalse) none inp aux [] out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .copy) none inp aux [false] out)
+    simp only [FinTM2.step]
+    simpa using dpr_step_writeFalse inp aux [] out
+
+def dpr_evals_copy_one (b : Bool) (rest aux work out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .copy) v (b :: rest) aux work out)
+      (some (dprCfg (some .copy) none rest aux (b :: work) out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .copy) v (b :: rest) aux work out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .copy) none rest aux (b :: work) out)
+    simp only [FinTM2.step]
+    exact dpr_step_copy_cons b rest aux work out v
+
+def dpr_evals_copy_nil (aux work out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .copy) v [] aux work out)
+      (some (dprCfg (some .rev) none [] aux work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .copy) v [] aux work out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .rev) none [] aux work out)
+    simp only [FinTM2.step]
+    exact dpr_step_copy_nil aux work out v
+
+noncomputable def dpr_evals_copy (inp aux work out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .copy) v inp aux work out)
+      (some (dprCfg (some .rev) none [] aux (inp.reverse ++ work) out))
+      (inp.length + 1) := by
+  induction inp generalizing work v with
+  | nil =>
+      simpa using dpr_evals_copy_nil aux work out v
+  | cons b bs ih =>
+      have h1 := dpr_evals_copy_one b bs aux work out v
+      have h2 := ih (b :: work) none
+      have h := EvalsToInTime.trans decodePairResultComputer.step 1 (bs.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+def dpr_evals_rev_one (b : Bool) (rest inp aux out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .rev) v inp aux (b :: rest) out)
+      (some (dprCfg (some .rev) none inp aux rest (b :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .rev) v inp aux (b :: rest) out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .rev) none inp aux rest (b :: out))
+    simp only [FinTM2.step]
+    exact dpr_step_rev_cons b rest inp aux out v
+
+def dpr_evals_rev_nil (inp aux out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .rev) v inp aux [] out)
+      (some (dprCfg none none inp aux [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .rev) v inp aux [] out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg none none inp aux [] out)
+    simp only [FinTM2.step]
+    exact dpr_step_rev_nil inp aux out v
+
+noncomputable def dpr_evals_rev (work inp aux out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .rev) v inp aux work out)
+      (some (dprCfg none none inp aux [] (work.reverse ++ out)))
+      (work.length + 1) := by
+  induction work generalizing out v with
+  | nil =>
+      simpa using dpr_evals_rev_nil inp aux out v
+  | cons b bs ih =>
+      have h1 := dpr_evals_rev_one b bs inp aux out v
+      have h2 := ih (b :: out) none
+      have h := EvalsToInTime.trans decodePairResultComputer.step 1 (bs.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+/-- Success finisher from writeFalse: output `false :: s`. -/
+noncomputable def dpr_evals_success_from_writeFalse (s : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .writeFalse) none s [] [] [])
+      (some (dprCfg none none [] [] [] (false :: s)))
+      (2 * s.length + 4) := by
+  have h0 := dpr_evals_writeFalse s [] []
+  have hcopy := dpr_evals_copy s [] [false] [] none
+  have h1 := EvalsToInTime.trans decodePairResultComputer.step 1 (s.length + 1)
+    _ _ _ h0 hcopy
+  have hrev := dpr_evals_rev (s.reverse ++ [false]) [] [] [] none
+  have hrev' : EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .rev) none [] [] (s.reverse ++ [false]) [])
+      (some (dprCfg none none [] [] [] (false :: s)))
+      ((s.reverse ++ [false]).length + 1) := by
+    simpa [List.reverse_append, List.reverse_cons, List.reverse_reverse, List.reverse_nil]
+      using hrev
+  have h2 := EvalsToInTime.trans decodePairResultComputer.step ((s.length + 1) + 1)
+    ((s.reverse ++ [false]).length + 1) _ _ _ h1 hrev'
+  refine ⟨h2.toEvalsTo, le_trans h2.steps_le_m ?_⟩
+  simp [List.length_append, List.length_reverse]; omega
+
+/-- From parse on a well formed `encodePair`, reach writeFalse with inp restored. -/
+noncomputable def dpr_evals_parse_encodePair (x w : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .parse) none (encodePair (x, w)) [] (encodePair (x, w)) [])
+      (some (dprCfg (some .writeFalse) none (encodePair (x, w)) [] [] []))
+      (2 * x.length + w.length + 2) := by
+  have hpre := dpr_evals_parse_prefix x (false :: w) (encodePair (x, w)) [] []
+  have hpre' : EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .parse) none (encodePair (x, w)) [] (encodePair (x, w)) [])
+      (some (dprCfg (some .parse) none (encodePair (x, w)) [] (false :: w) []))
+      (2 * x.length) := by
+    simpa [encodePair] using hpre
+  have hfalse := dpr_evals_parse_false w (encodePair (x, w)) [] []
+  have h1 := EvalsToInTime.trans decodePairResultComputer.step (2 * x.length) 1
+    _ _ _ hpre' hfalse
+  have hclear := dpr_evals_clearWork w (encodePair (x, w)) [] [] (some false)
+  have h2 := EvalsToInTime.trans decodePairResultComputer.step (1 + 2 * x.length)
+    (w.length + 1) _ _ _ h1 hclear
+  refine ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by omega)⟩
+
+def dpr_evals_parse_nil_fail (inp aux out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .parse) none inp aux [] out)
+      (some (dprCfg (some .clearInpFail) none inp aux [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .parse) none inp aux [] out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .clearInpFail) none inp aux [] out)
+    simp only [FinTM2.step]
+    exact dpr_step_parse_nil inp aux out
+
+def dpr_evals_parse_true_nil_fail (inp aux out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .parse) none inp aux [true] out)
+      (some (dprCfg (some .clearInpFail) none inp aux [] out)) 2 where
+  steps := 2
+  steps_le_m := by decide
+  evals_in_steps := by
+    change ((some (dprCfg (some .parse) none inp aux [true] out)).bind
+        decodePairResultComputer.step).bind decodePairResultComputer.step =
+      some (dprCfg (some .clearInpFail) none inp aux [] out)
+    simp only [FinTM2.step]
+    -- parse [true] → expectBit with work []
+    have h1 : TM2.step decodePairResultComputer.m
+        (dprCfg (some .parse) none inp aux [true] out) =
+      some (dprCfg (some .expectBit) (some true) inp aux [] out) := by
+      simp [decodePairResultComputer, dprCfg, dprStk, TM2.step, TM2.stepAux]
+      refine congrArg some <|
+        congrArg (fun stk =>
+          (⟨some DPRLabel.expectBit, some true, stk⟩ : decodePairResultComputer.Cfg)) ?_
+      funext k; cases k <;> simp [Function.update, dprStk]
+    change ((TM2.step decodePairResultComputer.m
+        (dprCfg (some .parse) none inp aux [true] out)).bind
+        (TM2.step decodePairResultComputer.m)) =
+      some (dprCfg (some .clearInpFail) none inp aux [] out)
+    rw [h1]
+    exact dpr_step_expectBit_nil inp aux out
+
+def dpr_evals_clearInp_one (b : Bool) (rest aux work out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearInpFail) v (b :: rest) aux work out)
+      (some (dprCfg (some .clearInpFail) (some b) rest aux work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .clearInpFail) v (b :: rest) aux work out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .clearInpFail) (some b) rest aux work out)
+    simp only [FinTM2.step]
+    exact dpr_step_clearInpFail_cons b rest aux work out v
+
+def dpr_evals_clearInp_nil (aux work out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearInpFail) v [] aux work out)
+      (some (dprCfg (some .clearWorkFail) none [] aux work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .clearInpFail) v [] aux work out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .clearWorkFail) none [] aux work out)
+    simp only [FinTM2.step]
+    exact dpr_step_clearInpFail_nil aux work out v
+
+noncomputable def dpr_evals_clearInp (inp aux work out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearInpFail) v inp aux work out)
+      (some (dprCfg (some .clearWorkFail) none [] aux work out))
+      (inp.length + 1) := by
+  induction inp generalizing v with
+  | nil =>
+      simpa using dpr_evals_clearInp_nil aux work out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans decodePairResultComputer.step 1 (bs.length + 1)
+        _ _ _ (dpr_evals_clearInp_one b bs aux work out v) (ih (some b))
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+def dpr_evals_clearWorkFail_one (b : Bool) (rest inp aux out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearWorkFail) v inp aux (b :: rest) out)
+      (some (dprCfg (some .clearWorkFail) (some b) inp aux rest out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .clearWorkFail) v inp aux (b :: rest) out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .clearWorkFail) (some b) inp aux rest out)
+    simp only [FinTM2.step]
+    exact dpr_step_clearWorkFail_cons b rest inp aux out v
+
+def dpr_evals_clearWorkFail_nil (inp aux out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearWorkFail) v inp aux [] out)
+      (some (dprCfg (some .writeTrue) none inp aux [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .clearWorkFail) v inp aux [] out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg (some .writeTrue) none inp aux [] out)
+    simp only [FinTM2.step]
+    exact dpr_step_clearWorkFail_nil inp aux out v
+
+noncomputable def dpr_evals_clearWorkFail (work inp aux out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearWorkFail) v inp aux work out)
+      (some (dprCfg (some .writeTrue) none inp aux [] out))
+      (work.length + 1) := by
+  induction work generalizing v with
+  | nil =>
+      simpa using dpr_evals_clearWorkFail_nil inp aux out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans decodePairResultComputer.step 1 (bs.length + 1)
+        _ _ _ (dpr_evals_clearWorkFail_one b bs inp aux out v) (ih (some b))
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+def dpr_evals_writeTrue (inp aux out : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .writeTrue) none inp aux [] out)
+      (some (dprCfg none none inp aux [] (true :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dprCfg (some .writeTrue) none inp aux [] out)).bind
+        decodePairResultComputer.step =
+      some (dprCfg none none inp aux [] (true :: out))
+    simp only [FinTM2.step]
+    simpa using dpr_step_writeTrue inp aux [] out
+
+/-- Fail finisher from clearInpFail: emit `[true]`. -/
+noncomputable def dpr_evals_fail_from_clearInp (s work : List Bool) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .clearInpFail) none s [] work [])
+      (some (dprCfg none none [] [] [] [true]))
+      (s.length + work.length + 3) := by
+  have h1 := dpr_evals_clearInp s [] work [] none
+  have h2 := dpr_evals_clearWorkFail work [] [] [] none
+  have h12 := EvalsToInTime.trans decodePairResultComputer.step (s.length + 1)
+    (work.length + 1) _ _ _ h1 h2
+  have h3 := dpr_evals_writeTrue [] [] []
+  have h := EvalsToInTime.trans decodePairResultComputer.step
+    ((work.length + 1) + (s.length + 1)) 1 _ _ _ h12 h3
+  simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+/-- Parse failure when `decodePair work = none`, leaving `inp` intact. -/
+noncomputable def dpr_evals_parse_none (work inp : List Bool)
+    (h : decodePair work = none) :
+    EvalsToInTime decodePairResultComputer.step
+      (dprCfg (some .parse) none inp [] work [])
+      (some (dprCfg (some .clearInpFail) none inp [] [] []))
+      (work.length + 1) := by
+  match work with
+  | [] =>
+      simpa using dpr_evals_parse_nil_fail inp [] []
+  | [true] =>
+      simpa using dpr_evals_parse_true_nil_fail inp [] []
+  | false :: _ =>
+      simp [decodePair] at h
+  | true :: b :: rest =>
+      have hrest : decodePair rest = none := by
+        simp only [decodePair] at h
+        cases hrest : decodePair rest with
+        | none => rfl
+        | some _ => simp [hrest] at h
+      have h1 := dpr_evals_parse_one_bit b rest inp [] []
+      have h2 := dpr_evals_parse_none rest inp hrest
+      have h := EvalsToInTime.trans decodePairResultComputer.step 2 (rest.length + 1)
+        _ _ _ h1 h2
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+/-- Full success run on `encodePair`. -/
+noncomputable def dpr_evals_on_encodePair (x w : List Bool) :
+    TM2OutputsInTime decodePairResultComputer (encodePair (x, w))
+      (some (false :: encodePair (x, w)))
+      (4 * (encodePair (x, w)).length + 2 * x.length + w.length + 8) := by
+  let s := encodePair (x, w)
+  have hto := dpr_evals_to_parse s
+  have hparse := dpr_evals_parse_encodePair x w
+  have h1 := EvalsToInTime.trans decodePairResultComputer.step (2 * s.length + 2)
+    (2 * x.length + w.length + 2) _ _ _ hto hparse
+  have hsucc := dpr_evals_success_from_writeFalse s
+  have h2 := EvalsToInTime.trans decodePairResultComputer.step
+    ((2 * x.length + w.length + 2) + (2 * s.length + 2)) (2 * s.length + 4)
+    _ _ _ h1 hsucc
+  have hbound : EvalsToInTime decodePairResultComputer.step
+      (initList decodePairResultComputer s)
+      (some (haltList decodePairResultComputer (false :: s)))
+      (4 * s.length + 2 * x.length + w.length + 8) := by
+    rw [decodePairResult_initList, decodePairResult_haltList]
+    exact ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by omega)⟩
+  exact hbound
+
+/-- Full failure run when `decodePair s = none`. -/
+noncomputable def dpr_evals_on_none (s : List Bool) (h : decodePair s = none) :
+    TM2OutputsInTime decodePairResultComputer s (some [true])
+      (4 * s.length + 6) := by
+  have hto := dpr_evals_to_parse s
+  have hparse := dpr_evals_parse_none s s h
+  have h1 := EvalsToInTime.trans decodePairResultComputer.step (2 * s.length + 2)
+    (s.length + 1) _ _ _ hto hparse
+  have hfail := dpr_evals_fail_from_clearInp s []
+  have h2 := EvalsToInTime.trans decodePairResultComputer.step
+    ((s.length + 1) + (2 * s.length + 2)) (s.length + 3) _ _ _ h1 hfail
+  have hbound : EvalsToInTime decodePairResultComputer.step
+      (initList decodePairResultComputer s)
+      (some (haltList decodePairResultComputer [true]))
+      (4 * s.length + 6) := by
+    rw [decodePairResult_initList, decodePairResult_haltList]
+    exact ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by omega)⟩
+  exact hbound
+
+noncomputable def decodePairResultTime : Polynomial ℕ := 10 * Polynomial.X + 10
+
+theorem decodePairResultTime_eval (n : ℕ) :
+    decodePairResultTime.eval n = 10 * n + 10 := by
+  simp [decodePairResultTime, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+    Polynomial.eval_ofNat]
+
+/-- Full `decodePairResult` is poly time via the branching FinTM2. -/
+noncomputable def decodePairResultComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc decodePairResult where
+  tm := decodePairResultComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := decodePairResultTime
+  outputsFun s := by
+    change TM2OutputsInTime decodePairResultComputer (List.map id (idBitEnc s))
+      (some (List.map id (idBitEnc (decodePairResult s))))
+      (decodePairResultTime.eval (idBitEnc s).length)
+    simp only [idBitEnc, List.map_id, id_eq, decodePairResultTime_eval]
+    cases h : decodePair s with
+    | none =>
+        have hout := dpr_evals_on_none s h
+        rw [decodePairResult_of_none h]
+        exact ⟨hout.toEvalsTo, le_trans hout.steps_le_m (by omega)⟩
+    | some pw =>
+        rcases pw with ⟨x, w⟩
+        have hs : encodePair (x, w) = s := encodePair_of_decodePair h
+        subst hs
+        have hout := dpr_evals_on_encodePair x w
+        rw [decodePairResult_encodePair]
+        refine ⟨hout.toEvalsTo, le_trans hout.steps_le_m ?_⟩
+        have hlen : (encodePair (x, w)).length = 2 * x.length + 1 + w.length :=
+          length_encodePair (x, w)
+        omega
+
 /-- Same TM as an InP witness, reindexed to pairs under the abstract first
 projection encoding `fun pw => pw.1` (not yet `encodePair`). Composition of
 `projFirstComputableInPolyTime` with this witness is the remaining gap for

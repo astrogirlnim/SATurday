@@ -257,6 +257,31 @@ theorem decodePairResult_of_none {π : List Bool} (h : decodePair π = none) :
     decodePairResult π = [true] := by
   simp [decodePairResult, encodeDecodePairResult, h]
 
+/-- Case split form used by the branching FinTM2: success copies with a leading
+`false`, failure emits `[true]`. -/
+theorem decodePairResult_eq (π : List Bool) :
+    decodePairResult π =
+      match decodePair π with
+      | some _ => false :: π
+      | none => [true] := by
+  cases h : decodePair π with
+  | none => simp [decodePairResult, encodeDecodePairResult, h]
+  | some pw =>
+      have henc := encodePair_of_decodePair h
+      simp [decodePairResult, encodeDecodePairResult, h, henc]
+
+/-- Successful decode iff the tape is exactly some `encodePair` image. -/
+theorem decodePair_isSome_iff (π : List Bool) :
+    (decodePair π).isSome ↔ ∃ p, encodePair p = π := by
+  constructor
+  · intro h
+    cases hπ : decodePair π with
+    | none => simp [hπ] at h
+    | some p => exact ⟨p, encodePair_of_decodePair hπ⟩
+  · intro ⟨p, hp⟩
+    subst hp
+    simp [decodePair_encodePair]
+
 /-- On well formed pairs, `decodePairResult` is `false` then the encoding. -/
 theorem decodePairResult_encodePair (p : List Bool × List Bool) :
     decodePairResult (encodePair p) = false :: encodePair p := by

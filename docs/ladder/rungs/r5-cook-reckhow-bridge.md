@@ -1071,3 +1071,22 @@ lower bound via the bridge.
   Next: branch FinTM2 that runs prefixFalseCopy on success and constTrueList
   on failure (closes decodePairResult_computableInPolyTime).
   gate_pending: none.
+
+- 2026-08-21 formalize (decodePairResult branching FinTM2): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "commit constTrue then branch FinTM2 for decodePairResult",
+    "rationale": "Both branches exist as separate machines; only the glue remains for cluster A."
+  }
+  ```
+  Committed prior cycle: encodePair_of_decodePair, constTrueListComputableInPolyTime.
+  Accepted this cycle: decodePairResultComputer (dup, validate, success prefix
+  false copy, fail emit [true]), decodePairResultComputableInPolyTime,
+  decodePairResult_computableInPolyTime (moved out of Frontier).
+  Axiom gate PASS. Cluster A closed.
+  Next: clusters B to D toward truthTable_is_prop_proof_system (TM2 for full
+  TT map), then bridge theorem 1.
+  gate_pending: merge_certified.
