@@ -789,3 +789,29 @@ lower bound via the bridge.
   Most important thing learned: keep the append form of the round trip as the
   induction invariant; empty suffix only at the end.
   gate_pending: none.
+
+- 2026-08-21 formalize (FormulaEncoding cluster 2 general round trip): SUCCESS.
+  `theory/Theory/ProofComplexity/Bridge/FormulaEncoding.lean`. Axiom gate PASS.
+  `gate_auto: true` merge_certified justified by gate green and decls listed.
+
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "decodeFormulaPrefixFuel_encodeFormula_append then decodeFormula_encodeFormula and injectivity",
+    "rationale": "Pinned prose plan from prior cycle; close FormulaEncoding Frontier round trip."
+  }
+  ```
+
+  Accepted: `decodeNat_encodeNat_append`, length lemmas, `encodeFormula_length_pos`,
+  `decodeFormulaPrefixFuel_encodeFormula_append`, `decodeFormula_encodeFormula`,
+  `encodeFormula_injective`. Frontier namespace removed (no remaining sorries in
+  this module).
+
+  Still open on R5: poly time TM2 encode or decode, `ProofSystem`, Lemmas C to E.
+
+  Most important thing learned: after rewriting the first recursive match arm,
+  finish the nested match with `simp [ihψ']` rather than a second `rw` that
+  cannot see through the residual `match some (...)`.
+  gate_pending: none (merge_certified auto under loop policy after PASS).

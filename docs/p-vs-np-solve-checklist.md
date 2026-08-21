@@ -14,7 +14,8 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
 - [ ] Formalize the target chain statement in Lean without opaque constants (rung R5;
       Encoding Complexity, InP and NP nonvacuity, composition surgery, InP implies InNP,
       P complement closure, PeqNP implies NPeqcoNP certified 2026-08-11;
-      Frontier: FormulaEncoding / proof system pin).
+      FormulaEncoding cluster 2 round trip certified 2026-08-21;
+      Frontier: ProofSystem pin and Lemmas C to E).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

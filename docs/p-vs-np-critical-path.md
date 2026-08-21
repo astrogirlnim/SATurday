@@ -79,9 +79,9 @@ hardness plus a fully certified R5 bridge. Neither is complete.
 Complexity half is done. Remaining modules from the R5 plan
 (`docs/ladder/rungs/r5-cook-reckhow-bridge.md`):
 
-- [x] `Bridge/FormulaEncoding.lean` cluster 1: `PropFormula`, encode or decode
-      defs, semantic `Tautology`, `TAUT` nonempty (2026-08-21). Still open:
-      general round trip, poly time TM2 encode or decode.
+- [x] `Bridge/FormulaEncoding.lean` cluster 1 to 2: `PropFormula`, encode or decode
+      defs, semantic `Tautology`, `TAUT` nonempty, general round trip and
+      injectivity (2026-08-21). Still open: poly time TM2 encode or decode.
 - [ ] `Bridge/ProofSystem.lean`: `IsPropProofSystem`, `PolynomiallyBounded`,
       truth table system nonvacuity witness.
 - [ ] Lemma C (Bridge theorem 1, =>): poly bounded proof system implies
@@ -116,8 +116,8 @@ Complexity half is done. Remaining modules from the R5 plan
    `exists_tseitin_expander_hard_family` via the accepted Cluster 26 reduction.
    Do not chase prism or ladder cubics (Cluster 27 obstruction). Do not Nat
    chase Spreads or `ExpandsIndices` first moment.
-2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
-   claim until Lemmas C to E).
+2. In parallel sessions only: R5 `ProofSystem` start after FormulaEncoding
+   cluster 2 (definitional; no summit claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or
    redesign decision.
 

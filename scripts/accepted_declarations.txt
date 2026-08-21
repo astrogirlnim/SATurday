@@ -1146,3 +1146,13 @@ SATurday.Bridge.decodeFormula_encodeFormula_tautSeed
 SATurday.Bridge.TAUT
 SATurday.Bridge.tautSeed_mem_TAUT
 SATurday.Bridge.TAUT_nonempty
+
+# R5 FormulaEncoding cluster 2: general round trip and injectivity (2026-08-21)
+SATurday.Bridge.decodeNat_encodeNat_append
+SATurday.Bridge.length_encodeFormula_not
+SATurday.Bridge.length_encodeFormula_and
+SATurday.Bridge.length_encodeFormula_or
+SATurday.Bridge.encodeFormula_length_pos
+SATurday.Bridge.decodeFormulaPrefixFuel_encodeFormula_append
+SATurday.Bridge.decodeFormula_encodeFormula
+SATurday.Bridge.encodeFormula_injective
