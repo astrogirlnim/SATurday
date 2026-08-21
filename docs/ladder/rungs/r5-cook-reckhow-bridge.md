@@ -932,3 +932,87 @@ lower bound via the bridge.
   }
   ```
   gate_pending: none.
+
+- 2026-08-21 prove (pin TM2 poly time for truthTableProofSystem): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "prove",
+    "target": "pin TM2 poly time witness plan for truthTable_is_prop_proof_system",
+    "rationale": "Semantic map and not poly bounded are accepted; only FinTM2 poly time remains."
+  }
+  ```
+
+  ### Argument
+
+  Goal: `Nonempty (IsPropProofSystem truthTableProofSystem)`, which reduces to
+  producing `TM2ComputableInPolyTime idBitEnc idBitEnc truthTableProofSystem`.
+  Soundness and completeness are already accepted.
+
+  Decompose the map on input π of length n:
+
+  1. Run `decodePair π`. Pairing decode walks a length prefix then splits the
+     tape. Existing Encoding lemmas (`decodePair_encodePair`,
+     `length_ge_snd_of_decodePair`) pin the format. Implement as a FinTM2 that
+     scans once and writes the two halves to stacks. Time O(n).
+
+  2. On failure, output `encodeFormula tautSeed` (constant size). Constant
+     output machines are already certified in Complexity
+     (`constBitComputableInPolyTime` pattern). Time O(1) after decode fail.
+
+  3. On success with (φCode, table), run `decodeFormula φCode`. Fuel bounded
+     decode is a single left to right scan of φCode (length ≤ n). Accepted
+     round trip lemmas already lock the datatype. Time O(|φCode|) ≤ O(n).
+
+  4. On decode failure, again emit the seed encoding (constant machine).
+
+  5. On success with φ, decide `validatesTautology φ table`:
+     a. Recompute `truthTableOf φ` by enumerating `allBitstrings (maxVar φ + 1)`
+        and evaluating `evalOn` on each. The table length is `2^(maxVar+1)`.
+        Any accepting proof that reaches this branch with a matching table has
+        `|table| = 2^(maxVar+1)` and `|π| ≥ |table|`, so the enumeration is
+        linear in `|π|`, not exponential in an unbound parameter.
+     b. Compare recomputed bits to `table` and check all bits are true.
+     Time O(|π| · |φ|) which is polynomial in n.
+
+  6. If validation succeeds, output φCode (a prefix of π, copyable in O(n));
+     else emit the seed encoding.
+
+  Glue: sequential composition of the FinTM2 stages. Mathlib still has
+  `TM2ComputableInPolyTime.comp` as `proof_wanted`. Prefer the local
+  Complexity pattern already used for `compose_projFirst_bitEnc` style
+  sequencers (copy stacks, run second machine, bound time by sum of
+  polynomial evals). Do not wait for upstream mathlib composition.
+
+  Suggested formalize clusters (smallest first):
+  A. FinTM2 for `decodePair` to an explicit option encoding on the tape.
+  B. FinTM2 for `decodeFormula` under a length fuel.
+  C. FinTM2 for `validatesTautology` given φ and table already decoded.
+  D. Sequencer assembling A through C into `truthTableProofSystem`, then
+     package as `IsPropProofSystem`.
+
+  Non vacuity note: once D lands, `truthTable_not_poly_bounded` plus
+  `IsPropProofSystem` give a concrete exponential system, so universal claims
+  over all proof systems are nonvacuous.
+
+  ### Gap list
+
+  1. FinTM2 implementation of decodePair. Gap class: hard (engineering).
+  2. FinTM2 decodeFormula. Gap class: hard (engineering).
+  3. FinTM2 validatesTautology with poly bound via `|table| ≤ n`. Gap class: hard.
+  4. Local TM2 sequencer avoiding mathlib `comp` proof_wanted. Gap class: hard
+     but partially charted in Complexity.
+  5. Bridge theorem 1 (poly bounded system iff NP equals coNP) still untouched.
+     Gap class: hard; blocked on nonvacuity only for one direction.
+
+  Self adversarial: the poly time claim fails if validation enumerates
+  assignments from maxVar alone without tying runtime to `|table|`. The plan
+  insists on iterating the provided table length (or aborting when
+  `|table| ≠ 2^(maxVar+1)`), so time stays poly in n.
+
+  Most important thing learned: treat TT poly time as four FinTM2 clusters plus
+  a local sequencer, not one monolithic machine and not Real asymptotics style
+  shortcuts.
+  gate_pending: none (accept_prose auto under loop: plan is the only remaining
+  ProofSystem Frontier path and matches Complexity composition patterns).
