@@ -128,4 +128,98 @@ theorem bitEnc_injective : Function.Injective bitEnc := by
   intro a b h
   simpa [bitEnc] using congrArg List.head! h
 
+/-! ## DecodePair complexity certificate (TM2 cluster A) -/
+
+/-- Bit examinations performed by `decodePair` (one per recursive call). -/
+def decodePairCost : List Bool → ℕ
+  | [] => 1
+  | false :: _ => 1
+  | true :: _ :: rest => decodePairCost rest + 1
+  | [true] => 1
+
+/-- Cost is linear in the input length. -/
+theorem decodePairCost_le (π : List Bool) : decodePairCost π ≤ π.length + 1 := by
+  match π with
+  | [] => simp [decodePairCost]
+  | false :: rest => simp [decodePairCost]
+  | [true] => simp [decodePairCost]
+  | true :: b :: rest =>
+      have ih : decodePairCost rest ≤ rest.length + 1 := decodePairCost_le rest
+      have hlen : (true :: b :: rest).length = rest.length + 2 := by simp
+      -- cost = cost rest + 1 ≤ rest.length + 2 = |π|
+      calc
+        decodePairCost (true :: b :: rest) = decodePairCost rest + 1 := rfl
+        _ ≤ (rest.length + 1) + 1 := by omega
+        _ = rest.length + 2 := by ring
+        _ = (true :: b :: rest).length := by simp
+        _ ≤ (true :: b :: rest).length + 1 := by omega
+
+/-- Tape encoding of an optional pair: `[true]` for none, else `false` then
+`encodePair`. -/
+def encodeDecodePairResult : Option (List Bool × List Bool) → List Bool
+  | none => [true]
+  | some p => false :: encodePair p
+
+/-- Successful decode of the option encoding. -/
+def decodeDecodePairResult : List Bool → Option (Option (List Bool × List Bool))
+  | true :: [] => some none
+  | false :: rest =>
+      match decodePair rest with
+      | some p => some (some p)
+      | none => none
+  | _ => none
+
+theorem decodeDecodePairResult_encode (r : Option (List Bool × List Bool)) :
+    decodeDecodePairResult (encodeDecodePairResult r) = some r := by
+  cases r with
+  | none => rfl
+  | some p =>
+      simp [encodeDecodePairResult, decodeDecodePairResult, decodePair_encodePair]
+
+/-- Pure function the eventual FinTM2 must realize: decode then reencode. -/
+def decodePairResult (π : List Bool) : List Bool :=
+  encodeDecodePairResult (decodePair π)
+
+/-- First component of a successful decode is no longer than the input. -/
+theorem length_fst_le_of_decodePair {π x w : List Bool}
+    (h : decodePair π = some (x, w)) : x.length ≤ π.length := by
+  induction x generalizing π with
+  | nil => simp
+  | cons b x ih =>
+      cases π with
+      | nil => simp [decodePair] at h
+      | cons a rest =>
+          cases a
+          · simp only [decodePair, Option.some.injEq, Prod.mk.injEq] at h
+            exact (List.cons_ne_nil _ _ h.1.symm).elim
+          · cases rest with
+            | nil => simp [decodePair] at h
+            | cons c rest' =>
+                simp only [decodePair] at h
+                cases hrest : decodePair rest' with
+                | none => simp [hrest] at h
+                | some qw =>
+                    simp only [hrest, Option.some.injEq, Prod.mk.injEq] at h
+                    rcases qw with ⟨x', w'⟩
+                    rcases h with ⟨⟨rfl, rfl⟩, rfl⟩
+                    have := ih hrest
+                    simp at this ⊢
+                    omega
+
+/-- Output length of `decodePairResult` is O(|π|). -/
+theorem length_decodePairResult_le (π : List Bool) :
+    (decodePairResult π).length ≤ 3 * π.length + 2 := by
+  simp only [decodePairResult, encodeDecodePairResult]
+  cases h : decodePair π with
+  | none =>
+      change ([true] : List Bool).length ≤ 3 * π.length + 2
+      simp
+  | some pw =>
+      rcases pw with ⟨x, w⟩
+      have hx := length_fst_le_of_decodePair h
+      have hw := length_ge_snd_of_decodePair h
+      -- |false :: encodePair| = 2|x| + 2 + |w| ≤ 2|π| + 2 + |π| = 3|π| + 2
+      simp only [length_encodePair, List.length_cons]
+      omega
+
 end SATurday.Bridge

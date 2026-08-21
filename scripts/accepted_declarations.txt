@@ -1199,3 +1199,13 @@ SATurday.Bridge.exists_const_mul_pow_lt_two_pow
 SATurday.Bridge.Polynomial.eval_le_sum_coeff_mul_pow
 SATurday.Bridge.Polynomial.exists_eval_two_k_ten_lt_two_pow
 SATurday.Bridge.truthTable_not_poly_bounded
+
+# R5 Encoding cluster A prep: decodePair cost and option tape format (2026-08-21)
+SATurday.Bridge.decodePairCost
+SATurday.Bridge.decodePairCost_le
+SATurday.Bridge.encodeDecodePairResult
+SATurday.Bridge.decodeDecodePairResult
+SATurday.Bridge.decodeDecodePairResult_encode
+SATurday.Bridge.decodePairResult
+SATurday.Bridge.length_fst_le_of_decodePair
+SATurday.Bridge.length_decodePairResult_le

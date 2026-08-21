@@ -464,6 +464,12 @@ theorem truthTable_is_prop_proof_system :
     Nonempty (IsPropProofSystem truthTableProofSystem) := by
   sorry
 
+/-- Cluster A FinTM2 target: realize `decodePairResult` in poly time (cost bound
+`decodePairCost_le` and tape format `encodeDecodePairResult` are accepted). -/
+theorem decodePairResult_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodePairResult) := by
+  sorry
+
 end ProofSystemFrontier
 
 end SATurday.Bridge
