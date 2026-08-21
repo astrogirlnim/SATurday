@@ -79,8 +79,9 @@ hardness plus a fully certified R5 bridge. Neither is complete.
 Complexity half is done. Remaining modules from the R5 plan
 (`docs/ladder/rungs/r5-cook-reckhow-bridge.md`):
 
-- [ ] `Bridge/FormulaEncoding.lean`: formulas, poly time encode or decode,
-      semantic `Tautology`, language `TAUT` (or UNSAT CNF form).
+- [x] `Bridge/FormulaEncoding.lean` cluster 1: `PropFormula`, encode or decode
+      defs, semantic `Tautology`, `TAUT` nonempty (2026-08-21). Still open:
+      general round trip, poly time TM2 encode or decode.
 - [ ] `Bridge/ProofSystem.lean`: `IsPropProofSystem`, `PolynomiallyBounded`,
       truth table system nonvacuity witness.
 - [ ] Lemma C (Bridge theorem 1, =>): poly bounded proof system implies

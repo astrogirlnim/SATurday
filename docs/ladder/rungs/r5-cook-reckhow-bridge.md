@@ -712,3 +712,42 @@ lower bound via the bridge.
   Artifacts: theory/Theory/ProofComplexity/Bridge/Complexity.lean,
   scripts/accepted_declarations.txt
 
+
+- 2026-08-21 formalize (FormulaEncoding cluster 1): PARTIAL to SUCCESS on
+  datatype and TAUT nonvacuity. Created planned
+  `theory/Theory/ProofComplexity/Bridge/FormulaEncoding.lean`. Axiom gate PASS.
+  General decode round trip remains Frontier sorry.
+
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "FormulaEncoding cluster 1: PropFormula, encode or decode, TAUT nonvacuity",
+    "rationale": "R5 is the lowest active rung; FormulaEncoding is the next pinned Block D module after Complexity bridge theorem 2."
+  }
+  ```
+
+  ### Names verified before edit (no duplicates)
+
+  New accepted: `PropFormula`, `PropFormula.eval`, `PropFormula.Tautology`,
+  `tautSeed`, `tautSeed_tautology`, `encodeNat`, `decodeNat`,
+  `decodeNat_encodeNat`, `encodeFormula`, `decodeFormulaPrefixFuel`,
+  `decodeFormulaPrefix`, `decodeFormula`, `encodeFormula_tautSeed`,
+  `decodeFormula_encodeFormula_tautSeed`, `TAUT`, `tautSeed_mem_TAUT`,
+  `TAUT_nonempty`.
+  Frontier: `decodeFormula_encodeFormula`, `encodeFormula_injective`.
+  Reused: `Language` from Encoding.lean.
+
+  ### What closed
+
+  Formula inductive type, prefix encoding, fuelled decoder, seed tautology,
+  concrete seed round trip via kernel `decide`, nonempty `TAUT`.
+
+  ### What did not close
+
+  General round trip, poly time encode or decode TM2 witnesses, ProofSystem.
+
+  Most important thing learned: `native_decide` injects a nonstandard axiom and
+  fails the gate; kernel `decide` is required for accepted certificates.
+  gate_pending: none (merge_certified auto under loop policy after PASS).

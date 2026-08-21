@@ -97,6 +97,8 @@ R4-class results plus the certified R5 bridge.
   - statement: P, NP, coNP, proof systems, and the bridge theorems formalized;
     poly-bounded system exists iff NP = coNP; P = NP implies NP = coNP
   - memory: docs/ladder/rungs/r5-cook-reckhow-bridge.md
+  - lean: Encoding.lean and Complexity.lean (classes and bridge theorem 2);
+    FormulaEncoding.lean cluster 1 (PropFormula, TAUT nonvacuity, 2026-08-21)
 
 ## Edge conditions
 

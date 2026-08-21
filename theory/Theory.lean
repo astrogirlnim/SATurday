@@ -13,6 +13,7 @@ import Theory.ProofComplexity.Tseitin
 import Theory.ProofComplexity.CSExpansion
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
+import Theory.ProofComplexity.Bridge.FormulaEncoding
 
 /-!
 # SATurday Theory Library

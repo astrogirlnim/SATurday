@@ -1127,3 +1127,22 @@ SATurday.ProofComplexity.prismGraph6Band_half
 SATurday.ProofComplexity.prismGraph6Band_not_expanding
 SATurday.ProofComplexity.not_hasExpansion_prismGraph6
 SATurday.ProofComplexity.exists_cubic_regular_not_expanding_twelve
+
+# R5 FormulaEncoding cluster 1: PropFormula, TAUT nonvacuity (2026-08-21)
+SATurday.Bridge.PropFormula
+SATurday.Bridge.PropFormula.eval
+SATurday.Bridge.PropFormula.Tautology
+SATurday.Bridge.tautSeed
+SATurday.Bridge.tautSeed_tautology
+SATurday.Bridge.encodeNat
+SATurday.Bridge.decodeNat
+SATurday.Bridge.decodeNat_encodeNat
+SATurday.Bridge.encodeFormula
+SATurday.Bridge.decodeFormulaPrefixFuel
+SATurday.Bridge.decodeFormulaPrefix
+SATurday.Bridge.decodeFormula
+SATurday.Bridge.encodeFormula_tautSeed
+SATurday.Bridge.decodeFormula_encodeFormula_tautSeed
+SATurday.Bridge.TAUT
+SATurday.Bridge.tautSeed_mem_TAUT
+SATurday.Bridge.TAUT_nonempty
