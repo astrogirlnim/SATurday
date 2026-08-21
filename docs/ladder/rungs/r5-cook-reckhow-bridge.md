@@ -751,3 +751,41 @@ lower bound via the bridge.
   Most important thing learned: `native_decide` injects a nonstandard axiom and
   fails the gate; kernel `decide` is required for accepted certificates.
   gate_pending: none (merge_certified auto under loop policy after PASS).
+
+- 2026-08-21 prove (FormulaEncoding general round trip plan): PARTIAL.
+  Prose only; Lean attempt deferred after termination or simp friction on the
+  fuelled append lemma. Loop switched to dynamic wake cadence.
+
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "prove",
+    "target": "pin decodeFormulaPrefixFuel_encodeFormula_append proof plan",
+    "rationale": "Cluster 1 left general round trip Frontier; pin the inductive append lemma before the next formalize."
+  }
+  ```
+
+  ### Argument
+
+  Prove
+  `decodeFormulaPrefixFuel (fuel+1) (encodeFormula φ ++ suffix) = some (φ, suffix)`
+  whenever `|encodeFormula φ| ≤ fuel`, by induction on `φ`.
+
+  Base `var n`: use `decodeNat_encodeNat_append`.
+  Step `not` or `and` or `or`: match `fuel = f+1`, apply IH at fuel `f` on the
+  strictly shorter payload strings (length drop by the two tag bits).
+
+  Then `decodeFormula_encodeFormula` is the empty suffix case with
+  `fuel = |encodeFormula φ|`, and injectivity follows.
+
+  ### Gap list
+
+  1. Carry the Lean induction without `simp` eating length hypotheses.
+     Gap class: routine.
+  2. Poly time TM2 encode or decode. Gap class: hard.
+  3. ProofSystem module. Gap class: hard.
+
+  Most important thing learned: keep the append form of the round trip as the
+  induction invariant; empty suffix only at the end.
+  gate_pending: none.
