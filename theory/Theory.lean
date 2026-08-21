@@ -14,6 +14,7 @@ import Theory.ProofComplexity.CSExpansion
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding
+import Theory.ProofComplexity.Bridge.ProofSystem
 
 /-!
 # SATurday Theory Library

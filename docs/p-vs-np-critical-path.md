@@ -82,8 +82,9 @@ Complexity half is done. Remaining modules from the R5 plan
 - [x] `Bridge/FormulaEncoding.lean` cluster 1 to 2: `PropFormula`, encode or decode
       defs, semantic `Tautology`, `TAUT` nonempty, general round trip and
       injectivity (2026-08-21). Still open: poly time TM2 encode or decode.
-- [ ] `Bridge/ProofSystem.lean`: `IsPropProofSystem`, `PolynomiallyBounded`,
-      truth table system nonvacuity witness.
+- [x] `Bridge/ProofSystem.lean` cluster 1: `IsPropProofSystem`, `PolynomiallyBounded`,
+      truth table map sound and complete (2026-08-21). Still open: TM2 poly witness
+      and not poly bounded.
 - [ ] Lemma C (Bridge theorem 1, =>): poly bounded proof system implies
       `ClassNP = ClassCoNP`. Hard gap: poly time many one reduction from every
       coNP language to TAUT (or NP to SAT).

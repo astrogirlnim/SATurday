@@ -815,3 +815,30 @@ lower bound via the bridge.
   finish the nested match with `simp [ihψ']` rather than a second `rw` that
   cannot see through the residual `match some (...)`.
   gate_pending: none (merge_certified auto under loop policy after PASS).
+
+- 2026-08-21 formalize (ProofSystem cluster 1): PARTIAL to SUCCESS on defs.
+  `theory/Theory/ProofComplexity/Bridge/ProofSystem.lean`. Axiom gate PASS.
+  `gate_auto: true` merge_certified justified by gate green and decls listed.
+
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "ProofSystem cluster 1: IsPropProofSystem, PolynomiallyBounded, TT semantic map",
+    "rationale": "FormulaEncoding cluster 2 closed; next pinned Bridge module is ProofSystem."
+  }
+  ```
+
+  Accepted: `IsPropProofSystem`, `PolynomiallyBounded`, `maxVar`, `evalOn`, agree or
+  evalOn lemmas, `allBitstrings`, `truthTableOf`, `validatesTautology`,
+  `truthTableProofSystem` with sound and complete theorems.
+
+  Frontier: `truthTable_is_prop_proof_system` (TM2 poly witness),
+  `truthTable_not_poly_bounded`.
+
+  Still open on R5: TT TM2 poly time, Lemmas C to E, encode or decode TM2.
+
+  Most important thing learned: `IsPropProofSystem` must be a Type structure
+  (poly witness is data); a Prop structure cannot project a non Prop field.
+  gate_pending: none (merge_certified auto under loop policy after PASS).

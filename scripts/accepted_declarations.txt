@@ -1156,3 +1156,24 @@ SATurday.Bridge.encodeFormula_length_pos
 SATurday.Bridge.decodeFormulaPrefixFuel_encodeFormula_append
 SATurday.Bridge.decodeFormula_encodeFormula
 SATurday.Bridge.encodeFormula_injective
+
+# R5 ProofSystem cluster 1: defs and TT semantic map (2026-08-21)
+SATurday.Bridge.IsPropProofSystem
+SATurday.Bridge.PolynomiallyBounded
+SATurday.Bridge.PropFormula.maxVar
+SATurday.Bridge.PropFormula.evalOn
+SATurday.Bridge.evalOn_eq_eval_getD
+SATurday.Bridge.eval_eq_of_agree
+SATurday.Bridge.eval_eq_evalOn
+SATurday.Bridge.allBitstrings
+SATurday.Bridge.length_allBitstrings
+SATurday.Bridge.length_mem_allBitstrings
+SATurday.Bridge.mem_allBitstrings_of_length
+SATurday.Bridge.truthTableOf
+SATurday.Bridge.validatesTautology
+SATurday.Bridge.validatesTautology_truthTableOf_of_tautology
+SATurday.Bridge.tautology_of_validatesTautology
+SATurday.Bridge.truthTableProofSystem
+SATurday.Bridge.truthTableProofSystem_sound
+SATurday.Bridge.truthTableProofSystem_complete
+SATurday.Bridge.truthTableProofSystem_sound_and_complete
