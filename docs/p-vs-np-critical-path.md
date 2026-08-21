@@ -113,7 +113,8 @@ Complexity half is done. Remaining modules from the R5 plan
 1. R2: formalize an unbounded 3 regular `HasExpansion _ 1` family
    (`TseitinFrontier.exists_cubic_hasExpansion_family`), then discharge
    `exists_tseitin_expander_hard_family` via the accepted Cluster 26 reduction.
-   Do not Nat chase Spreads or `ExpandsIndices` first moment.
+   Do not chase prism or ladder cubics (Cluster 27 obstruction). Do not Nat
+   chase Spreads or `ExpandsIndices` first moment.
 2. In parallel sessions only: R5 FormulaEncoding start (definitional; no summit
    claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or

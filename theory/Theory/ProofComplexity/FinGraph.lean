@@ -19,7 +19,11 @@ kernel check over all `2^14` masks (List.all + decide, not native_decide),
 bridged to `HasExpansion` by relating masks to vertex sets and list cuts to
 `edgeBoundary`. Half-size sets of card > 7 are exempt by the hypothesis.
 
-LOG: R2 FinGraph API Petersen Heawood construction and expansion
+Cluster 27 (2026-08-15): prism `Y_6` obstruction. Cubic regular on 12
+vertices need not expand at factor 1; ladder like families are filtered out
+of Block A.
+
+LOG: R2 FinGraph API Petersen Heawood construction and expansion; prism obstruction
 -/
 
 namespace SATurday.ProofComplexity
@@ -533,5 +537,68 @@ theorem heawoodGraph_expansion : HasExpansion heawoodGraph 1 := by
   · exact (hne.ne_empty (card_eq_zero.mp h0)).elim
   · exact (lt_irrefl _ (lt_of_lt_of_le hbig hhalf)).elim
   · simpa [one_mul, hcut] using hle
+
+/-! ## Cluster 27: prism ladder obstruction (Block A family filter)
+
+The circular ladder / prism `Y_m = C_m □ K₂` is the obvious unbounded cubic
+family. A band of three columns has cut size 4 and order 6, so integer
+expansion factor 1 already fails at `m = 6` (`n = 12`). Ladder like cubics
+are not Block A expander candidates. -/
+
+/-- Helper: edge on `Fin 12` for the `m = 6` prism. -/
+private def pr6Edge (i j : ℕ) (hij : i < j := by decide) (hj : j < 12 := by decide) :
+    FinEdge 12 :=
+  finEdgeOf i j (lt_trans hij hj) hj hij
+
+/-- Prism `Y_6` on 12 vertices: outer 6-cycle, inner 6-cycle, six spokes.
+Canonical obstruction witness for ladder like cubics. -/
+def prismGraph6 : FinGraph 12 :=
+  { pr6Edge 0 1, pr6Edge 1 2, pr6Edge 2 3, pr6Edge 3 4, pr6Edge 4 5, pr6Edge 0 5,
+    pr6Edge 6 7, pr6Edge 7 8, pr6Edge 8 9, pr6Edge 9 10, pr6Edge 10 11, pr6Edge 6 11,
+    pr6Edge 0 6, pr6Edge 1 7, pr6Edge 2 8, pr6Edge 3 9, pr6Edge 4 10, pr6Edge 5 11 }
+
+/-- Prism `Y_6` has 18 edges. -/
+theorem prismGraph6_card : prismGraph6.card = 18 := by decide
+
+/-- Prism `Y_6` is 3-regular. -/
+theorem prismGraph6_regular : IsRegular prismGraph6 3 := by
+  intro v
+  fin_cases v <;> decide
+
+/-- Three-column band `{0,1,2,6,7,8}`: the standard prism cut of size 4. -/
+def prismGraph6Band : Finset (Fin 12) :=
+  {0, 1, 2, 6, 7, 8}
+
+theorem prismGraph6Band_card : prismGraph6Band.card = 6 := by decide
+
+theorem prismGraph6Band_boundary_card :
+    (edgeBoundary prismGraph6 prismGraph6Band).card = 4 := by decide
+
+/-- Half-size hypothesis for the band: `2 * 6 ≤ 12`. -/
+theorem prismGraph6Band_half : 2 * prismGraph6Band.card ≤ 12 := by
+  simp [prismGraph6Band_card]
+
+/-- The band is a nonempty medium set with cut strictly below its card. -/
+theorem prismGraph6Band_not_expanding :
+    prismGraph6Band.Nonempty ∧
+      2 * prismGraph6Band.card ≤ 12 ∧
+        (edgeBoundary prismGraph6 prismGraph6Band).card < prismGraph6Band.card := by
+  refine ⟨⟨0, by decide⟩, prismGraph6Band_half, ?_⟩
+  simp [prismGraph6Band_boundary_card, prismGraph6Band_card]
+
+/-- Prism `Y_6` fails integer expansion factor 1. -/
+theorem not_hasExpansion_prismGraph6 : ¬ HasExpansion prismGraph6 1 := by
+  intro h
+  have hband := h prismGraph6Band ⟨0, by decide⟩ prismGraph6Band_half
+  have hlt :
+      (edgeBoundary prismGraph6 prismGraph6Band).card < prismGraph6Band.card :=
+    prismGraph6Band_not_expanding.2.2
+  exact (not_le_of_gt hlt) (by simpa [one_mul] using hband)
+
+/-- Packaging: a cubic regular graph on 12 vertices need not expand at factor 1;
+the prism is a concrete counterexample (family filter for Block A). -/
+theorem exists_cubic_regular_not_expanding_twelve :
+    ∃ G : FinGraph 12, IsRegular G 3 ∧ ¬ HasExpansion G 1 :=
+  ⟨prismGraph6, prismGraph6_regular, not_hasExpansion_prismGraph6⟩
 
 end SATurday.ProofComplexity

@@ -74,7 +74,9 @@ R4-class results plus the certified R5 bridge.
     Block A primary existence to an unbounded Tseitin expander family
     (accept_prose 2026-08-15); Cluster 26 (2026-08-15) certifies informative
     floor `n ≥ 14`, cubic expander packaging, and family reduction;
-    Frontier `exists_cubic_hasExpansion_family` and
+    Cluster 27 (2026-08-21) certifies prism `Y_6` fails
+    `HasExpansion _ 1` (ladder filter); Frontier
+    `exists_cubic_hasExpansion_family` and
     `exists_tseitin_expander_hard_family` still open; random CS Frontier
     secondary))
 

@@ -2797,3 +2797,40 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Most important thing learned: Block A is now a pure expander construction
   gap; all Tseitin width wiring for the family pin is accepted.
   gate_pending: none.
+
+- 2026-08-21 formalize (Cluster 27 prism Y6 expansion obstruction): SUCCESS.
+  Edited existing `theory/Theory/ProofComplexity/FinGraph.lean` only. Axiom
+  gate PASS. Filters ladder like cubics out of Block A family search.
+
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 27 prismGraph6 not HasExpansion 1 band obstruction",
+    "rationale": "Kill the obvious unbounded cubic ladder before chasing it as an expander family; band cut size 4 on order 6 fails factor 1."
+  }
+  ```
+
+  ### Names verified before edit (no duplicates)
+
+  New accepted: `prismGraph6`, `prismGraph6_card`, `prismGraph6_regular`,
+  `prismGraph6Band`, `prismGraph6Band_card`,
+  `prismGraph6Band_boundary_card`, `prismGraph6Band_half`,
+  `prismGraph6Band_not_expanding`, `not_hasExpansion_prismGraph6`,
+  `exists_cubic_regular_not_expanding_twelve`.
+  Reused: `HasExpansion`, `IsRegular`, `edgeBoundary`, `finEdgeOf`.
+
+  ### What closed
+
+  Prism `Y_6` is 3 regular on 12 vertices and fails `HasExpansion _ 1` via
+  the three column band `{0,1,2,6,7,8}` with cut card 4 < 6.
+
+  ### What did not close
+
+  `TseitinFrontier.exists_cubic_hasExpansion_family` still sorry. Next:
+  non ladder construction (config model, LPS, or Gabber Galil style).
+
+  Most important thing learned: cubic regular alone does not imply expansion
+  factor 1; Block A must exclude prism or ladder families.
+  gate_pending: none.

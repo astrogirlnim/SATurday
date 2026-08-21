@@ -1115,3 +1115,15 @@ SATurday.ProofComplexity.tseitin_cubic_expander_informative
 SATurday.ProofComplexity.tseitin_cubic_expander_size_informative
 SATurday.ProofComplexity.tseitin_heawood_cubic_expander_informative
 SATurday.ProofComplexity.exists_tseitin_expander_hard_family_of_cubic_expanders
+
+# R2 item 2 cluster 27: prism Y6 expansion obstruction (2026-08-15, closed 2026-08-21)
+SATurday.ProofComplexity.prismGraph6
+SATurday.ProofComplexity.prismGraph6_card
+SATurday.ProofComplexity.prismGraph6_regular
+SATurday.ProofComplexity.prismGraph6Band
+SATurday.ProofComplexity.prismGraph6Band_card
+SATurday.ProofComplexity.prismGraph6Band_boundary_card
+SATurday.ProofComplexity.prismGraph6Band_half
+SATurday.ProofComplexity.prismGraph6Band_not_expanding
+SATurday.ProofComplexity.not_hasExpansion_prismGraph6
+SATurday.ProofComplexity.exists_cubic_regular_not_expanding_twelve
