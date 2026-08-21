@@ -221,6 +221,74 @@ theorem truthTableProofSystem_sound_and_complete :
       (∀ φ, TAUT φ → ∃ π, truthTableProofSystem π = φ) :=
   ⟨truthTableProofSystem_sound, truthTableProofSystem_complete⟩
 
+/-! ## Exponential proof size lower bound (toward not poly bounded) -/
+
+/-- Variable indexed seed tautology `p_k ∨ ¬p_k`. -/
+def tautSeedAt (k : ℕ) : PropFormula :=
+  .or (.var k) (.not (.var k))
+
+theorem tautSeedAt_tautology (k : ℕ) : (tautSeedAt k).Tautology := by
+  intro σ
+  simp [tautSeedAt, PropFormula.eval, Bool.or_not_self]
+
+theorem tautSeedAt_maxVar (k : ℕ) : (tautSeedAt k).maxVar = k := by
+  simp [tautSeedAt, PropFormula.maxVar]
+
+theorem length_truthTableOf_tautSeedAt (k : ℕ) :
+    (truthTableOf (tautSeedAt k)).length = 2 ^ (k + 1) := by
+  simp [truthTableOf, tautSeedAt_maxVar, length_allBitstrings]
+
+theorem length_encodeFormula_tautSeedAt (k : ℕ) :
+    (encodeFormula (tautSeedAt k)).length = 2 * k + 10 := by
+  simp [tautSeedAt, encodeFormula, encodeNat]
+  omega
+
+theorem tautSeedAt_mem_TAUT (k : ℕ) : TAUT (encodeFormula (tautSeedAt k)) :=
+  ⟨tautSeedAt k, decodeFormula_encodeFormula _, tautSeedAt_tautology k⟩
+
+theorem encodeFormula_tautSeedAt_ne_tautSeed (k : ℕ) (hk : 1 ≤ k) :
+    encodeFormula (tautSeedAt k) ≠ encodeFormula tautSeed := by
+  intro h
+  have := encodeFormula_injective h
+  simp [tautSeedAt, tautSeed] at this
+  omega
+
+/-- Any proof that outputs `encodeFormula (tautSeedAt k)` (for `k ≥ 1`) must
+carry a full truth table of length `2^(k+1)`. -/
+theorem truthTableProofSystem_length_ge (π : List Bool) (k : ℕ) (hk : 1 ≤ k)
+    (h : truthTableProofSystem π = encodeFormula (tautSeedAt k)) :
+    2 ^ (k + 1) ≤ π.length := by
+  have hne := encodeFormula_tautSeedAt_ne_tautSeed k hk
+  unfold truthTableProofSystem at h
+  cases hpair : decodePair π with
+  | none =>
+      simp [hpair] at h
+      exact (hne h.symm).elim
+  | some pw =>
+      rcases pw with ⟨φCode, table⟩
+      simp [hpair] at h
+      cases hφ : decodeFormula φCode with
+      | none =>
+          simp [hφ] at h
+          exact (hne h.symm).elim
+      | some φ =>
+          simp [hφ] at h
+          split_ifs at h with hval
+          · have hφcode : φCode = encodeFormula (tautSeedAt k) := h
+            subst hφcode
+            rcases hval with ⟨htable, _⟩
+            have hφeq : φ = tautSeedAt k := by
+              have hdec := decodeFormula_encodeFormula (tautSeedAt k)
+              rw [hφ] at hdec
+              exact Option.some_injective _ hdec
+            subst hφeq
+            have hsnd := length_ge_snd_of_decodePair (x := encodeFormula (tautSeedAt k))
+              (w := table) hpair
+            have htlen := length_truthTableOf_tautSeedAt k
+            rw [htable] at hsnd
+            omega
+          · exact (hne h.symm).elim
+
 namespace ProofSystemFrontier
 
 /-- Full `IsPropProofSystem` instance once a TM2 poly time witness for
@@ -229,7 +297,8 @@ theorem truthTable_is_prop_proof_system :
     Nonempty (IsPropProofSystem truthTableProofSystem) := by
   sorry
 
-/-- Truth table proofs are exponential in formula size, so not poly bounded. -/
+/-- Close with `truthTableProofSystem_length_ge` plus polynomial versus exponential
+growth: for every `q`, some `k ≥ 1` has `q.eval (2k+10) < 2^(k+1)`. -/
 theorem truthTable_not_poly_bounded :
     ¬ PolynomiallyBounded truthTableProofSystem := by
   sorry

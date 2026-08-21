@@ -53,7 +53,6 @@ theorem decodePair_encodePair (p : List Bool × List Bool) :
   | nil =>
       rfl
   | cons b x ih =>
-      -- encodePair (b::x, w) = true :: b :: encodePair (x, w)
       change decodePair (true :: b :: encodePair (x, w)) = some (b :: x, w)
       simp only [decodePair, ih]
 
@@ -73,10 +72,47 @@ theorem length_encodePair (p : List Bool × List Bool) :
   | nil =>
       simp [encodePair]; omega
   | cons b x ih =>
-      -- |true :: b :: encodePair (x,w)| = 2 + |encodePair (x,w)|
       change (true :: b :: encodePair (x, w)).length =
         2 * (b :: x).length + 1 + w.length
       simp [ih]; omega
+
+/-- Successful pair decode implies the second component fits in the string. -/
+theorem length_ge_snd_of_decodePair {π x w : List Bool}
+    (h : decodePair π = some (x, w)) : w.length ≤ π.length := by
+  induction x generalizing π with
+  | nil =>
+      cases π with
+      | nil => simp [decodePair] at h
+      | cons a rest =>
+          cases a
+          · simp only [decodePair, Option.some.injEq] at h
+            rcases h with ⟨rfl, rfl⟩
+            simp
+          · cases rest with
+            | nil => simp [decodePair] at h
+            | cons b rest' =>
+                simp only [decodePair] at h
+                cases hrest : decodePair rest' with
+                | none => simp [hrest] at h
+                | some qw => simp [hrest] at h
+  | cons b x ih =>
+      cases π with
+      | nil => simp [decodePair] at h
+      | cons a rest =>
+          cases a
+          · simp only [decodePair, Option.some.injEq, Prod.mk.injEq] at h
+            exact (List.cons_ne_nil _ _ h.1.symm).elim
+          · cases rest with
+            | nil => simp [decodePair] at h
+            | cons c rest' =>
+                simp only [decodePair] at h
+                cases hrest : decodePair rest' with
+                | none => simp [hrest] at h
+                | some qw =>
+                    simp only [hrest, Option.some.injEq, Prod.mk.injEq] at h
+                    rcases qw with ⟨x', w'⟩
+                    rcases h with ⟨⟨rfl, rfl⟩, rfl⟩
+                    exact (ih hrest).trans (by simp; omega)
 
 /-- Separator bit is always present, so the encoding is never empty. -/
 theorem encodePair_ne_nil (p : List Bool × List Bool) : encodePair p ≠ [] := by

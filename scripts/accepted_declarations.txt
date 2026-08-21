@@ -1177,3 +1177,14 @@ SATurday.Bridge.truthTableProofSystem
 SATurday.Bridge.truthTableProofSystem_sound
 SATurday.Bridge.truthTableProofSystem_complete
 SATurday.Bridge.truthTableProofSystem_sound_and_complete
+
+# R5 ProofSystem cluster 2: TT exponential length lower bound (2026-08-21)
+SATurday.Bridge.length_ge_snd_of_decodePair
+SATurday.Bridge.tautSeedAt
+SATurday.Bridge.tautSeedAt_tautology
+SATurday.Bridge.tautSeedAt_maxVar
+SATurday.Bridge.length_truthTableOf_tautSeedAt
+SATurday.Bridge.length_encodeFormula_tautSeedAt
+SATurday.Bridge.tautSeedAt_mem_TAUT
+SATurday.Bridge.encodeFormula_tautSeedAt_ne_tautSeed
+SATurday.Bridge.truthTableProofSystem_length_ge

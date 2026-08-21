@@ -842,3 +842,27 @@ lower bound via the bridge.
   Most important thing learned: `IsPropProofSystem` must be a Type structure
   (poly witness is data); a Prop structure cannot project a non Prop field.
   gate_pending: none (merge_certified auto under loop policy after PASS).
+
+- 2026-08-21 formalize (ProofSystem cluster 2 TT length lower bound): PARTIAL.
+  Edited `ProofSystem.lean` and `Encoding.lean`. Axiom gate PASS.
+  `gate_auto: true` merge_certified for new length decls.
+
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "truthTableProofSystem_length_ge via tautSeedAt family",
+    "rationale": "Close the combinatorial half of not poly bounded without TM2."
+  }
+  ```
+
+  Accepted: `length_ge_snd_of_decodePair`, `tautSeedAt` family, length identities,
+  `truthTableProofSystem_length_ge` (`2^(k+1) ≤ |π|` for outputs of `tautSeedAt k`).
+
+  Frontier unchanged: `truthTable_not_poly_bounded` (needs poly versus exp),
+  `truthTable_is_prop_proof_system` (TM2).
+
+  Most important thing learned: pair decode length lower bound by induction on
+  the first component avoids fragile `encodePair` left inverse proofs.
+  gate_pending: none.
