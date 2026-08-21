@@ -1016,3 +1016,22 @@ lower bound via the bridge.
   shortcuts.
   gate_pending: none (accept_prose auto under loop: plan is the only remaining
   ProofSystem Frontier path and matches Complexity composition patterns).
+
+- 2026-08-21 formalize (decodePair cluster A prep): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "decodePairCost plus encodeDecodePairResult and decodePairResult",
+    "rationale": "Cluster A FinTM2 needs a certified linear cost and tape format first."
+  }
+  ```
+  Accepted: decodePairCost, decodePairCost_le, encodeDecodePairResult,
+  decodeDecodePairResult, decodeDecodePairResult_encode, decodePairResult,
+  length_fst_le_of_decodePair, length_decodePairResult_le.
+  Frontier added: decodePairResult_computableInPolyTime (actual FinTM2).
+  Axiom gate PASS. Next: FinTM2 realizing decodePairResult.
+  Most important thing learned: separate the Nat cost and option tape encoding
+  from the FinTM2 engineering so cluster A does not stall on Stmt plumbing.
+  gate_pending: none.
