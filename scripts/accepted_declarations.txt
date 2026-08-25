@@ -1328,3 +1328,21 @@ SATurday.Bridge.decodePairResultTime
 SATurday.Bridge.decodePairResultTime_eval
 SATurday.Bridge.decodePairResultComputableInPolyTime
 SATurday.Bridge.decodePairResult_computableInPolyTime
+
+# R5 FormulaEncoding cluster B prep: decodeFormulaResult option tape (2026-08-25)
+SATurday.Bridge.encodeDecodeFormulaResult
+SATurday.Bridge.decodeDecodeFormulaResult
+SATurday.Bridge.decodeDecodeFormulaResult_encode
+SATurday.Bridge.decodeFormulaResult
+SATurday.Bridge.decodeFormulaResult_encodeFormula
+SATurday.Bridge.decodeFormulaResult_of_none
+SATurday.Bridge.length_decodeFormulaResult_encodeFormula
+
+# R5 FormulaEncoding cluster B inverse: encodeFormula_of_decodeFormula (2026-08-25)
+SATurday.Bridge.encodeNat_append_of_decodeNat
+SATurday.Bridge.encodeFormula_append_of_decodeFormulaPrefixFuel
+SATurday.Bridge.encodeFormula_of_decodeFormula
+SATurday.Bridge.decodeFormulaResult_of_some
+SATurday.Bridge.decodeFormulaResult_eq
+SATurday.Bridge.decodeFormula_isSome_iff
+SATurday.Bridge.length_decodeFormulaResult_le

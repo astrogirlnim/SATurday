@@ -1090,3 +1090,43 @@ lower bound via the bridge.
   Next: clusters B to D toward truthTable_is_prop_proof_system (TM2 for full
   TT map), then bridge theorem 1.
   gate_pending: merge_certified.
+
+- 2026-08-21 formalize (decodeFormulaResult cluster B prep): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "decodeFormulaResult option tape format for cluster B",
+    "rationale": "Mirror cluster A prep before FinTM2 for decodeFormula."
+  }
+  ```
+  Accepted: encodeDecodeFormulaResult, decodeDecodeFormulaResult,
+  decodeDecodeFormulaResult_encode, decodeFormulaResult,
+  decodeFormulaResult_encodeFormula, decodeFormulaResult_of_none,
+  length_decodeFormulaResult_encodeFormula.
+  Frontier: decodeFormulaResult_computableInPolyTime; still need
+  encodeFormula_of_decodeFormula inverse then FinTM2.
+  Dynamic saturday loop armed (one shot wakes until stop).
+  gate_pending: none.
+
+- 2026-08-25 formalize (encodeFormula_of_decodeFormula inverse): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "encodeFormula_of_decodeFormula inverse for cluster B",
+    "rationale": "Tape format from prior cycle; encode inverse unblocks FinTM2 success branch copy."
+  }
+  ```
+  Accepted: encodeNat_append_of_decodeNat,
+  encodeFormula_append_of_decodeFormulaPrefixFuel,
+  encodeFormula_of_decodeFormula, decodeFormulaResult_of_some,
+  decodeFormulaResult_eq, decodeFormula_isSome_iff,
+  length_decodeFormulaResult_le (plus prior working tree cluster B prep
+  decls retained).
+  Frontier unchanged: decodeFormulaResult_computableInPolyTime (FinTM2).
+  Most important thing learned: fuelled prefix inverse by tag cases mirrors
+  encodePair_of_decodePair and gives the false :: bs success rewrite for free.
+  gate_pending: merge_certified.

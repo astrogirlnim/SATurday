@@ -76,6 +76,29 @@ theorem decodeNat_encodeNat (n : ℕ) :
     decodeNat (encodeNat n) = some (n, []) := by
   simpa using decodeNat_encodeNat_append n []
 
+/-- Successful `decodeNat` recovers the unary encoding as a prefix. -/
+theorem encodeNat_append_of_decodeNat {bs : List Bool} {n : ℕ} {rest : List Bool}
+    (h : decodeNat bs = some (n, rest)) : bs = encodeNat n ++ rest := by
+  induction bs generalizing n rest with
+  | nil => simp [decodeNat] at h
+  | cons b bs ih =>
+      cases b with
+      | false =>
+          simp only [decodeNat, Option.some.injEq, Prod.mk.injEq] at h
+          rcases h with ⟨rfl, rfl⟩
+          rfl
+      | true =>
+          simp only [decodeNat] at h
+          cases hrest : decodeNat bs with
+          | none => simp [hrest] at h
+          | some nr =>
+              rcases nr with ⟨n', rest'⟩
+              simp only [hrest, Option.some.injEq, Prod.mk.injEq] at h
+              rcases h with ⟨rfl, rfl⟩
+              have := ih hrest
+              -- encodeNat (n' + 1) ++ rest' = true :: (encodeNat n' ++ rest')
+              simp [encodeNat, List.replicate_succ, this]
+
 /-- Encode a formula as a bit string (prefix code). -/
 def encodeFormula : PropFormula → List Bool
   | .var n => [false, false] ++ encodeNat n
@@ -232,6 +255,104 @@ theorem decodeFormula_encodeFormula (φ : PropFormula) :
   rw [List.append_nil] at h
   simp only [h]
 
+/-- Successful fuelled prefix decode recovers `encodeFormula φ` as a prefix. -/
+theorem encodeFormula_append_of_decodeFormulaPrefixFuel
+    (fuel : ℕ) {bs : List Bool} {φ : PropFormula} {rest : List Bool}
+    (h : decodeFormulaPrefixFuel fuel bs = some (φ, rest)) :
+    bs = encodeFormula φ ++ rest := by
+  induction fuel generalizing bs φ rest with
+  | zero => simp [decodeFormulaPrefixFuel] at h
+  | succ f ih =>
+      cases bs with
+      | nil => simp [decodeFormulaPrefixFuel] at h
+      | cons b₁ bs₁ =>
+          cases bs₁ with
+          | nil => simp [decodeFormulaPrefixFuel] at h
+          | cons b₂ rest0 =>
+              cases b₁ with
+              | false =>
+                  cases b₂ with
+                  | false =>
+                      -- tag `false false`: variable
+                      simp only [decodeFormulaPrefixFuel] at h
+                      cases hn : decodeNat rest0 with
+                      | none => simp [hn] at h
+                      | some nr =>
+                          rcases nr with ⟨n, rest'⟩
+                          simp only [hn, Option.some.injEq, Prod.mk.injEq] at h
+                          rcases h with ⟨rfl, rfl⟩
+                          have hnat := encodeNat_append_of_decodeNat hn
+                          simp [encodeFormula, hnat]
+                  | true =>
+                      -- tag `false true`: negation
+                      simp only [decodeFormulaPrefixFuel] at h
+                      cases hφ : decodeFormulaPrefixFuel f rest0 with
+                      | none => simp [hφ] at h
+                      | some pr =>
+                          rcases pr with ⟨ψ, rest'⟩
+                          simp only [hφ, Option.some.injEq, Prod.mk.injEq] at h
+                          rcases h with ⟨rfl, rfl⟩
+                          have := ih hφ
+                          simp [encodeFormula, this]
+              | true =>
+                  cases b₂ with
+                  | false =>
+                      -- tag `true false`: conjunction
+                      simp only [decodeFormulaPrefixFuel] at h
+                      cases hφ : decodeFormulaPrefixFuel f rest0 with
+                      | none => simp [hφ] at h
+                      | some pr =>
+                          rcases pr with ⟨ψ, rest₁⟩
+                          simp only [hφ] at h
+                          cases hψ : decodeFormulaPrefixFuel f rest₁ with
+                          | none => simp [hψ] at h
+                          | some qr =>
+                              rcases qr with ⟨χ, rest₂⟩
+                              simp only [hψ, Option.some.injEq, Prod.mk.injEq]
+                                at h
+                              rcases h with ⟨rfl, rfl⟩
+                              have hψenc := ih hφ
+                              have hχenc := ih hψ
+                              simp [encodeFormula, List.append_assoc, hψenc,
+                                hχenc]
+                  | true =>
+                      -- tag `true true`: disjunction
+                      simp only [decodeFormulaPrefixFuel] at h
+                      cases hφ : decodeFormulaPrefixFuel f rest0 with
+                      | none => simp [hφ] at h
+                      | some pr =>
+                          rcases pr with ⟨ψ, rest₁⟩
+                          simp only [hφ] at h
+                          cases hψ : decodeFormulaPrefixFuel f rest₁ with
+                          | none => simp [hψ] at h
+                          | some qr =>
+                              rcases qr with ⟨χ, rest₂⟩
+                              simp only [hψ, Option.some.injEq, Prod.mk.injEq]
+                                at h
+                              rcases h with ⟨rfl, rfl⟩
+                              have hψenc := ih hφ
+                              have hχenc := ih hψ
+                              simp [encodeFormula, List.append_assoc, hψenc,
+                                hχenc]
+
+/-- Successful full decode recovers the canonical `encodeFormula` encoding. -/
+theorem encodeFormula_of_decodeFormula {bs : List Bool} {φ : PropFormula}
+    (h : decodeFormula bs = some φ) : encodeFormula φ = bs := by
+  unfold decodeFormula decodeFormulaPrefix at h
+  cases hpref : decodeFormulaPrefixFuel (bs.length + 1) bs with
+  | none => simp [hpref] at h
+  | some pr =>
+      rcases pr with ⟨ψ, rest⟩
+      simp only [hpref] at h
+      cases rest with
+      | cons _ _ => simp at h
+      | nil =>
+          simp only [Option.some.injEq] at h
+          subst h
+          have henc :=
+            encodeFormula_append_of_decodeFormulaPrefixFuel _ hpref
+          simpa using henc.symm
+
 /-- Concrete encoding of the tautology seed. -/
 theorem encodeFormula_tautSeed :
     encodeFormula tautSeed =
@@ -264,5 +385,94 @@ theorem tautSeed_mem_TAUT : TAUT (encodeFormula tautSeed) := by
 /-- `TAUT` is nonempty (statement hygiene for proof system pins). -/
 theorem TAUT_nonempty : ∃ bs : List Bool, TAUT bs :=
   ⟨encodeFormula tautSeed, tautSeed_mem_TAUT⟩
+
+/-! ## DecodeFormula complexity certificate (TM2 cluster B prep) -/
+
+/-- Tape encoding of an optional formula: `[true]` for none, else `false` then
+`encodeFormula`. -/
+def encodeDecodeFormulaResult : Option PropFormula → List Bool
+  | none => [true]
+  | some φ => false :: encodeFormula φ
+
+/-- Successful decode of the option encoding. -/
+def decodeDecodeFormulaResult : List Bool → Option (Option PropFormula)
+  | true :: [] => some none
+  | false :: rest =>
+      match decodeFormula rest with
+      | some φ => some (some φ)
+      | none => none
+  | _ => none
+
+theorem decodeDecodeFormulaResult_encode (r : Option PropFormula) :
+    decodeDecodeFormulaResult (encodeDecodeFormulaResult r) = some r := by
+  cases r with
+  | none => rfl
+  | some φ =>
+      simp [encodeDecodeFormulaResult, decodeDecodeFormulaResult,
+        decodeFormula_encodeFormula]
+
+/-- Pure function the eventual FinTM2 must realize: decode then reencode. -/
+def decodeFormulaResult (bs : List Bool) : List Bool :=
+  encodeDecodeFormulaResult (decodeFormula bs)
+
+/-- On well formed encodings, `decodeFormulaResult` is `false` then the encoding. -/
+theorem decodeFormulaResult_encodeFormula (φ : PropFormula) :
+    decodeFormulaResult (encodeFormula φ) = false :: encodeFormula φ := by
+  simp [decodeFormulaResult, encodeDecodeFormulaResult, decodeFormula_encodeFormula]
+
+/-- On successful decode, `decodeFormulaResult` prefixes `false` to the input. -/
+theorem decodeFormulaResult_of_some {bs : List Bool} {φ : PropFormula}
+    (h : decodeFormula bs = some φ) :
+    decodeFormulaResult bs = false :: bs := by
+  have henc := encodeFormula_of_decodeFormula h
+  simp [decodeFormulaResult, encodeDecodeFormulaResult, h, henc]
+
+/-- On failed decode, `decodeFormulaResult` is the singleton `[true]`. -/
+theorem decodeFormulaResult_of_none {bs : List Bool} (h : decodeFormula bs = none) :
+    decodeFormulaResult bs = [true] := by
+  simp [decodeFormulaResult, encodeDecodeFormulaResult, h]
+
+/-- Case split form used by the branching FinTM2: success copies with a leading
+`false`, failure emits `[true]`. -/
+theorem decodeFormulaResult_eq (bs : List Bool) :
+    decodeFormulaResult bs =
+      match decodeFormula bs with
+      | some _ => false :: bs
+      | none => [true] := by
+  cases h : decodeFormula bs with
+  | none => simp [decodeFormulaResult, encodeDecodeFormulaResult, h]
+  | some φ =>
+      have henc := encodeFormula_of_decodeFormula h
+      simp [decodeFormulaResult, encodeDecodeFormulaResult, h, henc]
+
+/-- Successful decode iff the tape is exactly some `encodeFormula` image. -/
+theorem decodeFormula_isSome_iff (bs : List Bool) :
+    (decodeFormula bs).isSome ↔ ∃ φ, encodeFormula φ = bs := by
+  constructor
+  · intro h
+    cases hφ : decodeFormula bs with
+    | none => simp [hφ] at h
+    | some φ => exact ⟨φ, encodeFormula_of_decodeFormula hφ⟩
+  · intro ⟨φ, hφ⟩
+    subst hφ
+    simp [decodeFormula_encodeFormula]
+
+/-- Output length on the success slice is `|encodeFormula φ| + 1`. -/
+theorem length_decodeFormulaResult_encodeFormula (φ : PropFormula) :
+    (decodeFormulaResult (encodeFormula φ)).length =
+      (encodeFormula φ).length + 1 := by
+  simp [decodeFormulaResult_encodeFormula]
+
+/-- Output length of `decodeFormulaResult` is O(|bs|). -/
+theorem length_decodeFormulaResult_le (bs : List Bool) :
+    (decodeFormulaResult bs).length ≤ bs.length + 1 := by
+  simp only [decodeFormulaResult, encodeDecodeFormulaResult]
+  cases h : decodeFormula bs with
+  | none =>
+      change ([true] : List Bool).length ≤ bs.length + 1
+      simp
+  | some φ =>
+      have henc := encodeFormula_of_decodeFormula h
+      simp [henc]
 
 end SATurday.Bridge

@@ -465,6 +465,12 @@ theorem truthTable_is_prop_proof_system :
     Nonempty (IsPropProofSystem truthTableProofSystem) := by
   sorry
 
+/-- Cluster B FinTM2 target: realize `decodeFormulaResult` in poly time (option
+tape format and encode inverse accepted; FinTM2 remains). -/
+theorem decodeFormulaResult_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodeFormulaResult) := by
+  sorry
+
 end ProofSystemFrontier
 
 /-- Cluster A complete: `decodePairResult` is poly time via the branching FinTM2. -/

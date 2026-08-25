@@ -16,7 +16,9 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       P complement closure, PeqNP implies NPeqcoNP certified 2026-08-11;
       FormulaEncoding cluster 2 round trip certified 2026-08-21;
       ProofSystem cluster 1 semantic TT map certified 2026-08-21;
-      Frontier: ProofSystem TM2 poly witness and Lemmas C to E).
+      FormulaEncoding cluster B inverse encodeFormula_of_decodeFormula
+      certified 2026-08-25;
+      Frontier: decodeFormulaResult FinTM2 then TT map clusters C to E).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.
