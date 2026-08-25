@@ -1442,3 +1442,19 @@ SATurday.Bridge.dfr_evals_clearAuxFail
 SATurday.Bridge.dfr_evals_checkWork_junk_one
 SATurday.Bridge.dfr_evals_on_encodeFormula_junk
 SATurday.Bridge.dfr_evals_on_none_of_junk
+
+# R5 FormulaEncoding and ProofSystem cluster B prefix-none and polyTime (2026-08-25)
+SATurday.Bridge.decodeNat_eq_none_iff
+SATurday.Bridge.decodeFormula_eq_none_iff
+SATurday.Bridge.dfrParseCost_le
+SATurday.Bridge.dfr_evals_parseTag1F_nil_one
+SATurday.Bridge.dfr_evals_parseTag1T_nil_one
+SATurday.Bridge.dfr_evals_parseNat_nil_one
+SATurday.Bridge.dfr_evals_parseNat_fail
+SATurday.Bridge.dfr_evals_parse_fail
+SATurday.Bridge.dfr_evals_on_none_of_prefix
+SATurday.Bridge.dfr_evals_on_none
+SATurday.Bridge.decodeFormulaResultTime
+SATurday.Bridge.decodeFormulaResultTime_eval
+SATurday.Bridge.decodeFormulaResultComputableInPolyTime
+SATurday.Bridge.decodeFormulaResult_computableInPolyTime

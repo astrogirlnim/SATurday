@@ -465,12 +465,6 @@ theorem truthTable_is_prop_proof_system :
     Nonempty (IsPropProofSystem truthTableProofSystem) := by
   sorry
 
-/-- Cluster B FinTM2 target: full `decodeFormulaResult` when prefix decode
-returns none (`clearAuxFail` and junk-suffix failure accepted). -/
-theorem decodeFormulaResult_computableInPolyTime :
-    Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodeFormulaResult) := by
-  sorry
-
 end ProofSystemFrontier
 
 /-- Cluster A complete: `decodePairResult` is poly time via the branching FinTM2. -/
@@ -1811,7 +1805,7 @@ noncomputable def dfr_evals_on_encodeFormula_junk (φ : PropFormula) (junk : Lis
       exact hbound
 
 /-- Full failure when `decodeFormula s = none` via leftover suffix after a valid
-prefix (prefix none failure remains for the next cluster). -/
+prefix. -/
 noncomputable def dfr_evals_on_none_of_junk {s : List Bool} {φ : PropFormula}
     {rest : List Bool}
     (hpref : decodeFormulaPrefixFuel (s.length + 1) s = some (φ, rest))
@@ -1822,5 +1816,341 @@ noncomputable def dfr_evals_on_none_of_junk {s : List Bool} {φ : PropFormula}
     encodeFormula_append_of_decodeFormulaPrefixFuel _ hpref
   subst hs
   exact dfr_evals_on_encodeFormula_junk φ rest hne
+
+/-! ## Cluster B prefix-none failure and full poly time witness -/
+
+theorem dfrParseCost_le (φ : PropFormula) :
+    dfrParseCost φ ≤ 2 * (encodeFormula φ).length := by
+  induction φ with
+  | var n =>
+      simp [dfrParseCost, encodeFormula, encodeNat, List.length_append,
+        List.length_replicate]
+  | not φ ih =>
+      simp only [dfrParseCost, length_encodeFormula_not]
+      omega
+  | and φ ψ ihφ ihψ =>
+      simp only [dfrParseCost, length_encodeFormula_and]
+      omega
+  | or φ ψ ihφ ihψ =>
+      simp only [dfrParseCost, length_encodeFormula_or]
+      omega
+
+def dfr_evals_parseTag1F_nil_one (inp aux out : List Bool) :
+    EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .parseTag1F) (some false) inp aux [] out)
+      (some (dfrCfg (some .clearInpFail) none inp aux [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dfrCfg (some .parseTag1F) (some false) inp aux [] out)).bind
+        decodeFormulaResultComputer.step =
+      some (dfrCfg (some .clearInpFail) none inp aux [] out)
+    simp only [FinTM2.step]
+    exact dfr_step_parseTag1F_nil inp aux out
+
+def dfr_evals_parseTag1T_nil_one (inp aux out : List Bool) :
+    EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .parseTag1T) (some true) inp aux [] out)
+      (some (dfrCfg (some .clearInpFail) none inp aux [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dfrCfg (some .parseTag1T) (some true) inp aux [] out)).bind
+        decodeFormulaResultComputer.step =
+      some (dfrCfg (some .clearInpFail) none inp aux [] out)
+    simp only [FinTM2.step]
+    exact dfr_step_parseTag1T_nil inp aux out
+
+def dfr_evals_parseNat_nil_one (v : Option Bool) (inp aux out : List Bool) :
+    EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .parseNat) v inp aux [] out)
+      (some (dfrCfg (some .clearInpFail) none inp aux [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dfrCfg (some .parseNat) v inp aux [] out)).bind
+        decodeFormulaResultComputer.step =
+      some (dfrCfg (some .clearInpFail) none inp aux [] out)
+    simp only [FinTM2.step]
+    exact dfr_step_parseNat_nil v inp aux out
+
+/-- `decodeNat` fails exactly when the work tape is all `true`; consume it. -/
+noncomputable def dfr_evals_parseNat_fail (work inp aux out : List Bool)
+    (v : Option Bool) (h : decodeNat work = none) :
+    EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .parseNat) v inp aux work out)
+      (some (dfrCfg (some .clearInpFail) none inp aux [] out))
+      (work.length + 1) := by
+  have hall : ∀ b ∈ work, b = true := (decodeNat_eq_none_iff work).mp h
+  induction work generalizing v with
+  | nil =>
+      simpa using dfr_evals_parseNat_nil_one v inp aux out
+  | cons b rest ih =>
+      have hb : b = true := hall b (List.Mem.head (a := b) (as := rest))
+      subst hb
+      have hrest : decodeNat rest = none :=
+        (decodeNat_eq_none_iff rest).mpr fun b hb =>
+          hall b (List.Mem.tail (a := b) (b := true) hb)
+      have h1 := dfr_evals_parseNat_true_one v rest inp aux out
+      have h2 := ih none hrest fun b hb =>
+        hall b (List.Mem.tail (a := b) (b := true) hb)
+      have h := EvalsToInTime.trans decodeFormulaResultComputer.step 1
+        (rest.length + 1) _ _ _ h1 h2
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+/-- From `parseTag0`, fail whenever fuelled prefix decode returns none.
+Requires `work.length < fuel` so recursive children keep a usable fuel budget.
+Ends at halt with `[true]` after clearing inp, work, and aux (including markers). -/
+noncomputable def dfr_evals_parse_fail (work inp aux : List Bool) (fuel : ℕ)
+    (hfuel : work.length < fuel)
+    (h : decodeFormulaPrefixFuel fuel work = none) :
+    EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .parseTag0) none inp aux work [])
+      (some (dfrCfg none none [] [] [] [true]))
+      (3 * work.length + inp.length + aux.length + 5) := by
+  induction fuel generalizing work aux with
+  | zero =>
+      exact (Nat.not_lt_zero _ hfuel).elim
+  | succ f ih =>
+      match work with
+      | [] =>
+          have h1 := dfr_evals_parseTag0_nil_one inp aux []
+          have hfail := dfr_evals_fail_from_clearInp inp [] aux none
+          have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 1
+            (inp.length + aux.length + 4) _ _ _ h1 hfail
+          refine ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by
+            simp [List.length_cons, List.length_nil] <;> omega)⟩
+      | [false] =>
+          have h0 := dfr_evals_parseTag0_false_one [] inp aux []
+          have h1 := dfr_evals_parseTag1F_nil_one inp aux []
+          have h01 := EvalsToInTime.trans decodeFormulaResultComputer.step 1 1
+            _ _ _ h0 h1
+          have hfail := dfr_evals_fail_from_clearInp inp [] aux none
+          have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 2
+            (inp.length + aux.length + 4) _ _ _ h01 hfail
+          refine ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by
+            simp [List.length_cons, List.length_nil] <;> omega)⟩
+      | [true] =>
+          have h0 := dfr_evals_parseTag0_true_one [] inp aux []
+          have h1 := dfr_evals_parseTag1T_nil_one inp aux []
+          have h01 := EvalsToInTime.trans decodeFormulaResultComputer.step 1 1
+            _ _ _ h0 h1
+          have hfail := dfr_evals_fail_from_clearInp inp [] aux none
+          have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 2
+            (inp.length + aux.length + 4) _ _ _ h01 hfail
+          refine ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by
+            simp [List.length_cons, List.length_nil] <;> omega)⟩
+      | false :: false :: rest =>
+          have hnat : decodeNat rest = none := by
+            simp only [decodeFormulaPrefixFuel] at h
+            cases hn : decodeNat rest with
+            | none => rfl
+            | some _ => simp [hn] at h
+          have h0 :=
+            dfr_evals_parseTag0_false_one (false :: rest) inp aux []
+          have h1 := dfr_evals_parseTag1F_var_one rest inp aux []
+          have h01 := EvalsToInTime.trans decodeFormulaResultComputer.step 1 1
+            _ _ _ h0 h1
+          have hnatfail :=
+            dfr_evals_parseNat_fail rest inp aux [] (some false) hnat
+          have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 2
+            (rest.length + 1) _ _ _ h01 hnatfail
+          have hfail := dfr_evals_fail_from_clearInp inp [] aux none
+          have h3 := EvalsToInTime.trans decodeFormulaResultComputer.step
+            ((rest.length + 1) + 2) (inp.length + aux.length + 4) _ _ _ h2 hfail
+          refine ⟨h3.toEvalsTo, le_trans h3.steps_le_m (by
+            simp [List.length_cons, List.length_nil] <;> omega)⟩
+      | false :: true :: rest =>
+          have hchild : decodeFormulaPrefixFuel f rest = none := by
+            simp only [decodeFormulaPrefixFuel] at h
+            cases hc : decodeFormulaPrefixFuel f rest with
+            | none => rfl
+            | some _ => simp [hc] at h
+          have hrest : rest.length < f := by
+            simp only [List.length_cons] at hfuel
+            omega
+          have h0 :=
+            dfr_evals_parseTag0_false_one (true :: rest) inp aux []
+          have h1 := dfr_evals_parseTag1F_not_one rest inp aux []
+          have h01 := EvalsToInTime.trans decodeFormulaResultComputer.step 1 1
+            _ _ _ h0 h1
+          have hfail := ih rest (false :: aux) hrest hchild
+          have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 2
+            (3 * rest.length + inp.length + (false :: aux).length + 5)
+            _ _ _ h01 hfail
+          refine ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by
+            simp [List.length_cons, List.length_nil] <;> omega)⟩
+      | true :: false :: rest =>
+          have h0 :=
+            dfr_evals_parseTag0_true_one (false :: rest) inp aux []
+          have h1 :=
+            dfr_evals_parseTag1T_bin_one false rest inp aux []
+          have h01 := EvalsToInTime.trans decodeFormulaResultComputer.step 1 1
+            _ _ _ h0 h1
+          have hrest : rest.length < f := by
+            simp only [List.length_cons] at hfuel
+            omega
+          cases hφ : decodeFormulaPrefixFuel f rest with
+          | none =>
+              have hfail := ih rest (true :: aux) hrest hφ
+              have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 2
+                (3 * rest.length + inp.length + (true :: aux).length + 5)
+                _ _ _ h01 hfail
+              refine ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by
+                simp [List.length_cons, List.length_nil] <;> omega)⟩
+          | some pr =>
+              rcases pr with ⟨φ, rest₁⟩
+              have hψ : decodeFormulaPrefixFuel f rest₁ = none := by
+                simp only [decodeFormulaPrefixFuel, hφ] at h
+                cases hs : decodeFormulaPrefixFuel f rest₁ with
+                | none => rfl
+                | some _ => simp [hs] at h
+              have hs : rest = encodeFormula φ ++ rest₁ :=
+                encodeFormula_append_of_decodeFormulaPrefixFuel _ hφ
+              have hrest₁ : rest₁.length < f := by
+                have : rest₁.length ≤ rest.length := by
+                  simp [hs, List.length_append] <;> omega
+                omega
+              subst hs
+              have hparse :=
+                dfr_evals_parse_formula φ rest₁ inp (true :: aux) []
+              have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 2
+                (dfrParseCost φ) _ _ _ h01 hparse
+              have hsib :=
+                dfr_evals_afterSub_sibling_one rest₁ inp aux []
+              have h3 := EvalsToInTime.trans decodeFormulaResultComputer.step
+                (dfrParseCost φ + 2) 1 _ _ _ h2 hsib
+              have hfail := ih rest₁ aux hrest₁ hψ
+              have h4 := EvalsToInTime.trans decodeFormulaResultComputer.step
+                (1 + (dfrParseCost φ + 2))
+                (3 * rest₁.length + inp.length + aux.length + 5) _ _ _ h3 hfail
+              have hcost := dfrParseCost_le φ
+              refine ⟨h4.toEvalsTo, le_trans h4.steps_le_m (by
+                simp [List.length_append, List.length_cons] at hcost ⊢ <;> omega)⟩
+      | true :: true :: rest =>
+          have h0 :=
+            dfr_evals_parseTag0_true_one (true :: rest) inp aux []
+          have h1 :=
+            dfr_evals_parseTag1T_bin_one true rest inp aux []
+          have h01 := EvalsToInTime.trans decodeFormulaResultComputer.step 1 1
+            _ _ _ h0 h1
+          have hrest : rest.length < f := by
+            simp only [List.length_cons] at hfuel
+            omega
+          cases hφ : decodeFormulaPrefixFuel f rest with
+          | none =>
+              have hfail := ih rest (true :: aux) hrest hφ
+              have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 2
+                (3 * rest.length + inp.length + (true :: aux).length + 5)
+                _ _ _ h01 hfail
+              refine ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by
+                simp [List.length_cons, List.length_nil] <;> omega)⟩
+          | some pr =>
+              rcases pr with ⟨φ, rest₁⟩
+              have hψ : decodeFormulaPrefixFuel f rest₁ = none := by
+                simp only [decodeFormulaPrefixFuel, hφ] at h
+                cases hs : decodeFormulaPrefixFuel f rest₁ with
+                | none => rfl
+                | some _ => simp [hs] at h
+              have hs : rest = encodeFormula φ ++ rest₁ :=
+                encodeFormula_append_of_decodeFormulaPrefixFuel _ hφ
+              have hrest₁ : rest₁.length < f := by
+                have : rest₁.length ≤ rest.length := by
+                  simp [hs, List.length_append] <;> omega
+                omega
+              subst hs
+              have hparse :=
+                dfr_evals_parse_formula φ rest₁ inp (true :: aux) []
+              have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 2
+                (dfrParseCost φ) _ _ _ h01 hparse
+              have hsib :=
+                dfr_evals_afterSub_sibling_one rest₁ inp aux []
+              have h3 := EvalsToInTime.trans decodeFormulaResultComputer.step
+                (dfrParseCost φ + 2) 1 _ _ _ h2 hsib
+              have hfail := ih rest₁ aux hrest₁ hψ
+              have h4 := EvalsToInTime.trans decodeFormulaResultComputer.step
+                (1 + (dfrParseCost φ + 2))
+                (3 * rest₁.length + inp.length + aux.length + 5) _ _ _ h3 hfail
+              have hcost := dfrParseCost_le φ
+              refine ⟨h4.toEvalsTo, le_trans h4.steps_le_m (by
+                simp [List.length_append, List.length_cons] at hcost ⊢ <;> omega)⟩
+
+/-- Full failure when the fuelled prefix decode returns none. -/
+noncomputable def dfr_evals_on_none_of_prefix (s : List Bool)
+    (h : decodeFormulaPrefixFuel (s.length + 1) s = none) :
+    TM2OutputsInTime decodeFormulaResultComputer s (some [true])
+      (6 * s.length + 7) := by
+  have hto := dfr_evals_to_parse s
+  have hfuel : s.length < s.length + 1 := Nat.lt_succ_self _
+  have hparse := dfr_evals_parse_fail s s [] (s.length + 1) hfuel h
+  have h1 := EvalsToInTime.trans decodeFormulaResultComputer.step (2 * s.length + 2)
+    (3 * s.length + s.length + 5) _ _ _ hto hparse
+  have hbound : EvalsToInTime decodeFormulaResultComputer.step
+      (initList decodeFormulaResultComputer s)
+      (some (haltList decodeFormulaResultComputer [true]))
+      (6 * s.length + 7) := by
+    rw [decodeFormulaResult_initList, decodeFormulaResult_haltList]
+    exact ⟨h1.toEvalsTo, le_trans h1.steps_le_m (by omega)⟩
+  exact hbound
+
+/-- Full failure for any `decodeFormula s = none`. -/
+noncomputable def dfr_evals_on_none (s : List Bool) (h : decodeFormula s = none) :
+    TM2OutputsInTime decodeFormulaResultComputer s (some [true])
+      (7 * s.length + 10) := by
+  cases hpref : decodeFormulaPrefixFuel (s.length + 1) s with
+  | none =>
+      have hout := dfr_evals_on_none_of_prefix s hpref
+      exact ⟨hout.toEvalsTo, le_trans hout.steps_le_m (by omega)⟩
+  | some pr =>
+      rcases pr with ⟨φ, rest⟩
+      have hne : rest ≠ [] := by
+        unfold decodeFormula decodeFormulaPrefix at h
+        simp only [hpref] at h
+        intro hnil
+        subst hnil
+        simp at h
+      have hout := dfr_evals_on_none_of_junk hpref hne
+      have hcost := dfrParseCost_le φ
+      have hs : s = encodeFormula φ ++ rest :=
+        encodeFormula_append_of_decodeFormulaPrefixFuel _ hpref
+      exact ⟨hout.toEvalsTo, le_trans hout.steps_le_m (by
+        simp [hs, List.length_append] at hcost ⊢ <;> omega)⟩
+
+noncomputable def decodeFormulaResultTime : Polynomial ℕ := 10 * Polynomial.X + 10
+
+theorem decodeFormulaResultTime_eval (n : ℕ) :
+    decodeFormulaResultTime.eval n = 10 * n + 10 := by
+  simp [decodeFormulaResultTime, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_X, Polynomial.eval_ofNat]
+
+/-- Full `decodeFormulaResult` is poly time via the branching FinTM2. -/
+noncomputable def decodeFormulaResultComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc decodeFormulaResult where
+  tm := decodeFormulaResultComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := decodeFormulaResultTime
+  outputsFun s := by
+    change TM2OutputsInTime decodeFormulaResultComputer (List.map id (idBitEnc s))
+      (some (List.map id (idBitEnc (decodeFormulaResult s))))
+      (decodeFormulaResultTime.eval (idBitEnc s).length)
+    simp only [idBitEnc, List.map_id, id_eq, decodeFormulaResultTime_eval]
+    cases h : decodeFormula s with
+    | none =>
+        have hout := dfr_evals_on_none s h
+        rw [decodeFormulaResult_of_none h]
+        exact ⟨hout.toEvalsTo, le_trans hout.steps_le_m (by omega)⟩
+    | some φ =>
+        have hs : encodeFormula φ = s := encodeFormula_of_decodeFormula h
+        subst hs
+        have hout := dfr_evals_on_encodeFormula φ
+        rw [decodeFormulaResult_encodeFormula]
+        have hcost := dfrParseCost_le φ
+        exact ⟨hout.toEvalsTo, le_trans hout.steps_le_m (by omega)⟩
+
+/-- Cluster B complete: `decodeFormulaResult` is poly time via the branching FinTM2. -/
+theorem decodeFormulaResult_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodeFormulaResult) :=
+  ⟨decodeFormulaResultComputableInPolyTime⟩
 
 end SATurday.Bridge

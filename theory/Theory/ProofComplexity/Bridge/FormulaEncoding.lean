@@ -76,6 +76,34 @@ theorem decodeNat_encodeNat (n : ℕ) :
     decodeNat (encodeNat n) = some (n, []) := by
   simpa using decodeNat_encodeNat_append n []
 
+/-- `decodeNat` fails iff the tape is a (possibly empty) block of only `true`. -/
+theorem decodeNat_eq_none_iff (bs : List Bool) :
+    decodeNat bs = none ↔ ∀ b ∈ bs, b = true := by
+  induction bs with
+  | nil => simp [decodeNat]
+  | cons b rest ih =>
+      cases b with
+      | false =>
+          constructor
+          · intro h; simp [decodeNat] at h
+          · intro h
+            have hf : false = true := h false (List.Mem.head (a := false) (as := rest))
+            cases hf
+      | true =>
+          constructor
+          · intro h b hb
+            cases hb with
+            | head => rfl
+            | tail _ hmem =>
+                cases hrest : decodeNat rest with
+                | none => exact (ih.mp hrest) b hmem
+                | some _ => simp [decodeNat, hrest] at h
+          · intro h
+            simp only [decodeNat]
+            have hrest : decodeNat rest = none :=
+              ih.mpr fun b hb => h b (List.Mem.tail (a := b) (b := true) hb)
+            simp [hrest]
+
 /-- Successful `decodeNat` recovers the unary encoding as a prefix. -/
 theorem encodeNat_append_of_decodeNat {bs : List Bool} {n : ℕ} {rest : List Bool}
     (h : decodeNat bs = some (n, rest)) : bs = encodeNat n ++ rest := by
@@ -254,6 +282,37 @@ theorem decodeFormula_encodeFormula (φ : PropFormula) :
       (le_rfl)
   rw [List.append_nil] at h
   simp only [h]
+
+/-- `decodeFormula` fails by prefix failure or by a nonempty unread suffix. -/
+theorem decodeFormula_eq_none_iff {bs : List Bool} :
+    decodeFormula bs = none ↔
+      let pref := decodeFormulaPrefixFuel (bs.length + 1) bs
+      pref = none ∨ ∃ φ rest, pref = some (φ, rest) ∧ rest ≠ [] := by
+  constructor
+  · intro h
+    unfold decodeFormula decodeFormulaPrefix at h
+    dsimp
+    cases hpref : decodeFormulaPrefixFuel (bs.length + 1) bs with
+    | none => exact Or.inl rfl
+    | some pr =>
+        rcases pr with ⟨φ, rest⟩
+        simp only [hpref] at h
+        -- After `cases hpref`, `pref` reduces to `some (φ, rest)`, so the equality is `rfl`.
+        refine Or.inr ⟨φ, rest, And.intro rfl ?_⟩
+        intro hnil
+        subst hnil
+        simp at h
+  · intro h
+    unfold decodeFormula decodeFormulaPrefix
+    dsimp at h
+    cases h with
+    | inl hnone => simp [hnone]
+    | inr hex =>
+        rcases hex with ⟨φ, rest, hpref, hne⟩
+        simp only [hpref]
+        cases rest with
+        | nil => exact (hne rfl).elim
+        | cons _ _ => simp
 
 /-- Successful fuelled prefix decode recovers `encodeFormula φ` as a prefix. -/
 theorem encodeFormula_append_of_decodeFormulaPrefixFuel

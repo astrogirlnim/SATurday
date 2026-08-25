@@ -1221,3 +1221,27 @@ lower bound via the bridge.
   Most important thing learned: fail path must clear the marker stack or
   haltList lies about empty aux after nested and or not failures.
   gate_pending: merge_certified.
+
+- 2026-08-25 human gate: merge_certified APPROVED for clearAuxFail and junk
+  suffix fail (axiom gate PASS; decls listed).
+  Next: prefix none parse_fail then decodeFormulaResult_computableInPolyTime.
+
+- 2026-08-25 formalize (prefix-none parse_fail and DFR polyTime): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "dfr_evals_parse_fail and decodeFormulaResult_computableInPolyTime",
+    "rationale": "Prefix none was the last fail half; closes Cluster B FinTM2."
+  }
+  ```
+  Accepted: decodeNat_eq_none_iff, decodeFormula_eq_none_iff, dfrParseCost_le,
+  parse fail helpers, dfr_evals_parse_fail (fuel inductive, halt with clear),
+  dfr_evals_on_none_of_prefix, dfr_evals_on_none,
+  decodeFormulaResultComputableInPolyTime,
+  decodeFormulaResult_computableInPolyTime (removed from Frontier).
+  Frontier: truthTable_is_prop_proof_system (TT map clusters C D).
+  Most important thing learned: nested parse_fail must finish through
+  clearAuxFail; fuel must stay strictly above work.length for children.
+  gate_pending: merge_certified.
