@@ -1245,3 +1245,27 @@ lower bound via the bridge.
   Most important thing learned: nested parse_fail must finish through
   clearAuxFail; fuel must stay strictly above work.length for children.
   gate_pending: merge_certified.
+
+- 2026-08-25 human gate: merge_certified APPROVED (gate_auto: true).
+  Rationale: axiom gate PASS and decls listed in accepted_declarations.txt.
+  Next under saturday loop: TT map Cluster C or D seed emitter toward
+  truthTable_is_prop_proof_system.
+
+- 2026-08-25 formalize (emitTautSeedComputer TT fail branch): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "emitTautSeedComputer poly time for encodeFormula tautSeed",
+    "rationale": "TT map fail branches need a fixed seed emitter before validatesTautology."
+  }
+  ```
+  Accepted: length_encodeFormula_tautSeed, emitTautSeedComputer (clear plus
+  e0 to e9), step and eval lemmas, emitTautSeedComputableInPolyTime.
+  Frontier: truthTable_is_prop_proof_system (validatesTautology FinTM2 then
+  sequencer D).
+  Most important thing learned: haltList resets var to initialState, so emit
+  must load false before halt; Bool sigma plus labeled writes beats Fin index.
+  gate_pending: merge_certified.
+  gate_auto note: Cluster B merge already applied this loop tick.

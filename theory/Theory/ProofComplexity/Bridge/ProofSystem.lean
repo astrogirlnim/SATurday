@@ -467,6 +467,412 @@ theorem truthTable_is_prop_proof_system :
 
 end ProofSystemFrontier
 
+/-! ## Cluster C/D prep: emit fixed `encodeFormula tautSeed` (TT fail branches) -/
+
+open TM2.Stmt
+
+theorem length_encodeFormula_tautSeed :
+    (encodeFormula tautSeed).length = 10 := by
+  simp [encodeFormula_tautSeed]
+
+inductive EmitSeedStack where
+  | inp | out
+  deriving DecidableEq, Repr
+
+instance : Fintype EmitSeedStack where
+  elems := {.inp, .out}
+  complete s := by cases s <;> simp
+
+/-- Clear input, then ten write labels for the fixed seed bits (high index first). -/
+inductive EmitSeedLabel where
+  | clear
+  | e0 | e1 | e2 | e3 | e4 | e5 | e6 | e7 | e8 | e9
+  deriving DecidableEq, Repr
+
+instance : Fintype EmitSeedLabel where
+  elems :=
+    {.clear, .e0, .e1, .e2, .e3, .e4, .e5, .e6, .e7, .e8, .e9}
+  complete s := by cases s <;> simp
+
+/-- Clears the input and writes `encodeFormula tautSeed` (length 10). -/
+def emitTautSeedComputer : FinTM2 where
+  K := EmitSeedStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := EmitSeedLabel
+  main := .clear
+  σ := Bool
+  initialState := false
+  m
+    | .clear =>
+        pop EmitSeedStack.inp (fun _ o => decide (o = none)) <|
+          branch id
+            (goto fun _ => EmitSeedLabel.e0)
+            (goto fun _ => EmitSeedLabel.clear)
+    | .e0 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 9 false) <|
+          goto fun _ => EmitSeedLabel.e1
+    | .e1 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 8 false) <|
+          goto fun _ => EmitSeedLabel.e2
+    | .e2 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 7 false) <|
+          goto fun _ => EmitSeedLabel.e3
+    | .e3 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 6 false) <|
+          goto fun _ => EmitSeedLabel.e4
+    | .e4 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 5 false) <|
+          goto fun _ => EmitSeedLabel.e5
+    | .e5 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 4 false) <|
+          goto fun _ => EmitSeedLabel.e6
+    | .e6 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 3 false) <|
+          goto fun _ => EmitSeedLabel.e7
+    | .e7 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 2 false) <|
+          goto fun _ => EmitSeedLabel.e8
+    | .e8 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 1 false) <|
+          goto fun _ => EmitSeedLabel.e9
+    | .e9 =>
+        push EmitSeedStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 0 false) <|
+          load (fun _ => false) halt
+
+def emitSeedStk (inp out : List Bool) : EmitSeedStack → List Bool
+  | .inp => inp
+  | .out => out
+
+def emitSeedCfg (l : Option EmitSeedLabel) (v : Bool)
+    (inp out : List Bool) : emitTautSeedComputer.Cfg :=
+  ⟨l, v, emitSeedStk inp out⟩
+
+theorem emitSeed_step_clear_cons (x : Bool) (xs out : List Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .clear) false (x :: xs) out) =
+      some (emitSeedCfg (some .clear) false xs out) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.clear, false, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_clear_nil (out : List Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .clear) false [] out) =
+      some (emitSeedCfg (some .e0) true [] out) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e0, true, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e0 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e0) v inp out) =
+      some (emitSeedCfg (some .e1) v inp
+        ((encodeFormula tautSeed).getD 9 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e1, v, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e1 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e1) v inp out) =
+      some (emitSeedCfg (some .e2) v inp
+        ((encodeFormula tautSeed).getD 8 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e2, v, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e2 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e2) v inp out) =
+      some (emitSeedCfg (some .e3) v inp
+        ((encodeFormula tautSeed).getD 7 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e3, v, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e3 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e3) v inp out) =
+      some (emitSeedCfg (some .e4) v inp
+        ((encodeFormula tautSeed).getD 6 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e4, v, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e4 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e4) v inp out) =
+      some (emitSeedCfg (some .e5) v inp
+        ((encodeFormula tautSeed).getD 5 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e5, v, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e5 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e5) v inp out) =
+      some (emitSeedCfg (some .e6) v inp
+        ((encodeFormula tautSeed).getD 4 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e6, v, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e6 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e6) v inp out) =
+      some (emitSeedCfg (some .e7) v inp
+        ((encodeFormula tautSeed).getD 3 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e7, v, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e7 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e7) v inp out) =
+      some (emitSeedCfg (some .e8) v inp
+        ((encodeFormula tautSeed).getD 2 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e8, v, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e8 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e8) v inp out) =
+      some (emitSeedCfg (some .e9) v inp
+        ((encodeFormula tautSeed).getD 1 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EmitSeedLabel.e9, v, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitSeed_step_e9 (inp out : List Bool) (v : Bool) :
+    TM2.step emitTautSeedComputer.m
+      (emitSeedCfg (some .e9) v inp out) =
+      some (emitSeedCfg none false inp
+        ((encodeFormula tautSeed).getD 0 false :: out)) := by
+  simp [emitTautSeedComputer, emitSeedCfg, emitSeedStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option EmitSeedLabel), false, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, emitSeedStk]
+
+theorem emitTautSeed_initList (s : List Bool) :
+    initList emitTautSeedComputer s =
+      emitSeedCfg (some .clear) false s [] := by
+  refine congrArg (fun stk =>
+      (⟨some EmitSeedLabel.clear, false, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [emitTautSeedComputer, emitSeedStk]
+
+theorem emitTautSeed_haltList :
+    haltList emitTautSeedComputer (encodeFormula tautSeed) =
+      emitSeedCfg none false [] (encodeFormula tautSeed) := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option EmitSeedLabel), false, stk⟩ : emitTautSeedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [emitTautSeedComputer, emitSeedStk]
+
+open StateTransition
+
+set_option maxHeartbeats 2000000
+
+def emitSeed_evals_clear_one (x : Bool) (xs out : List Bool) :
+    EvalsToInTime emitTautSeedComputer.step
+      (emitSeedCfg (some .clear) false (x :: xs) out)
+      (some (emitSeedCfg (some .clear) false xs out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (emitSeedCfg (some .clear) false (x :: xs) out)).bind
+        emitTautSeedComputer.step =
+      some (emitSeedCfg (some .clear) false xs out)
+    simp only [FinTM2.step]
+    exact emitSeed_step_clear_cons x xs out
+
+def emitSeed_evals_clear_nil (out : List Bool) :
+    EvalsToInTime emitTautSeedComputer.step
+      (emitSeedCfg (some .clear) false [] out)
+      (some (emitSeedCfg (some .e0) true [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (emitSeedCfg (some .clear) false [] out)).bind
+        emitTautSeedComputer.step =
+      some (emitSeedCfg (some .e0) true [] out)
+    simp only [FinTM2.step]
+    exact emitSeed_step_clear_nil out
+
+noncomputable def emitSeed_evals_clear (s out : List Bool) :
+    EvalsToInTime emitTautSeedComputer.step
+      (emitSeedCfg (some .clear) false s out)
+      (some (emitSeedCfg (some .clear) false [] out))
+      s.length := by
+  induction s with
+  | nil =>
+      simpa using EvalsToInTime.refl emitTautSeedComputer.step
+        (emitSeedCfg (some .clear) false [] out)
+  | cons x xs ih =>
+      have h1 := emitSeed_evals_clear_one x xs out
+      have h2 := ih
+      have h := EvalsToInTime.trans emitTautSeedComputer.step 1 xs.length
+        _ _ _ h1 h2
+      simpa [Nat.add_comm] using h
+
+def emitSeed_evals_ei (lab next : EmitSeedLabel) (bit : Bool)
+    (hstep : ∀ inp out v,
+      TM2.step emitTautSeedComputer.m (emitSeedCfg (some lab) v inp out) =
+        some (emitSeedCfg (some next) v inp (bit :: out)))
+    (inp out : List Bool) (v : Bool) :
+    EvalsToInTime emitTautSeedComputer.step
+      (emitSeedCfg (some lab) v inp out)
+      (some (emitSeedCfg (some next) v inp (bit :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (emitSeedCfg (some lab) v inp out)).bind
+        emitTautSeedComputer.step =
+      some (emitSeedCfg (some next) v inp (bit :: out))
+    simp only [FinTM2.step]
+    exact hstep inp out v
+
+def emitSeed_evals_e9 (inp out : List Bool) (v : Bool) :
+    EvalsToInTime emitTautSeedComputer.step
+      (emitSeedCfg (some .e9) v inp out)
+      (some (emitSeedCfg none false inp
+        ((encodeFormula tautSeed).getD 0 false :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (emitSeedCfg (some .e9) v inp out)).bind
+        emitTautSeedComputer.step =
+      some (emitSeedCfg none false inp
+        ((encodeFormula tautSeed).getD 0 false :: out))
+    simp only [FinTM2.step]
+    exact emitSeed_step_e9 inp out v
+
+/-- Emit all 10 seed bits then halt. -/
+noncomputable def emitSeed_evals_emit (inp : List Bool) (v : Bool) :
+    EvalsToInTime emitTautSeedComputer.step
+      (emitSeedCfg (some .e0) v inp [])
+      (some (emitSeedCfg none false inp (encodeFormula tautSeed)))
+      10 := by
+  simp only [encodeFormula_tautSeed]
+  have s0 := emitSeed_evals_ei .e0 .e1 false emitSeed_step_e0 inp [] v
+  have s1 := emitSeed_evals_ei .e1 .e2 false emitSeed_step_e1 inp [false] v
+  have t1 := EvalsToInTime.trans emitTautSeedComputer.step 1 1 _ _ _ s0
+    (by simpa [encodeFormula_tautSeed] using s1)
+  have s2 := emitSeed_evals_ei .e2 .e3 false emitSeed_step_e2 inp
+    [false, false] v
+  have t2 := EvalsToInTime.trans emitTautSeedComputer.step 2 1 _ _ _ t1
+    (by simpa [encodeFormula_tautSeed] using s2)
+  have s3 := emitSeed_evals_ei .e3 .e4 true emitSeed_step_e3 inp
+    [false, false, false] v
+  have t3 := EvalsToInTime.trans emitTautSeedComputer.step 3 1 _ _ _ t2
+    (by simpa [encodeFormula_tautSeed] using s3)
+  have s4 := emitSeed_evals_ei .e4 .e5 false emitSeed_step_e4 inp
+    [true, false, false, false] v
+  have t4 := EvalsToInTime.trans emitTautSeedComputer.step 4 1 _ _ _ t3
+    (by simpa [encodeFormula_tautSeed] using s4)
+  have s5 := emitSeed_evals_ei .e5 .e6 false emitSeed_step_e5 inp
+    [false, true, false, false, false] v
+  have t5 := EvalsToInTime.trans emitTautSeedComputer.step 5 1 _ _ _ t4
+    (by simpa [encodeFormula_tautSeed] using s5)
+  have s6 := emitSeed_evals_ei .e6 .e7 false emitSeed_step_e6 inp
+    [false, false, true, false, false, false] v
+  have t6 := EvalsToInTime.trans emitTautSeedComputer.step 6 1 _ _ _ t5
+    (by simpa [encodeFormula_tautSeed] using s6)
+  have s7 := emitSeed_evals_ei .e7 .e8 false emitSeed_step_e7 inp
+    [false, false, false, true, false, false, false] v
+  have t7 := EvalsToInTime.trans emitTautSeedComputer.step 7 1 _ _ _ t6
+    (by simpa [encodeFormula_tautSeed] using s7)
+  have s8 := emitSeed_evals_ei .e8 .e9 true emitSeed_step_e8 inp
+    [false, false, false, false, true, false, false, false] v
+  have t8 := EvalsToInTime.trans emitTautSeedComputer.step 8 1 _ _ _ t7
+    (by simpa [encodeFormula_tautSeed] using s8)
+  have s9 := emitSeed_evals_e9 inp
+    [true, false, false, false, false, true, false, false, false] v
+  have t9 := EvalsToInTime.trans emitTautSeedComputer.step 9 1 _ _ _ t8
+    (by simpa [encodeFormula_tautSeed] using s9)
+  simpa [encodeFormula_tautSeed] using t9
+
+/-- Full run: clear input, emit seed encoding. -/
+noncomputable def emitTautSeed_evals (s : List Bool) :
+    TM2OutputsInTime emitTautSeedComputer s (some (encodeFormula tautSeed))
+      (s.length + 11) := by
+  have hclear := emitSeed_evals_clear s []
+  have hnil := emitSeed_evals_clear_nil []
+  have h1 := EvalsToInTime.trans emitTautSeedComputer.step s.length 1
+    _ _ _ hclear hnil
+  have hemit := emitSeed_evals_emit [] true
+  have h1' : EvalsToInTime emitTautSeedComputer.step
+      (emitSeedCfg (some .clear) false s [])
+      (some (emitSeedCfg (some .e0) true [] []))
+      (s.length + 1) := by
+    have heq : 1 + s.length = s.length + 1 := by omega
+    exact heq ▸ h1
+  have h2 := EvalsToInTime.trans emitTautSeedComputer.step (s.length + 1) 10
+    _ _ _ h1' hemit
+  have hbound : EvalsToInTime emitTautSeedComputer.step
+      (initList emitTautSeedComputer s)
+      (some (haltList emitTautSeedComputer (encodeFormula tautSeed)))
+      (s.length + 11) := by
+    rw [emitTautSeed_initList, emitTautSeed_haltList]
+    exact ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by omega)⟩
+  exact hbound
+
+noncomputable def emitTautSeedTime : Polynomial ℕ := Polynomial.X + 11
+
+theorem emitTautSeedTime_eval (n : ℕ) :
+    emitTautSeedTime.eval n = n + 11 := by
+  simp [emitTautSeedTime, Polynomial.eval_add, Polynomial.eval_X,
+    Polynomial.eval_ofNat]
+
+/-- Emitting `encodeFormula tautSeed` is poly time (TT map fail branches). -/
+noncomputable def emitTautSeedComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun _ : List Bool => encodeFormula tautSeed) where
+  tm := emitTautSeedComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := emitTautSeedTime
+  outputsFun s := by
+    change TM2OutputsInTime emitTautSeedComputer (List.map id (idBitEnc s))
+      (some (List.map id (idBitEnc (encodeFormula tautSeed))))
+      (emitTautSeedTime.eval (idBitEnc s).length)
+    simp only [idBitEnc, List.map_id, id_eq, emitTautSeedTime_eval]
+    exact emitTautSeed_evals s
+
 /-- Cluster A complete: `decodePairResult` is poly time via the branching FinTM2. -/
 theorem decodePairResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodePairResult) :=

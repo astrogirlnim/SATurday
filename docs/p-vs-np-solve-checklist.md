@@ -18,7 +18,10 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       ProofSystem cluster 1 semantic TT map certified 2026-08-21;
       FormulaEncoding cluster B inverse encodeFormula_of_decodeFormula
       certified 2026-08-25;
-      Frontier: decodeFormulaResult FinTM2 then TT map clusters C to E).
+      decodeFormulaResult FinTM2 polyTime certified 2026-08-25;
+      emitTautSeedComputer (TT fail branch) certified 2026-08-25;
+      Frontier: validatesTautology FinTM2 then TT map sequencer for
+      truthTable_is_prop_proof_system).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.
