@@ -465,8 +465,9 @@ theorem truthTable_is_prop_proof_system :
     Nonempty (IsPropProofSystem truthTableProofSystem) := by
   sorry
 
-/-- Cluster B FinTM2 target: full `decodeFormulaResult` on arbitrary idBitEnc
-inputs (success slice via prefixFalseCopy accepted; branching FinTM2 remains). -/
+/-- Cluster B FinTM2 target: full `decodeFormulaResult` evals and poly time
+witness (`decodeFormulaResultComputer` and step lemmas accepted; multi step
+evals remain). -/
 theorem decodeFormulaResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodeFormulaResult) := by
   sorry
@@ -503,5 +504,499 @@ noncomputable def decodeFormulaResult_on_encodeFormula_computableInPolyTime :
 theorem decodeFormulaResult_on_encodeFormula_eq (φ : PropFormula) :
     decodeFormulaResult (encodeFormula φ) = false :: encodeFormula φ :=
   decodeFormulaResult_encodeFormula φ
+
+/-! ## Cluster B branching FinTM2 (formula prefix validator)
+
+Duplicate the input, validate that the copy is a full `encodeFormula` image via
+recursive descent (tag bits, unary nat, marker stack for not and binary nodes),
+then either prefix false copy or emit `[true]`. Marker bit `true` means parse one
+more sibling; `false` means not parent, continue `afterSub`. -/
+
+open TM2.Stmt
+
+inductive DFRStack where
+  | inp | aux | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype DFRStack where
+  elems := {.inp, .aux, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive DFRLabel where
+  | dupToAux | split
+  | parseTag0 | parseTag1F | parseTag1T
+  | parseNat | afterSub | checkWork
+  | writeFalse | copy | rev
+  | clearInpFail | clearWorkFail | writeTrue
+  deriving DecidableEq, Repr
+
+instance : Fintype DFRLabel where
+  elems := {.dupToAux, .split, .parseTag0, .parseTag1F, .parseTag1T, .parseNat,
+    .afterSub, .checkWork, .writeFalse, .copy, .rev, .clearInpFail, .clearWorkFail,
+    .writeTrue}
+  complete s := by cases s <;> simp
+
+/-- Branching machine realizing `decodeFormulaResult`. -/
+def decodeFormulaResultComputer : FinTM2 where
+  K := DFRStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := DFRLabel
+  main := .dupToAux
+  σ := Option Bool
+  initialState := none
+  m
+    | .dupToAux =>
+        pop DFRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.split)
+            (push DFRStack.aux (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => DFRLabel.dupToAux)
+    | .split =>
+        pop DFRStack.aux (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.parseTag0)
+            (push DFRStack.inp (fun s => s.getD false) <|
+              push DFRStack.work (fun s => s.getD false) <|
+                load (fun _ => none) <|
+                  goto fun _ => DFRLabel.split)
+    | .parseTag0 =>
+        pop DFRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.clearInpFail)
+            (branch (fun s => decide (s = some false))
+              (goto fun _ => DFRLabel.parseTag1F)
+              (goto fun _ => DFRLabel.parseTag1T))
+    | .parseTag1F =>
+        pop DFRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.clearInpFail)
+            (branch (fun s => decide (s = some false))
+              (goto fun _ => DFRLabel.parseNat)
+              (push DFRStack.aux (fun _ => false) <|
+                load (fun _ => none) <|
+                  goto fun _ => DFRLabel.parseTag0))
+    | .parseTag1T =>
+        pop DFRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.clearInpFail)
+            (push DFRStack.aux (fun _ => true) <|
+              load (fun _ => none) <|
+                goto fun _ => DFRLabel.parseTag0)
+    | .parseNat =>
+        pop DFRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.clearInpFail)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <|
+                goto fun _ => DFRLabel.parseNat)
+              (load (fun _ => none) <|
+                goto fun _ => DFRLabel.afterSub))
+    | .afterSub =>
+        pop DFRStack.aux (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.checkWork)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <|
+                goto fun _ => DFRLabel.parseTag0)
+              (load (fun _ => none) <|
+                goto fun _ => DFRLabel.afterSub))
+    | .checkWork =>
+        pop DFRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.writeFalse)
+            (goto fun _ => DFRLabel.clearInpFail)
+    | .writeFalse =>
+        push DFRStack.work (fun _ => false) <|
+          load (fun _ => none) <|
+            goto fun _ => DFRLabel.copy
+    | .copy =>
+        pop DFRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.rev)
+            (push DFRStack.work (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => DFRLabel.copy)
+    | .rev =>
+        pop DFRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            halt
+            (push DFRStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => DFRLabel.rev)
+    | .clearInpFail =>
+        pop DFRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.clearWorkFail)
+            (goto fun _ => DFRLabel.clearInpFail)
+    | .clearWorkFail =>
+        pop DFRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.writeTrue)
+            (goto fun _ => DFRLabel.clearWorkFail)
+    | .writeTrue =>
+        push DFRStack.out (fun _ => true) <|
+          load (fun _ => none) <|
+            halt
+
+def dfrStk (inp aux work out : List Bool) : DFRStack → List Bool
+  | .inp => inp
+  | .aux => aux
+  | .work => work
+  | .out => out
+
+def dfrCfg (l : Option DFRLabel) (v : Option Bool)
+    (inp aux work out : List Bool) : decodeFormulaResultComputer.Cfg :=
+  ⟨l, v, dfrStk inp aux work out⟩
+
+theorem dfr_step_dup_cons (b : Bool) (rest aux work out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .dupToAux) none (b :: rest) aux work out) =
+      some (dfrCfg (some .dupToAux) none rest (b :: aux) work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.dupToAux, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_dup_nil (aux work out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .dupToAux) none [] aux work out) =
+      some (dfrCfg (some .split) none [] aux work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.split, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_split_cons (b : Bool) (rest inp work out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .split) none inp (b :: rest) work out) =
+      some (dfrCfg (some .split) none (b :: inp) rest (b :: work) out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.split, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_split_nil (inp work out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .split) none inp [] work out) =
+      some (dfrCfg (some .parseTag0) none inp [] work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.parseTag0, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseTag0_nil (inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseTag0) none inp aux [] out) =
+      some (dfrCfg (some .clearInpFail) none inp aux [] out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearInpFail, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseTag0_false (rest inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseTag0) none inp aux (false :: rest) out) =
+      some (dfrCfg (some .parseTag1F) (some false) inp aux rest out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.parseTag1F, some false, stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseTag0_true (rest inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseTag0) none inp aux (true :: rest) out) =
+      some (dfrCfg (some .parseTag1T) (some true) inp aux rest out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.parseTag1T, some true, stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseTag1F_nil (inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseTag1F) (some false) inp aux [] out) =
+      some (dfrCfg (some .clearInpFail) none inp aux [] out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearInpFail, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseTag1F_var (rest inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseTag1F) (some false) inp aux (false :: rest) out) =
+      some (dfrCfg (some .parseNat) (some false) inp aux rest out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.parseNat, some false, stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseTag1F_not (rest inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseTag1F) (some false) inp aux (true :: rest) out) =
+      some (dfrCfg (some .parseTag0) none inp (false :: aux) rest out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.parseTag0, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseTag1T_nil (inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseTag1T) (some true) inp aux [] out) =
+      some (dfrCfg (some .clearInpFail) none inp aux [] out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearInpFail, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseTag1T_bin (b : Bool) (rest inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseTag1T) (some true) inp aux (b :: rest) out) =
+      some (dfrCfg (some .parseTag0) none inp (true :: aux) rest out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.parseTag0, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseNat_nil (v : Option Bool) (inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseNat) v inp aux [] out) =
+      some (dfrCfg (some .clearInpFail) none inp aux [] out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearInpFail, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseNat_true (v : Option Bool) (rest inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseNat) v inp aux (true :: rest) out) =
+      some (dfrCfg (some .parseNat) none inp aux rest out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.parseNat, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_parseNat_false (v : Option Bool) (rest inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .parseNat) v inp aux (false :: rest) out) =
+      some (dfrCfg (some .afterSub) none inp aux rest out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.afterSub, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_afterSub_root (inp work out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .afterSub) none inp [] work out) =
+      some (dfrCfg (some .checkWork) none inp [] work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.checkWork, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_afterSub_sibling (rest inp work out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .afterSub) none inp (true :: rest) work out) =
+      some (dfrCfg (some .parseTag0) none inp rest work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.parseTag0, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_afterSub_not (rest inp work out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .afterSub) none inp (false :: rest) work out) =
+      some (dfrCfg (some .afterSub) none inp rest work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.afterSub, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_checkWork_empty (inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .checkWork) none inp aux [] out) =
+      some (dfrCfg (some .writeFalse) none inp aux [] out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.writeFalse, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_checkWork_junk (b : Bool) (rest inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .checkWork) none inp aux (b :: rest) out) =
+      some (dfrCfg (some .clearInpFail) (some b) inp aux rest out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearInpFail, some b, stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_writeFalse (inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .writeFalse) none inp aux [] out) =
+      some (dfrCfg (some .copy) none inp aux [false] out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.copy, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_copy_cons (b : Bool) (rest aux work out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .copy) none (b :: rest) aux work out) =
+      some (dfrCfg (some .copy) none rest aux (b :: work) out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.copy, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_copy_nil (aux work out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .copy) none [] aux work out) =
+      some (dfrCfg (some .rev) none [] aux work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.rev, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_rev_cons (b : Bool) (rest inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .rev) none inp aux (b :: rest) out) =
+      some (dfrCfg (some .rev) none inp aux rest (b :: out)) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.rev, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_rev_nil (inp aux out : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .rev) none inp aux [] out) =
+      some (dfrCfg none none inp aux [] out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option DFRLabel), (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_clearInpFail_cons (b : Bool) (rest aux work out : List Bool)
+    (v : Option Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .clearInpFail) v (b :: rest) aux work out) =
+      some (dfrCfg (some .clearInpFail) (some b) rest aux work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearInpFail, some b, stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_clearInpFail_nil (aux work out : List Bool) (v : Option Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .clearInpFail) v [] aux work out) =
+      some (dfrCfg (some .clearWorkFail) none [] aux work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearWorkFail, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_clearWorkFail_cons (b : Bool) (rest inp aux out : List Bool)
+    (v : Option Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .clearWorkFail) v inp aux (b :: rest) out) =
+      some (dfrCfg (some .clearWorkFail) (some b) inp aux rest out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearWorkFail, some b, stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_clearWorkFail_nil (inp aux out : List Bool) (v : Option Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .clearWorkFail) v inp aux [] out) =
+      some (dfrCfg (some .writeTrue) none inp aux [] out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.writeTrue, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_writeTrue (inp aux work : List Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .writeTrue) none inp aux work []) =
+      some (dfrCfg none none inp aux work [true]) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option DFRLabel), (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem decodeFormulaResult_initList (s : List Bool) :
+    initList decodeFormulaResultComputer s =
+      dfrCfg (some .dupToAux) none s [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some DFRLabel.dupToAux, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [decodeFormulaResultComputer, dfrStk]
+
+theorem decodeFormulaResult_haltList (s : List Bool) :
+    haltList decodeFormulaResultComputer s =
+      dfrCfg none none [] [] [] s := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option DFRLabel), (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [decodeFormulaResultComputer, dfrStk]
 
 end SATurday.Bridge

@@ -1152,3 +1152,25 @@ lower bound via the bridge.
   Most important thing learned: formula success slice needs no new TM; only
   validation differs from pairs, so glue is the remaining engineering.
   gate_pending: merge_certified.
+
+- 2026-08-25 human gate: merge_certified APPROVED for decodeFormulaResult
+  success slice (axiom gate PASS; decls listed).
+  Next: branching FinTM2 for full decodeFormulaResult.
+
+- 2026-08-25 formalize (decodeFormulaResultComputer def and steps): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "decodeFormulaResultComputer FinTM2 with formula prefix validator steps",
+    "rationale": "Success and none output TMs exist; only validation glue remains for cluster B."
+  }
+  ```
+  Accepted: DFRStack, DFRLabel, decodeFormulaResultComputer, dfrStk, dfrCfg,
+  all dfr_step_* lemmas, decodeFormulaResult_initList,
+  decodeFormulaResult_haltList.
+  Frontier: multi step evals then decodeFormulaResult_computableInPolyTime.
+  Most important thing learned: FinTM2 σ must stay finite, so formula descent
+  uses an aux marker stack (sibling versus not) rather than a Nat fuel in σ.
+  gate_pending: merge_certified.
