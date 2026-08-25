@@ -1174,3 +1174,27 @@ lower bound via the bridge.
   Most important thing learned: FinTM2 σ must stay finite, so formula descent
   uses an aux marker stack (sibling versus not) rather than a Nat fuel in σ.
   gate_pending: merge_certified.
+
+- 2026-08-25 human gate: merge_certified APPROVED for DFR machine and steps
+  (axiom gate PASS; decls listed).
+  Next: multi step evals toward decodeFormulaResult_computableInPolyTime.
+
+- 2026-08-25 formalize (DFR multi-step evals success path): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "dfr_evals scaffolding plus parse_formula and on_encodeFormula",
+    "rationale": "Step lemmas exist; multi step evals unlock the polyTime witness."
+  }
+  ```
+  Accepted: dfr_evals_dup through fail_from_clearInp, dfrParseCost,
+  parseNat and tag helpers, dfr_evals_parse_formula (induction),
+  dfr_evals_parse_encodeFormula, dfr_evals_on_encodeFormula,
+  dfr_evals_on_nil.
+  Frontier: dfr_evals_parse_none for arbitrary decodeFormula none, then
+  decodeFormulaResult_computableInPolyTime.
+  Most important thing learned: EvalsToInTime.trans returns m2 + m1, so cost
+  casts need heq ▸ h rather than simpa on add_comm alone.
+  gate_pending: merge_certified.
