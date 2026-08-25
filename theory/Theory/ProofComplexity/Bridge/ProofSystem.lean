@@ -465,8 +465,8 @@ theorem truthTable_is_prop_proof_system :
     Nonempty (IsPropProofSystem truthTableProofSystem) := by
   sorry
 
-/-- Cluster B FinTM2 target: full `decodeFormulaResult` on none inputs
-(success evals on encodeFormula accepted; parse_none correspondence remains). -/
+/-- Cluster B FinTM2 target: full `decodeFormulaResult` when prefix decode
+returns none (`clearAuxFail` and junk-suffix failure accepted). -/
 theorem decodeFormulaResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodeFormulaResult) := by
   sorry
@@ -526,13 +526,13 @@ inductive DFRLabel where
   | parseTag0 | parseTag1F | parseTag1T
   | parseNat | afterSub | checkWork
   | writeFalse | copy | rev
-  | clearInpFail | clearWorkFail | writeTrue
+  | clearInpFail | clearWorkFail | clearAuxFail | writeTrue
   deriving DecidableEq, Repr
 
 instance : Fintype DFRLabel where
   elems := {.dupToAux, .split, .parseTag0, .parseTag1F, .parseTag1T, .parseNat,
     .afterSub, .checkWork, .writeFalse, .copy, .rev, .clearInpFail, .clearWorkFail,
-    .writeTrue}
+    .clearAuxFail, .writeTrue}
   complete s := by cases s <;> simp
 
 /-- Branching machine realizing `decodeFormulaResult`. -/
@@ -633,8 +633,13 @@ def decodeFormulaResultComputer : FinTM2 where
     | .clearWorkFail =>
         pop DFRStack.work (fun _ o => o) <|
           branch (fun s => decide (s = none))
-            (goto fun _ => DFRLabel.writeTrue)
+            (goto fun _ => DFRLabel.clearAuxFail)
             (goto fun _ => DFRLabel.clearWorkFail)
+    | .clearAuxFail =>
+        pop DFRStack.aux (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => DFRLabel.writeTrue)
+            (goto fun _ => DFRLabel.clearAuxFail)
     | .writeTrue =>
         push DFRStack.out (fun _ => true) <|
           load (fun _ => none) <|
@@ -963,7 +968,30 @@ theorem dfr_step_clearWorkFail_cons (b : Bool) (rest inp aux out : List Bool)
 theorem dfr_step_clearWorkFail_nil (inp aux out : List Bool) (v : Option Bool) :
     TM2.step decodeFormulaResultComputer.m
       (dfrCfg (some .clearWorkFail) v inp aux [] out) =
-      some (dfrCfg (some .writeTrue) none inp aux [] out) := by
+      some (dfrCfg (some .clearAuxFail) none inp aux [] out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearAuxFail, (none : Option Bool), stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_clearAuxFail_cons (b : Bool) (rest inp work out : List Bool)
+    (v : Option Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .clearAuxFail) v inp (b :: rest) work out) =
+      some (dfrCfg (some .clearAuxFail) (some b) inp rest work out) := by
+  simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DFRLabel.clearAuxFail, some b, stk⟩ :
+        decodeFormulaResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, dfrStk]
+
+theorem dfr_step_clearAuxFail_nil (inp work out : List Bool) (v : Option Bool) :
+    TM2.step decodeFormulaResultComputer.m
+      (dfrCfg (some .clearAuxFail) v inp [] work out) =
+      some (dfrCfg (some .writeTrue) none inp [] work out) := by
   simp [decodeFormulaResultComputer, dfrCfg, dfrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -1292,13 +1320,13 @@ def dfr_evals_clearWorkFail_one (b : Bool) (rest inp aux out : List Bool)
 def dfr_evals_clearWorkFail_nil (inp aux out : List Bool) (v : Option Bool) :
     EvalsToInTime decodeFormulaResultComputer.step
       (dfrCfg (some .clearWorkFail) v inp aux [] out)
-      (some (dfrCfg (some .writeTrue) none inp aux [] out)) 1 where
+      (some (dfrCfg (some .clearAuxFail) none inp aux [] out)) 1 where
   steps := 1
   steps_le_m := by decide
   evals_in_steps := by
     change (some (dfrCfg (some .clearWorkFail) v inp aux [] out)).bind
         decodeFormulaResultComputer.step =
-      some (dfrCfg (some .writeTrue) none inp aux [] out)
+      some (dfrCfg (some .clearAuxFail) none inp aux [] out)
     simp only [FinTM2.step]
     exact dfr_step_clearWorkFail_nil inp aux out v
 
@@ -1306,7 +1334,7 @@ noncomputable def dfr_evals_clearWorkFail (work inp aux out : List Bool)
     (v : Option Bool) :
     EvalsToInTime decodeFormulaResultComputer.step
       (dfrCfg (some .clearWorkFail) v inp aux work out)
-      (some (dfrCfg (some .writeTrue) none inp aux [] out))
+      (some (dfrCfg (some .clearAuxFail) none inp aux [] out))
       (work.length + 1) := by
   induction work generalizing v with
   | nil =>
@@ -1314,6 +1342,47 @@ noncomputable def dfr_evals_clearWorkFail (work inp aux out : List Bool)
   | cons b bs ih =>
       have h := EvalsToInTime.trans decodeFormulaResultComputer.step 1 (bs.length + 1)
         _ _ _ (dfr_evals_clearWorkFail_one b bs inp aux out v) (ih (some b))
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+def dfr_evals_clearAuxFail_one (b : Bool) (rest inp work out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .clearAuxFail) v inp (b :: rest) work out)
+      (some (dfrCfg (some .clearAuxFail) (some b) inp rest work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dfrCfg (some .clearAuxFail) v inp (b :: rest) work out)).bind
+        decodeFormulaResultComputer.step =
+      some (dfrCfg (some .clearAuxFail) (some b) inp rest work out)
+    simp only [FinTM2.step]
+    exact dfr_step_clearAuxFail_cons b rest inp work out v
+
+def dfr_evals_clearAuxFail_nil (inp work out : List Bool) (v : Option Bool) :
+    EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .clearAuxFail) v inp [] work out)
+      (some (dfrCfg (some .writeTrue) none inp [] work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dfrCfg (some .clearAuxFail) v inp [] work out)).bind
+        decodeFormulaResultComputer.step =
+      some (dfrCfg (some .writeTrue) none inp [] work out)
+    simp only [FinTM2.step]
+    exact dfr_step_clearAuxFail_nil inp work out v
+
+noncomputable def dfr_evals_clearAuxFail (aux inp work out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .clearAuxFail) v inp aux work out)
+      (some (dfrCfg (some .writeTrue) none inp [] work out))
+      (aux.length + 1) := by
+  induction aux generalizing v with
+  | nil =>
+      simpa using dfr_evals_clearAuxFail_nil inp work out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans decodeFormulaResultComputer.step 1 (bs.length + 1)
+        _ _ _ (dfr_evals_clearAuxFail_one b bs inp work out v) (ih (some b))
       simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
 
 def dfr_evals_writeTrue (inp aux work : List Bool) :
@@ -1329,20 +1398,23 @@ def dfr_evals_writeTrue (inp aux work : List Bool) :
     simp only [FinTM2.step]
     exact dfr_step_writeTrue inp aux work
 
-/-- Failure finisher from clearInpFail with empty work: emit `[true]`. -/
-noncomputable def dfr_evals_fail_from_clearInp (s : List Bool) :
+/-- Failure finisher from clearInpFail: clear inp, work, and aux, then emit `[true]`. -/
+noncomputable def dfr_evals_fail_from_clearInp (s work aux : List Bool)
+    (v : Option Bool := none) :
     EvalsToInTime decodeFormulaResultComputer.step
-      (dfrCfg (some .clearInpFail) none s [] [] [])
+      (dfrCfg (some .clearInpFail) v s aux work [])
       (some (dfrCfg none none [] [] [] [true]))
-      (s.length + 3) := by
-  have h1 := dfr_evals_clearInp s [] [] [] none
-  have h2 := dfr_evals_clearWorkFail [] [] [] [] none
-  have h12 := EvalsToInTime.trans decodeFormulaResultComputer.step (s.length + 1) 1
-    _ _ _ h1 h2
-  have h3 := dfr_evals_writeTrue [] [] []
-  -- trans yields m₂ + m₁ = 1 + (1 + (s.length + 1)) after the next step
+      (s.length + work.length + aux.length + 4) := by
+  have h1 := dfr_evals_clearInp s aux work [] v
+  have h2 := dfr_evals_clearWorkFail work [] aux [] none
+  have h12 := EvalsToInTime.trans decodeFormulaResultComputer.step (s.length + 1)
+    (work.length + 1) _ _ _ h1 h2
+  have h3 := dfr_evals_clearAuxFail aux [] [] [] none
+  have h123 := EvalsToInTime.trans decodeFormulaResultComputer.step
+    ((work.length + 1) + (s.length + 1)) (aux.length + 1) _ _ _ h12 h3
+  have h4 := dfr_evals_writeTrue [] [] []
   have h := EvalsToInTime.trans decodeFormulaResultComputer.step
-    (1 + (s.length + 1)) 1 _ _ _ h12 h3
+    ((aux.length + 1) + ((work.length + 1) + (s.length + 1))) 1 _ _ _ h123 h4
   refine ⟨h.toEvalsTo, le_trans h.steps_le_m ?_⟩
   omega
 
@@ -1671,19 +1743,84 @@ noncomputable def dfr_evals_on_encodeFormula (φ : PropFormula) :
 
 /-- Empty input fails at parseTag0 and emits `[true]`. -/
 noncomputable def dfr_evals_on_nil :
-    TM2OutputsInTime decodeFormulaResultComputer [] (some [true]) 6 := by
+    TM2OutputsInTime decodeFormulaResultComputer [] (some [true]) 7 := by
   have hto := dfr_evals_to_parse []
   have hfail0 := dfr_evals_parseTag0_nil_one [] [] []
   have h1 := EvalsToInTime.trans decodeFormulaResultComputer.step 2 1
     _ _ _ hto hfail0
-  have hfail := dfr_evals_fail_from_clearInp []
-  have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 3 3
+  have hfail := dfr_evals_fail_from_clearInp [] [] []
+  have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step 3 4
     _ _ _ h1 hfail
   have hbound : EvalsToInTime decodeFormulaResultComputer.step
       (initList decodeFormulaResultComputer [])
-      (some (haltList decodeFormulaResultComputer [true])) 6 := by
+      (some (haltList decodeFormulaResultComputer [true])) 7 := by
     rw [decodeFormulaResult_initList, decodeFormulaResult_haltList]
     exact ⟨h2.toEvalsTo, le_trans h2.steps_le_m (by omega)⟩
   exact hbound
+
+def dfr_evals_checkWork_junk_one (b : Bool) (rest inp aux out : List Bool) :
+    EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .checkWork) none inp aux (b :: rest) out)
+      (some (dfrCfg (some .clearInpFail) (some b) inp aux rest out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (dfrCfg (some .checkWork) none inp aux (b :: rest) out)).bind
+        decodeFormulaResultComputer.step =
+      some (dfrCfg (some .clearInpFail) (some b) inp aux rest out)
+    simp only [FinTM2.step]
+    exact dfr_step_checkWork_junk b rest inp aux out
+
+/-- When a full formula prefix is followed by junk, fail at checkWork. -/
+noncomputable def dfr_evals_on_encodeFormula_junk (φ : PropFormula) (junk : List Bool)
+    (hjunk : junk ≠ []) :
+    TM2OutputsInTime decodeFormulaResultComputer (encodeFormula φ ++ junk)
+      (some [true])
+      (4 * (encodeFormula φ ++ junk).length + dfrParseCost φ + 10) := by
+  let s := encodeFormula φ ++ junk
+  have hto := dfr_evals_to_parse s
+  have hparse := dfr_evals_parse_formula φ junk s [] []
+  have hparse' : EvalsToInTime decodeFormulaResultComputer.step
+      (dfrCfg (some .parseTag0) none s [] s [])
+      (some (dfrCfg (some .afterSub) none s [] junk []))
+      (dfrParseCost φ) := by
+    simpa [s] using hparse
+  have h1 := EvalsToInTime.trans decodeFormulaResultComputer.step (2 * s.length + 2)
+    (dfrParseCost φ) _ _ _ hto hparse'
+  have hroot := dfr_evals_afterSub_root_one s junk []
+  have h2 := EvalsToInTime.trans decodeFormulaResultComputer.step
+    (dfrParseCost φ + (2 * s.length + 2)) 1 _ _ _
+    (by simpa [Nat.add_comm] using h1) hroot
+  cases junk with
+  | nil => exact (hjunk rfl).elim
+  | cons b rest =>
+      have hjunk1 := dfr_evals_checkWork_junk_one b rest s [] []
+      have h3 := EvalsToInTime.trans decodeFormulaResultComputer.step
+        (1 + (dfrParseCost φ + (2 * s.length + 2))) 1 _ _ _ h2 hjunk1
+      have hfail := dfr_evals_fail_from_clearInp s rest [] (some b)
+      have h4 := EvalsToInTime.trans decodeFormulaResultComputer.step
+        (1 + (1 + (dfrParseCost φ + (2 * s.length + 2))))
+        (s.length + rest.length + 4) _ _ _ h3 hfail
+      have hbound : EvalsToInTime decodeFormulaResultComputer.step
+          (initList decodeFormulaResultComputer s)
+          (some (haltList decodeFormulaResultComputer [true]))
+          (4 * s.length + dfrParseCost φ + 10) := by
+        rw [decodeFormulaResult_initList, decodeFormulaResult_haltList]
+        exact ⟨h4.toEvalsTo, le_trans h4.steps_le_m (by
+          simp [s, List.length_append]; omega)⟩
+      exact hbound
+
+/-- Full failure when `decodeFormula s = none` via leftover suffix after a valid
+prefix (prefix none failure remains for the next cluster). -/
+noncomputable def dfr_evals_on_none_of_junk {s : List Bool} {φ : PropFormula}
+    {rest : List Bool}
+    (hpref : decodeFormulaPrefixFuel (s.length + 1) s = some (φ, rest))
+    (hne : rest ≠ []) :
+    TM2OutputsInTime decodeFormulaResultComputer s (some [true])
+      (4 * s.length + dfrParseCost φ + 10) := by
+  have hs : s = encodeFormula φ ++ rest :=
+    encodeFormula_append_of_decodeFormulaPrefixFuel _ hpref
+  subst hs
+  exact dfr_evals_on_encodeFormula_junk φ rest hne
 
 end SATurday.Bridge

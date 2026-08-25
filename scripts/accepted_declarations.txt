@@ -1432,3 +1432,13 @@ SATurday.Bridge.dfr_evals_parse_formula
 SATurday.Bridge.dfr_evals_parse_encodeFormula
 SATurday.Bridge.dfr_evals_on_encodeFormula
 SATurday.Bridge.dfr_evals_on_nil
+
+# R5 ProofSystem cluster B clearAuxFail and junk-suffix fail (2026-08-25)
+SATurday.Bridge.dfr_step_clearAuxFail_cons
+SATurday.Bridge.dfr_step_clearAuxFail_nil
+SATurday.Bridge.dfr_evals_clearAuxFail_one
+SATurday.Bridge.dfr_evals_clearAuxFail_nil
+SATurday.Bridge.dfr_evals_clearAuxFail
+SATurday.Bridge.dfr_evals_checkWork_junk_one
+SATurday.Bridge.dfr_evals_on_encodeFormula_junk
+SATurday.Bridge.dfr_evals_on_none_of_junk

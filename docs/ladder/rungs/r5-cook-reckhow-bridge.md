@@ -1198,3 +1198,26 @@ lower bound via the bridge.
   Most important thing learned: EvalsToInTime.trans returns m2 + m1, so cost
   casts need heq ▸ h rather than simpa on add_comm alone.
   gate_pending: merge_certified.
+
+- 2026-08-25 human gate: merge_certified APPROVED for DFR success path evals
+  (axiom gate PASS; decls listed).
+  Next: dfr_evals_parse_none then decodeFormulaResult_computableInPolyTime.
+
+- 2026-08-25 formalize (clearAuxFail plus junk suffix fail): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "clearAuxFail on fail path and dfr_evals_on_none_of_junk",
+    "rationale": "Mid parse failure left markers on aux; junk suffix is the easy none half."
+  }
+  ```
+  Accepted: clearAuxFail label and steps, clearAuxFail evals, generalized
+  fail_from_clearInp (clears inp work aux), dfr_evals_checkWork_junk_one,
+  dfr_evals_on_encodeFormula_junk, dfr_evals_on_none_of_junk; on_nil cost
+  updated.
+  Frontier: prefix none parse_fail, then decodeFormulaResult_computableInPolyTime.
+  Most important thing learned: fail path must clear the marker stack or
+  haltList lies about empty aux after nested and or not failures.
+  gate_pending: merge_certified.
