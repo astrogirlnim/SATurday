@@ -1130,3 +1130,25 @@ lower bound via the bridge.
   Most important thing learned: fuelled prefix inverse by tag cases mirrors
   encodePair_of_decodePair and gives the false :: bs success rewrite for free.
   gate_pending: merge_certified.
+
+- 2026-08-25 human gate: merge_certified APPROVED for encodeFormula inverse
+  cluster (axiom gate PASS; decls in accepted_declarations.txt).
+  Next: formalize FinTM2 success slice for decodeFormulaResult.
+
+- 2026-08-25 formalize (decodeFormulaResult success slice FinTM2): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "decodeFormulaResult_on_encodeFormula via prefixFalseCopyComputer",
+    "rationale": "Mirror cluster A: on encodeFormula images, output is false :: encodeFormula."
+  }
+  ```
+  Accepted: decodeFormulaResult_on_encodeFormula_computableInPolyTime,
+  decodeFormulaResult_on_encodeFormula_eq (reuses prefixFalseCopyComputer).
+  Frontier: decodeFormulaResult_computableInPolyTime (branching FinTM2;
+  constTrueList already covers the none output shape).
+  Most important thing learned: formula success slice needs no new TM; only
+  validation differs from pairs, so glue is the remaining engineering.
+  gate_pending: merge_certified.

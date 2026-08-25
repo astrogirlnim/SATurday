@@ -1346,3 +1346,7 @@ SATurday.Bridge.decodeFormulaResult_of_some
 SATurday.Bridge.decodeFormulaResult_eq
 SATurday.Bridge.decodeFormula_isSome_iff
 SATurday.Bridge.length_decodeFormulaResult_le
+
+# R5 ProofSystem cluster B success slice: decodeFormulaResult on encodeFormula (2026-08-25)
+SATurday.Bridge.decodeFormulaResult_on_encodeFormula_computableInPolyTime
+SATurday.Bridge.decodeFormulaResult_on_encodeFormula_eq

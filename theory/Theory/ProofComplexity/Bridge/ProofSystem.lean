@@ -465,8 +465,8 @@ theorem truthTable_is_prop_proof_system :
     Nonempty (IsPropProofSystem truthTableProofSystem) := by
   sorry
 
-/-- Cluster B FinTM2 target: realize `decodeFormulaResult` in poly time (option
-tape format and encode inverse accepted; FinTM2 remains). -/
+/-- Cluster B FinTM2 target: full `decodeFormulaResult` on arbitrary idBitEnc
+inputs (success slice via prefixFalseCopy accepted; branching FinTM2 remains). -/
 theorem decodeFormulaResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodeFormulaResult) := by
   sorry
@@ -477,5 +477,31 @@ end ProofSystemFrontier
 theorem decodePairResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodePairResult) :=
   ⟨decodePairResultComputableInPolyTime⟩
+
+/-! ## Cluster B success slice: `decodeFormulaResult` on `encodeFormula` inputs -/
+
+/-- On well formed formula encodings, `prefixFalseCopyComputer` realizes
+`decodeFormulaResult ∘ encodeFormula`. -/
+noncomputable def decodeFormulaResult_on_encodeFormula_computableInPolyTime :
+    TM2ComputableInPolyTime encodeFormula idBitEnc
+      (fun φ => decodeFormulaResult (encodeFormula φ)) where
+  tm := prefixFalseCopyComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := prefixFalseCopyTime
+  outputsFun φ := by
+    change TM2OutputsInTime prefixFalseCopyComputer
+      (List.map id (encodeFormula φ))
+      (some (List.map id (idBitEnc (decodeFormulaResult (encodeFormula φ)))))
+      (prefixFalseCopyTime.eval (encodeFormula φ).length)
+    simp only [idBitEnc, List.map_id, id_eq, decodeFormulaResult_encodeFormula,
+      prefixFalseCopyTime_eval]
+    exact prefixFalseCopy_evals (encodeFormula φ)
+
+/-- Same success rewrite under identity encodings: well formed inputs are exactly
+`encodeFormula` images, and `decodeFormulaResult` is `false :: ·` on those. -/
+theorem decodeFormulaResult_on_encodeFormula_eq (φ : PropFormula) :
+    decodeFormulaResult (encodeFormula φ) = false :: encodeFormula φ :=
+  decodeFormulaResult_encodeFormula φ
 
 end SATurday.Bridge
