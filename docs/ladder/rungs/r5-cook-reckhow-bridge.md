@@ -1366,3 +1366,25 @@ lower bound via the bridge.
 
 - 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
   Next: branching FinTM2 for validatesTautologyResult_on_pair.
+
+- 2026-09-02 formalize (Cluster C glue lemmas): BLOCKED.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "branching FinTM2 for validatesTautologyResult_on_pair",
+    "rationale": "Fallback wake; reject and accept slices certified, glue remains."
+  }
+  ```
+  Accepted: validatesTautologyResult_on_pair_eq_decodePairResult_on_fail,
+  validatesTautologyResult_on_pair_eq_inner.
+  Blocked obligation quoted: on success branch, enumerate assignments up to
+  `|table|`, compare to table, branch to `false :: φCode` or `[true]`.
+  Frontier: validatesTautologyResult_computableInPolyTime.
+  Most important thing learned: FinTM2 glue is table enumeration engineering;
+  semantic slices and cost model are ready, machine Stmt work is the sole gap.
+  gate_pending: merge_certified.
+
+- 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
+  Next: table enumeration FinTM2 or prove revision for alternate validation path.

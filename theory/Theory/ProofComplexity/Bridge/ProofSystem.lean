@@ -2798,11 +2798,29 @@ theorem validatesTautologyResult_on_pairCost_le_time_eval (π : List Bool) :
   simp [validatesTautologyResult_on_pairTime_eval]
   exact h
 
+/-- Pair decode failure agrees with Cluster A reject tape `[true]`. -/
+theorem validatesTautologyResult_on_pair_eq_decodePairResult_on_fail {π : List Bool}
+    (h : decodePair π = none) :
+    validatesTautologyResult_on_pair π = decodePairResult π := by
+  rw [validatesTautologyResult_on_pair_of_none h, decodePairResult_of_none h]
+
+/-- Successful pair decode reduces to inner validation on the components. -/
+theorem validatesTautologyResult_on_pair_eq_inner {π φCode table : List Bool}
+    (h : decodePair π = some (φCode, table)) :
+    validatesTautologyResult_on_pair π =
+      validatesTautologyResult φCode table := by
+  simp [validatesTautologyResult_on_pair, h]
+
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
 formula, recompute or compare the table under `|table|` fuel, then branch to
-the reject or accept slices above. -/
+the reject or accept slices above.
+
+Blocked obligation (2026-09-02): on the success branch, enumerate assignments
+only up to `|table|`, recompute `truthTableOf φ` or compare bit by bit, and
+halt with `false :: φCode` or `[true]`. Reject and tautology accept slices are
+already certified; this cycle pins only the glue lemmas above. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by
