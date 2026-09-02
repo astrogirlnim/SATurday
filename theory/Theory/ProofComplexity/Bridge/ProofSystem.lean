@@ -2678,11 +2678,74 @@ theorem length_validatesTautologyResult_on_pair_le (π : List Bool) :
       have hfst := length_fst_le_of_decodePair h
       exact Nat.le_trans hout (Nat.add_le_add_right hfst 1)
 
+/-- Malformed pair encoding rejects immediately with `[true]`. -/
+theorem validatesTautologyResult_on_pair_of_none {π : List Bool}
+    (h : decodePair π = none) :
+    validatesTautologyResult_on_pair π = [true] := by
+  simp [validatesTautologyResult_on_pair, h]
+
+/-- Canonical table validates iff the formula is a tautology. -/
+theorem validatesTautology_truthTableOf_iff (φ : PropFormula) :
+    validatesTautology φ (truthTableOf φ) ↔ φ.Tautology :=
+  ⟨tautology_of_validatesTautology φ (truthTableOf φ),
+    validatesTautology_truthTableOf_of_tautology φ⟩
+
+/-- On `encodeFormula φ` with its own truth table, validation is exactly the
+tautology test, and accept copies `false :: encodeFormula φ`. -/
+theorem validatesTautologyResult_truthTableOf (φ : PropFormula) :
+    validatesTautologyResult (encodeFormula φ) (truthTableOf φ) =
+      if validatesTautology φ (truthTableOf φ) then false :: encodeFormula φ
+      else [true] := by
+  simp [validatesTautologyResult, decodeFormula_encodeFormula]
+
+theorem validatesTautologyResult_truthTableOf_of_tautology (φ : PropFormula)
+    (h : φ.Tautology) :
+    validatesTautologyResult (encodeFormula φ) (truthTableOf φ) =
+      false :: encodeFormula φ := by
+  have hval := validatesTautology_truthTableOf_of_tautology φ h
+  simpa [validatesTautologyResult_truthTableOf, hval]
+
+theorem validatesTautologyResult_on_pair_truthTableOf_of_tautology (φ : PropFormula)
+    (h : φ.Tautology) :
+    validatesTautologyResult_on_pair
+        (encodePair (encodeFormula φ, truthTableOf φ)) =
+      false :: encodeFormula φ := by
+  simp [validatesTautologyResult_on_pair_encodePair,
+    validatesTautologyResult_truthTableOf_of_tautology φ h]
+
+/-- Reject branch of Cluster C: constant `[true]` is already poly time. -/
+theorem validatesTautologyResult_reject_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun _ : List Bool => ([true] : List Bool))) :=
+  ⟨constTrueListComputableInPolyTime⟩
+
+/-- Accept slice of Cluster C: on tautologies with the canonical table, the map
+reduces to `false :: encodeFormula φ`, realized by `prefixFalseCopyComputer`. -/
+noncomputable def validatesTautologyResult_tautologySliceComputableInPolyTime :
+    TM2ComputableInPolyTime encodeFormula idBitEnc
+      (fun φ => false :: encodeFormula φ) where
+  tm := prefixFalseCopyComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := prefixFalseCopyTime
+  outputsFun φ := by
+    change TM2OutputsInTime prefixFalseCopyComputer
+      (List.map id (encodeFormula φ))
+      (some (List.map id (idBitEnc (false :: encodeFormula φ))))
+      (prefixFalseCopyTime.eval (encodeFormula φ).length)
+    simp only [idBitEnc, List.map_id, id_eq, prefixFalseCopyTime_eval]
+    exact prefixFalseCopy_evals (encodeFormula φ)
+
+theorem validatesTautologyResult_tautologySlice_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime encodeFormula idBitEnc
+      (fun φ => false :: encodeFormula φ)) :=
+  ⟨validatesTautologyResult_tautologySliceComputableInPolyTime⟩
+
 namespace ProofSystemFrontier
 
-/-- FinTM2 poly time witness for `validatesTautologyResult_on_pair` (Cluster C).
-Must decode the pair, run fuel bounded formula decode, enumerate assignments up to
-`|table|`, compare to `table`, and branch on the `[true]` reject convention. -/
+/-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
+formula, recompute or compare the table under `|table|` fuel, then branch to
+the reject or accept slices above. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by

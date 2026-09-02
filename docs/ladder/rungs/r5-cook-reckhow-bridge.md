@@ -1318,3 +1318,29 @@ lower bound via the bridge.
 - 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
   Rationale: axiom gate PASS and decls listed.
   Next: FinTM2 body for validatesTautologyResult_on_pair.
+
+- 2026-09-02 formalize (Cluster C accept or reject slices): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "validatesTautologyResult reject and tautology accept slices",
+    "rationale": "Reuse constTrueList and prefixFalseCopy before full branching FinTM2."
+  }
+  ```
+  Accepted: validatesTautologyResult_on_pair_of_none,
+  validatesTautology_truthTableOf_iff, validatesTautologyResult_truthTableOf,
+  validatesTautologyResult_truthTableOf_of_tautology,
+  validatesTautologyResult_on_pair_truthTableOf_of_tautology,
+  validatesTautologyResult_reject_computableInPolyTime,
+  validatesTautologyResult_tautologySliceComputableInPolyTime,
+  validatesTautologyResult_tautologySlice_computableInPolyTime.
+  Frontier: validatesTautologyResult_computableInPolyTime (branching FinTM2 glue).
+  Most important thing learned: Cluster C ends as a branch between two already
+  certified TMs; the open work is decode plus table compare, not new tape ops.
+  gate_pending: merge_certified.
+
+- 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
+  Rationale: axiom gate PASS and decls listed.
+  Next: branching FinTM2 for validatesTautologyResult_on_pair.

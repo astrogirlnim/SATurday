@@ -21,7 +21,8 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       decodeFormulaResult FinTM2 polyTime certified 2026-08-25;
       emitTautSeedComputer (TT fail branch) certified 2026-08-25;
       validatesTautologyResult functional layer certified 2026-09-02;
-      Frontier: validatesTautology FinTM2 then TT map sequencer for
+      Cluster C reject and tautology accept slices certified 2026-09-02;
+      Frontier: validatesTautology FinTM2 glue then TT map sequencer for
       truthTable_is_prop_proof_system).
 
 ## 1) Pick One Main Attack
