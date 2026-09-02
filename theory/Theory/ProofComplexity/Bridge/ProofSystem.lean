@@ -2559,4 +2559,79 @@ theorem decodeFormulaResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc decodeFormulaResult) :=
   ⟨decodeFormulaResultComputableInPolyTime⟩
 
+/-! ## Cluster C prep: `validatesTautologyResult` (functional layer before FinTM2)
+
+Branching FinTM2 for `validatesTautology` follows the same tape convention as
+`decodePairResult` and `decodeFormulaResult`: `[true]` means reject (emit seed),
+`false :: φCode` means accept and copy the formula encoding. -/
+
+/-- Linear cost model for validation: O(|φCode| · |table|) in the prove pin. -/
+def validatesTautologyCost (φCode table : List Bool) : ℕ :=
+  φCode.length * (table.length + 1) + table.length + 1
+
+theorem validatesTautologyCost_eq (φCode table : List Bool) :
+    validatesTautologyCost φCode table =
+      (φCode.length + 1) * (table.length + 1) := by
+  unfold validatesTautologyCost
+  ring
+
+theorem validatesTautologyCost_le (φCode table : List Bool) :
+    validatesTautologyCost φCode table ≤
+      (φCode.length + 1) * (table.length + 1) :=
+  le_of_eq (validatesTautologyCost_eq φCode table)
+
+/-- Pure function the eventual FinTM2 must realize on decoded `(φCode, table)`. -/
+def validatesTautologyResult (φCode table : List Bool) : List Bool :=
+  match decodeFormula φCode with
+  | none => [true]
+  | some φ =>
+      if validatesTautology φ table then false :: φCode else [true]
+
+theorem validatesTautologyResult_of_valid {φCode : List Bool} {φ : PropFormula}
+    {table : List Bool} (hdec : decodeFormula φCode = some φ)
+    (hval : validatesTautology φ table) :
+    validatesTautologyResult φCode table = false :: φCode := by
+  simp [validatesTautologyResult, hdec, hval]
+
+theorem validatesTautologyResult_of_decode_fail {φCode table : List Bool}
+    (h : decodeFormula φCode = none) :
+    validatesTautologyResult φCode table = [true] := by
+  simp [validatesTautologyResult, h]
+
+theorem validatesTautologyResult_of_invalid_table {φCode : List Bool}
+    {φ : PropFormula} {table : List Bool} (hdec : decodeFormula φCode = some φ)
+    (hval : ¬ validatesTautology φ table) :
+    validatesTautologyResult φCode table = [true] := by
+  simp [validatesTautologyResult, hdec, hval]
+
+theorem validatesTautologyResult_eq (φCode table : List Bool) :
+    validatesTautologyResult φCode table =
+      match decodeFormula φCode with
+      | none => [true]
+      | some φ =>
+          if validatesTautology φ table then false :: φCode else [true] := by
+  cases h : decodeFormula φCode with
+  | none => simp [validatesTautologyResult, h]
+  | some φ =>
+      by_cases hval : validatesTautology φ table <;>
+        simp [validatesTautologyResult, h, hval]
+
+theorem length_validatesTautologyResult_le (φCode table : List Bool) :
+    (validatesTautologyResult φCode table).length ≤ φCode.length + 1 := by
+  simp only [validatesTautologyResult]
+  cases h : decodeFormula φCode with
+  | none => simp
+  | some φ =>
+      by_cases hval : validatesTautology φ table
+      · simp [hval]
+      · simp [hval]
+
+/-- On the TT map success branch, output is `φCode` iff validation accepts. -/
+theorem truthTableProofSystem_output_φCode {π φCode table : List Bool} {φ : PropFormula}
+    (hpair : decodePair π = some (φCode, table))
+    (hφ : decodeFormula φCode = some φ) (hval : validatesTautology φ table) :
+    truthTableProofSystem π = φCode := by
+  unfold truthTableProofSystem
+  simp [hpair, hφ, hval]
+
 end SATurday.Bridge

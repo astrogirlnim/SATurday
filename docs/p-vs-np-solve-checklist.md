@@ -20,6 +20,7 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       certified 2026-08-25;
       decodeFormulaResult FinTM2 polyTime certified 2026-08-25;
       emitTautSeedComputer (TT fail branch) certified 2026-08-25;
+      validatesTautologyResult functional layer certified 2026-09-02;
       Frontier: validatesTautology FinTM2 then TT map sequencer for
       truthTable_is_prop_proof_system).
 

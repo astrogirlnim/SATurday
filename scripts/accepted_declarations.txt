@@ -1490,3 +1490,14 @@ SATurday.Bridge.emitTautSeed_evals
 SATurday.Bridge.emitTautSeedTime
 SATurday.Bridge.emitTautSeedTime_eval
 SATurday.Bridge.emitTautSeedComputableInPolyTime
+# R5 ProofSystem Cluster C prep: validatesTautologyResult (2026-09-02)
+SATurday.Bridge.validatesTautologyCost
+SATurday.Bridge.validatesTautologyCost_eq
+SATurday.Bridge.validatesTautologyCost_le
+SATurday.Bridge.validatesTautologyResult
+SATurday.Bridge.validatesTautologyResult_of_valid
+SATurday.Bridge.validatesTautologyResult_of_decode_fail
+SATurday.Bridge.validatesTautologyResult_of_invalid_table
+SATurday.Bridge.validatesTautologyResult_eq
+SATurday.Bridge.length_validatesTautologyResult_le
+SATurday.Bridge.truthTableProofSystem_output_φCode

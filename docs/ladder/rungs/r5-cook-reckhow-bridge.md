@@ -1269,3 +1269,28 @@ lower bound via the bridge.
   must load false before halt; Bool sigma plus labeled writes beats Fin index.
   gate_pending: merge_certified.
   gate_auto note: Cluster B merge already applied this loop tick.
+
+- 2026-09-02 formalize (validatesTautologyResult Cluster C prep): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "validatesTautologyCost and validatesTautologyResult functional layer",
+    "rationale": "Cluster C FinTM2 needs certified tape format and cost before Stmt plumbing."
+  }
+  ```
+  Accepted: validatesTautologyCost, validatesTautologyCost_eq,
+  validatesTautologyCost_le, validatesTautologyResult,
+  validatesTautologyResult_of_valid, validatesTautologyResult_of_decode_fail,
+  validatesTautologyResult_of_invalid_table, validatesTautologyResult_eq,
+  length_validatesTautologyResult_le, truthTableProofSystem_output_φCode.
+  Frontier: validatesTautologyResult_computableInPolyTime (FinTM2), then TT map
+  sequencer Cluster D, then truthTable_is_prop_proof_system.
+  Most important thing learned: reuse the `[true]` reject and `false :: φCode`
+  accept tape convention so Cluster D can branch like decodePair and DFR.
+  gate_pending: merge_certified.
+
+- 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
+  Rationale: axiom gate PASS and decls listed in accepted_declarations.txt.
+  Next: FinTM2 for validatesTautologyResult on decoded inputs.
