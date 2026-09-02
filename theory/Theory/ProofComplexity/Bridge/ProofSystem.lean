@@ -136,6 +136,52 @@ theorem mem_allBitstrings_of_length (s : List Bool) :
       refine ⟨s, ih, ?_⟩
       cases b <;> simp
 
+/-! ## Index ordered assignments (`assignmentAt`)
+
+The i-th element of `allBitstrings n` in the fixed flatMap order used by
+`truthTableOf`. Cluster C2 index loop validation reads assignments by index. -/
+
+/-- i-th assignment in `allBitstrings n` (meaningful when `i < 2 ^ n`). -/
+def assignmentAt : ℕ → ℕ → List Bool
+  | 0, 0 => []
+  | 0, _ + 1 => []
+  | n + 1, i =>
+      if i % 2 = 0 then
+        false :: assignmentAt n (i / 2)
+      else
+        true :: assignmentAt n (i / 2)
+
+theorem assignmentAt_zero (i : ℕ) : assignmentAt 0 i = [] := by
+  cases i <;> rfl
+
+theorem assignmentAt_length (n i : ℕ) (hi : i < 2 ^ n) :
+    (assignmentAt n i).length = n := by
+  induction n generalizing i with
+  | zero =>
+      simp [allBitstrings] at hi
+      match i with
+      | 0 => simp [assignmentAt]
+  | succ n ih =>
+      simp only [assignmentAt, Nat.pow_succ] at hi ⊢
+      by_cases h : i % 2 = 0
+      · simp [h, ih (i / 2) (by omega)]
+      · simp [h, ih (i / 2) (by omega)]
+
+theorem assignmentAt_mem (n i : ℕ) (hi : i < 2 ^ n) :
+    assignmentAt n i ∈ allBitstrings n := by
+  induction n generalizing i with
+  | zero =>
+      simp [allBitstrings] at hi ⊢
+      match i with
+      | 0 => simp [assignmentAt]
+  | succ n ih =>
+      simp only [assignmentAt, allBitstrings, List.mem_flatMap, List.mem_map]
+      by_cases h : i % 2 = 0
+      · refine ⟨assignmentAt n (i / 2), ih (i / 2) (by omega), ?_⟩
+        simp [List.mem_cons, assignmentAt, h]
+      · refine ⟨assignmentAt n (i / 2), ih (i / 2) (by omega), ?_⟩
+        simp [List.mem_cons, assignmentAt, h]
+
 /-- Truth table of `φ` on all assignments to variables `0 .. maxVar`. -/
 def truthTableOf (φ : PropFormula) : List Bool :=
   (allBitstrings (φ.maxVar + 1)).map (fun σ => φ.evalOn σ)

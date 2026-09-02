@@ -1526,3 +1526,8 @@ SATurday.Bridge.validatesTautologyResult_on_pairCost_le_time_eval
 # R5 ProofSystem Cluster C glue lemmas (2026-09-02)
 SATurday.Bridge.validatesTautologyResult_on_pair_eq_decodePairResult_on_fail
 SATurday.Bridge.validatesTautologyResult_on_pair_eq_inner
+# R5 ProofSystem Cluster C2 assignmentAt prep (2026-09-02)
+SATurday.Bridge.assignmentAt
+SATurday.Bridge.assignmentAt_zero
+SATurday.Bridge.assignmentAt_length
+SATurday.Bridge.assignmentAt_mem

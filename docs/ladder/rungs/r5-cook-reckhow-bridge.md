@@ -1466,3 +1466,23 @@ lower bound via the bridge.
 - 2026-09-02 human gate: accept_prose APPROVED (gate_auto: true).
   Rationale: plan matches certified cost model and avoids monolithic enumeration.
   Next formalize: `assignmentAt` functional layer then index loop FinTM2.
+
+- 2026-09-02 formalize (assignmentAt Cluster C2 prep): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "assignmentAt functional layer",
+    "rationale": "Index loop plan needs canonical i-th assignment in flatMap order."
+  }
+  ```
+  Accepted: assignmentAt, assignmentAt_zero, assignmentAt_length, assignmentAt_mem.
+  Frontier: allBitstrings_get_eq_assignmentAt, truthTableOf_get_eq_evalOn,
+  validatesTautologyResult_computableInPolyTime.
+  Most important thing learned: flatMap order is interleaved false or true per
+  index parity, not block grouped by assignment index.
+  gate_pending: merge_certified.
+
+- 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
+  Next: allBitstrings_get linkage then index loop FinTM2.
