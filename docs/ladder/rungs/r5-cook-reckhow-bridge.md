@@ -1294,3 +1294,27 @@ lower bound via the bridge.
 - 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
   Rationale: axiom gate PASS and decls listed in accepted_declarations.txt.
   Next: FinTM2 for validatesTautologyResult on decoded inputs.
+
+- 2026-09-02 formalize (validatesTautologyResult_on_pair pair tape): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "validatesTautologyResult_on_pair pair tape format",
+    "rationale": "FinTM2 Cluster C input is post decodePair tape; pin composed map before machine."
+  }
+  ```
+  Accepted: validatesTautologyPairInput, validatesTautologyResult_on_pair,
+  validatesTautologyResult_on_pair_eq, validatesTautologyResult_on_pair_of_some,
+  validatesTautologyResult_on_pair_encodePair,
+  length_validatesTautologyResult_on_pair_le.
+  Frontier: ProofSystemFrontier.validatesTautologyResult_computableInPolyTime
+  (enumerate assignments, compare table, branch).
+  Most important thing learned: pair decode failure must reject with `[true]`
+  before any validation work, matching Cluster A tape convention.
+  gate_pending: merge_certified.
+
+- 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
+  Rationale: axiom gate PASS and decls listed.
+  Next: FinTM2 body for validatesTautologyResult_on_pair.

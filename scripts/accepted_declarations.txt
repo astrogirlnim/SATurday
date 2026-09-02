@@ -1501,3 +1501,10 @@ SATurday.Bridge.validatesTautologyResult_of_invalid_table
 SATurday.Bridge.validatesTautologyResult_eq
 SATurday.Bridge.length_validatesTautologyResult_le
 SATurday.Bridge.truthTableProofSystem_output_φCode
+# R5 ProofSystem Cluster C pair tape (2026-09-02)
+SATurday.Bridge.validatesTautologyPairInput
+SATurday.Bridge.validatesTautologyResult_on_pair
+SATurday.Bridge.validatesTautologyResult_on_pair_eq
+SATurday.Bridge.validatesTautologyResult_on_pair_of_some
+SATurday.Bridge.validatesTautologyResult_on_pair_encodePair
+SATurday.Bridge.length_validatesTautologyResult_on_pair_le

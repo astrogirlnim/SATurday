@@ -2634,4 +2634,60 @@ theorem truthTableProofSystem_output_φCode {π φCode table : List Bool} {φ : 
   unfold truthTableProofSystem
   simp [hpair, hφ, hval]
 
+/-! ## Cluster C pair tape: `validatesTautologyResult` on `encodePair` inputs
+
+After Cluster A decodePair, the TT map holds `(φCode, table)` on the tape.
+The FinTM2 target is the composed map below (Cluster C machine input format). -/
+
+/-- Pair input for validation: `encodePair (φCode, table)`. -/
+def validatesTautologyPairInput (φCode table : List Bool) : List Bool :=
+  encodePair (φCode, table)
+
+/-- Validation after pair decode; rejects malformed pair encodings with `[true]`. -/
+def validatesTautologyResult_on_pair (π : List Bool) : List Bool :=
+  match decodePair π with
+  | none => [true]
+  | some (φCode, table) => validatesTautologyResult φCode table
+
+theorem validatesTautologyResult_on_pair_eq (π : List Bool) :
+    validatesTautologyResult_on_pair π =
+      match decodePair π with
+      | none => [true]
+      | some (φCode, table) => validatesTautologyResult φCode table := by
+  rfl
+
+theorem validatesTautologyResult_on_pair_of_some {π φCode table : List Bool}
+    (h : decodePair π = some (φCode, table)) :
+    validatesTautologyResult_on_pair π =
+      validatesTautologyResult φCode table := by
+  simp [validatesTautologyResult_on_pair, h]
+
+theorem validatesTautologyResult_on_pair_encodePair (φCode table : List Bool) :
+    validatesTautologyResult_on_pair (encodePair (φCode, table)) =
+      validatesTautologyResult φCode table := by
+  simp [validatesTautologyResult_on_pair, decodePair_encodePair]
+
+theorem length_validatesTautologyResult_on_pair_le (π : List Bool) :
+    (validatesTautologyResult_on_pair π).length ≤ π.length + 1 := by
+  simp only [validatesTautologyResult_on_pair]
+  cases h : decodePair π with
+  | none => simp
+  | some pw =>
+      rcases pw with ⟨φCode, table⟩
+      have hout := length_validatesTautologyResult_le φCode table
+      have hfst := length_fst_le_of_decodePair h
+      exact Nat.le_trans hout (Nat.add_le_add_right hfst 1)
+
+namespace ProofSystemFrontier
+
+/-- FinTM2 poly time witness for `validatesTautologyResult_on_pair` (Cluster C).
+Must decode the pair, run fuel bounded formula decode, enumerate assignments up to
+`|table|`, compare to `table`, and branch on the `[true]` reject convention. -/
+theorem validatesTautologyResult_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
+      validatesTautologyResult_on_pair) := by
+  sorry
+
+end ProofSystemFrontier
+
 end SATurday.Bridge
