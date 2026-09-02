@@ -1344,3 +1344,25 @@ lower bound via the bridge.
 - 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
   Rationale: axiom gate PASS and decls listed.
   Next: branching FinTM2 for validatesTautologyResult_on_pair.
+
+- 2026-09-02 formalize (Cluster C pair cost model): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "validatesTautologyResult_on_pairCost and on_pairTime",
+    "rationale": "Pin quadratic budget before branching FinTM2 glue."
+  }
+  ```
+  Accepted: validatesTautologyResult_on_pairCost,
+  validatesTautologyResult_on_pairCost_le, validatesTautologyResult_on_pairTime,
+  validatesTautologyResult_on_pairTime_eval,
+  validatesTautologyResult_on_pairCost_le_time_eval.
+  Frontier: validatesTautologyResult_computableInPolyTime (branching FinTM2).
+  Most important thing learned: reject path cost is `n + 2`; success path cost
+  is decodePair plus inner validation, both quadratic in `|π|`.
+  gate_pending: merge_certified.
+
+- 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
+  Next: branching FinTM2 for validatesTautologyResult_on_pair.

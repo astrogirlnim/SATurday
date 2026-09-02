@@ -2741,6 +2741,63 @@ theorem validatesTautologyResult_tautologySlice_computableInPolyTime :
       (fun φ => false :: encodeFormula φ)) :=
   ⟨validatesTautologyResult_tautologySliceComputableInPolyTime⟩
 
+/-! ## Cluster C cost model for branching FinTM2 glue
+
+The eventual machine branches on `decodePair`, then either runs the certified
+reject slice (`constTrueList`, cost `n + 2`) or the inner validation path. -/
+
+/-- Step budget for `validatesTautologyResult_on_pair` at input `π`. -/
+def validatesTautologyResult_on_pairCost (π : List Bool) : ℕ :=
+  match decodePair π with
+  | none => π.length + 2
+  | some (φCode, table) =>
+      decodePairCost π + validatesTautologyCost φCode table
+
+theorem validatesTautologyResult_on_pairCost_le (π : List Bool) :
+    validatesTautologyResult_on_pairCost π ≤
+      (π.length + 1) * (π.length + 2) := by
+  unfold validatesTautologyResult_on_pairCost
+  cases h : decodePair π with
+  | none =>
+      have h1 : 1 ≤ π.length + 1 := by omega
+      calc
+        π.length + 2 = 1 * (π.length + 2) := by ring
+        _ ≤ (π.length + 1) * (π.length + 2) := Nat.mul_le_mul_right _ h1
+  | some pw =>
+      rcases pw with ⟨φCode, table⟩
+      have hpair := decodePairCost_le π
+      have hval := validatesTautologyCost_le φCode table
+      have hfst := length_fst_le_of_decodePair h
+      have htable := length_ge_snd_of_decodePair h
+      have hinner : validatesTautologyCost φCode table ≤ (π.length + 1) * (π.length + 1) :=
+        calc
+          validatesTautologyCost φCode table ≤
+              (φCode.length + 1) * (table.length + 1) := hval
+          _ ≤ (π.length + 1) * (π.length + 1) := by
+            gcongr <;> omega
+      calc
+        decodePairCost π + validatesTautologyCost φCode table ≤
+            π.length + 1 + (π.length + 1) * (π.length + 1) := by omega
+        _ ≤ (π.length + 1) * (π.length + 2) := by
+          have heq : π.length + 1 + (π.length + 1) * (π.length + 1) =
+              (π.length + 1) * (π.length + 2) := by ring
+          rw [heq]
+
+noncomputable def validatesTautologyResult_on_pairTime : Polynomial ℕ :=
+  (Polynomial.X + 1) * (Polynomial.X + 2)
+
+theorem validatesTautologyResult_on_pairTime_eval (n : ℕ) :
+    validatesTautologyResult_on_pairTime.eval n = (n + 1) * (n + 2) := by
+  simp [validatesTautologyResult_on_pairTime, Polynomial.eval_mul,
+    Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_ofNat]
+
+theorem validatesTautologyResult_on_pairCost_le_time_eval (π : List Bool) :
+    validatesTautologyResult_on_pairCost π ≤
+      validatesTautologyResult_on_pairTime.eval π.length := by
+  have h := validatesTautologyResult_on_pairCost_le π
+  simp [validatesTautologyResult_on_pairTime_eval]
+  exact h
+
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
