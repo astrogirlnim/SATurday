@@ -23,7 +23,7 @@ Thank you for your interest in contributing to SATurday! This document provides 
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/astrogirlnim/SATurday.git
 cd SATurday
 
 # Bootstrap environment
@@ -154,9 +154,12 @@ SATurday/
 │   ├── config/      # YAML configs
 │   └── scripts/     # Setup scripts
 └── docs/            # Documentation
-    ├── reports/     # Generated run reports
-    └── brainlift/   # Design documents
+    ├── ladder/      # Ladder state and rung memories
+    ├── postmortems/ # Retired program postmortems
+    └── reports/     # Generated run reports (gitignored)
 ```
+
+Pre-reboot ORACLE program artifacts live under `archive/pre-reboot/`.
 
 ## Adding New Features
 

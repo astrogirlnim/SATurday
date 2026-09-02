@@ -61,8 +61,7 @@ proofs/
 
 # Logs
 *.log
-search/logs/
-search/logs/*.jsonl
+search/logs/*
 !search/logs/falsifier_runs.jsonl
 !search/logs/saturday_sessions.jsonl
 

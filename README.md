@@ -16,7 +16,7 @@ proof systems imply NP != coNP (Cook-Reckhow), which implies P != NP.
   Classical.choice, Quot.sound), enforced by `scripts/check_axioms.sh`.
 - **Prose first, certify second**: arguments are searched in natural language
   with explicit gap lists, audited for barriers, then formalized. This mirrors
-  the pipeline behind the OpenAI ten-proofs release (2026-08-01).
+  the pipeline behind the [OpenAI ten-proofs release (2026-08-01)](https://openai.com/index/openai-ten-proofs/).
 - **Budgeted empiricism**: SAT solver runs calibrate conjectures under hard cost
   estimates and wall-clock caps; empirical artifacts are hash-addressed and are
   never converted into axioms.
@@ -36,7 +36,8 @@ proof systems imply NP != coNP (Cook-Reckhow), which implies P != NP.
 - R5: the Cook-Reckhow bridge formalized over a real machine model.
 
 Postmortems for the retired pre-reboot program (vacuous monotone parity target,
-sheaf obstruction closure) are in `docs/postmortems/`.
+sheaf obstruction closure) are in `docs/postmortems/`. Pre-reboot ORACLE
+artifacts (brainlift notes, bet configs, oracle logs) are in `archive/pre-reboot/`.
 
 ## Architecture
 
