@@ -1,6 +1,13 @@
-# Memory Bank (temporary session files)
+# Memory Bank (local session files, not versioned)
 memory_bank/
-memory_bank/**
+
+# Cursor rules: only SATurday-specific rules are tracked
+.cursor/rules/*
+!.cursor/rules/lean4-development.mdc
+!.cursor/rules/no-emojis.mdc
+!.cursor/rules/programming-principles.mdc
+!.cursor/rules/python-development.mdc
+!.cursor/rules/saturday-loop-autonomy.mdc
 
 # Python
 __pycache__/
