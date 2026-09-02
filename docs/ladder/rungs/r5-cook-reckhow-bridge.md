@@ -1388,3 +1388,81 @@ lower bound via the bridge.
 
 - 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
   Next: table enumeration FinTM2 or prove revision for alternate validation path.
+
+- 2026-09-02 prove (index loop validation plan for Cluster C FinTM2): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "prove",
+    "target": "pin index loop table validation FinTM2 plan",
+    "rationale": "Formalize blocked twice on monolithic enumeration; decompose into index loop."
+  }
+  ```
+
+  ### Statement restated
+
+  Goal: `ProofSystemFrontier.validatesTautologyResult_computableInPolyTime`, i.e.
+  a poly time FinTM2 for `validatesTautologyResult_on_pair`.
+
+  Existing certified pieces: decodePairResultComputer (Cluster A),
+  decodeFormulaResultComputer (Cluster B), constTrueList reject slice,
+  prefixFalseCopy accept slice on tautology domain, quadratic cost model.
+
+  ### Revised attack (one developed idea)
+
+  Do not recompute and store `truthTableOf φ` on the tape. Instead validate by
+  index loop tied to `|table|`:
+
+  1. Decode pair to `(φCode, table)` on stacks (reuse Cluster A parser).
+  2. Decode formula to `φ` or reject with `[true]` (reuse Cluster B).
+  3. Length gate: if `table.length ≠ 2 ^ (φ.maxVar + 1)`, reject with `[true]`.
+     This uses only `φ.maxVar` parsed from the formula encoding and `table.length`
+     already on tape; no exponential space.
+  4. For `i` from `0` to `table.length - 1`:
+     a. Compute `σ := assignmentAt (φ.maxVar + 1) i`, the i-th element of
+        `allBitstrings (φ.maxVar + 1)` in the fixed recursive order already
+        used by `truthTableOf`.
+     b. Compute `b := φ.evalOn σ` by a single left to right scan of `φCode`
+        with assignment bits read from `σ` (table lookup by variable index).
+     c. If `table[i] ≠ b` or `b = false`, reject with `[true]`.
+  5. If all indices pass, output `false :: φCode` via prefixFalseCopy.
+
+  Poly time: each iteration is `O(|φCode| + φ.maxVar)` and there are
+  `|table|` iterations. On any accepting branch of the TT map,
+  `|table| = 2^(φ.maxVar+1)` and `|π| ≥ |table| + |φCode|`, so total time is
+  `O(|π| · |φCode|)`, matching the certified `validatesTautologyCost` bound.
+
+  New functional defs needed before FinTM2 (formalize prep cluster C2):
+  `assignmentAt`, lemmas linking to `allBitstrings`, and
+  `validatesTautology_by_index` showing equivalence to `validatesTautology`.
+
+  ### Gap list
+
+  1. `assignmentAt n i` with proof `assignmentAt n i ∈ allBitstrings n` and
+     ordering agrees with `List.map` order in `truthTableOf`. Gap class: routine.
+  2. Equivalence lemma: index loop test matches `validatesTautology`. Gap class:
+     routine given existing `mem_allBitstrings_of_length` and `evalOn` lemmas.
+  3. FinTM2 for one `evalOn` pass under fixed `σ` on stacks. Gap class: hard
+     (engineering, similar scale to decodeFormulaResult).
+  4. Counter loop over `i < table.length` with binary counter on tape. Gap class:
+     hard (engineering).
+  5. Sequencer wiring A, B, C2, D without mathlib `comp`. Gap class: hard,
+     partially charted in Complexity.
+
+  ### Self adversarial pass
+
+  The poly time bound survives only if the loop count is `table.length`, not
+  `2^(φ.maxVar+1)` when `table.length` is small. Step 3 enforces equality of
+  lengths before the loop, so a short table rejects without exponential work.
+
+  The plan does not secretly assume `φ.Tautology`; it checks the table witness.
+
+  Worst remaining gap: step 3 needs `φ.maxVar` available on tape after decode;
+  this is already determined by scanning `φCode`, so no new semantic axiom.
+
+  gate_pending: accept_prose.
+
+- 2026-09-02 human gate: accept_prose APPROVED (gate_auto: true).
+  Rationale: plan matches certified cost model and avoids monolithic enumeration.
+  Next formalize: `assignmentAt` functional layer then index loop FinTM2.
