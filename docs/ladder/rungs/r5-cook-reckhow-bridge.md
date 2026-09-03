@@ -1486,3 +1486,19 @@ lower bound via the bridge.
 
 - 2026-09-02 human gate: merge_certified APPROVED (gate_auto: true).
   Next: allBitstrings_get linkage then index loop FinTM2.
+
+- 2026-09-02 formalize (allBitstrings_get linkage): BLOCKED.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "allBitstrings_get_eq_assignmentAt and truthTableOf_get_eq_evalOn",
+    "rationale": "Fallback wake; link index loop to truthTableOf ordering."
+  }
+  ```
+  Blocked obligation quoted: `get_pair_flatMap` lemma for flatMap pair order;
+  build stalled on proof complexity. Retry with mutual list definition proving
+  `allBitstrings n = assignmentAtList n` instead of direct get induction.
+  gate_pending: none.
+  Next: mutual `assignmentAtList` equals `allBitstrings` proof.
