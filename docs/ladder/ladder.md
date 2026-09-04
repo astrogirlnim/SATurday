@@ -75,10 +75,12 @@ R4-class results plus the certified R5 bridge.
     (accept_prose 2026-08-15); Cluster 26 (2026-08-15) certifies informative
     floor `n ≥ 14`, cubic expander packaging, and family reduction;
     Cluster 27 (2026-08-21) certifies prism `Y_6` fails
-    `HasExpansion _ 1` (ladder filter); Frontier
-    `exists_cubic_hasExpansion_family` and
-    `exists_tseitin_expander_hard_family` still open; random CS Frontier
-    secondary))
+    `HasExpansion _ 1` (ladder filter); prove 2026-09-04 kills unbounded
+    `HasExpansion _ 1` as Block A primary (McGee, Moebius Kantor, Desargues,
+    random cubics fail factor 1 past Heawood) and pins
+    `HasExpansionInv` with `cubicInvK = 2` pending accept_prose; Frontier
+    `exists_cubic_hasExpansion_family` archival relative to the inv restatement;
+    random CS Frontier secondary))
 
 - R3 stronger systems
   - status: proposed

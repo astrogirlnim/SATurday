@@ -46,8 +46,14 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       rate 2 for 3 CNF (dead at unsat densities); do not Nat chase `α⋆`.
       Accept_prose applied; Cluster 26 certified informative floor `n ≥ 14`,
       cubic expander packaging, and reduction to
-      `exists_cubic_hasExpansion_family`. Next: inhabit that Frontier family
-      (Margulis, Gabber Galil, LPS, or equivalent). Random CS Frontier secondary.
+      `exists_cubic_hasExpansion_family`. Prove 2026-09-04: kill unbounded
+      `HasExpansion _ 1` as Block A primary (factor 1 fails on McGee,
+      Moebius Kantor, Desargues, random cubics past Heawood); pin
+      `HasExpansionInv` with `cubicInvK = 2`, informative floor `26`,
+      pending accept_prose. Next after gate: formalize inv predicate and
+      packaging, then inhabit `exists_cubic_hasExpansionInv_family`
+      (Margulis, Gabber Galil, LPS, or probabilistic method). Random CS
+      Frontier secondary.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Move R2 from `prose_accepted` to `certified` only after the existence
@@ -112,11 +118,11 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: formalize an unbounded 3 regular `HasExpansion _ 1` family
-   (`TseitinFrontier.exists_cubic_hasExpansion_family`), then discharge
-   `exists_tseitin_expander_hard_family` via the accepted Cluster 26 reduction.
-   Do not chase prism or ladder cubics (Cluster 27 obstruction). Do not Nat
-   chase Spreads or `ExpandsIndices` first moment.
+1. R2: accept_prose on the 2026-09-04 inv restatement, then formalize
+   `HasExpansionInv` / `exists_cubic_hasExpansionInv_family` packaging and
+   inhabit that family. Do not hunt unbounded `HasExpansion _ 1`. Do not
+   chase prism or ladder cubics (Cluster 27). Do not Nat chase Spreads or
+   `ExpandsIndices` first moment.
 2. In parallel sessions only: R5 `ProofSystem` start after FormulaEncoding
    cluster 2 (definitional; no summit claim until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or

@@ -2834,3 +2834,187 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Most important thing learned: cubic regular alone does not imply expansion
   factor 1; Block A must exclude prism or ladder families.
   gate_pending: none.
+
+- 2026-09-04 prove (restate Block A cubic family pin: kill unbounded
+  `HasExpansion _ 1`, pin inverse expansion): SUCCESS on the restatement,
+  PENDING accept_prose. Prose only, no Lean this cycle. Corrects the Cluster 26
+  family pin after empirical kill of Nat factor 1 past Heawood.
+
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "prove",
+    "target": "restate Block A exists_cubic family from HasExpansion alpha 1 to HasExpansionInv",
+    "rationale": "Nat alpha 1 fails on McGee, Moebius Kantor, Desargues, and random cubics past Heawood, so the unbounded HasExpansion 1 pin is the wrong existence target."
+  }
+  ```
+
+  ### Statement restated with all quantifiers explicit
+
+  Keep as accepted (no change this cycle): for every finite `G` with
+  `IsRegular G 3`, `HasExpansion G α` for `α ≥ 1`, and odd charge `χ`, the
+  width and size lower bounds
+  `tseitin_expander_width_lower_bound` and
+  `tseitin_expander_size_lower_bound` hold. Heawood remains the base
+  informative witness at `n = 14` via Cluster 26 packaging.
+
+  Kill as Block A primary existence pin:
+  `TseitinFrontier.exists_cubic_hasExpansion_family`, namely
+
+      ∀ N, ∃ n ≥ max(N,14), ∃ G : FinGraph n,
+        IsRegular G 3 ∧ HasExpansion G 1.
+
+  Evidence that this pin is the wrong asymptotic target (classification:
+  adaptation of known Cheeger limits plus explicit counterexamples to the
+  search, not a Lean impossibility theorem for every n):
+
+  1. McGee cage (`n = 24`, LCF `[2,2,-2,-2]^6`): 3 regular, min cut ratio
+     `|∂S|/|S|` over nonempty half sets equals `1/6` (failing set of size 4
+     with cut 2; balanced sets with cut 2). So `HasExpansion _ 1` is false.
+  2. Moebius Kantor `GP(8,3)` (`n = 16`): min ratio `0.75 < 1`.
+  3. Desargues `GP(10,3)` (`n = 20`): min ratio about `0.78 < 1`.
+  4. Generalized Petersen `GP(n,2)` for odd `n ≥ 9`: fails factor 1 (only
+     Heawood `n = 7` in this subfamily passes among those checked).
+  5. Configuration model sample: 65 valid random 3 regular graphs on 16
+     vertices, best min ratio about `0.71`, none with factor 1.
+  6. Spectral calibration: for any infinite family of 3 regular graphs,
+     Alon Boppana forces the second eigenvalue toward at least `2√2`, and the
+     Cheeger upper bound then caps combinatorial expansion near `1` from
+     above. Factor 1 is a razor edge, not a stable Lean inhabitant target.
+     Cluster 27 already showed cubic regular does not imply factor 1; the new
+     point is that factor 1 also fails for the standard non ladder cages used
+     as expander candidates.
+
+  New pinned predicate (target Lean name `HasExpansionInv`):
+
+      HasExpansionInv (G : FinGraph n) (k : ℕ) : Prop :=
+        ∀ S : Finset (Fin n),
+          S.Nonempty → 2 * S.card ≤ n →
+            S.card ≤ k * (edgeBoundary G S).card
+
+  Relation: `HasExpansion G 1` iff `HasExpansionInv G 1`. Combinatorial
+  expansion at least `1/k` is exactly `HasExpansionInv G k`. Connectivity is
+  NOT inherited from `k ≥ 1` when `k > 1`; formalize must carry an explicit
+  `IsConnected G` (or prove it from the inv predicate plus regularity) wherever
+  `tseitin_complex_eq_univ` needs it.
+
+  Pinned Block A primary existence (replace the Cluster 26 Frontier):
+
+      exists_cubic_hasExpansionInv_family :
+        ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n),
+          max N cubicInvInformativeFloor ≤ n ∧
+            IsRegular G 3 ∧ IsConnected G ∧ HasExpansionInv G cubicInvK
+
+  with locked constants (honest, explicit Nat, no asymptotics):
+
+  - `cubicInvK := 2` (primary pin: expansion at least `1/2`). Empirical
+    support: Moebius Kantor, Desargues, and the best `n = 16` random samples
+    all beat `1/2`. Classical safe fallback if inhabit stalls: raise to
+    `cubicInvK := 12`, matching the Ramanujan Cheeger lower order
+    `(3 - 2√2)/2 ≈ 0.086` rounded as `1/12`, without changing the predicate
+    shape.
+  - `cubicInvInformativeFloor`: least `n` with
+    `tseitinMediumFloor n / cubicInvK > 3` (so the derived width floor beats
+    `cnfWidth = 3` for cubic Tseitin). For `k = 2`, `tseitinMediumFloor n > 6`
+    forces `n ≥ 26` under the existing
+    `tseitinMediumFloor n = (n/2 + 2)/2`. Pin
+    `cubicInvInformativeFloor := 26` when `cubicInvK = 2`.
+
+  Width packaging revision (next formalize, not claimed now): from
+  `HasExpansionInv G k` and cut coverage, derive
+  `tseitinMediumFloor n ≤ k * d.width` style bounds, hence
+  `1 ≤ d.width / k` growth linear in `n`. Reuse BSW size corollary with
+  `W := (tseitinMediumFloor n + (k - 1)) / k` (Nat ceil division) or an
+  equivalent explicit floor. Heawood stays a special case via
+  `HasExpansionInv heawoodGraph 1` from existing
+  `heawoodGraph_expansion`.
+
+  Family reduction revision: replace
+  `exists_tseitin_expander_hard_family_of_cubic_expanders` by an inv form
+  that quantifies `HasExpansionInv G cubicInvK` and the new informative
+  floor. Discharge
+  `TseitinFrontier.exists_tseitin_expander_hard_family` from the new family
+  theorem once inhabited.
+
+  Secondary routes unchanged: random CS Frontier stays secondary; do not Nat
+  chase Spreads or `ExpandsIndices` first moment. Prism and ladder cubics stay
+  filtered (Cluster 27). Circulant stays excluded.
+
+  ### Non vacuity
+
+  1. The new quantified family is intended nonempty for large `n` by classical
+     existence of cubic expanders (Friedman almost Ramanujan for random 3
+     regular; explicit LPS style constructions at neighboring degrees with
+     degree reduction). Lean inhabitant remains the hard gap.
+  2. Finite witnesses already certified: Petersen and Heawood give
+     `HasExpansionInv _ 1`. They do not close `∀ N` under the killed factor 1
+     pin, and they do illustrate that inv form is inhabited at small order.
+  3. Informativeness: for `k = 2` and `n ≥ 26`, Nat division gives
+     `tseitinMediumFloor n / 2 ≥ 4 > 3 = cnfWidth` on cubic Tseitin, so the
+     width floor beats initial width exactly as Cluster 26 required for
+     `α = 1` at `n ≥ 14`.
+
+  ### The one argument developed
+
+  Step 1. Treat unbounded `HasExpansion _ 1` as a false friend for Block A:
+  it matches Petersen and Heawood but fails the cages and random cubics that
+  are the next constructive targets. Continuing to hunt Nat factor 1
+  inhabitants is stop condition adjacent grinding of a bad pin, not of a twice
+  blocked proof method. Classification: known from explicit computation this
+  session; kill recorded here.
+
+  Step 2. Switch the existence obligation to `HasExpansionInv G 2` (fixed
+  inverse factor) plus connectivity and cubic regularity, unbounded in `n`.
+  This matches what classical expander theorems actually deliver: a positive
+  constant Cheeger lower bound, not necessarily an integer factor 1.
+  Classification: adaptation of Friedman / LPS / Margulis style existence to
+  the discrete inv predicate.
+
+  Step 3. Recompute the informative floor from `mediumFloor / k > 3` so
+  Tseitin width still beats `cnfWidth`. Classification: routine arithmetic on
+  existing `tseitinMediumFloor`.
+
+  Step 4. Formalize path after accept_prose: (i) define `HasExpansionInv` and
+  lemmas relating it to `HasExpansion`; (ii) prove inv packaging width or size
+  bounds; (iii) restate Frontier family theorems; (iv) inhabit via explicit
+  construction or probabilistic method without new axioms. Prefer editing
+  `FinGraph.lean` and `Tseitin.lean` only.
+
+  ### Gap list
+
+  1. Human accept_prose for killing unbounded `HasExpansion _ 1` as Block A
+     primary and adopting `HasExpansionInv` with `cubicInvK = 2`,
+     `cubicInvInformativeFloor = 26`. Gap class: gate.
+  2. Lean definition `HasExpansionInv` and bridge lemmas to cut coverage and
+     width. Gap class: routine.
+  3. Connectivity story when `k > 1` (do not reuse `HasExpansion.isConnected`
+     with `α ≥ 1`). Gap class: routine.
+  4. Restate and certify packaging analogues of
+     `tseitin_cubic_expander_informative` and
+     `exists_tseitin_expander_hard_family_of_cubic_expanders` under inv.
+     Gap class: routine after (2).
+  5. Inhabit `exists_cubic_hasExpansionInv_family` (hard constructive or
+     counting gap: Margulis, Gabber Galil with cubicization, LPS, or
+     formalized probabilistic method). Gap class: hard.
+  6. If `k = 2` inhabit fails twice for the same cause, raise to `k = 12`
+     under the same predicate shape before any kill_rung. Gap class: unknown.
+
+  ### Self adversarial pass
+
+  - Quantifier order: family still requires unbounded `n`; finite cages alone
+    never close `∀ N`.
+  - Do not claim a Lean proof that no 3 regular graph with `n ≥ 16` has
+    factor 1; the kill is of the pin as a research target, backed by failed
+    candidates and spectral razor edge, not a universality theorem.
+  - Do not revive Spreads first moment or prism ladders.
+  - Off by one: informative floor `26` must be rechecked in Lean against
+    `tseitinMediumFloor` exactly when formalizing.
+  - Barrier: still resolution level Tseitin; no R3 flag.
+  - Worst gap remains inhabiting an unbounded cubic expander family; the
+    restatement only makes the target classically true in shape.
+
+  Most important thing learned: Block A was blocked on a predicate that
+  standard cubic expanders do not satisfy past Heawood; inverse expansion at
+  fixed `k = 2` is the correct existence pin shape.
+  gate_pending: accept_prose.
