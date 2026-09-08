@@ -1552,3 +1552,14 @@ SATurday.Bridge.assignmentAt
 SATurday.Bridge.assignmentAt_zero
 SATurday.Bridge.assignmentAt_length
 SATurday.Bridge.assignmentAt_mem
+
+# R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
+SATurday.ProofComplexity.mggDecode
+SATurday.ProofComplexity.mggEncode
+SATurday.ProofComplexity.mggEncode_decode
+SATurday.ProofComplexity.mggDecode_encode
+SATurday.ProofComplexity.mggNeighbor
+SATurday.ProofComplexity.mggEdgeOf
+SATurday.ProofComplexity.mggGraph
+SATurday.ProofComplexity.mem_mggGraph_of_edgeOf
+SATurday.ProofComplexity.mgg_three_vertex_card

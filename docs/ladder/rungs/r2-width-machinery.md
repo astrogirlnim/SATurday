@@ -3185,3 +3185,24 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
 - 2026-09-08 loop note: human said merge and continue on loop. Cluster 28
   merge_certified applied. For the MGG cubicize inhabit prose, next wake may
   auto accept_prose (gate_auto) if no objection, then formalize `mggGraph`.
+
+- 2026-09-08 human gate: accept_prose APPROVED (gate_auto: true, loop standing
+  order after merge and continue). MGG then cubicize inhabit route accepted.
+  Next: formalize Cluster 29 scaffolding.
+
+- 2026-09-08 formalize (Cluster 29 MGG scaffolding): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "mggGraph encode decode neighbor scaffolding",
+    "rationale": "Accepted inhabit route needs Lean MGG vertex encoding before Inv."
+  }
+  ```
+  Accepted module `Theory/ProofComplexity/MGG.lean`: `mggDecode`, `mggEncode`,
+  round trips, `mggNeighbor`, `mggEdgeOf`, `mggGraph`, membership lemma,
+  `mgg_three_vertex_card`. Separate module avoids Heawood recompile cost in
+  FinGraph. Not yet: `IsRegular mggGraph 8`, Inv expansion, cubicization.
+  gate_pending: merge_certified.
+  Next: formalize MGG regularity for `m ≥ 3`, then Inv.

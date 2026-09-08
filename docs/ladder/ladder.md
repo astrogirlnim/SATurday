@@ -81,6 +81,7 @@ R4-class results plus the certified R5 bridge.
     `HasExpansionInv` with `cubicInvK = 2` pending accept_prose; Frontier
     `exists_cubic_hasExpansion_family` archival relative to the inv restatement;
     Cluster 28 (2026-09-08) certified Inv packaging and family reduction,
+    Cluster 29 (2026-09-08) MGG scaffolding module;
     Frontier `exists_cubic_hasExpansionInv_family` primary; random CS Frontier
     secondary))
 
