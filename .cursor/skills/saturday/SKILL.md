@@ -136,7 +136,8 @@ Append exactly one JSON line to `search/logs/saturday_sessions.jsonl`:
   "artifact_refs": ["<paths or hashes>"],
   "gate_pending": "none|adopt_rung|accept_prose|merge_certified|kill_rung",
   "next_recommended_action": "prove|formalize|falsify|audit",
-  "timestamp": "<unix>"
+  "timestamp": "<unix>",
+  "notes": "<optional; include workstream id when running in parallel>"
 }
 ```
 
@@ -174,17 +175,63 @@ next cycle. Do not self approve.
 4. Record the auto decision in the next session notes with `gate_auto: true`
    and one sentence of rationale. Never stall a loop tick waiting for chat.
 
+## Parallelization (Multitask Mode)
+
+Core contract is unchanged: **each agent still runs exactly one cycle** (one
+rung, one action, one rung memory append, one session record) per wake. Do not
+collapse multiple cycles into one agent turn.
+
+When Multitask Mode or multiple agents are available, a **coordinator** may
+launch independent workstreams in parallel. Typical split: R2 Block A and R5
+Block D. Never assign two agents to the same Lean module or the same rung
+memory file at the same time.
+
+### Disjoint ownership
+
+| Workstream | Rung memory (exclusive) | Lean targets (exclusive) |
+| --- | --- | --- |
+| R2 | `docs/ladder/rungs/r2-width-machinery.md` | Tseitin / CSExpansion related Lean under `theory/Theory/ProofComplexity/` (not under `Bridge/`) |
+| R5 | `docs/ladder/rungs/r5-cook-reckhow-bridge.md` | Bridge Lean under `theory/Theory/ProofComplexity/Bridge/` |
+
+Parallel agents must use disjoint targets and files only. If a needed edit would
+cross ownership, serialize that work on one agent or wait for the other cycle to
+finish.
+
+### Session records under parallel cycles
+
+Each parallel cycle still appends exactly one JSON line to
+`search/logs/saturday_sessions.jsonl`. Include a workstream id in `notes` when
+helpful (for example `workstream: R2` or `workstream: R5`). Do not merge two
+cycles into one session line.
+
+### Human gates
+
+Same Human Gates rules apply per cycle, including the **30 second** autonomy
+defaults under `/loop`. Each parallel agent presents its own gate; silence is
+handled independently per the defaults above.
+
+### Loop arming (global singleton)
+
+Keep **exactly one** saturday wake loop armed globally. Parallel agents must
+**not** each arm a duplicate `AGENT_LOOP_WAKE_saturday` (or equivalent) loop.
+Prefer: only the coordinator (parent) re-arms after all parallel cycles finish.
+If a child agent would otherwise re-arm, skip arming and report done to the
+parent. Cadence stays **dynamic one-shot wakes** (sleep then wake with a delay
+fit to the work). Never leave a fixed `while true; sleep 1800` saturday loop
+running.
+
 ## Invariants
 
 - Local only execution. Deterministic seeds for solver work.
 - No internal multi-iteration loop inside a single session.
-- Exactly one canonical session record per session.
+- Exactly one canonical session record per session (per agent cycle).
 - Accepted tree stays clean: zero sorries, standard axioms only
   (scripts/check_axioms.sh).
 - Budgets from docs/p-vs-np-stop-conditions.md are enforced by tooling; a session
   never leaves a solver running past session end.
 - Generated prose avoids hyphens as punctuation; spell connections in words. File
   names and existing identifiers are exempt.
+- Parallel agents use disjoint ownership only; one global saturday wake loop.
 
 ## References
 

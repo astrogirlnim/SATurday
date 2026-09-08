@@ -9,15 +9,21 @@ When the agent is running a `/loop` saturday cycle (wake sentinel
 `AGENT_LOOP_WAKE_saturday` or equivalent):
 
 - Run exactly one saturday cycle per wake (skill: `.cursor/skills/saturday/SKILL.md`).
+  Under Multitask Mode, a coordinator may run multiple agents in parallel; each
+  agent still runs exactly one cycle on a disjoint workstream (see Parallelization
+  in the saturday skill). Typical split: R2 Block A vs R5 Block D.
 - After presenting a human gate, do not wait indefinitely.
 - If the human does not reply within 30 seconds, proceed with best judgment
   per the saturday skill Human Gates section (accept_prose and merge_certified
   when justified; avoid auto kill or adopt unless stop conditions force it).
-- Keep exactly one saturday wake loop armed. Kill duplicate `AGENT_LOOP_WAKE_saturday`
-  shells before re-arming.
+- Keep exactly one saturday wake loop armed **globally**. Kill duplicate
+  `AGENT_LOOP_WAKE_saturday` shells before re-arming. Parallel child agents must
+  not each arm their own wake loop; only the coordinator (parent) re-arms after
+  all parallel cycles finish.
 - Prefer finishing in-progress formalize clusters (build, axiom gate, rung
   memory, session record, commit without push) over idle ticks.
 - Cadence is **dynamic**: one-shot wakes (not a fixed 30m while loop). After each
-  cycle, re-arm `sleep <seconds>` then `AGENT_LOOP_WAKE_saturday` with a delay
-  fit to the work (short after prose or light Lean; longer only after heavy
-  builds). Never leave a fixed `while true; sleep 1800` saturday loop running.
+  cycle (or after all parallel cycles when coordinating), re-arm
+  `sleep <seconds>` then `AGENT_LOOP_WAKE_saturday` with a delay fit to the work
+  (short after prose or light Lean; longer only after heavy builds). Never leave
+  a fixed `while true; sleep 1800` saturday loop running.
