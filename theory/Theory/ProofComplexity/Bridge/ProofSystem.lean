@@ -1,6 +1,7 @@
 import Theory.ProofComplexity.Bridge.FormulaEncoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Mathlib.Computability.TuringMachine.Computable
+import Mathlib.Data.Nat.Bits
 import Mathlib.Tactic
 
 /-!
@@ -682,6 +683,257 @@ theorem writePow2Bits_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime encodeNat idBitEnc pow2BitsWriteOrder) :=
   ⟨writePow2BitsComputableInPolyTime⟩
 
+/-! ## Cluster C2 count table length to bits (compare to `pow2BitsLE`)
+
+Length gate machine path: emit little endian bits of `table.length`, then
+compare structurally to `pow2BitsLE (maxVar+1)`. Unary length is not poly;
+`natBitsLE` (mathlib `Nat.bits`) is the FinTM2 counter output. -/
+
+/-- Canonical little endian bits of `n` (empty for `0`; head is LSB). -/
+def natBitsLE (n : ℕ) : List Bool := Nat.bits n
+
+theorem natBitsLE_zero : natBitsLE 0 = [] := by
+  simp [natBitsLE]
+
+theorem natBitsLE_one : natBitsLE 1 = [true] := by
+  simp [natBitsLE]
+
+theorem natBitsLE_bit (b : Bool) (n : ℕ) (hn : n = 0 → b = true) :
+    natBitsLE (Nat.bit b n) = b :: natBitsLE n := by
+  simpa [natBitsLE] using Nat.bits_append_bit n b hn
+
+theorem natBitsLE_mul_two {n : ℕ} (hn : n ≠ 0) :
+    natBitsLE (2 * n) = false :: natBitsLE n := by
+  simpa [natBitsLE] using Nat.bit0_bits n hn
+
+theorem natBitsLE_mul_two_add_one (n : ℕ) :
+    natBitsLE (2 * n + 1) = true :: natBitsLE n := by
+  simpa [natBitsLE] using Nat.bit1_bits n
+
+theorem bitsLEValue_nil : bitsLEValue [] = 0 := rfl
+
+theorem bitsLEValue_cons (b : Bool) (rest : List Bool) :
+    bitsLEValue (b :: rest) =
+      (bif b then 1 else 0) + 2 * bitsLEValue rest := rfl
+
+theorem bitsLEValue_natBitsLE (n : ℕ) :
+    bitsLEValue (natBitsLE n) = n := by
+  induction n using Nat.binaryRec' with
+  | zero => simp [natBitsLE, bitsLEValue]
+  | bit b n h ih =>
+      rw [natBitsLE_bit b n h, bitsLEValue_cons, ih, Nat.bit_val]
+      cases b <;> simp [Bool.toNat] <;> omega
+
+/-- Powers of two have the expected little endian shape. -/
+theorem natBitsLE_pow2 (n : ℕ) : natBitsLE (2 ^ n) = pow2BitsLE n := by
+  induction n with
+  | zero => simpa [pow2BitsLE, Nat.pow_zero] using natBitsLE_one
+  | succ n ih =>
+      have hne : 2 ^ n ≠ 0 := (Nat.pow_pos (by decide : 0 < (2 : ℕ))).ne'
+      have hform : 2 ^ (n + 1) = 2 * (2 ^ n) := by
+        rw [Nat.pow_succ, Nat.mul_comm]
+      rw [hform, natBitsLE_mul_two hne, ih]
+      simp [pow2BitsLE, List.replicate_succ]
+
+/-- Length equals `2^n` iff its canonical bits equal `pow2BitsLE n`. -/
+theorem lengthEqPow2_iff_natBits (n : ℕ) (table : List Bool) :
+    lengthEqPow2 n table = true ↔
+      natBitsLE table.length = pow2BitsLE n := by
+  rw [lengthEqPow2_iff]
+  constructor
+  · intro h
+    rw [h, natBitsLE_pow2]
+  · intro h
+    have := congrArg bitsLEValue h
+    simpa [bitsLEValue_natBitsLE, bitsLEValue_pow2BitsLE] using this
+
+/-- FinTM2 length gate Bool: compare counted length bits to `pow2BitsLE`. -/
+def lengthBitsEqPow2 (n : ℕ) (table : List Bool) : Bool :=
+  decide (natBitsLE table.length = pow2BitsLE n)
+
+theorem lengthBitsEqPow2_iff (n : ℕ) (table : List Bool) :
+    lengthBitsEqPow2 n table = true ↔
+      natBitsLE table.length = pow2BitsLE n := by
+  simp [lengthBitsEqPow2]
+
+theorem lengthEqPow2_eq_lengthBitsEqPow2 (n : ℕ) (table : List Bool) :
+    lengthEqPow2 n table = lengthBitsEqPow2 n table := by
+  refine Bool.eq_iff_iff.mpr ?_
+  rw [lengthEqPow2_iff_natBits, lengthBitsEqPow2_iff]
+
+theorem lengthGateOk_eq_lengthBitsEqPow2 (φ : PropFormula) (table : List Bool) :
+    lengthGateOk φ table = lengthBitsEqPow2 (φ.maxVar + 1) table := by
+  simp [lengthGateOk_eq_lengthEqPow2, lengthEqPow2_eq_lengthBitsEqPow2]
+
+theorem lengthGateOk_iff_natBits (φ : PropFormula) (table : List Bool) :
+    lengthGateOk φ table = true ↔
+      natBitsLE table.length = pow2BitsLE (φ.maxVar + 1) := by
+  rw [lengthGateOk_eq_lengthBitsEqPow2, lengthBitsEqPow2_iff]
+
+/-- Counted length bits of a table (semantic FinTM2 output). -/
+def lengthBitsLE (table : List Bool) : List Bool :=
+  natBitsLE table.length
+
+theorem lengthBitsLE_eq_pow2BitsLE_iff (n : ℕ) (table : List Bool) :
+    lengthBitsLE table = pow2BitsLE n ↔ table.length = 2 ^ n := by
+  constructor
+  · intro h
+    have := congrArg bitsLEValue h
+    simpa [lengthBitsLE, bitsLEValue_natBitsLE, bitsLEValue_pow2BitsLE] using this
+  · intro h
+    simp [lengthBitsLE, h, natBitsLE_pow2]
+
+/-! ## Cluster C2 FinTM2: count input length into little endian bits
+
+Stmt scaffolding and single step lemmas. Full `EvalsToInTime` / poly time
+witness for `lengthBitsLE` is the next formalize slice (carry restore fuel). -/
+
+open TM2.Stmt
+
+inductive CountLenStack where
+  | inp | bits | aux
+  deriving DecidableEq, Repr
+
+instance : Fintype CountLenStack where
+  elems := {.inp, .bits, .aux}
+  complete s := by cases s <;> simp
+
+/-- `loop` consumes one input symbol; `inc`/`restore` binary increment bits. -/
+inductive CountLenLabel where
+  | loop | inc | restore
+  deriving DecidableEq, Repr
+
+instance : Fintype CountLenLabel where
+  elems := {.loop, .inc, .restore}
+  complete s := by cases s <;> simp
+
+/-- FinTM2: read table from `inp`, intended halt with `natBitsLE table.length` on `bits`. -/
+def countLengthBitsComputer : FinTM2 where
+  K := CountLenStack
+  k₀ := .inp
+  k₁ := .bits
+  Γ _ := Bool
+  Λ := CountLenLabel
+  main := .loop
+  σ := Option Bool
+  initialState := none
+  m
+    | .loop =>
+        pop CountLenStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            halt
+            (load (fun _ => none) <| goto fun _ => CountLenLabel.inc)
+    | .inc =>
+        pop CountLenStack.bits (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push CountLenStack.bits (fun _ => true) <|
+              load (fun _ => none) <| goto fun _ => CountLenLabel.restore)
+            (branch (fun s => decide (s = some false))
+              (push CountLenStack.bits (fun _ => true) <|
+                load (fun _ => none) <| goto fun _ => CountLenLabel.restore)
+              (push CountLenStack.aux (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => CountLenLabel.inc))
+    | .restore =>
+        pop CountLenStack.aux (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => CountLenLabel.loop)
+            (push CountLenStack.bits (fun s => Option.getD s false) <|
+              load (fun _ => none) <| goto fun _ => CountLenLabel.restore)
+
+def countLenStk (inp bits aux : List Bool) : CountLenStack → List Bool
+  | .inp => inp
+  | .bits => bits
+  | .aux => aux
+
+def countLenCfg (l : Option CountLenLabel) (v : Option Bool)
+    (inp bits aux : List Bool) : countLengthBitsComputer.Cfg :=
+  ⟨l, v, countLenStk inp bits aux⟩
+
+theorem countLen_step_loop_cons (b : Bool) (xs bits aux : List Bool) :
+    TM2.step countLengthBitsComputer.m
+      (countLenCfg (some .loop) none (b :: xs) bits aux) =
+      some (countLenCfg (some .inc) none xs bits aux) := by
+  simp [countLengthBitsComputer, countLenCfg, countLenStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some CountLenLabel.inc, none, stk⟩ : countLengthBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, countLenStk]
+
+theorem countLen_step_loop_nil (bits aux : List Bool) :
+    TM2.step countLengthBitsComputer.m
+      (countLenCfg (some .loop) none [] bits aux) =
+      some (countLenCfg none none [] bits aux) := by
+  simp [countLengthBitsComputer, countLenCfg, countLenStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option CountLenLabel), none, stk⟩ : countLengthBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, countLenStk]
+
+theorem countLen_step_inc_nil (aux : List Bool) :
+    TM2.step countLengthBitsComputer.m
+      (countLenCfg (some .inc) none [] [] aux) =
+      some (countLenCfg (some .restore) none [] [true] aux) := by
+  simp [countLengthBitsComputer, countLenCfg, countLenStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some CountLenLabel.restore, none, stk⟩ : countLengthBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, countLenStk]
+
+theorem countLen_step_inc_false (rest aux : List Bool) :
+    TM2.step countLengthBitsComputer.m
+      (countLenCfg (some .inc) none [] (false :: rest) aux) =
+      some (countLenCfg (some .restore) none [] (true :: rest) aux) := by
+  simp [countLengthBitsComputer, countLenCfg, countLenStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some CountLenLabel.restore, none, stk⟩ : countLengthBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, countLenStk]
+
+theorem countLen_step_inc_true (rest aux : List Bool) :
+    TM2.step countLengthBitsComputer.m
+      (countLenCfg (some .inc) none [] (true :: rest) aux) =
+      some (countLenCfg (some .inc) none [] rest (false :: aux)) := by
+  simp [countLengthBitsComputer, countLenCfg, countLenStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some CountLenLabel.inc, none, stk⟩ : countLengthBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, countLenStk]
+
+theorem countLen_step_restore_nil (bits : List Bool) :
+    TM2.step countLengthBitsComputer.m
+      (countLenCfg (some .restore) none [] bits []) =
+      some (countLenCfg (some .loop) none [] bits []) := by
+  simp [countLengthBitsComputer, countLenCfg, countLenStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some CountLenLabel.loop, none, stk⟩ : countLengthBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, countLenStk]
+
+theorem countLen_step_restore_cons (b : Bool) (aux bits : List Bool) :
+    TM2.step countLengthBitsComputer.m
+      (countLenCfg (some .restore) none [] bits (b :: aux)) =
+      some (countLenCfg (some .restore) none [] (b :: bits) aux) := by
+  simp [countLengthBitsComputer, countLenCfg, countLenStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some CountLenLabel.restore, none, stk⟩ : countLengthBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, countLenStk]
+
+theorem countLengthBits_initList (s : List Bool) :
+    initList countLengthBitsComputer s =
+      countLenCfg (some .loop) none s [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some CountLenLabel.loop, none, stk⟩ : countLengthBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [countLengthBitsComputer, countLenStk]
+
+theorem countLengthBits_haltList (out : List Bool) :
+    haltList countLengthBitsComputer out =
+      countLenCfg none none [] out [] := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option CountLenLabel), none, stk⟩ : countLengthBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [countLengthBitsComputer, countLenStk]
+
+/-! ## Truth table proof map (semantic Cook Reckhow witness) -/
 /-! ## Truth table proof map (semantic Cook Reckhow witness) -/
 
 /-- Truth table proof system map: proofs are `encodePair (φCode, table)`.
@@ -3354,8 +3606,9 @@ formula, length gate `table.length = 2^(maxVar+1)`, then index loop under
 `|table|` fuel, then branch to the reject or accept slices above.
 
 Certified: length gate Bool, reject lemmas, `pow2BitsLE` plus writePow2Bits
-FinTM2 from unary width. Remaining: count table length to bits, compare to
-`pow2BitsLE`, then the per index eval loop. -/
+FinTM2, `natBitsLE`/`lengthBitsEqPow2` compare, and `countLengthBitsComputer`
+Stmt plus step lemmas. Remaining: countLengthBits EvalsToInTime polyTime,
+FinTM2 compare glue to pow2BitsLE, then per index eval loop. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by

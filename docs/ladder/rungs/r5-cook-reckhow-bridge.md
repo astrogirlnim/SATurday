@@ -1626,3 +1626,40 @@ lower bound via the bridge.
   not a unary tape of length `2^n`, or reject paths are not poly time.
   gate_pending: merge_certified.
   gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
+
+- 2026-09-08 formalize (Cluster C2 natBitsLE count and compare): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "count table length to bits and compare to pow2BitsLE",
+    "rationale": "writePow2Bits ready; close lengthGate machine path before index eval loop."
+  }
+  ```
+  Smallest coherent slice: canonical `natBitsLE` equals `Nat.bits`, value and
+  `natBitsLE (2^n) = pow2BitsLE n`, length gate iff structural bit compare, plus
+  `countLengthBitsComputer` Stmt and single step lemmas (evals deferred).
+  Existing names used: pow2BitsLE, bitsLEValue, lengthEqPow2, lengthGateOk,
+  lengthGateOk_iff_bits, FinTM2, Nat.bits, Nat.binaryRec', Nat.bit_val.
+  Accepted: natBitsLE, natBitsLE_zero, natBitsLE_one, natBitsLE_bit,
+  natBitsLE_mul_two, natBitsLE_mul_two_add_one, bitsLEValue_nil, bitsLEValue_cons,
+  bitsLEValue_natBitsLE, natBitsLE_pow2, lengthEqPow2_iff_natBits,
+  lengthBitsEqPow2, lengthBitsEqPow2_iff, lengthEqPow2_eq_lengthBitsEqPow2,
+  lengthGateOk_eq_lengthBitsEqPow2, lengthGateOk_iff_natBits, lengthBitsLE,
+  lengthBitsLE_eq_pow2BitsLE_iff, CountLenStack, CountLenLabel,
+  countLengthBitsComputer, countLenStk, countLenCfg, countLen_step_loop_cons,
+  countLen_step_loop_nil, countLen_step_inc_nil, countLen_step_inc_false,
+  countLen_step_inc_true, countLen_step_restore_nil, countLen_step_restore_cons,
+  countLengthBits_initList, countLengthBits_haltList.
+  Bridge lake build green; Bridge only axiom probe PASS (propext, Classical.choice,
+  Quot.sound). Full scripts/check_axioms.sh not re run under R2 parallel risk;
+  Bridge probe used instead.
+  Frontier updated: validatesTautologyResult_computableInPolyTime needs
+  countLengthBits EvalsToInTime polyTime, then FinTM2 compare glue to pow2BitsLE,
+  then per index eval loop; truthTable_is_prop_proof_system unchanged.
+  Most important thing learned: length compare is structural equality of
+  `natBitsLE table.length` and `pow2BitsLE (maxVar+1)`, so the machine only needs
+  a binary counter plus bit list equality, not unary length.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: Bridge axiom probe green and decls listed.

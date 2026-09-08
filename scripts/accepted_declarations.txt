@@ -1606,6 +1606,39 @@ SATurday.Bridge.writePow2BitsTime
 SATurday.Bridge.writePow2BitsTime_eval
 SATurday.Bridge.writePow2BitsComputableInPolyTime
 SATurday.Bridge.writePow2Bits_computableInPolyTime
+# R5 ProofSystem Cluster C2 natBitsLE count and compare (2026-09-08)
+SATurday.Bridge.natBitsLE
+SATurday.Bridge.natBitsLE_zero
+SATurday.Bridge.natBitsLE_one
+SATurday.Bridge.natBitsLE_bit
+SATurday.Bridge.natBitsLE_mul_two
+SATurday.Bridge.natBitsLE_mul_two_add_one
+SATurday.Bridge.bitsLEValue_nil
+SATurday.Bridge.bitsLEValue_cons
+SATurday.Bridge.bitsLEValue_natBitsLE
+SATurday.Bridge.natBitsLE_pow2
+SATurday.Bridge.lengthEqPow2_iff_natBits
+SATurday.Bridge.lengthBitsEqPow2
+SATurday.Bridge.lengthBitsEqPow2_iff
+SATurday.Bridge.lengthEqPow2_eq_lengthBitsEqPow2
+SATurday.Bridge.lengthGateOk_eq_lengthBitsEqPow2
+SATurday.Bridge.lengthGateOk_iff_natBits
+SATurday.Bridge.lengthBitsLE
+SATurday.Bridge.lengthBitsLE_eq_pow2BitsLE_iff
+SATurday.Bridge.CountLenStack
+SATurday.Bridge.CountLenLabel
+SATurday.Bridge.countLengthBitsComputer
+SATurday.Bridge.countLenStk
+SATurday.Bridge.countLenCfg
+SATurday.Bridge.countLen_step_loop_cons
+SATurday.Bridge.countLen_step_loop_nil
+SATurday.Bridge.countLen_step_inc_nil
+SATurday.Bridge.countLen_step_inc_false
+SATurday.Bridge.countLen_step_inc_true
+SATurday.Bridge.countLen_step_restore_nil
+SATurday.Bridge.countLen_step_restore_cons
+SATurday.Bridge.countLengthBits_initList
+SATurday.Bridge.countLengthBits_haltList
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode
