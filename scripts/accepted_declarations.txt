@@ -1567,6 +1567,14 @@ SATurday.Bridge.validatesTautology_by_index
 SATurday.Bridge.validatesTautology_by_index_of_validatesTautology
 SATurday.Bridge.validatesTautology_of_by_index
 SATurday.Bridge.validatesTautology_iff_by_index
+# R5 ProofSystem Cluster C2 length gate reject path (2026-09-08)
+SATurday.Bridge.lengthGateOk
+SATurday.Bridge.lengthGateOk_iff
+SATurday.Bridge.lengthGateOk_of_validatesTautology_by_index
+SATurday.Bridge.not_validatesTautology_by_index_of_lengthGateFail
+SATurday.Bridge.not_validatesTautology_of_lengthGateFail
+SATurday.Bridge.validatesTautologyResult_eq_by_index
+SATurday.Bridge.validatesTautologyResult_of_lengthGateFail
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode
@@ -1619,3 +1627,36 @@ SATurday.ProofComplexity.mggNeighbor_right_ne_down
 SATurday.ProofComplexity.mggNeighbor_left_ne_up
 SATurday.ProofComplexity.mggNeighbor_left_ne_down
 SATurday.ProofComplexity.exists_mgg_simple_hasExpansionInv_family_of_inv
+# R2 item 2 cluster 30: axis, shear loops, multi-cut surface, Nat Cheeger slack (2026-09-08)
+SATurday.ProofComplexity.mggS
+SATurday.ProofComplexity.mggSinv
+SATurday.ProofComplexity.mggT
+SATurday.ProofComplexity.mggTinv
+SATurday.ProofComplexity.mggShearGens
+SATurday.ProofComplexity.mggShearGens_card
+SATurday.ProofComplexity.mggAxis
+SATurday.ProofComplexity.mem_mggAxis_iff
+SATurday.ProofComplexity.mggRow0
+SATurday.ProofComplexity.mggCol0
+SATurday.ProofComplexity.mggRow0_card
+SATurday.ProofComplexity.mggCol0_card
+SATurday.ProofComplexity.mggAxis_eq_row0_union_col0
+SATurday.ProofComplexity.mggAxis_card_le
+SATurday.ProofComplexity.mggAxis_card_mul_three_le_sq
+SATurday.ProofComplexity.mggNeighbor_S_eq
+SATurday.ProofComplexity.mggNeighbor_Sinv_eq
+SATurday.ProofComplexity.mggNeighbor_T_eq
+SATurday.ProofComplexity.mggNeighbor_Tinv_eq
+SATurday.ProofComplexity.mggNeighbor_S_eq_self_iff
+SATurday.ProofComplexity.mggNeighbor_Sinv_eq_self_iff
+SATurday.ProofComplexity.mggNeighbor_T_eq_self_iff
+SATurday.ProofComplexity.mggNeighbor_Tinv_eq_self_iff
+SATurday.ProofComplexity.mggNeighbor_shear_loop_mem_axis
+SATurday.ProofComplexity.mggMultiCutCard
+SATurday.ProofComplexity.mggMultiCutCard_eq_sum
+SATurday.ProofComplexity.mggNeighbor_eq_self_mem_shear
+SATurday.ProofComplexity.mggNeighbor_ne_self_of_not_mem_axis
+SATurday.ProofComplexity.mgg_loop_incidences_le_four_mul_axis
+SATurday.ProofComplexity.mgg_gabber_galil_cheeger_nat_witness
+SATurday.ProofComplexity.mgg_card_le_three_mul_of_two_fifth
+SATurday.ProofComplexity.mgg_inv4_absorb_of_loss_le_twelfth

@@ -3596,3 +3596,35 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   as known, keeps simple graph honesty, and does not revive twice blocked
   factor 1 expansion. Next: formalize Cluster 30 axis and cut loss surface
   toward `mggGraph_hasExpansionInv`.
+
+- 2026-09-08 formalize (Cluster 30 axis and cut loss surface): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 30 axis and cut loss surface toward mggGraph_hasExpansionInv",
+    "rationale": "accept_prose on Gabber Galil pin; start Lean surface for axis aware cut loss."
+  }
+  ```
+  workstream: R2. Edited only `theory/Theory/ProofComplexity/MGG.lean` (no Bridge).
+
+  Accepted (axiom gate on new decls):
+  - Axis: `mggAxis`, `mggRow0`, `mggCol0`, `mggAxis_card_le` (`|A| ≤ 2m`),
+    `mggAxis_card_mul_three_le_sq` (floor density `3|A| ≤ m²`).
+  - Shear gens and loops: `mggS`, `mggSinv`, `mggT`, `mggTinv`, `mggShearGens`,
+    `mggNeighbor_*_eq_self_iff`, `mggNeighbor_shear_loop_mem_axis`,
+    `mggNeighbor_eq_self_mem_shear`, `mggNeighbor_ne_self_of_not_mem_axis`,
+    `mgg_loop_incidences_le_four_mul_axis`.
+  - Multi-cut surface: `mggMultiCutCard` (labeled leaving incidences).
+  - Nat Cheeger or Inv absorb: `mgg_gabber_galil_cheeger_nat_witness`,
+    `mgg_card_le_three_mul_of_two_fifth`, `mgg_inv4_absorb_of_loss_le_twelfth`.
+
+  Still Frontier sorry: `MGGFrontier.mggGraph_hasExpansionInv` (spectral gap,
+  Cheeger on multi, full multi to simple cut loss algebra).
+
+  Most important thing learned: combinatorial axis and loop charge lemmas
+  compile cleanly; remaining cost is multi cut versus `edgeBoundary` loss plus
+  Gabber Galil spectrum, not axis packaging.
+  gate_pending: merge_certified (Cluster 30 surface decls).
+  next: formalize multi cut to `edgeBoundary` loss, or cite spectral gap Frontier.

@@ -616,6 +616,352 @@ theorem exists_mgg_simple_hasExpansionInv_family_of_inv
   refine ⟨m, hm0, le_rfl, mggGraph_isConnected (m := m) hm0, ?_⟩
   exact hInv m hm0 (le_max_right N mggInformativeFloor)
 
+/-! ## Cluster 30: axis set, loops, multi-cut surface, Nat Cheeger slack
+
+Prove accept_prose 2026-09-08 (Gabber Galil to Cheeger to axis loss to Inv 4).
+This cluster lands combinatorial surface lemmas (i)(ii)(iv) and a labeled
+multi-cut counter toward (vii). Spectral gap and full loss algebra stay Frontier. -/
+
+/-- Shear generator `S`: `(x,y) ↦ (x, x+y)`. -/
+def mggS : Fin 8 := ⟨4, by decide⟩
+/-- Inverse shear `S⁻¹`: `(x,y) ↦ (x, y-x)`. -/
+def mggSinv : Fin 8 := ⟨5, by decide⟩
+/-- Shear generator `T`: `(x,y) ↦ (x+y, y)`. -/
+def mggT : Fin 8 := ⟨6, by decide⟩
+/-- Inverse shear `T⁻¹`: `(x,y) ↦ (x-y, y)`. -/
+def mggTinv : Fin 8 := ⟨7, by decide⟩
+
+/-- Shear generator indices (the only generators that can loop for `1 < m`). -/
+def mggShearGens : Finset (Fin 8) := {mggS, mggSinv, mggT, mggTinv}
+
+theorem mggShearGens_card : mggShearGens.card = 4 := by decide
+
+/-- Axis vertices: first or second torus coordinate is zero. -/
+def mggAxis (m : ℕ) (hm : 0 < m) : Finset (Fin (m * m)) :=
+  letI : NeZero m := mggNeZero hm
+  (Finset.univ : Finset (Fin (m * m))).filter fun v =>
+    (mggDecode hm v).1 = 0 ∨ (mggDecode hm v).2 = 0
+
+theorem mem_mggAxis_iff {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    v ∈ mggAxis m hm ↔
+      letI : NeZero m := mggNeZero hm
+      (mggDecode hm v).1 = 0 ∨ (mggDecode hm v).2 = 0 := by
+  letI : NeZero m := mggNeZero hm
+  simp [mggAxis]
+
+/-- Row zero encodings. -/
+def mggRow0 (m : ℕ) (hm : 0 < m) : Finset (Fin (m * m)) :=
+  (Finset.univ : Finset (Fin m)).image fun y => mggEncode hm (⟨0, hm⟩, y)
+
+/-- Column zero encodings. -/
+def mggCol0 (m : ℕ) (hm : 0 < m) : Finset (Fin (m * m)) :=
+  (Finset.univ : Finset (Fin m)).image fun x => mggEncode hm (x, ⟨0, hm⟩)
+
+theorem mggRow0_card {m : ℕ} (hm : 0 < m) : (mggRow0 m hm).card = m := by
+  rw [mggRow0, card_image_of_injective]
+  · simp [Finset.card_univ]
+  · intro y₁ y₂ h
+    exact (Prod.ext_iff.mp ((mggDecode_encode hm _).symm.trans
+      ((congrArg (mggDecode hm) h).trans (mggDecode_encode hm _)))).2
+
+theorem mggCol0_card {m : ℕ} (hm : 0 < m) : (mggCol0 m hm).card = m := by
+  rw [mggCol0, card_image_of_injective]
+  · simp [Finset.card_univ]
+  · intro x₁ x₂ h
+    exact (Prod.ext_iff.mp ((mggDecode_encode hm _).symm.trans
+      ((congrArg (mggDecode hm) h).trans (mggDecode_encode hm _)))).1
+
+theorem mggAxis_eq_row0_union_col0 {m : ℕ} (hm : 0 < m) :
+    mggAxis m hm = mggRow0 m hm ∪ mggCol0 m hm := by
+  letI : NeZero m := mggNeZero hm
+  ext v
+  constructor
+  · intro hv
+    have h := (mem_mggAxis_iff hm v).mp hv
+    rw [mem_union]
+    rcases h with hx | hy
+    · refine Or.inl ?_
+      refine mem_image.mpr ⟨(mggDecode hm v).2, mem_univ _, ?_⟩
+      have hx0 : (mggDecode hm v).1 = ⟨0, hm⟩ := by
+        apply Fin.ext
+        simpa using congrArg Fin.val hx
+      calc
+        mggEncode hm (⟨0, hm⟩, (mggDecode hm v).2)
+            = mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).2) := by rw [hx0]
+          _ = v := mggEncode_decode hm v
+    · refine Or.inr ?_
+      refine mem_image.mpr ⟨(mggDecode hm v).1, mem_univ _, ?_⟩
+      have hy0 : (mggDecode hm v).2 = ⟨0, hm⟩ := by
+        apply Fin.ext
+        simpa using congrArg Fin.val hy
+      calc
+        mggEncode hm ((mggDecode hm v).1, ⟨0, hm⟩)
+            = mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).2) := by rw [hy0]
+          _ = v := mggEncode_decode hm v
+  · intro hv
+    apply (mem_mggAxis_iff hm v).mpr
+    rcases mem_union.mp hv with h | h
+    · obtain ⟨y, _, rfl⟩ := mem_image.mp (show v ∈ mggRow0 m hm from h)
+      exact Or.inl (by simp [mggDecode_encode])
+    · obtain ⟨x, _, rfl⟩ := mem_image.mp (show v ∈ mggCol0 m hm from h)
+      exact Or.inr (by simp [mggDecode_encode])
+
+/-- Safe axis bound `|A_m| ≤ 2m` (exact is `2m-1`; union bound suffices for density). -/
+theorem mggAxis_card_le {m : ℕ} (hm : 0 < m) :
+    (mggAxis m hm).card ≤ 2 * m := by
+  rw [mggAxis_eq_row0_union_col0 hm]
+  calc
+    (mggRow0 m hm ∪ mggCol0 m hm).card
+        ≤ (mggRow0 m hm).card + (mggCol0 m hm).card := card_union_le _ _
+    _ = m + m := by rw [mggRow0_card hm, mggCol0_card hm]
+    _ = 2 * m := by ring
+
+/-- At the informative floor, `3 |A| ≤ m²` using `|A| ≤ 2m` and `m ≥ 6`. -/
+theorem mggAxis_card_mul_three_le_sq {m : ℕ} (hm0 : 0 < m)
+    (hm : mggInformativeFloor ≤ m) :
+    3 * (mggAxis m hm0).card ≤ m * m := by
+  have hle := mggAxis_card_le hm0
+  have h6 : 6 ≤ m := hm
+  calc
+    3 * (mggAxis m hm0).card ≤ 3 * (2 * m) := Nat.mul_le_mul_left 3 hle
+    _ = 6 * m := by ring
+    _ ≤ m * m := by
+      have := Nat.mul_le_mul_left m h6
+      simpa [Nat.mul_comm 6] using this
+
+theorem mggNeighbor_S_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggS =
+      letI : NeZero m := mggNeZero hm
+      mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).1 + (mggDecode hm v).2) := by
+  letI : NeZero m := mggNeZero hm
+  rfl
+
+theorem mggNeighbor_Sinv_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggSinv =
+      letI : NeZero m := mggNeZero hm
+      mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).2 - (mggDecode hm v).1) := by
+  letI : NeZero m := mggNeZero hm
+  rfl
+
+theorem mggNeighbor_T_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggT =
+      letI : NeZero m := mggNeZero hm
+      mggEncode hm ((mggDecode hm v).1 + (mggDecode hm v).2, (mggDecode hm v).2) := by
+  letI : NeZero m := mggNeZero hm
+  rfl
+
+theorem mggNeighbor_Tinv_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggTinv =
+      letI : NeZero m := mggNeZero hm
+      mggEncode hm ((mggDecode hm v).1 - (mggDecode hm v).2, (mggDecode hm v).2) := by
+  letI : NeZero m := mggNeZero hm
+  rfl
+
+/-- `S` loops exactly on the vertical axis `x = 0`. -/
+theorem mggNeighbor_S_eq_self_iff {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggS = v ↔
+      letI : NeZero m := mggNeZero hm
+      (mggDecode hm v).1 = 0 := by
+  letI : NeZero m := mggNeZero hm
+  constructor
+  · intro h
+    have h' : mggDecode hm (mggNeighbor hm v mggS) = mggDecode hm v :=
+      congrArg (mggDecode hm) h
+    rw [mggNeighbor_S_eq hm v, mggDecode_encode] at h'
+    exact add_eq_right.mp (Prod.ext_iff.mp h').2
+  · intro hx
+    calc
+      mggNeighbor hm v mggS
+          = mggEncode hm ((mggDecode hm v).1,
+              (mggDecode hm v).1 + (mggDecode hm v).2) := mggNeighbor_S_eq hm v
+      _ = mggEncode hm (0, 0 + (mggDecode hm v).2) := by rw [hx]
+      _ = mggEncode hm (0, (mggDecode hm v).2) := by simp
+      _ = mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).2) := by rw [hx]
+      _ = v := mggEncode_decode hm v
+
+/-- `S⁻¹` loops exactly on `x = 0`. -/
+theorem mggNeighbor_Sinv_eq_self_iff {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggSinv = v ↔
+      letI : NeZero m := mggNeZero hm
+      (mggDecode hm v).1 = 0 := by
+  letI : NeZero m := mggNeZero hm
+  constructor
+  · intro h
+    have h' : mggDecode hm (mggNeighbor hm v mggSinv) = mggDecode hm v :=
+      congrArg (mggDecode hm) h
+    rw [mggNeighbor_Sinv_eq hm v, mggDecode_encode] at h'
+    exact sub_eq_self.mp (Prod.ext_iff.mp h').2
+  · intro hx
+    calc
+      mggNeighbor hm v mggSinv
+          = mggEncode hm ((mggDecode hm v).1,
+              (mggDecode hm v).2 - (mggDecode hm v).1) := mggNeighbor_Sinv_eq hm v
+      _ = mggEncode hm (0, (mggDecode hm v).2 - 0) := by rw [hx]
+      _ = mggEncode hm (0, (mggDecode hm v).2) := by simp
+      _ = mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).2) := by rw [hx]
+      _ = v := mggEncode_decode hm v
+
+/-- `T` loops exactly on the horizontal axis `y = 0`. -/
+theorem mggNeighbor_T_eq_self_iff {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggT = v ↔
+      letI : NeZero m := mggNeZero hm
+      (mggDecode hm v).2 = 0 := by
+  letI : NeZero m := mggNeZero hm
+  constructor
+  · intro h
+    have h' : mggDecode hm (mggNeighbor hm v mggT) = mggDecode hm v :=
+      congrArg (mggDecode hm) h
+    rw [mggNeighbor_T_eq hm v, mggDecode_encode] at h'
+    exact add_eq_left.mp (Prod.ext_iff.mp h').1
+  · intro hy
+    calc
+      mggNeighbor hm v mggT
+          = mggEncode hm ((mggDecode hm v).1 + (mggDecode hm v).2,
+              (mggDecode hm v).2) := mggNeighbor_T_eq hm v
+      _ = mggEncode hm ((mggDecode hm v).1 + 0, 0) := by rw [hy]
+      _ = mggEncode hm ((mggDecode hm v).1, 0) := by simp
+      _ = mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).2) := by rw [hy]
+      _ = v := mggEncode_decode hm v
+
+/-- `T⁻¹` loops exactly on `y = 0`. -/
+theorem mggNeighbor_Tinv_eq_self_iff {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggTinv = v ↔
+      letI : NeZero m := mggNeZero hm
+      (mggDecode hm v).2 = 0 := by
+  letI : NeZero m := mggNeZero hm
+  constructor
+  · intro h
+    have h' : mggDecode hm (mggNeighbor hm v mggTinv) = mggDecode hm v :=
+      congrArg (mggDecode hm) h
+    rw [mggNeighbor_Tinv_eq hm v, mggDecode_encode] at h'
+    exact sub_eq_self.mp (Prod.ext_iff.mp h').1
+  · intro hy
+    calc
+      mggNeighbor hm v mggTinv
+          = mggEncode hm ((mggDecode hm v).1 - (mggDecode hm v).2,
+              (mggDecode hm v).2) := mggNeighbor_Tinv_eq hm v
+      _ = mggEncode hm ((mggDecode hm v).1 - 0, 0) := by rw [hy]
+      _ = mggEncode hm ((mggDecode hm v).1, 0) := by simp
+      _ = mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).2) := by rw [hy]
+      _ = v := mggEncode_decode hm v
+
+/-- Any self-neighbor under a shear generator lies on the axis. -/
+theorem mggNeighbor_shear_loop_mem_axis {m : ℕ} (hm : 0 < m) (v : Fin (m * m))
+    {s : Fin 8} (hs : s ∈ mggShearGens)
+    (hloop : mggNeighbor hm v s = v) :
+    v ∈ mggAxis m hm := by
+  letI : NeZero m := mggNeZero hm
+  simp only [mggShearGens, mem_insert, mem_singleton] at hs
+  apply (mem_mggAxis_iff hm v).mpr
+  rcases hs with hs | hs | hs | hs
+  · subst hs; exact Or.inl ((mggNeighbor_S_eq_self_iff hm v).mp hloop)
+  · subst hs; exact Or.inl ((mggNeighbor_Sinv_eq_self_iff hm v).mp hloop)
+  · subst hs; exact Or.inr ((mggNeighbor_T_eq_self_iff hm v).mp hloop)
+  · subst hs; exact Or.inr ((mggNeighbor_Tinv_eq_self_iff hm v).mp hloop)
+
+/-- Labeled multi-cut size: generator incidences leaving `S`. -/
+def mggMultiCutCard {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m))) : ℕ :=
+  ∑ v ∈ S, ((Finset.univ : Finset (Fin 8)).filter fun s =>
+    mggNeighbor hm v s ∉ S).card
+
+theorem mggMultiCutCard_eq_sum {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m))) :
+    mggMultiCutCard hm S =
+      ∑ v ∈ S, ((Finset.univ : Finset (Fin 8)).filter fun s =>
+        mggNeighbor hm v s ∉ S).card :=
+  rfl
+
+/-- For `1 < m`, a self-neighbor forces a shear generator. -/
+theorem mggNeighbor_eq_self_mem_shear {m : ℕ} (hm : 1 < m) (v : Fin (m * m))
+    {s : Fin 8} (hloop : mggNeighbor (lt_trans Nat.zero_lt_one hm) v s = v) :
+    s ∈ mggShearGens := by
+  have hnR := mggNeighbor_right_ne hm v
+  have hnL := mggNeighbor_left_ne hm v
+  have hnU := mggNeighbor_up_ne hm v
+  have hnD := mggNeighbor_down_ne hm v
+  fin_cases s
+  · exact False.elim (hnR (by simpa [mggRight] using hloop))
+  · exact False.elim (hnL (by simpa [mggLeft] using hloop))
+  · exact False.elim (hnU (by simpa [mggUp] using hloop))
+  · exact False.elim (hnD (by simpa [mggDown] using hloop))
+  · simp [mggShearGens, mggS]
+  · simp [mggShearGens, mggSinv]
+  · simp [mggShearGens, mggT]
+  · simp [mggShearGens, mggTinv]
+
+/-- Off the axis, no generator loops when `1 < m`. -/
+theorem mggNeighbor_ne_self_of_not_mem_axis {m : ℕ} (hm : 1 < m) (v : Fin (m * m))
+    (hax : v ∉ mggAxis m (lt_trans Nat.zero_lt_one hm)) (s : Fin 8) :
+    mggNeighbor (lt_trans Nat.zero_lt_one hm) v s ≠ v := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  intro hloop
+  exact hax (mggNeighbor_shear_loop_mem_axis hm0 v
+    (mggNeighbor_eq_self_mem_shear hm v hloop) hloop)
+
+/-- Loop incidences inside `S` charge to the axis (at most 4 per axis vertex). -/
+theorem mgg_loop_incidences_le_four_mul_axis {m : ℕ} (hm : 1 < m)
+    (S : Finset (Fin (m * m))) :
+    (∑ v ∈ S, ((Finset.univ : Finset (Fin 8)).filter fun s =>
+        mggNeighbor (lt_trans Nat.zero_lt_one hm) v s = v).card) ≤
+      4 * (S ∩ mggAxis m (lt_trans Nat.zero_lt_one hm)).card := by
+  classical
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  have hterm : ∀ v ∈ S,
+      ((Finset.univ : Finset (Fin 8)).filter fun s =>
+        mggNeighbor hm0 v s = v).card ≤
+        4 * (if v ∈ mggAxis m hm0 then 1 else 0) := by
+    intro v _
+    by_cases hax : v ∈ mggAxis m hm0
+    · simp only [hax, ↓reduceIte, mul_one]
+      have hsub :
+          ((Finset.univ : Finset (Fin 8)).filter fun s =>
+            mggNeighbor hm0 v s = v) ⊆ mggShearGens := by
+        intro s hs
+        exact mggNeighbor_eq_self_mem_shear hm v (by simpa [mem_filter] using hs)
+      exact (card_le_card hsub).trans (le_of_eq mggShearGens_card)
+    · simp only [hax, ↓reduceIte, mul_zero]
+      refine le_of_eq ?_
+      have hempty :
+          ((Finset.univ : Finset (Fin 8)).filter fun s =>
+            mggNeighbor hm0 v s = v) = ∅ := by
+        rw [Finset.filter_eq_empty_iff]
+        intro s _
+        exact mggNeighbor_ne_self_of_not_mem_axis hm v hax s
+      simp [hempty]
+  have hsum := Finset.sum_le_sum hterm
+  have haxis :
+      (∑ v ∈ S, 4 * (if v ∈ mggAxis m hm0 then 1 else 0)) =
+        4 * (S ∩ mggAxis m hm0).card := by
+    have hrewrite :
+        (∑ v ∈ S, 4 * (if v ∈ mggAxis m hm0 then 1 else 0)) =
+          ∑ v ∈ S, (if v ∈ mggAxis m hm0 then (4 : ℕ) else 0) :=
+      Finset.sum_congr rfl fun v _ => by split_ifs <;> ring
+    have h' :
+        (∑ v ∈ S, (if v ∈ mggAxis m hm0 then (4 : ℕ) else 0)) =
+          (S ∩ mggAxis m hm0).card * 4 := by
+      rw [Finset.sum_ite, Finset.sum_const, Finset.sum_const, nsmul_eq_mul,
+        nsmul_eq_mul, mul_zero, add_zero, Finset.filter_mem_eq_inter]
+      norm_cast
+    rw [hrewrite, h', Nat.mul_comm]
+  exact hsum.trans (le_of_eq haxis)
+
+/-- Nat witness for Gabber Galil Cheeger slack: `5√2 < 71/10` via squares. -/
+theorem mgg_gabber_galil_cheeger_nat_witness : 50 * 100 < 71 * 71 := by
+  decide
+
+/-- From multi expansion `2|S| ≤ 5|∂_M S|` conclude Inv-3 on the multi cut. -/
+theorem mgg_card_le_three_mul_of_two_fifth {s c : ℕ}
+    (h : 2 * s ≤ 5 * c) : s ≤ 3 * c := by
+  omega
+
+/-- Inv-4 absorption: from `|S| ≤ 3(|∂_G|+loss)` and `12·loss ≤ |S|` get `|S| ≤ 4|∂_G|`. -/
+theorem mgg_inv4_absorb_of_loss_le_twelfth {s g loss : ℕ}
+    (hmain : s ≤ 3 * (g + loss)) (hloss : 12 * loss ≤ s) : s ≤ 4 * g := by
+  have h4 : 4 * s ≤ 12 * g + 12 * loss := by
+    calc
+      4 * s ≤ 4 * (3 * (g + loss)) := Nat.mul_le_mul_left 4 hmain
+      _ = 12 * g + 12 * loss := by ring
+  omega
+
 namespace MGGFrontier
 
 /-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/
