@@ -23,6 +23,7 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       validatesTautologyResult functional layer certified 2026-09-02;
       Cluster C reject and tautology accept slices certified 2026-09-02;
       assignmentAtList equals allBitstrings and get linkage certified 2026-09-08;
+      validatesTautology_by_index equivalence certified 2026-09-08;
       Frontier: validatesTautology index loop FinTM2 then TT map sequencer for
       truthTable_is_prop_proof_system).
 

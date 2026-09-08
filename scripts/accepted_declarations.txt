@@ -1561,7 +1561,12 @@ SATurday.Bridge.map_range_two_mul
 SATurday.Bridge.assignmentAtList_eq_allBitstrings
 SATurday.Bridge.allBitstrings_get_eq_assignmentAt
 SATurday.Bridge.truthTableOf_get_eq_evalOn
-
+# R5 ProofSystem Cluster C2 validatesTautology_by_index (2026-09-08)
+SATurday.Bridge.length_truthTableOf
+SATurday.Bridge.validatesTautology_by_index
+SATurday.Bridge.validatesTautology_by_index_of_validatesTautology
+SATurday.Bridge.validatesTautology_of_by_index
+SATurday.Bridge.validatesTautology_iff_by_index
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode

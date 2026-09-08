@@ -287,6 +287,11 @@ theorem truthTableOf_get_eq_evalOn (φ : PropFormula) (i : ℕ)
     simpa using hi
   simp [List.getElem_map, allBitstrings_get_eq_assignmentAt _ _ hi']
 
+/-- Truth table length is always `2 ^ (maxVar + 1)`. -/
+theorem length_truthTableOf (φ : PropFormula) :
+    (truthTableOf φ).length = 2 ^ (φ.maxVar + 1) := by
+  simp [truthTableOf, length_allBitstrings]
+
 /-- Check that `table` is exactly the all true truth table of `φ`. -/
 def validatesTautology (φ : PropFormula) (table : List Bool) : Prop :=
   table = truthTableOf φ ∧ ∀ b ∈ truthTableOf φ, b = true
@@ -320,6 +325,69 @@ theorem tautology_of_validatesTautology (φ : PropFormula) (table : List Bool)
     simp [truthTableOf, List.mem_map]
     exact ⟨τ, hmem, rfl⟩
   simpa [heq, τ] using hτ
+
+/-! ## Cluster C2: `validatesTautology_by_index` (index loop form)
+
+Index loop FinTM2 plan: length gate `table.length = 2^(maxVar+1)`, then for each
+`i < table.length` require `table[i] = evalOn (assignmentAt ... i)` and
+`table[i] = true`. Equivalent to list form `validatesTautology`. -/
+
+/-- Index loop validation: length gate plus per index eval and all true. -/
+def validatesTautology_by_index (φ : PropFormula) (table : List Bool) : Prop :=
+  table.length = 2 ^ (φ.maxVar + 1) ∧
+    ∀ (i : ℕ) (hi : i < table.length),
+      table[i] = φ.evalOn (assignmentAt (φ.maxVar + 1) i) ∧ table[i] = true
+
+instance (φ : PropFormula) (table : List Bool) :
+    Decidable (validatesTautology_by_index φ table) := by
+  unfold validatesTautology_by_index
+  infer_instance
+
+/-- List form implies index loop form. -/
+theorem validatesTautology_by_index_of_validatesTautology (φ : PropFormula)
+    (table : List Bool) (h : validatesTautology φ table) :
+    validatesTautology_by_index φ table := by
+  rcases h with ⟨htbl, hall⟩
+  refine ⟨?hlen, ?hidx⟩
+  · -- Length gate from truth table length.
+    simpa [htbl, length_truthTableOf] using rfl
+  · intro i hi
+    -- Rewrite table to truthTableOf for get and membership.
+    have hi' : i < (truthTableOf φ).length := by simpa [htbl] using hi
+    have hget : table[i] = (truthTableOf φ)[i] := by simp [htbl]
+    have heval := truthTableOf_get_eq_evalOn φ i hi'
+    have htrue : table[i] = true := by
+      have hmem : table[i] ∈ truthTableOf φ := by
+        simpa [htbl] using List.getElem_mem hi'
+      exact hall _ hmem
+    exact ⟨hget.trans heval, htrue⟩
+
+/-- Index loop form implies list form. -/
+theorem validatesTautology_of_by_index (φ : PropFormula) (table : List Bool)
+    (h : validatesTautology_by_index φ table) :
+    validatesTautology φ table := by
+  rcases h with ⟨hlen, hidx⟩
+  have hlen' : table.length = (truthTableOf φ).length := by
+    simpa [length_truthTableOf] using hlen
+  -- Pointwise get equality yields list equality.
+  have htbl : table = truthTableOf φ := by
+    apply List.ext_getElem hlen'
+    intro i hi_table hi_tt
+    have hpair := hidx i hi_table
+    have heval := truthTableOf_get_eq_evalOn φ i hi_tt
+    exact hpair.1.trans heval.symm
+  refine ⟨htbl, ?_⟩
+  intro b hb
+  -- Every member is some `table[i]` after rewriting.
+  have hb' : b ∈ table := by simpa [htbl] using hb
+  rcases List.mem_iff_getElem.mp hb' with ⟨i, hi, rfl⟩
+  exact (hidx i hi).2
+
+/-- Certified equivalence: list validation iff index loop validation. -/
+theorem validatesTautology_iff_by_index (φ : PropFormula) (table : List Bool) :
+    validatesTautology φ table ↔ validatesTautology_by_index φ table :=
+  ⟨validatesTautology_by_index_of_validatesTautology φ table,
+    validatesTautology_of_by_index φ table⟩
 
 /-! ## Truth table proof map (semantic Cook Reckhow witness) -/
 

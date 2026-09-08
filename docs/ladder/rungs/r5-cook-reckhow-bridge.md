@@ -1525,3 +1525,28 @@ lower bound via the bridge.
   flatMap get induction and yields list equality then get linkage.
   gate_pending: merge_certified.
   gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
+
+- 2026-09-08 formalize (validatesTautology_by_index equivalence): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "validatesTautology_by_index equivalence to validatesTautology",
+    "rationale": "Index loop FinTM2 needs certified equivalence before machine plumbing."
+  }
+  ```
+  No dirty WIP for by_index; prior agent never committed stubs (working tree was
+  clean; stash held only already merged assignmentAtList work).
+  Accepted: length_truthTableOf, validatesTautology_by_index,
+  validatesTautology_by_index_of_validatesTautology,
+  validatesTautology_of_by_index, validatesTautology_iff_by_index.
+  Bridge module lake build green; Bridge only axiom probe PASS (propext,
+  Quot.sound). Full scripts/check_axioms.sh may still be blocked by parallel R2
+  MGG sorries outside this ownership, not by R5.
+  Frontier unchanged: validatesTautologyResult_computableInPolyTime (index loop
+  FinTM2), truthTable_is_prop_proof_system.
+  Most important thing learned: List.ext_getElem plus truthTableOf_get_eq_evalOn
+  closes list form iff index form without recomputing truthTableOf on tape.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
