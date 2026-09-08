@@ -118,10 +118,11 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: inhabit `exists_cubic_hasExpansionInv_family` (Cluster 28 packaging
-   certified 2026-09-08). Do not hunt unbounded `HasExpansion _ 1`. Do not
-   chase prism or ladder cubics (Cluster 27). Do not Nat chase Spreads or
-   `ExpandsIndices` first moment.
+1. R2: accept_prose on MGG then cubicize inhabit plan (2026-09-08), then
+   formalize `mggGraph` / Inv / replacement product toward
+   `exists_cubic_hasExpansionInv_family` (raise `cubicInvK` if tracking
+   forces it). Do not hunt unbounded `HasExpansion _ 1`. Do not chase prism
+   or ladder cubics. Do not Nat chase Spreads first moment.
 2. In parallel sessions only: R5 Cluster C continue with mutual
    `assignmentAtList` equals `allBitstrings` (definitional; no summit claim
    until Lemmas C to E).

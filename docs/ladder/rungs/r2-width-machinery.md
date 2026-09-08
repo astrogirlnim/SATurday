@@ -3046,3 +3046,142 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   gate_pending: merge_certified.
   Next: inhabit `exists_cubic_hasExpansionInv_family` (prove or formalize
   constructive or counting route).
+
+- 2026-09-08 human gate: merge_certified APPROVED (human: merge).
+  Cluster 28 HasExpansionInv packaging and family reduction are in the
+  accepted declaration list with axiom gate PASS. R2 remains
+  prose_accepted until the existence pin is inhabited and merge_certified
+  again for that inhabitant.
+
+- 2026-09-08 prove (inhabit plan for exists_cubic_hasExpansionInv_family): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "prove",
+    "target": "pin inhabit route for exists_cubic_hasExpansionInv_family via MGG then cubicize",
+    "rationale": "Cluster 28 packaging is merged; Block A wall is the unbounded Inv inhabitant."
+  }
+  ```
+
+  ### Statement restated
+
+  Target (already Frontier):
+  ```
+  exists_cubic_hasExpansionInv_family :
+    ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n),
+      max N cubicInvInformativeFloor ≤ n ∧
+        IsRegular G 3 ∧ G.IsConnected ∧ HasExpansionInv G cubicInvK
+  ```
+  with locked `cubicInvK = 2` and `cubicInvInformativeFloor = 26`.
+  Mathlib has no expander graph library; inhabitant must be built in tree.
+
+  ### Non vacuity
+
+  1. Finite Inv witnesses already certified: Petersen and Heawood at `k = 1`
+     (hence at `k = 2` by `HasExpansionInv.mono`). They do not close `∀ N`.
+  2. Classical non vacuity: for every large enough order there exist cubic
+     graphs with combinatorial expansion at least `1/2` (Friedman almost
+     Ramanujan for random 3 regular; explicit constructions after degree
+     reduction from constant degree expanders). Classification: known
+     externally; Lean term is the gap.
+
+  ### Attack ideas (sketched, one developed)
+
+  A. Direct probabilistic method on the configuration model for 3 regular
+     graphs: show that with positive probability every half set has
+     `|∂S| ≥ |S| / 2`. Classification: known externally (Friedman); Lean
+     cost is enormous (measure on matchings, union bounds over Finsets).
+  B. LPS Ramanujan Cayley graphs then reduce degree to 3. Classification:
+     known; algebraic number theory barrier in Lean.
+  C. Margulis Gabber Galil (MGG) 8 regular family on `(Z/mZ)²`, prove Inv
+     expansion from the Gabber Galil spectral gap, then cubicize by a
+     replacement product with a fixed 3 regular gadget while tracking the
+     Inv constant. Classification: adaptation; developed below.
+
+  ### The one argument developed (C)
+
+  Step 1. Intermediate family (new Frontier name proposed):
+  `exists_mgg_hasExpansionInv_family`. For every `M`, take `m ≥ max M m0`
+  and let `G_m` be the undirected 8 regular Margulis Gabber Galil graph on
+  vertex set `Fin (m * m)` with the standard eight generators
+  `(±1,0)`, `(0,±1)`, `±S`, `±T` (Gabber Galil / Hoory et al. presentation).
+  Claim: `IsRegular G_m 8`, `G_m.IsConnected` for `m ≥ 2`, and
+  `HasExpansionInv G_m kMGG` for an explicit Nat `kMGG`.
+  Spectral input (known): second adjacency eigenvalue `λ₂(G_m) ≤ 5 * sqrt 2`.
+  Cheeger lower bound (known adaptation to Nat Inv form):
+  combinatorial expansion `φ ≥ (8 - λ₂) / 2`, hence
+  `φ ≥ (8 - 5 * sqrt 2) / 2 > 2/5`, so every nonempty half set satisfies
+  `S.card ≤ 3 * |∂S|` after a safe Nat rounding; pin `kMGG := 3` pending
+  a Lean inequality discharge for `(8 - 5√2)/2 > 1/3`. If the float to Nat
+  bridge stalls, raise to `kMGG := 4` without changing shape.
+  Classification: known spectral fact plus routine Nat packaging.
+
+  Step 2. Cubicization. Fix a 3 regular connected gadget `H` on a constant
+  number of vertices that replaces each degree 8 vertex by a cloud and routes
+  the eight external edges through distinct ports (replacement product /
+  bipartite replacement as in Reingold Vadhan Wigderson style degree reduction).
+  Output `G'_m` is 3 regular on `n(m) = Θ(m²)` vertices, connected when `G_m`
+  is, and satisfies `HasExpansionInv G'_m kCub` for an explicit `kCub`
+  depending only on `kMGG` and the gadget (standard replacement product
+  Cheeger degradation). Classification: adaptation of known degree reduction;
+  constant tracking is the Lean work.
+
+  Step 3. Lock constants against Cluster 28. If the cubicized Inv constant
+  satisfies `kCub ≤ cubicInvK = 2`, discharge
+  `exists_cubic_hasExpansionInv_family` directly for all
+  `n(m) ≥ max N 26`. If tracking only yields `kCub > 2` (likely; replacement
+  loses a fixed factor), apply the already recorded fallback: raise
+  `cubicInvK` to `kCub` (or to `12` as previously reserved) and recompute
+  `cubicInvInformativeFloor` so that
+  `tseitinInvWidthFloor n cubicInvK > 3`. Packaging lemmas are already
+  parametric in `k`; only the locked defs and the informative Nat lemma need
+  a Cluster 29 restatement. Classification: routine once `kCub` is known.
+
+  Step 4. Formalize order after accept_prose:
+  (i) `mggGraph m : FinGraph (m * m)` edge set and `IsRegular _ 8`;
+  (ii) combinatorial or spectral Inv theorem at `kMGG`;
+  (iii) gadget plus replacement product defs;
+  (iv) Inv degradation lemma to `kCub`;
+  (v) inhabit or raise `cubicInvK` then inhabit.
+  Prefer new section in `FinGraph.lean` for MGG, keep Tseitin packaging edits
+  minimal.
+
+  ### Gap list
+
+  1. Human accept_prose for this inhabit route (MGG then cubicize, with
+     authorized `cubicInvK` raise if `kCub > 2`). Gap class: gate.
+  2. Lean `mggGraph` construction and regularity. Gap class: routine.
+  3. Gabber Galil spectral gap or a direct combinatorial expansion proof in
+     Lean (Fourier analysis on `(Z/mZ)²` as in Hoory et al. / AFP Isabelle
+     formalization; or trust reduction from a port of girving/aks MGG).
+     Gap class: hard.
+  4. Replacement product Inv degradation with explicit `kCub`. Gap class: hard.
+  5. Informative floor recompute if `cubicInvK` rises. Gap class: routine.
+  6. Connectivity of MGG and of the cubicized graph. Gap class: routine to hard.
+
+  ### Self adversarial pass
+
+  - Quantifiers: `n(m) = m² * |V(H)|` is unbounded as `m → ∞`, so `∀ N` is
+    in range; do not pretend finite cages close the family.
+  - Do not revive unbounded `HasExpansion _ 1`.
+  - Do not claim `kCub = 2` before tracking; the fallback raise is part of the
+    plan, not a silent move.
+  - Spectral to combinatorial: Cheeger gives edge expansion; our
+    `HasExpansionInv` is exactly the inverse of that combinatorial ratio on
+    half sets. Match the edge boundary definition already in `FinGraph`
+    (undirected cut size), including multiplicity if MGG is built with
+    parallel edges; either quotient multiples or strengthen regularity proofs
+    accordingly.
+  - Barrier: still resolution Tseitin; no R3 flag.
+  - Worst gap: Gabber Galil analysis in Lean (gap 3), not the packaging.
+
+  Most important thing learned: the cubic pin should be inhabited by reducing
+  an 8 regular MGG family whose Inv constant is classically easy, not by
+  chasing cage by cage factor 1 graphs; expect a possible `cubicInvK` raise
+  after replacement product tracking.
+  gate_pending: accept_prose.
+
+- 2026-09-08 loop note: human said merge and continue on loop. Cluster 28
+  merge_certified applied. For the MGG cubicize inhabit prose, next wake may
+  auto accept_prose (gate_auto) if no objection, then formalize `mggGraph`.
