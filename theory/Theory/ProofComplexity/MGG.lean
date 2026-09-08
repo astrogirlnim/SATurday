@@ -1200,6 +1200,351 @@ theorem edgeBoundary_card_le_mggMultiCutCard {m : ℕ} (hm : 0 < m)
         exact Subtype.ext (Option.some_injective _ (h1'.symm.trans h2)))
   simpa [card_attach] using h
 
+/-! ## Cluster 32: reverse cut loss decomposition
+
+Cluster 31 gave `|∂_G S| ≤ |∂_M S|`. Inv-4 absorb needs
+`|∂_M S| ≤ |∂_G S| + loss(S)`. This cluster defines labeled leaving excess,
+proves `|∂_M| = ∑ outNeighbors + reverseLoss` and
+`|∂_M| ≤ |∂_G| + reverseLoss`, and lands `excess ≤ 4` for `m ≥ 3`.
+Axis-aware tightening and spectral or Cheeger input remain later. -/
+
+/-- Leaving generator labels at `v` relative to `S`. -/
+def mggLeavingGens {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m)))
+    (v : Fin (m * m)) : Finset (Fin 8) :=
+  (univ : Finset (Fin 8)).filter fun s => mggNeighbor hm v s ∉ S
+
+theorem mem_mggLeavingGens_iff {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) (s : Fin 8) :
+    s ∈ mggLeavingGens hm S v ↔ mggNeighbor hm v s ∉ S := by
+  simp [mggLeavingGens]
+
+theorem mggLeavingGens_card_sum {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) :
+    (∑ v ∈ S, (mggLeavingGens hm S v).card) = mggMultiCutCard hm S := by
+  simp only [mggLeavingGens, mggMultiCutCard]
+
+/-- Distinct outside neighbors reachable by a labeled generator from `v`. -/
+def mggOutNeighbors {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m)))
+    (v : Fin (m * m)) : Finset (Fin (m * m)) :=
+  (mggLeavingGens hm S v).image fun s => mggNeighbor hm v s
+
+theorem mem_mggOutNeighbors_iff {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v w : Fin (m * m)) :
+    w ∈ mggOutNeighbors hm S v ↔
+      ∃ s : Fin 8, mggNeighbor hm v s = w ∧ w ∉ S := by
+  constructor
+  · intro hw
+    obtain ⟨s, hsL, rfl⟩ := mem_image.mp hw
+    exact ⟨s, rfl, (mem_mggLeavingGens_iff hm S v s).mp hsL⟩
+  · rintro ⟨s, rfl, hsn⟩
+    exact mem_image.mpr ⟨s, (mem_mggLeavingGens_iff hm S v s).mpr hsn, rfl⟩
+
+/-- Parallel leaving excess at `v`. -/
+def mggLeavingExcess {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m)))
+    (v : Fin (m * m)) : ℕ :=
+  (mggLeavingGens hm S v).card - (mggOutNeighbors hm S v).card
+
+theorem mggOutNeighbors_card_le_leavingGens {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) :
+    (mggOutNeighbors hm S v).card ≤ (mggLeavingGens hm S v).card :=
+  card_image_le
+
+theorem mggLeavingGens_card_eq_out_add_excess {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) :
+    (mggLeavingGens hm S v).card =
+      (mggOutNeighbors hm S v).card + mggLeavingExcess hm S v := by
+  simp only [mggLeavingExcess]
+  rw [add_comm]
+  exact (Nat.sub_add_cancel (mggOutNeighbors_card_le_leavingGens hm S v)).symm
+
+/-- Total reverse cut loss over `S`. -/
+def mggReverseCutLoss {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m))) : ℕ :=
+  ∑ v ∈ S, mggLeavingExcess hm S v
+
+theorem mggMultiCutCard_eq_sum_out_add_reverseLoss {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) :
+    mggMultiCutCard hm S =
+      (∑ v ∈ S, (mggOutNeighbors hm S v).card) + mggReverseCutLoss hm S := by
+  classical
+  have hsum :=
+    (sum_congr (s₁ := S) (s₂ := S) rfl
+      fun v _ => mggLeavingGens_card_eq_out_add_excess hm S v)
+  calc
+    mggMultiCutCard hm S = ∑ v ∈ S, (mggLeavingGens hm S v).card :=
+      (mggLeavingGens_card_sum hm S).symm
+    _ = ∑ v ∈ S,
+          ((mggOutNeighbors hm S v).card + mggLeavingExcess hm S v) := hsum
+    _ = (∑ v ∈ S, (mggOutNeighbors hm S v).card) +
+          ∑ v ∈ S, mggLeavingExcess hm S v := sum_add_distrib
+    _ = (∑ v ∈ S, (mggOutNeighbors hm S v).card) + mggReverseCutLoss hm S :=
+      rfl
+
+/-- Four translation generators. -/
+def mggTranslationGens : Finset (Fin 8) :=
+  {mggRight, mggLeft, mggUp, mggDown}
+
+theorem mggTranslationGens_card : mggTranslationGens.card = 4 := by decide
+
+theorem mem_mggTranslationGens_iff (s : Fin 8) :
+    s ∈ mggTranslationGens ↔
+      s = mggRight ∨ s = mggLeft ∨ s = mggUp ∨ s = mggDown := by
+  fin_cases s <;> decide
+
+/-- Translation neighbors at a fixed vertex are pairwise distinct for `m ≥ 3`. -/
+theorem mggNeighbor_translation_injOn {m : ℕ} (hm : 3 ≤ m) (v : Fin (m * m)) :
+    Set.InjOn (mggNeighbor (lt_of_lt_of_le (by decide : 0 < 3) hm) v)
+      (mggTranslationGens : Set (Fin 8)) := by
+  have hm1 : 1 < m := lt_of_lt_of_le (by decide : 1 < 3) hm
+  intro s hs t ht hst
+  have hs' := (mem_mggTranslationGens_iff s).mp (by simpa using hs)
+  have ht' := (mem_mggTranslationGens_iff t).mp (by simpa using ht)
+  rcases hs' with hR | hL | hU | hD <;> rcases ht' with hR' | hL' | hU' | hD' <;>
+    (try subst s; try subst t)
+  · rfl
+  · exact (mggNeighbor_right_ne_left hm v hst).elim
+  · exact (mggNeighbor_right_ne_up hm1 v hst).elim
+  · exact (mggNeighbor_right_ne_down hm1 v hst).elim
+  · exact (mggNeighbor_right_ne_left hm v hst.symm).elim
+  · rfl
+  · exact (mggNeighbor_left_ne_up hm1 v hst).elim
+  · exact (mggNeighbor_left_ne_down hm1 v hst).elim
+  · exact (mggNeighbor_right_ne_up hm1 v hst.symm).elim
+  · exact (mggNeighbor_left_ne_up hm1 v hst.symm).elim
+  · rfl
+  · exact (mggNeighbor_up_ne_down hm v hst).elim
+  · exact (mggNeighbor_right_ne_down hm1 v hst.symm).elim
+  · exact (mggNeighbor_left_ne_down hm1 v hst.symm).elim
+  · exact (mggNeighbor_up_ne_down hm v hst.symm).elim
+  · rfl
+
+/-- Leaving excess is at most 4 when translations inject (`m ≥ 3`). -/
+theorem mggLeavingExcess_le_four {m : ℕ} (hm : 3 ≤ m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) :
+    mggLeavingExcess (lt_of_lt_of_le (by decide : 0 < 3) hm) S v ≤ 4 := by
+  classical
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  set L := mggLeavingGens hm0 S v
+  set T := mggTranslationGens ∩ L
+  have hTle : T.card ≤ (mggOutNeighbors hm0 S v).card := by
+    have himg :
+        T.image (mggNeighbor hm0 v) ⊆ mggOutNeighbors hm0 S v := by
+      intro w hw
+      obtain ⟨s, hsT, rfl⟩ := mem_image.mp hw
+      exact mem_image.mpr ⟨s, (mem_inter.mp hsT).2, rfl⟩
+    have hinj : Set.InjOn (mggNeighbor hm0 v) (T : Set (Fin 8)) :=
+      (mggNeighbor_translation_injOn hm v).mono fun s hs => (mem_inter.mp hs).1
+    have : T.card = (T.image (mggNeighbor hm0 v)).card :=
+      (card_image_of_injOn hinj).symm
+    exact (le_of_eq this).trans (card_le_card himg)
+  have hsplit : L.card = T.card + (L \ mggTranslationGens).card := by
+    rw [← card_inter_add_card_sdiff L mggTranslationGens, inter_comm]
+  have hshear : (L \ mggTranslationGens).card ≤ 4 := by
+    have hUT : (univ : Finset (Fin 8)) \ mggTranslationGens = mggShearGens := by
+      decide
+    have hsub : L \ mggTranslationGens ⊆
+        (univ : Finset (Fin 8)) \ mggTranslationGens :=
+      sdiff_subset_sdiff (subset_univ L) (Subset.rfl)
+    rw [hUT] at hsub
+    exact (card_le_card hsub).trans (le_of_eq mggShearGens_card)
+  have hLout :
+      L.card - (mggOutNeighbors hm0 S v).card ≤
+        (L \ mggTranslationGens).card := by
+    have hsub : T.card ≤ (mggOutNeighbors hm0 S v).card := hTle
+    have hLT : L.card - T.card = (L \ mggTranslationGens).card := by
+      omega
+    have : L.card - (mggOutNeighbors hm0 S v).card ≤ L.card - T.card :=
+      Nat.sub_le_sub_left hsub _
+    exact this.trans (le_of_eq hLT)
+  simpa [mggLeavingExcess, L] using hLout.trans hshear
+
+theorem mggReverseCutLoss_le_four_mul_card {m : ℕ} (hm : 3 ≤ m)
+    (S : Finset (Fin (m * m))) :
+    mggReverseCutLoss (lt_of_lt_of_le (by decide : 0 < 3) hm) S ≤
+      4 * S.card := by
+  classical
+  have hsum :=
+    Finset.sum_le_sum (s := S) fun v _ => mggLeavingExcess_le_four hm S v
+  have hconst : (∑ _v ∈ S, (4 : ℕ)) = 4 * S.card := by
+    simp [sum_const, nsmul_eq_mul, Nat.mul_comm]
+  exact hsum.trans (le_of_eq hconst)
+
+/-- Witness generator for an out-neighbor. -/
+noncomputable def mggOutNeighborWitness {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v w : Fin (m * m))
+    (hw : w ∈ mggOutNeighbors hm S v) : Fin 8 :=
+  Classical.choose ((mem_mggOutNeighbors_iff hm S v w).mp hw)
+
+theorem mggOutNeighborWitness_eq {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v w : Fin (m * m))
+    (hw : w ∈ mggOutNeighbors hm S v) :
+    mggNeighbor hm v (mggOutNeighborWitness hm S v w hw) = w :=
+  (Classical.choose_spec ((mem_mggOutNeighbors_iff hm S v w).mp hw)).1
+
+theorem mggOutNeighborWitness_not_mem {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v w : Fin (m * m))
+    (hw : w ∈ mggOutNeighbors hm S v) :
+    w ∉ S :=
+  (Classical.choose_spec ((mem_mggOutNeighbors_iff hm S v w).mp hw)).2
+
+theorem mggEdgeOf_outNeighbor_mem_edgeBoundary {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) (hv : v ∈ S)
+    (w : Fin (m * m)) (hw : w ∈ mggOutNeighbors hm S v) :
+    ∃ e, mggEdgeOf hm v (mggOutNeighborWitness hm S v w hw) = some e ∧
+      e ∈ edgeBoundary (mggGraph m hm) S :=
+  mggEdgeOf_eq_some_mem_edgeBoundary_of_leaving hm S v hv
+    (mggOutNeighborWitness hm S v w hw)
+    (by simpa [mggOutNeighborWitness_eq hm S v w hw] using
+      mggOutNeighborWitness_not_mem hm S v w hw)
+
+noncomputable def mggOutEdge {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) (hv : v ∈ S)
+    (w : Fin (m * m)) (hw : w ∈ mggOutNeighbors hm S v) : FinEdge (m * m) :=
+  Classical.choose (mggEdgeOf_outNeighbor_mem_edgeBoundary hm S v hv w hw)
+
+theorem mggOutEdge_mem {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) (hv : v ∈ S)
+    (w : Fin (m * m)) (hw : w ∈ mggOutNeighbors hm S v) :
+    mggOutEdge hm S v hv w hw ∈ edgeBoundary (mggGraph m hm) S :=
+  (Classical.choose_spec (mggEdgeOf_outNeighbor_mem_edgeBoundary hm S v hv w hw)).2
+
+theorem mggOutEdge_eq_some {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) (hv : v ∈ S)
+    (w : Fin (m * m)) (hw : w ∈ mggOutNeighbors hm S v) :
+    mggEdgeOf hm v (mggOutNeighborWitness hm S v w hw) =
+      some (mggOutEdge hm S v hv w hw) :=
+  (Classical.choose_spec (mggEdgeOf_outNeighbor_mem_edgeBoundary hm S v hv w hw)).1
+
+theorem mggOutEdge_endpoints {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) (hv : v ∈ S)
+    (w : Fin (m * m)) (hw : w ∈ mggOutNeighbors hm S v) :
+    ((mggOutEdge hm S v hv w hw).val.1 = v ∧
+        (mggOutEdge hm S v hv w hw).val.2 = w) ∨
+      ((mggOutEdge hm S v hv w hw).val.1 = w ∧
+        (mggOutEdge hm S v hv w hw).val.2 = v) := by
+  have he := mggOutEdge_eq_some hm S v hv w hw
+  have hnw := mggOutNeighborWitness_eq hm S v w hw
+  have hends := mggEdgeOf_eq_some_endpoints hm v
+    (mggOutNeighborWitness hm S v w hw) he
+  simpa [hnw] using hends
+
+/-- Directed cut pairs `(v,w)` with `v ∈ S` and labeled out-neighbor `w`. -/
+def mggDirectedCutPairs {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m))) :
+    Finset (Fin (m * m) × Fin (m * m)) :=
+  S.biUnion fun v => (mggOutNeighbors hm S v).image fun w => (v, w)
+
+theorem mem_mggDirectedCutPairs_iff {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (p : Fin (m * m) × Fin (m * m)) :
+    p ∈ mggDirectedCutPairs hm S ↔
+      p.1 ∈ S ∧ p.2 ∈ mggOutNeighbors hm S p.1 := by
+  simp only [mggDirectedCutPairs, mem_biUnion, mem_image]
+  constructor
+  · rintro ⟨v, hv, w, hw, rfl⟩
+    exact ⟨hv, hw⟩
+  · rintro ⟨hv, hw⟩
+    exact ⟨p.1, hv, p.2, hw, rfl⟩
+
+theorem mggDirectedCutPairs_card {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) :
+    (mggDirectedCutPairs hm S).card =
+      ∑ v ∈ S, (mggOutNeighbors hm S v).card := by
+  classical
+  have hdisj :
+      (S : Set (Fin (m * m))).PairwiseDisjoint fun v =>
+        (mggOutNeighbors hm S v).image fun w => (v, w) := by
+    intro a _ b _ hne
+    refine Finset.disjoint_left.2 ?_
+    intro p hpA hpB
+    have ha : p.1 = a := by
+      obtain ⟨w, _, hw⟩ := mem_image.mp hpA
+      exact (Prod.ext_iff.mp hw).1.symm
+    have hb : p.1 = b := by
+      obtain ⟨w, _, hw⟩ := mem_image.mp hpB
+      exact (Prod.ext_iff.mp hw).1.symm
+    exact hne (ha.symm.trans hb)
+  rw [mggDirectedCutPairs, card_biUnion hdisj]
+  refine sum_congr rfl fun v _ =>
+    card_image_of_injective _ fun _ _ h => (Prod.ext_iff.mp h).2
+
+noncomputable def mggDirectedCutEdge {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (p : Fin (m * m) × Fin (m * m))
+    (hp : p ∈ mggDirectedCutPairs hm S) : FinEdge (m * m) :=
+  mggOutEdge hm S p.1 ((mem_mggDirectedCutPairs_iff hm S p).mp hp).1
+    p.2 ((mem_mggDirectedCutPairs_iff hm S p).mp hp).2
+
+theorem mggDirectedCutEdge_mem {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) {p : Fin (m * m) × Fin (m * m)}
+    (hp : p ∈ mggDirectedCutPairs hm S) :
+    mggDirectedCutEdge hm S p hp ∈ edgeBoundary (mggGraph m hm) S := by
+  simpa [mggDirectedCutEdge] using
+    mggOutEdge_mem hm S p.1 ((mem_mggDirectedCutPairs_iff hm S p).mp hp).1
+      p.2 ((mem_mggDirectedCutPairs_iff hm S p).mp hp).2
+
+theorem mggDirectedCutEdge_injective {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m)))
+    {p₁ : Fin (m * m) × Fin (m * m)} (hp₁ : p₁ ∈ mggDirectedCutPairs hm S)
+    {p₂ : Fin (m * m) × Fin (m * m)} (hp₂ : p₂ ∈ mggDirectedCutPairs hm S)
+    (h : mggDirectedCutEdge hm S p₁ hp₁ = mggDirectedCutEdge hm S p₂ hp₂) :
+    p₁ = p₂ := by
+  have hv₁ := ((mem_mggDirectedCutPairs_iff hm S p₁).mp hp₁).1
+  have hw₁ := ((mem_mggDirectedCutPairs_iff hm S p₁).mp hp₁).2
+  have hv₂ := ((mem_mggDirectedCutPairs_iff hm S p₂).mp hp₂).1
+  have hw₂ := ((mem_mggDirectedCutPairs_iff hm S p₂).mp hp₂).2
+  have hw₁n := mggOutNeighborWitness_not_mem hm S p₁.1 p₁.2 hw₁
+  have hw₂n := mggOutNeighborWitness_not_mem hm S p₂.1 p₂.2 hw₂
+  have e1 := mggOutEdge_endpoints hm S p₁.1 hv₁ p₁.2 hw₁
+  have e2 := mggOutEdge_endpoints hm S p₂.1 hv₂ p₂.2 hw₂
+  have heq :
+      (mggOutEdge hm S p₁.1 hv₁ p₁.2 hw₁).val =
+        (mggOutEdge hm S p₂.1 hv₂ p₂.2 hw₂).val :=
+    congrArg Subtype.val (by simpa [mggDirectedCutEdge] using h)
+  have hv : p₁.1 = p₂.1 := by
+    rcases e1 with ⟨a1, a2⟩ | ⟨a1, a2⟩ <;> rcases e2 with ⟨b1, b2⟩ | ⟨b1, b2⟩
+    · have := congrArg Prod.fst heq; simpa [a1, b1] using this
+    · have := congrArg Prod.fst heq
+      simp only [a1, b1] at this
+      exact (hw₂n (this ▸ hv₁)).elim
+    · have := congrArg Prod.fst heq
+      simp only [a1, b1] at this
+      exact (hw₁n (this.symm ▸ hv₂)).elim
+    · have := congrArg Prod.snd heq; simpa [a2, b2] using this
+  have hw : p₁.2 = p₂.2 := by
+    rcases e1 with ⟨a1, a2⟩ | ⟨a1, a2⟩ <;> rcases e2 with ⟨b1, b2⟩ | ⟨b1, b2⟩
+    · have := congrArg Prod.snd heq; simpa [a2, b2] using this
+    · have := congrArg Prod.fst heq
+      simp only [a1, b1] at this
+      exact (hw₂n (this ▸ hv₁)).elim
+    · have := congrArg Prod.fst heq
+      simp only [a1, b1] at this
+      exact (hw₁n (this.symm ▸ hv₂)).elim
+    · have := congrArg Prod.fst heq; simpa [a1, b1] using this
+  exact Prod.ext hv hw
+
+/-- Distinct out-neighbors inject into the simple cut. -/
+theorem sum_mggOutNeighbors_card_le_edgeBoundary {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) :
+    (∑ v ∈ S, (mggOutNeighbors hm S v).card) ≤
+      (edgeBoundary (mggGraph m hm) S).card := by
+  classical
+  rw [← mggDirectedCutPairs_card hm S]
+  have h :=
+    card_le_card_of_injOn
+      (s := (mggDirectedCutPairs hm S).attach)
+      (t := edgeBoundary (mggGraph m hm) S)
+      (fun p => mggDirectedCutEdge hm S p.1 p.2)
+      (fun p _ => mggDirectedCutEdge_mem hm S p.2)
+      (fun p₁ _ p₂ _ h =>
+        Subtype.ext (mggDirectedCutEdge_injective hm S p₁.2 p₂.2 h))
+  simpa [card_attach] using h
+
+/-- Reverse cut loss inequality: `|∂_M S| ≤ |∂_G S| + reverseLoss(S)`. -/
+theorem mggMultiCutCard_le_edgeBoundary_add_reverseLoss {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) :
+    mggMultiCutCard hm S ≤
+      (edgeBoundary (mggGraph m hm) S).card + mggReverseCutLoss hm S := by
+  have h := mggMultiCutCard_eq_sum_out_add_reverseLoss hm S
+  have hle := sum_mggOutNeighbors_card_le_edgeBoundary hm S
+  omega
+
 namespace MGGFrontier
 
 /-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/

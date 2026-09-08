@@ -3659,3 +3659,38 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   gate_pending: merge_certified (Cluster 31 transfer decls).
   next: formalize reverse loss bound (axis aware) or cite Gabber Galil spectral
   Frontier lemma toward Cheeger packaging.
+
+- 2026-09-08 formalize (Cluster 32 reverse cut loss): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 32 tighter reverse cut loss or spectral surface toward mggGraph_hasExpansionInv",
+    "rationale": "One way cut inequality ready; need reverse loss or spectrum step for Inv."
+  }
+  ```
+  workstream: R2. Edited only `theory/Theory/ProofComplexity/MGG.lean` (no Bridge).
+  Did not duplicate Cluster 30 or 31.
+
+  Accepted (axiom gate on new decls):
+  - Leaving excess API: `mggLeavingGens`, `mggOutNeighbors`, `mggLeavingExcess`,
+    `mggReverseCutLoss`, `mggMultiCutCard_eq_sum_out_add_reverseLoss`.
+  - Translation injectivity bound: `mggTranslationGens`,
+    `mggNeighbor_translation_injOn`, `mggLeavingExcess_le_four`,
+    `mggReverseCutLoss_le_four_mul_card` (`reverseLoss ≤ 4|S|` for `m ≥ 3`).
+  - Directed cut injection: `mggDirectedCutPairs`, `mggOutEdge`,
+    `sum_mggOutNeighbors_card_le_edgeBoundary`,
+    `mggMultiCutCard_le_edgeBoundary_add_reverseLoss`
+    (`|∂_M| ≤ |∂_G| + reverseLoss`).
+
+  Still Frontier sorry: `MGGFrontier.mggGraph_hasExpansionInv` (spectral gap,
+  Cheeger on multi, axis-aware tighter reverseLoss for Inv-4 absorb;
+  uniform `4|S|` is not yet absorbable by `mgg_inv4_absorb_of_loss_le_twelfth`).
+
+  Most important thing learned: reverse loss factors as parallel labeled excess
+  over distinct out-neighbors, and `|∂_M| ≤ |∂_G| + reverseLoss` is certified;
+  next need axis-aware excess or Gabber Galil spectral plus Cheeger.
+  gate_pending: merge_certified (Cluster 32 reverse loss decls).
+  next: formalize axis-aware reverseLoss bound, or cite Gabber Galil spectral
+  Frontier lemma toward Cheeger packaging.

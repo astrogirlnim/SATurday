@@ -1639,6 +1639,26 @@ SATurday.Bridge.countLen_step_restore_nil
 SATurday.Bridge.countLen_step_restore_cons
 SATurday.Bridge.countLengthBits_initList
 SATurday.Bridge.countLengthBits_haltList
+# R5 ProofSystem Cluster C2 countLengthBits EvalsToInTime polyTime (2026-09-08)
+SATurday.Bridge.bitsInc
+SATurday.Bridge.length_natBitsLE_le
+SATurday.Bridge.bitsInc_natBitsLE
+SATurday.Bridge.countLen_evals_loop_cons
+SATurday.Bridge.countLen_evals_loop_nil
+SATurday.Bridge.countLen_evals_inc_nil
+SATurday.Bridge.countLen_evals_inc_false
+SATurday.Bridge.countLen_evals_inc_true
+SATurday.Bridge.countLen_evals_restore_nil
+SATurday.Bridge.countLen_evals_restore_cons
+SATurday.Bridge.countLen_evals_restore
+SATurday.Bridge.countLen_evals_inc
+SATurday.Bridge.countLen_evals_one
+SATurday.Bridge.countLen_evals_from
+SATurday.Bridge.countLengthBits_evals
+SATurday.Bridge.countLengthBitsTime
+SATurday.Bridge.countLengthBitsTime_eval
+SATurday.Bridge.countLengthBitsComputableInPolyTime
+SATurday.Bridge.countLengthBits_computableInPolyTime
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode
@@ -1750,3 +1770,36 @@ SATurday.ProofComplexity.mggLeavingWitness
 SATurday.ProofComplexity.mggLeavingWitness_mem
 SATurday.ProofComplexity.mggLeavingWitness_edgeOf
 SATurday.ProofComplexity.edgeBoundary_card_le_mggMultiCutCard
+# R2 item 2 cluster 32: reverse cut loss decomposition (2026-09-08)
+SATurday.ProofComplexity.mggLeavingGens
+SATurday.ProofComplexity.mem_mggLeavingGens_iff
+SATurday.ProofComplexity.mggLeavingGens_card_sum
+SATurday.ProofComplexity.mggOutNeighbors
+SATurday.ProofComplexity.mem_mggOutNeighbors_iff
+SATurday.ProofComplexity.mggLeavingExcess
+SATurday.ProofComplexity.mggOutNeighbors_card_le_leavingGens
+SATurday.ProofComplexity.mggLeavingGens_card_eq_out_add_excess
+SATurday.ProofComplexity.mggReverseCutLoss
+SATurday.ProofComplexity.mggMultiCutCard_eq_sum_out_add_reverseLoss
+SATurday.ProofComplexity.mggTranslationGens
+SATurday.ProofComplexity.mggTranslationGens_card
+SATurday.ProofComplexity.mem_mggTranslationGens_iff
+SATurday.ProofComplexity.mggNeighbor_translation_injOn
+SATurday.ProofComplexity.mggLeavingExcess_le_four
+SATurday.ProofComplexity.mggReverseCutLoss_le_four_mul_card
+SATurday.ProofComplexity.mggOutNeighborWitness
+SATurday.ProofComplexity.mggOutNeighborWitness_eq
+SATurday.ProofComplexity.mggOutNeighborWitness_not_mem
+SATurday.ProofComplexity.mggEdgeOf_outNeighbor_mem_edgeBoundary
+SATurday.ProofComplexity.mggOutEdge
+SATurday.ProofComplexity.mggOutEdge_mem
+SATurday.ProofComplexity.mggOutEdge_eq_some
+SATurday.ProofComplexity.mggOutEdge_endpoints
+SATurday.ProofComplexity.mggDirectedCutPairs
+SATurday.ProofComplexity.mem_mggDirectedCutPairs_iff
+SATurday.ProofComplexity.mggDirectedCutPairs_card
+SATurday.ProofComplexity.mggDirectedCutEdge
+SATurday.ProofComplexity.mggDirectedCutEdge_mem
+SATurday.ProofComplexity.mggDirectedCutEdge_injective
+SATurday.ProofComplexity.sum_mggOutNeighbors_card_le_edgeBoundary
+SATurday.ProofComplexity.mggMultiCutCard_le_edgeBoundary_add_reverseLoss
