@@ -22,7 +22,8 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       emitTautSeedComputer (TT fail branch) certified 2026-08-25;
       validatesTautologyResult functional layer certified 2026-09-02;
       Cluster C reject and tautology accept slices certified 2026-09-02;
-      Frontier: validatesTautology FinTM2 glue then TT map sequencer for
+      assignmentAtList equals allBitstrings and get linkage certified 2026-09-08;
+      Frontier: validatesTautology index loop FinTM2 then TT map sequencer for
       truthTable_is_prop_proof_system).
 
 ## 1) Pick One Main Attack

@@ -1502,3 +1502,26 @@ lower bound via the bridge.
   `allBitstrings n = assignmentAtList n` instead of direct get induction.
   gate_pending: none.
   Next: mutual `assignmentAtList` equals `allBitstrings` proof.
+
+- 2026-09-08 formalize (assignmentAtList equals allBitstrings): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "assignmentAtList equals allBitstrings mutual list definition",
+    "rationale": "Retry get linkage via list equality instead of stalled get_pair_flatMap."
+  }
+  ```
+  Accepted: assignmentAtList, length_assignmentAtList, assignmentAt_succ_mul_two,
+  assignmentAt_succ_mul_two_add_one, map_range_two_mul,
+  assignmentAtList_eq_allBitstrings, allBitstrings_get_eq_assignmentAt,
+  truthTableOf_get_eq_evalOn.
+  Bridge module lake build green; Bridge only axiom probe PASS (standard axioms).
+  Full scripts/check_axioms.sh blocked by parallel R2 MGG WIP desync, not by R5.
+  Frontier unchanged: validatesTautologyResult_computableInPolyTime,
+  truthTable_is_prop_proof_system.
+  Most important thing learned: map_range_two_mul plus flatMap_map avoids direct
+  flatMap get induction and yields list equality then get linkage.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: Bridge axiom probe green and decls listed.

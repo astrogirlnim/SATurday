@@ -182,9 +182,110 @@ theorem assignmentAt_mem (n i : ℕ) (hi : i < 2 ^ n) :
       · refine ⟨assignmentAt n (i / 2), ih (i / 2) (by omega), ?_⟩
         simp [List.mem_cons, assignmentAt, h]
 
+/-! ## Mutual list: `assignmentAtList` equals `allBitstrings`
+
+Index loop validation needs `(allBitstrings n)[i] = assignmentAt n i`. Direct
+induction on `get` over `flatMap` stalled; instead build the list of all
+`assignmentAt` values and prove it coincides with `allBitstrings`. -/
+
+/-- All assignments in flatMap index order via `assignmentAt`. -/
+def assignmentAtList (n : ℕ) : List (List Bool) :=
+  (List.range (2 ^ n)).map (assignmentAt n)
+
+theorem length_assignmentAtList (n : ℕ) :
+    (assignmentAtList n).length = 2 ^ n := by
+  simp [assignmentAtList]
+
+/-- Even index at depth `n+1` prepends `false` to the parent assignment. -/
+theorem assignmentAt_succ_mul_two (n k : ℕ) :
+    assignmentAt (n + 1) (2 * k) = false :: assignmentAt n k := by
+  have hmod : (2 * k) % 2 = 0 := Nat.mul_mod_right 2 k
+  have hdiv : (2 * k) / 2 = k := by omega
+  simp [assignmentAt, hmod, hdiv]
+
+/-- Odd index at depth `n+1` prepends `true` to the parent assignment. -/
+theorem assignmentAt_succ_mul_two_add_one (n k : ℕ) :
+    assignmentAt (n + 1) (2 * k + 1) = true :: assignmentAt n k := by
+  have hmod : (2 * k + 1) % 2 = 1 := by omega
+  have hdiv : (2 * k + 1) / 2 = k := by omega
+  simp [assignmentAt, hmod, hdiv]
+
+/-- `List.range (2 * m)` maps as interleaved pairs `[f(2k), f(2k+1)]`. -/
+theorem map_range_two_mul {α : Type*} (m : ℕ) (f : ℕ → α) :
+    (List.range (2 * m)).map f =
+      (List.range m).flatMap (fun k => [f (2 * k), f (2 * k + 1)]) := by
+  induction m with
+  | zero => simp
+  | succ m ih =>
+      have hlen : 2 * (m + 1) = 2 * m + 2 := by omega
+      rw [hlen, List.range_succ, List.range_succ, List.map_append, List.map_append,
+        List.map_cons, List.map_nil, List.map_cons, List.map_nil, ih,
+        List.range_succ, List.flatMap_append, List.flatMap_cons, List.flatMap_nil]
+      simp [Nat.add_comm]
+
+/-- `assignmentAtList` reproduces the recursive flatMap order of `allBitstrings`. -/
+theorem assignmentAtList_eq_allBitstrings (n : ℕ) :
+    assignmentAtList n = allBitstrings n := by
+  induction n with
+  | zero =>
+      simp [assignmentAtList, allBitstrings, assignmentAt]
+  | succ n ih =>
+      -- Expand both sides; rewrite parent list via IH.
+      simp only [assignmentAtList, allBitstrings, Nat.pow_succ]
+      -- `2 ^ n * 2 = 2 * 2 ^ n` for the range length.
+      have hpow : 2 ^ n * 2 = 2 * 2 ^ n := by omega
+      rw [hpow, map_range_two_mul]
+      -- Convert pair map into flatMap over parent assignments.
+      have hpair :
+          (List.range (2 ^ n)).flatMap
+              (fun k =>
+                [assignmentAt (n + 1) (2 * k), assignmentAt (n + 1) (2 * k + 1)]) =
+            (List.range (2 ^ n)).flatMap
+              (fun k =>
+                [false :: assignmentAt n k, true :: assignmentAt n k]) := by
+        congr 1
+        funext k
+        simp [assignmentAt_succ_mul_two, assignmentAt_succ_mul_two_add_one]
+      rw [hpair]
+      -- `(range.map assignmentAt).flatMap g = range.flatMap (g ∘ assignmentAt)`.
+      have hswap :
+          (List.range (2 ^ n)).flatMap
+              (fun k => [false :: assignmentAt n k, true :: assignmentAt n k]) =
+            ((List.range (2 ^ n)).map (assignmentAt n)).flatMap
+              (fun t => [false :: t, true :: t]) := by
+        symm
+        exact List.flatMap_map (assignmentAt n) (fun t => [false :: t, true :: t])
+          (List.range (2 ^ n))
+      rw [hswap, ← ih]
+      simp [assignmentAtList]
+
+/-- Index `i` of `allBitstrings n` is exactly `assignmentAt n i`. -/
+theorem allBitstrings_get_eq_assignmentAt (n i : ℕ)
+    (hi : i < (allBitstrings n).length) :
+    (allBitstrings n)[i] = assignmentAt n i := by
+  have hi' : i < (assignmentAtList n).length := by
+    simpa [assignmentAtList_eq_allBitstrings, length_assignmentAtList,
+      length_allBitstrings] using hi
+  calc
+    (allBitstrings n)[i]
+        = (assignmentAtList n)[i] := by
+            simp [assignmentAtList_eq_allBitstrings]
+      _ = assignmentAt n i := by
+            simp [assignmentAtList, List.getElem_range]
+
 /-- Truth table of `φ` on all assignments to variables `0 .. maxVar`. -/
 def truthTableOf (φ : PropFormula) : List Bool :=
   (allBitstrings (φ.maxVar + 1)).map (fun σ => φ.evalOn σ)
+
+/-- Truth table bit at index `i` is evaluation on `assignmentAt`. -/
+theorem truthTableOf_get_eq_evalOn (φ : PropFormula) (i : ℕ)
+    (hi : i < (truthTableOf φ).length) :
+    (truthTableOf φ)[i] =
+      φ.evalOn (assignmentAt (φ.maxVar + 1) i) := by
+  unfold truthTableOf at hi ⊢
+  have hi' : i < (allBitstrings (φ.maxVar + 1)).length := by
+    simpa using hi
+  simp [List.getElem_map, allBitstrings_get_eq_assignmentAt _ _ hi']
 
 /-- Check that `table` is exactly the all true truth table of `φ`. -/
 def validatesTautology (φ : PropFormula) (table : List Bool) : Prop :=

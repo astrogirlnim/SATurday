@@ -1552,6 +1552,16 @@ SATurday.Bridge.assignmentAt
 SATurday.Bridge.assignmentAt_zero
 SATurday.Bridge.assignmentAt_length
 SATurday.Bridge.assignmentAt_mem
+# R5 ProofSystem Cluster C2 assignmentAtList equality (2026-09-08)
+SATurday.Bridge.assignmentAtList
+SATurday.Bridge.length_assignmentAtList
+SATurday.Bridge.assignmentAt_succ_mul_two
+SATurday.Bridge.assignmentAt_succ_mul_two_add_one
+SATurday.Bridge.map_range_two_mul
+SATurday.Bridge.assignmentAtList_eq_allBitstrings
+SATurday.Bridge.allBitstrings_get_eq_assignmentAt
+SATurday.Bridge.truthTableOf_get_eq_evalOn
+
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode
