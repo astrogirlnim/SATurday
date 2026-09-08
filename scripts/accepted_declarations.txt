@@ -1566,3 +1566,15 @@ SATurday.ProofComplexity.mgg_three_vertex_card
 SATurday.ProofComplexity.mggOrigin3
 SATurday.ProofComplexity.mggOrigin3_degree
 SATurday.ProofComplexity.not_isRegular_mggGraph_three_eight
+SATurday.ProofComplexity.mggInvK
+SATurday.ProofComplexity.mggInformativeFloor
+SATurday.ProofComplexity.mggRight
+SATurday.ProofComplexity.mggUp
+SATurday.ProofComplexity.Fin.add_one_ne_of_one_lt
+SATurday.ProofComplexity.mggNeighbor_right_eq
+SATurday.ProofComplexity.mggNeighbor_right_ne
+SATurday.ProofComplexity.mggNeighbor_up_eq
+SATurday.ProofComplexity.mggNeighbor_up_ne
+SATurday.ProofComplexity.mggEdgeOf_eq_some_of_ne
+SATurday.ProofComplexity.mgg_adj_right
+SATurday.ProofComplexity.mgg_adj_up

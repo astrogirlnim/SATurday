@@ -3341,3 +3341,23 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Most important thing learned: intermediate MGG work should target
   `HasExpansionInv` on the existing simple `mggGraph`, not degree 8.
   gate_pending: accept_prose.
+
+- 2026-09-08 human gate: accept_prose APPROVED (gate_auto: true, loop wake)
+  for Inv-only MGG intermediate pin.
+
+- 2026-09-08 formalize (Cluster 29c translation adjacency + Frontier family): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "mggGraph connectivity and exists_mgg_simple_hasExpansionInv_family",
+    "rationale": "Accepted Inv-only pin; land adjacency then Frontier inhabit."
+  }
+  ```
+  Accepted: `mggInvK`, `mggInformativeFloor`, right/up neighbor eqs, non-loops
+  for `1 < m`, `mgg_adj_right`, `mgg_adj_up`.
+  Frontier: `MGGFrontier.mggGraph_isConnected`,
+  `MGGFrontier.exists_mgg_simple_hasExpansionInv_family`.
+  gate_pending: merge_certified.
+  Next: formalize torus connectivity from translation adjacency.

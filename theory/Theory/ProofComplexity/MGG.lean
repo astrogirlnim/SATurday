@@ -123,4 +123,126 @@ theorem not_isRegular_mggGraph_three_eight :
   have := h mggOrigin3
   simp [mggOrigin3_degree] at this
 
+
+/-! ## Cluster 29c: Inv-only intermediate pin + translation adjacency
+
+Prove accept_prose 2026-09-08: intermediate pin is connectivity plus
+`HasExpansionInv (mggGraph m _) mggInvK` (no simple regularity 8).
+This cluster certifies constants and right/up adjacency; full connectivity
+and Inv family stay in `MGGFrontier`. -/
+
+def mggInvK : ℕ := 4
+def mggInformativeFloor : ℕ := 6
+def mggRight : Fin 8 := ⟨0, by decide⟩
+def mggUp : Fin 8 := ⟨2, by decide⟩
+
+/-- On `Fin k` with `1 < k`, successor is irreflexive. (Fails for `k = 1`.) -/
+theorem Fin.add_one_ne_of_one_lt {k : ℕ} [NeZero k] (hk : 1 < k) (x : Fin k) :
+    x + 1 ≠ x := by
+  intro h
+  have hval' := congrArg Fin.val h
+  rw [Fin.val_add] at hval'
+  have hone : ((1 : Fin k) : ℕ) = 1 := by
+    change (1 : ℕ) % k = 1
+    exact Nat.mod_eq_of_lt hk
+  have hval : (x.val + 1) % k = x.val := by
+    rwa [hone] at hval'
+  have hx : x.val < k := x.isLt
+  by_cases hlt : x.val + 1 < k
+  · have heq : (x.val + 1) % k = x.val + 1 := Nat.mod_eq_of_lt hlt
+    rw [heq] at hval
+    exact (Nat.ne_of_gt (Nat.lt_succ_self x.val)) hval
+  · have hkm : x.val + 1 = k := by omega
+    rw [hkm, Nat.mod_self] at hval
+    omega
+
+theorem mggNeighbor_right_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggRight =
+      letI : NeZero m := mggNeZero hm
+      mggEncode hm ((mggDecode hm v).1 + 1, (mggDecode hm v).2) := by
+  letI : NeZero m := mggNeZero hm
+  rfl
+
+theorem mggNeighbor_right_ne {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggRight ≠ v := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hx := (Prod.ext_iff.mp (by
+    simpa [mggNeighbor_right_eq hm0, mggDecode_encode] using
+      congrArg (mggDecode hm0) h)).1
+  exact Fin.add_one_ne_of_one_lt hm (mggDecode hm0 v).1 hx
+
+theorem mggNeighbor_up_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggUp =
+      letI : NeZero m := mggNeZero hm
+      mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).2 + 1) := by
+  letI : NeZero m := mggNeZero hm
+  rfl
+
+theorem mggNeighbor_up_ne {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggUp ≠ v := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hy := (Prod.ext_iff.mp (by
+    simpa [mggNeighbor_up_eq hm0, mggDecode_encode] using
+      congrArg (mggDecode hm0) h)).2
+  exact Fin.add_one_ne_of_one_lt hm (mggDecode hm0 v).2 hy
+
+theorem mggEdgeOf_eq_some_of_ne {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) (s : Fin 8)
+    (hne : mggNeighbor hm v s ≠ v) :
+    ∃ e, mggEdgeOf hm v s = some e ∧
+      ((e.val.1 = v ∧ e.val.2 = mggNeighbor hm v s) ∨
+        (e.val.1 = mggNeighbor hm v s ∧ e.val.2 = v)) := by
+  dsimp [mggEdgeOf]
+  set w := mggNeighbor hm v s
+  by_cases hlt : v.val < w.val
+  · refine ⟨⟨(v, w), hlt⟩, ?_, Or.inl ⟨rfl, rfl⟩⟩
+    simp [hlt]
+  · have hwv : w.val < v.val := by
+      have : w.val ≠ v.val := fun heq => hne (Fin.ext heq)
+      omega
+    refine ⟨⟨(w, v), hwv⟩, ?_, Or.inr ⟨rfl, rfl⟩⟩
+    simp [hlt, hwv]
+
+theorem mgg_adj_right {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    (mggGraph m (lt_trans Nat.zero_lt_one hm)).Adj v
+      (mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggRight) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  obtain ⟨e, he, hends⟩ :=
+    mggEdgeOf_eq_some_of_ne hm0 v mggRight (mggNeighbor_right_ne hm v)
+  refine ⟨e, mem_mggGraph_of_edgeOf hm0 v mggRight he, ?_⟩
+  rcases hends with h | h
+  · exact Or.inl h
+  · exact Or.inr h
+
+theorem mgg_adj_up {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    (mggGraph m (lt_trans Nat.zero_lt_one hm)).Adj v
+      (mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggUp) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  obtain ⟨e, he, hends⟩ :=
+    mggEdgeOf_eq_some_of_ne hm0 v mggUp (mggNeighbor_up_ne hm v)
+  refine ⟨e, mem_mggGraph_of_edgeOf hm0 v mggUp he, ?_⟩
+  rcases hends with h | h
+  · exact Or.inl h
+  · exact Or.inr h
+
+namespace MGGFrontier
+
+/-- Torus connectivity via translations; proof deferred to keep this cycle small. -/
+theorem mggGraph_isConnected {m : ℕ} (hm : 0 < m) :
+    (mggGraph m hm).IsConnected := by
+  sorry
+
+/-- Intermediate Block A pin: unbounded simple MGG Inv expanders (no regularity). -/
+theorem exists_mgg_simple_hasExpansionInv_family :
+    ∀ N : ℕ, ∃ (m : ℕ) (hm : 0 < m),
+      max N mggInformativeFloor ≤ m ∧
+        (mggGraph m hm).IsConnected ∧
+          HasExpansionInv (mggGraph m hm) mggInvK := by
+  sorry
+
+end MGGFrontier
+
 end SATurday.ProofComplexity
