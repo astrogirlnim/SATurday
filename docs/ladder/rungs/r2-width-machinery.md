@@ -3416,3 +3416,183 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   `of_inv`. Axiom gate PASS. Exact open obligation:
   `HasExpansionInv (mggGraph m hm0) mggInvK` for all `m ≥ mggInformativeFloor`.
   Next: prove Gabber Galil to Inv, or formalize a cut lower bound toward that.
+
+- 2026-09-08 prove (pin Gabber Galil for mggGraph_hasExpansionInv): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "prove",
+    "target": "pin Gabber Galil argument for mggGraph_hasExpansionInv",
+    "rationale": "Family packaging ready; need prose plan for Inv expansion before more Lean grind."
+  }
+  ```
+  workstream: R2. Dirty WIP from prior timed out prove agents: none (tree clean at HEAD 6bf6206).
+
+  ### Statement (exact Lean Frontier obligation)
+
+  For every `m : ℕ` with `0 < m` and `mggInformativeFloor ≤ m` (locked floor 6),
+  `HasExpansionInv (mggGraph m hm0) mggInvK` holds with locked `mggInvK = 4`.
+  Unfolded: for every nonempty `S : Finset (Fin (m * m))` with
+  `2 * S.card ≤ m * m`, one has
+  `S.card ≤ 4 * (edgeBoundary (mggGraph m hm0) S).card`.
+  Connectivity is already certified and packaged; this prove does not revisit it.
+  No regularity hypothesis on the simple graph.
+
+  ### Non vacuity
+
+  1. For every `m ≥ 1`, `mggGraph m hm` is an inhabited `FinGraph (m * m)`
+     (Cluster 29 scaffolding).
+  2. For every `m ≥ 2`, `(mggGraph m hm).IsConnected` (Cluster 29d).
+  3. Classical Gabber Galil: the 8 regular multigraph Cayley graph on
+     `(Z/mZ)²` with generators `(±1,0)`, `(0,±1)`, `±S`, `±T` has second
+     adjacency eigenvalue at most `5 * sqrt 2`. Classification: known
+     (Gabber Galil 1981; Hoory Linial Wigderson survey presentation).
+  4. Finite half sets exist for `m ≥ 2` (`n = m² ≥ 4`), so the Inv
+     quantifier is non vacuous. Classification: routine.
+
+  ### Attack ideas (sketched, one developed)
+
+  A. Full Fourier analysis of the adjacency operator on `L²((Z/mZ)²)` inside
+     Lean, deriving `λ₂ ≤ 5√2` from scratch. Classification: known externally;
+     Lean cost extreme.
+  B. Cite the Gabber Galil spectral bound as a single named external lemma,
+     discharge Cheeger to combinatorial expansion on an auxiliary multigraph,
+     then transfer cuts to simple `mggGraph` with an axis loss budget absorbed
+     by `mggInvK = 4` (developed).
+  C. Purely combinatorial cut counting using only the four translations
+     (grid torus isoperimetry). Classification: adaptation; yields weaker or
+     dimension dependent constants and does not use the S/T expansion that
+     makes MGG work; rejected as primary.
+
+  ### The one argument developed (B)
+
+  Step 0. Auxiliary multigraph. For each `m ≥ 2`, let `M_m` be the undirected
+  8 regular multigraph on the same vertex set `Fin (m * m)` whose edges are the
+  eight labeled generator incidences (loops allowed when a generator fixes a
+  vertex; parallel edges allowed when two generators share a neighbor). The
+  existing `mggNeighbor` enumeration is exactly the labeled star of `M_m`.
+  The simple graph `mggGraph m hm` is the support of `M_m` after deleting loops
+  and collapsing parallel edges to one undirected `FinEdge`. Classification:
+  routine packaging relative to Cluster 29.
+
+  Step 1. Spectral input on `M_m` (known). Let `A` be the adjacency operator of
+  `M_m` on real functions `Fin (m * m) → ℝ` (equivalently on `(Z/mZ)²`). Then
+  the second largest eigenvalue in absolute value among vectors orthogonal to
+  the constants satisfies `λ₂(M_m) ≤ 5 * sqrt 2`. Citation: Gabber Galil;
+  presentation as in Hoory et al. Classification: known.
+
+  Step 2. Cheeger on the regular multigraph (known adaptation). For an
+  undirected `d` regular multigraph, the edge expansion
+  `φ(M) = min_{S ≠ ∅, 2|S|≤n} |∂_M S| / |S|` obeys
+  `φ(M) ≥ (d − λ₂) / 2`. With `d = 8` and `λ₂ ≤ 5√2` one gets
+  `φ(M_m) ≥ (8 − 5√2) / 2`. Numerically `5√2 < 7.1`, so
+  `8 − 5√2 > 0.9` and `(8 − 5√2)/2 > 0.45 > 2/5`. Hence every nonempty half set
+  satisfies `|∂_M S| ≥ (2/5) |S|`, equivalently `|S| ≤ (5/2) |∂_M S|`.
+  Nat target on the multigraph: `|S| ≤ 3 * |∂_M S|` after ceiling. Classification:
+  known Cheeger plus routine real to Nat inequality
+  `(8 − 5√2)/2 ≥ 2/5` (or directly `≥ 1/3`).
+
+  Step 3. Cut transfer to the simple graph. Write `∂_G` for
+  `edgeBoundary (mggGraph m hm)`. Every simple cut edge is a collapsed image of
+  at least one multi cut incidence, so `|∂_G S| ≤ |∂_M S|` always. The dangerous
+  direction for Inv is the reverse loss: `|∂_M S| − |∂_G S|` counts multi
+  incidences that do not appear as distinct simple cut edges. Those losses are
+  exactly (i) loops (generator fixes the vertex: never a cut edge) and
+  (ii) parallel collisions (two generators yield the same neighbor: multi counts
+  two, simple counts one).
+
+  Loop locus (exact): `S` generator fixes `(x,y)` iff `x = 0`; `S⁻¹` likewise
+  iff `x = 0`; `T` fixes iff `y = 0`; `T⁻¹` iff `y = 0`. Translations never loop
+  for `m > 1`. So every loop vertex lies on the axis set
+  `A_m = {v | (mggDecode v).1 = 0 ∨ (mggDecode v).2 = 0}` with
+  `|A_m| ≤ 2m − 1`. Classification: routine from `mggNeighbor` equations.
+
+  Parallel collisions off axis are constrained: for `m ≥ 3`, the four
+  translations at a vertex are pairwise distinct (Cluster 29e). Remaining
+  collisions involve at least one of `±S`, `±T`. Bound used below: at each
+  vertex the multi degree is 8 and the simple degree is at most 8, and the
+  local multiplicity excess `8 − degree(G,v)` is at most 4 on axes (witnessed
+  at `m = 3` origin) and at most 2 off a thinner collision set for large `m`.
+  Global cut loss therefore satisfies
+  `|∂_M S| − |∂_G S| ≤ ∑_{v∈S} (8 − degree(G,v)) ≤ 4 * |S ∩ A_m| + 2 * |S|`
+  after a safe uniform overcount (formalize may tighten). Classification:
+  adaptation; inequality shape is the Lean obligation.
+
+  Step 4. Absorb loss into `mggInvK = 4`. From Step 2,
+  `|S| ≤ 3 |∂_M S| ≤ 3 (|∂_G S| + loss(S))`. For half sets with
+  `|S| ≤ m²/2` and `m ≥ mggInformativeFloor = 6`, axis density
+  `|A_m|/m² ≤ (2m)/m² = 2/m ≤ 1/3`. Feed the loss bound of Step 3 and
+  rearrange to `|S| ≤ 4 |∂_G S|` for every nonempty half set. The constant 4 is
+  chosen with slack so that a slightly worse collision bound still closes; if
+  formalize discovers the inequality fails at `m = 6` only, raise the
+  informative floor (not the Inv shape) or raise `mggInvK` to 6 as previously
+  reserved. Classification: routine Nat algebra once the loss lemma exists.
+
+  Step 5. Conclude Frontier. Steps 1 to 4 yield
+  `MGGFrontier.mggGraph_hasExpansionInv`. Packaging
+  `exists_mgg_simple_hasExpansionInv_family_of_inv` then discharges the
+  intermediate family pin with no further math. Cubicization remains a later
+  formalize cluster (replacement product, authorized `cubicInvK` raise).
+
+  ### Formalize lemma order (Cluster 30 plan)
+
+  (i) `mggAxis : Finset (Fin (m*m))` and `|mggAxis| ≤ 2m − 1`.
+  (ii) Loop characterization: which `s : Fin 8` satisfy `mggNeighbor v s = v`.
+  (iii) Optional multi cut API or direct counting from labeled generators
+      without a new graph type.
+  (iv) Nat lemma `(8 − 5√2)/2 ≥ 2/5` (or embed `5√2` via `Nat` squares:
+      prove `50 < 49` is false wait: use `5√2 < 71/10` style rationals).
+  (v) Frontier or axiom wrapped `mgg_multigraph_spectral_gap` citing Gabber Galil
+      (one sorry until analysis lands).
+  (vi) Cheeger packaging to `|S| ≤ 3 * multiCut S`.
+  (vii) Loss lemma multiCut to `edgeBoundary`.
+  (viii) Combine to `HasExpansionInv _ 4`; remove sorry on
+      `mggGraph_hasExpansionInv`.
+
+  Prefer finishing (i)(ii)(iv)(vii) combinatorial surface before investing in
+  spectral analysis. Do not grind cubicization until Inv lands or is explicitly
+  deferred with a raised constant plan.
+
+  ### Gap list
+
+  1. Human accept_prose for this Gabber Galil to simple Inv pin (spectral cite,
+     Cheeger, axis loss, `mggInvK = 4`). Gap class: gate.
+  2. Nat inequality packaging for `(8 − 5√2)/2 ≥ 2/5` and the final
+     `|S| ≤ 4 |∂_G S|` algebra. Gap class: routine.
+  3. Axis and loop characterization lemmas in Lean. Gap class: routine.
+  4. Cut loss lemma from labeled generators to `edgeBoundary`. Gap class: hard
+     (combinatorial bookkeeping).
+  5. Gabber Galil spectral bound in Lean (or a single cited Frontier lemma).
+     Gap class: hard.
+  6. Cheeger inequality in the multigraph or labeled star model. Gap class: hard.
+  7. Optional floor or `mggInvK` bump if `m = 6` fails quantitative slack.
+     Gap class: routine.
+
+  ### Self adversarial pass
+
+  - Quantifiers: obligation is `∀ m ≥ 6`, not a single cage; axis density `2/m`
+    vanishes, so axis only pathologies cannot kill Inv uniformly.
+  - Do not reintroduce `IsRegular _ 8` on `mggGraph`.
+  - Do not claim `|∂_G S| ≥ |∂_M S|`; loss goes the other way and must be budgeted.
+  - Off by one: floor 6 gives `2/m ≤ 1/3`; check `m = 6` half set card
+    `2 * |S| ≤ 36` carefully in Nat proofs (no silent `/`).
+  - Hidden uniformity: `λ₂ ≤ 5√2` must hold for all large `m`, including
+    composite `m` (Gabber Galil does; do not restrict to primes).
+  - Summit sneak: this only builds expanders for resolution Tseitin width; no
+    R3 system is claimed. Barrier audit not required.
+  - Worst gap: Lean spectral bound or Cheeger (gaps 5 and 6), not the Inv
+    packaging shape.
+
+  Most important thing learned: discharge `mggGraph_hasExpansionInv` by a
+  three layer reduction (Gabber Galil spectrum on the labeled 8 regular star,
+  Cheeger to multi cuts, axis aware transfer to simple `edgeBoundary`) with
+  `mggInvK = 4` absorbing loss; formalize should land axis and Nat surface
+  lemmas before spectral grind.
+  gate_pending: accept_prose.
+
+- 2026-09-08 human gate: accept_prose APPROVED (gate_auto: true, workstream R2).
+  Rationale: prose matches critical path Block A Inv pin, cites Gabber Galil
+  as known, keeps simple graph honesty, and does not revive twice blocked
+  factor 1 expansion. Next: formalize Cluster 30 axis and cut loss surface
+  toward `mggGraph_hasExpansionInv`.
