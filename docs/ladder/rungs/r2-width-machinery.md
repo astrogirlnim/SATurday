@@ -3229,3 +3229,115 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   `IsRegular _ 8`.
   gate_pending: merge_certified.
   Next: prove restatement of intermediate MGG regularity hypothesis.
+
+- 2026-09-08 human gate: merge_certified APPROVED (gate_auto: true, loop wake)
+  for Cluster 29b `mggOrigin3_degree` and `not_isRegular_mggGraph_three_eight`.
+
+- 2026-09-08 prove (restate intermediate MGG degree pin): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "prove",
+    "target": "restate intermediate MGG pin without simple IsRegular 8",
+    "rationale": "Cluster 29b killed IsRegular mggGraph 8; intermediate inhabit needs an honest hypothesis."
+  }
+  ```
+
+  ### Statement restated
+
+  Kill as intermediate hypothesis:
+  `IsRegular (mggGraph m hm) 8` on the simple `FinGraph` encoding.
+
+  New intermediate Frontier pin (Lean names proposed):
+
+      mggInvK : ℕ := 4
+      mggInformativeFloor : ℕ := 6
+
+      exists_mgg_simple_hasExpansionInv_family :
+        ∀ N : ℕ, ∃ (m : ℕ) (hm : 0 < m),
+          max N mggInformativeFloor ≤ m ∧
+            (mggGraph m hm).IsConnected ∧
+              HasExpansionInv (mggGraph m hm) mggInvK
+
+  Cubic inhabit then becomes: from this simple Inv family, produce a 3 regular
+  connected `HasExpansionInv _ cubicInvK` family by replacement product (or
+  raise `cubicInvK` as already authorized). No claim that simple MGG is
+  8 regular.
+
+  ### Non vacuity
+
+  1. `mggGraph` is inhabited for every `m > 0` (Cluster 29 scaffolding).
+  2. Cluster 29b shows the origin at `m = 3` has degree 4, so the killed
+     regularity pin was empty of truth, not merely unproved.
+  3. Classical Gabber Galil spectral gap on the 8 regular multigraph implies
+     a uniform positive Cheeger constant; dropping loops and parallel edges
+     only weakens cuts by a lower order axis effect, so a fixed Inv constant
+     such as `mggInvK = 4` remains the intended Lean target. Classification:
+     known externally; Lean spectral or combinatorial discharge is the hard gap.
+
+  ### Attack ideas (sketched, one developed)
+
+  A. Switch `FinGraph` to a multigraph API with multiplicity 8 everywhere.
+     Classification: adaptation; large API change across Tseitin.
+  B. Keep simple graphs; drop regularity; pin `HasExpansionInv` plus
+     connectivity only (developed).
+  C. Work entirely with directed Cayley outdegree 8 and a directed expansion
+     predicate. Classification: new encoding; more defs.
+
+  ### The one argument developed (B)
+
+  Step 1. Treat Cluster 29b as a pin kill, not a build failure: simple
+  `mggGraph` is the right Lean object for later Tseitin width packaging only
+  after cubicization; it is the wrong place to demand degree 8.
+  Classification: known from certified counterexample.
+
+  Step 2. Intermediate mathematical content is expansion, not regularity.
+  Gabber Galil give `λ₂ ≤ 5√2` on the multigraph; Cheeger yields combinatorial
+  expansion `φ ≥ (8 − λ₂)/2 > 2/5` there. Passing to the underlying simple
+  graph decreases some cut sizes (lost loops contribute 0; merged parallels
+  count once). On non axis vertices for `m ≥ 3` the eight neighbors are
+  distinct, so the local multi and simple stars agree. Axis vertices are
+  `O(m)` of `m²`, so any half set expansion failure supported only on axes
+  cannot survive for large `m` under a fixed Inv constant with room to spare.
+  Pin `mggInvK := 4` as a safe Nat (weaker than `3` from the multi Cheeger
+  rounding) pending Lean discharge; raise to `6` if formalize stalls.
+  Classification: adaptation of Gabber Galil plus routine density of axes.
+
+  Step 3. Connectivity of simple MGG for `m ≥ 2` is elementary from the
+  translation generators alone (grid torus). Classification: routine.
+
+  Step 4. Cubicization (unchanged shape): replacement product from a
+  connected Inv expander with minimum degree at least 3 (true off axis;
+  axis degree 4 at `m = 3` already) into a 3 regular Inv graph, tracking
+  `kCub`, then feed Cluster 28 packaging, raising `cubicInvK` if needed.
+  Classification: adaptation; hard constant tracking.
+
+  Step 5. Formalize order after accept_prose: (i) `mggInvK` and connectivity
+  lemmas; (ii) Frontier `exists_mgg_simple_hasExpansionInv_family`; (iii) Inv
+  theorem or sorry Frontier for Gabber Galil; (iv) cubicize.
+
+  ### Gap list
+
+  1. Human accept_prose for killing simple `IsRegular _ 8` and adopting the
+     Inv only intermediate pin with `mggInvK = 4`. Gap class: gate.
+  2. Connectivity of `mggGraph` for `m ≥ 2`. Gap class: routine.
+  3. Gabber Galil to `HasExpansionInv (mggGraph m _) mggInvK` in Lean,
+     including axis multiplicity loss. Gap class: hard.
+  4. Replacement cubicization with explicit `kCub`. Gap class: hard.
+  5. Informative floor choice `mggInformativeFloor` relative to later cubic
+     floor 26. Gap class: routine.
+
+  ### Self adversarial pass
+
+  - Do not smuggle back `IsRegular _ 8` on the simple graph.
+  - Do not claim axis loss is negligible without an explicit Lean inequality
+    when formalizing; the Inv constant must absorb it.
+  - Quantifiers: unbounded `m` still required; `m = 3` is only a regularity
+    counterexample, not an Inv family witness.
+  - Barrier: still resolution Tseitin after cubicize; no R3 flag.
+  - Worst gap remains Gabber Galil analysis (gap 3).
+
+  Most important thing learned: intermediate MGG work should target
+  `HasExpansionInv` on the existing simple `mggGraph`, not degree 8.
+  gate_pending: accept_prose.

@@ -118,9 +118,9 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: prove restatement of intermediate MGG degree pin (simple
-   `IsRegular _ 8` is false; Cluster 29b certified origin degree 4 at
-   `m = 3`). Then formalize multigraph or min-degree form, Inv, cubicize.
+1. R2: accept_prose on Inv only MGG intermediate pin (`mggInvK = 4`,
+   no simple `IsRegular _ 8`), then formalize connectivity and
+   `exists_mgg_simple_hasExpansionInv_family` toward cubicize.
    Do not hunt unbounded `HasExpansion _ 1`.
 2. In parallel sessions only: R5 Cluster C continue with mutual
    `assignmentAtList` equals `allBitstrings` (definitional; no summit claim
