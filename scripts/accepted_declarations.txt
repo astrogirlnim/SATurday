@@ -1596,3 +1596,21 @@ SATurday.ProofComplexity.mgg_reachable_right_to
 SATurday.ProofComplexity.mgg_reachable_up_to
 SATurday.ProofComplexity.mgg_reachable_encode
 SATurday.ProofComplexity.mggGraph_isConnected
+# R2 item 2 cluster 29e: left/down adj, translation distinctness, Inv family packaging (2026-09-08)
+SATurday.ProofComplexity.mggLeft
+SATurday.ProofComplexity.mggDown
+SATurday.ProofComplexity.Fin.sub_one_ne_of_one_lt
+SATurday.ProofComplexity.Fin.add_one_ne_sub_one_of_three_le
+SATurday.ProofComplexity.mggNeighbor_left_eq
+SATurday.ProofComplexity.mggNeighbor_left_ne
+SATurday.ProofComplexity.mggNeighbor_down_eq
+SATurday.ProofComplexity.mggNeighbor_down_ne
+SATurday.ProofComplexity.mgg_adj_left
+SATurday.ProofComplexity.mgg_adj_down
+SATurday.ProofComplexity.mggNeighbor_right_ne_left
+SATurday.ProofComplexity.mggNeighbor_up_ne_down
+SATurday.ProofComplexity.mggNeighbor_right_ne_up
+SATurday.ProofComplexity.mggNeighbor_right_ne_down
+SATurday.ProofComplexity.mggNeighbor_left_ne_up
+SATurday.ProofComplexity.mggNeighbor_left_ne_down
+SATurday.ProofComplexity.exists_mgg_simple_hasExpansionInv_family_of_inv

@@ -118,10 +118,10 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: accept_prose on Inv only MGG intermediate pin (`mggInvK = 4`,
-   no simple `IsRegular _ 8`), then formalize connectivity and
-   `exists_mgg_simple_hasExpansionInv_family` toward cubicize.
-   Do not hunt unbounded `HasExpansion _ 1`.
+1. R2: formalize or prove `MGGFrontier.mggGraph_hasExpansionInv`
+   (`HasExpansionInv (mggGraph m _) mggInvK` for `m ≥ mggInformativeFloor`),
+   then cubicize toward `exists_cubic_hasExpansionInv_family`.
+   Do not hunt unbounded `HasExpansion _ 1`. Do not Nat chase Spreads.
 2. In parallel sessions only: R5 Cluster C continue with mutual
    `assignmentAtList` equals `allBitstrings` (definitional; no summit claim
    until Lemmas C to E).

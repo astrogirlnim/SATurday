@@ -417,16 +417,223 @@ theorem mggGraph_isConnected {m : ℕ} (hm : 0 < m) :
     subst huv
     exact Relation.ReflTransGen.refl
 
-namespace MGGFrontier
+/-! ## Cluster 29e: left/down adjacency, min degree, Inv family packaging
 
-/-- Intermediate Block A pin: unbounded simple MGG Inv expanders (no regularity). -/
-theorem exists_mgg_simple_hasExpansionInv_family :
+Connectivity is certified. Remaining Gabber Galil gap is Inv. This cluster
+lands the other two translation generators plus pairwise translation
+distinctness for `m ≥ 3`, and packages the unbounded family from a uniform Inv
+hypothesis so Frontier holds only the spectral gap. -/
+
+def mggLeft : Fin 8 := ⟨1, by decide⟩
+def mggDown : Fin 8 := ⟨3, by decide⟩
+
+/-- On `Fin k` with `1 < k`, predecessor is irreflexive. -/
+theorem Fin.sub_one_ne_of_one_lt {k : ℕ} [NeZero k] (hk : 1 < k) (x : Fin k) :
+    x - 1 ≠ x := by
+  intro h
+  have : x = x + 1 := by
+    calc
+      x = (x - 1) + 1 := (sub_add_cancel x 1).symm
+      _ = x + 1 := by rw [h]
+  exact Fin.add_one_ne_of_one_lt hk x this.symm
+
+/-- For `3 ≤ k`, successor and predecessor differ (`2 ≠ 0` in `Fin k`). -/
+theorem Fin.add_one_ne_sub_one_of_three_le {k : ℕ} [NeZero k]
+    (hk : 3 ≤ k) (x : Fin k) : x + 1 ≠ x - 1 := by
+  intro h
+  have hk1 : 1 < k := lt_of_lt_of_le (by decide : 1 < 3) hk
+  have h2lt : 2 < k := lt_of_lt_of_le (by decide : 2 < 3) hk
+  -- From x+1 = x-1, adding 1 yields x+2 = x, so 2 = 0 in Fin k.
+  have h2 : x + (2 : Fin k) = x := by
+    have h21 : (2 : Fin k) = (1 : Fin k) + 1 := by
+      apply Fin.ext
+      change (2 % k) = ((1 % k) + (1 % k)) % k
+      simp [Nat.mod_eq_of_lt hk1, Nat.mod_eq_of_lt h2lt]
+    calc
+      x + 2 = x + (1 + 1) := by rw [h21]
+      _ = x + 1 + 1 := by rw [add_assoc]
+      _ = (x - 1) + 1 := by rw [h]
+      _ = x := sub_add_cancel x 1
+  have htwo : (2 : Fin k) = 0 := add_left_cancel (a := x) (by simpa using h2)
+  have h2ne : (2 : Fin k) ≠ 0 :=
+    Fin.ne_of_gt (by
+      change (0 : ℕ) < 2 % k
+      simpa [Nat.mod_eq_of_lt h2lt] using (by decide : (0 : ℕ) < 2))
+  exact h2ne htwo
+
+theorem mggNeighbor_left_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggLeft =
+      letI : NeZero m := mggNeZero hm
+      mggEncode hm ((mggDecode hm v).1 - 1, (mggDecode hm v).2) := by
+  letI : NeZero m := mggNeZero hm
+  rfl
+
+theorem mggNeighbor_left_ne {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggLeft ≠ v := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hx := (Prod.ext_iff.mp (by
+    simpa [mggNeighbor_left_eq hm0, mggDecode_encode] using
+      congrArg (mggDecode hm0) h)).1
+  exact Fin.sub_one_ne_of_one_lt hm (mggDecode hm0 v).1 hx
+
+theorem mggNeighbor_down_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggNeighbor hm v mggDown =
+      letI : NeZero m := mggNeZero hm
+      mggEncode hm ((mggDecode hm v).1, (mggDecode hm v).2 - 1) := by
+  letI : NeZero m := mggNeZero hm
+  rfl
+
+theorem mggNeighbor_down_ne {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggDown ≠ v := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hy := (Prod.ext_iff.mp (by
+    simpa [mggNeighbor_down_eq hm0, mggDecode_encode] using
+      congrArg (mggDecode hm0) h)).2
+  exact Fin.sub_one_ne_of_one_lt hm (mggDecode hm0 v).2 hy
+
+theorem mgg_adj_left {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    (mggGraph m (lt_trans Nat.zero_lt_one hm)).Adj v
+      (mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggLeft) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  obtain ⟨e, he, hends⟩ :=
+    mggEdgeOf_eq_some_of_ne hm0 v mggLeft (mggNeighbor_left_ne hm v)
+  refine ⟨e, mem_mggGraph_of_edgeOf hm0 v mggLeft he, ?_⟩
+  rcases hends with h | h
+  · exact Or.inl h
+  · exact Or.inr h
+
+theorem mgg_adj_down {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    (mggGraph m (lt_trans Nat.zero_lt_one hm)).Adj v
+      (mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggDown) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  obtain ⟨e, he, hends⟩ :=
+    mggEdgeOf_eq_some_of_ne hm0 v mggDown (mggNeighbor_down_ne hm v)
+  refine ⟨e, mem_mggGraph_of_edgeOf hm0 v mggDown he, ?_⟩
+  rcases hends with h | h
+  · exact Or.inl h
+  · exact Or.inr h
+
+/-- Decode both sides of a neighbor equality after unfolding generator equations. -/
+private theorem mgg_decode_neighbor_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m))
+    {s t : Fin 8} {p q : Fin m × Fin m}
+    (hs : mggNeighbor hm v s = mggEncode hm p)
+    (ht : mggNeighbor hm v t = mggEncode hm q)
+    (heq : mggNeighbor hm v s = mggNeighbor hm v t) :
+    p = q := by
+  have hdec := congrArg (mggDecode hm) heq
+  rw [hs, ht, mggDecode_encode, mggDecode_encode] at hdec
+  exact hdec
+
+/-- Horizontal translations disagree when `3 ≤ m`. -/
+theorem mggNeighbor_right_ne_left {m : ℕ} (hm : 3 ≤ m) (v : Fin (m * m)) :
+    mggNeighbor (lt_of_lt_of_le (by decide : 0 < 3) hm) v mggRight ≠
+      mggNeighbor (lt_of_lt_of_le (by decide : 0 < 3) hm) v mggLeft := by
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hpq := mgg_decode_neighbor_eq hm0 v
+    (mggNeighbor_right_eq hm0 v) (mggNeighbor_left_eq hm0 v) h
+  exact Fin.add_one_ne_sub_one_of_three_le hm (mggDecode hm0 v).1
+    (Prod.ext_iff.mp hpq).1
+
+/-- Vertical translations disagree when `3 ≤ m`. -/
+theorem mggNeighbor_up_ne_down {m : ℕ} (hm : 3 ≤ m) (v : Fin (m * m)) :
+    mggNeighbor (lt_of_lt_of_le (by decide : 0 < 3) hm) v mggUp ≠
+      mggNeighbor (lt_of_lt_of_le (by decide : 0 < 3) hm) v mggDown := by
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hpq := mgg_decode_neighbor_eq hm0 v
+    (mggNeighbor_up_eq hm0 v) (mggNeighbor_down_eq hm0 v) h
+  exact Fin.add_one_ne_sub_one_of_three_le hm (mggDecode hm0 v).2
+    (Prod.ext_iff.mp hpq).2
+
+/-- Right versus up: first coordinates force `1 = 0` when `1 < m`. -/
+theorem mggNeighbor_right_ne_up {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggRight ≠
+      mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggUp := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hpq := mgg_decode_neighbor_eq hm0 v
+    (mggNeighbor_right_eq hm0 v) (mggNeighbor_up_eq hm0 v) h
+  exact Fin.add_one_ne_of_one_lt hm (mggDecode hm0 v).1
+    (Prod.ext_iff.mp hpq).1
+
+/-- Right versus down. -/
+theorem mggNeighbor_right_ne_down {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggRight ≠
+      mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggDown := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hpq := mgg_decode_neighbor_eq hm0 v
+    (mggNeighbor_right_eq hm0 v) (mggNeighbor_down_eq hm0 v) h
+  exact Fin.add_one_ne_of_one_lt hm (mggDecode hm0 v).1
+    (Prod.ext_iff.mp hpq).1
+
+/-- Left versus up. -/
+theorem mggNeighbor_left_ne_up {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggLeft ≠
+      mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggUp := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hpq := mgg_decode_neighbor_eq hm0 v
+    (mggNeighbor_left_eq hm0 v) (mggNeighbor_up_eq hm0 v) h
+  exact Fin.sub_one_ne_of_one_lt hm (mggDecode hm0 v).1
+    (Prod.ext_iff.mp hpq).1
+
+/-- Left versus down. -/
+theorem mggNeighbor_left_ne_down {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
+    mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggLeft ≠
+      mggNeighbor (lt_trans Nat.zero_lt_one hm) v mggDown := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro h
+  have hpq := mgg_decode_neighbor_eq hm0 v
+    (mggNeighbor_left_eq hm0 v) (mggNeighbor_down_eq hm0 v) h
+  exact Fin.sub_one_ne_of_one_lt hm (mggDecode hm0 v).1
+    (Prod.ext_iff.mp hpq).1
+
+/-- Family packaging: uniform Inv on large `m` yields the intermediate pin. -/
+theorem exists_mgg_simple_hasExpansionInv_family_of_inv
+    (hInv : ∀ (m : ℕ) (hm0 : 0 < m),
+      mggInformativeFloor ≤ m → HasExpansionInv (mggGraph m hm0) mggInvK) :
     ∀ N : ℕ, ∃ (m : ℕ) (hm : 0 < m),
       max N mggInformativeFloor ≤ m ∧
         (mggGraph m hm).IsConnected ∧
           HasExpansionInv (mggGraph m hm) mggInvK := by
+  intro N
+  let m := max N mggInformativeFloor
+  have hm0 : 0 < m :=
+    lt_of_lt_of_le (by decide : 0 < mggInformativeFloor)
+      (le_max_right N mggInformativeFloor)
+  refine ⟨m, hm0, le_rfl, mggGraph_isConnected (m := m) hm0, ?_⟩
+  exact hInv m hm0 (le_max_right N mggInformativeFloor)
+
+namespace MGGFrontier
+
+/-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/
+theorem mggGraph_hasExpansionInv (m : ℕ) (hm0 : 0 < m)
+    (hm : mggInformativeFloor ≤ m) :
+    HasExpansionInv (mggGraph m hm0) mggInvK := by
   sorry
+
+/-- Intermediate Block A pin: unbounded simple MGG Inv expanders (no regularity).
+Discharges connectivity via packaging; open content is `mggGraph_hasExpansionInv`. -/
+theorem exists_mgg_simple_hasExpansionInv_family :
+    ∀ N : ℕ, ∃ (m : ℕ) (hm : 0 < m),
+      max N mggInformativeFloor ≤ m ∧
+        (mggGraph m hm).IsConnected ∧
+          HasExpansionInv (mggGraph m hm) mggInvK :=
+  exists_mgg_simple_hasExpansionInv_family_of_inv mggGraph_hasExpansionInv
 
 end MGGFrontier
 
 end SATurday.ProofComplexity
+

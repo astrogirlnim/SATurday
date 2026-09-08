@@ -3396,3 +3396,23 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   `mgg_reachable_encode`, `mggGraph_isConnected` (out of Frontier). Axiom gate PASS.
   Still Frontier: `exists_mgg_simple_hasExpansionInv_family`.
   Next: prove or formalize Gabber Galil Inv for `mggInvK`.
+
+- 2026-09-08 formalize (Cluster 29e left/down + Inv packaging): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "progress toward exists_cubic_hasExpansion_family via MGG Inv pin",
+    "rationale": "R2 existence pin blocks R2 certified; finish in progress MGG cluster."
+  }
+  ```
+  gate_auto: true (merge prior connectivity). Accepted: `mggLeft`, `mggDown`,
+  `Fin.sub_one_ne_of_one_lt`, `Fin.add_one_ne_sub_one_of_three_le`, left/down
+  neighbor eqs and adj, pairwise translation distinctness for `m ≥ 3`,
+  `exists_mgg_simple_hasExpansionInv_family_of_inv`. Frontier restated:
+  `MGGFrontier.mggGraph_hasExpansionInv` (sorry; Gabber Galil gap);
+  `exists_mgg_simple_hasExpansionInv_family` now packages connectivity via
+  `of_inv`. Axiom gate PASS. Exact open obligation:
+  `HasExpansionInv (mggGraph m hm0) mggInvK` for all `m ≥ mggInformativeFloor`.
+  Next: prove Gabber Galil to Inv, or formalize a cut lower bound toward that.
