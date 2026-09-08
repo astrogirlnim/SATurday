@@ -1567,14 +1567,6 @@ SATurday.Bridge.validatesTautology_by_index
 SATurday.Bridge.validatesTautology_by_index_of_validatesTautology
 SATurday.Bridge.validatesTautology_of_by_index
 SATurday.Bridge.validatesTautology_iff_by_index
-# R5 ProofSystem Cluster C2 length gate reject path (2026-09-08)
-SATurday.Bridge.lengthGateOk
-SATurday.Bridge.lengthGateOk_iff
-SATurday.Bridge.lengthGateOk_of_validatesTautology_by_index
-SATurday.Bridge.not_validatesTautology_by_index_of_lengthGateFail
-SATurday.Bridge.not_validatesTautology_of_lengthGateFail
-SATurday.Bridge.validatesTautologyResult_eq_by_index
-SATurday.Bridge.validatesTautologyResult_of_lengthGateFail
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode
