@@ -389,6 +389,42 @@ theorem validatesTautology_iff_by_index (φ : PropFormula) (table : List Bool) :
   ⟨validatesTautology_by_index_of_validatesTautology φ table,
     validatesTautology_of_by_index φ table⟩
 
+/-! ## Cluster C2 length gate (FinTM2 reject path)
+
+Index loop FinTM2 step 3: if `table.length ≠ 2^(maxVar+1)`, reject with `[true]`
+without entering the per index loop. This is the first machine oriented gate. -/
+
+/-- Length gate Bool the FinTM2 branches on before the index loop. -/
+def lengthGateOk (φ : PropFormula) (table : List Bool) : Bool :=
+  decide (table.length = 2 ^ (φ.maxVar + 1))
+
+theorem lengthGateOk_iff (φ : PropFormula) (table : List Bool) :
+    lengthGateOk φ table = true ↔ table.length = 2 ^ (φ.maxVar + 1) := by
+  simp [lengthGateOk]
+
+/-- Length gate holds on every accepting index loop witness. -/
+theorem lengthGateOk_of_validatesTautology_by_index (φ : PropFormula)
+    (table : List Bool) (h : validatesTautology_by_index φ table) :
+    lengthGateOk φ table = true := by
+  have hlen := h.1
+  simp [lengthGateOk, hlen]
+
+/-- Failed length gate falsifies the index loop form. -/
+theorem not_validatesTautology_by_index_of_lengthGateFail (φ : PropFormula)
+    (table : List Bool) (h : lengthGateOk φ table = false) :
+    ¬ validatesTautology_by_index φ table := by
+  intro hval
+  have htrue := lengthGateOk_of_validatesTautology_by_index φ table hval
+  exact Bool.false_ne_true (h.symm.trans htrue)
+
+/-- Failed length gate falsifies the list form (via certified equivalence). -/
+theorem not_validatesTautology_of_lengthGateFail (φ : PropFormula)
+    (table : List Bool) (h : lengthGateOk φ table = false) :
+    ¬ validatesTautology φ table := by
+  intro hval
+  exact not_validatesTautology_by_index_of_lengthGateFail φ table h
+    (validatesTautology_by_index_of_validatesTautology φ table hval)
+
 /-! ## Truth table proof map (semantic Cook Reckhow witness) -/
 
 /-- Truth table proof system map: proofs are `encodePair (φCode, table)`.
@@ -2831,6 +2867,34 @@ theorem validatesTautologyResult_eq (φCode table : List Bool) :
       by_cases hval : validatesTautology φ table <;>
         simp [validatesTautologyResult, h, hval]
 
+/-- Same case split with the certified index loop predicate (FinTM2 target form). -/
+theorem validatesTautologyResult_eq_by_index (φCode table : List Bool) :
+    validatesTautologyResult φCode table =
+      match decodeFormula φCode with
+      | none => [true]
+      | some φ =>
+          if validatesTautology_by_index φ table then false :: φCode
+          else [true] := by
+  cases h : decodeFormula φCode with
+  | none => simp [validatesTautologyResult, h]
+  | some φ =>
+      by_cases hval : validatesTautology φ table
+      · have hidx := validatesTautology_by_index_of_validatesTautology φ table hval
+        simp [validatesTautologyResult, h, hval, hidx]
+      · have hidx : ¬ validatesTautology_by_index φ table := by
+          intro hby
+          exact hval (validatesTautology_of_by_index φ table hby)
+        simp [validatesTautologyResult, h, hval, hidx]
+
+/-- Length gate fail after a successful decode rejects with `[true]`. -/
+theorem validatesTautologyResult_of_lengthGateFail {φCode : List Bool}
+    {φ : PropFormula} {table : List Bool}
+    (hdec : decodeFormula φCode = some φ)
+    (hlen : lengthGateOk φ table = false) :
+    validatesTautologyResult φCode table = [true] := by
+  have hval := not_validatesTautology_of_lengthGateFail φ table hlen
+  simp [validatesTautologyResult, hdec, hval]
+
 theorem length_validatesTautologyResult_le (φCode table : List Bool) :
     (validatesTautologyResult φCode table).length ≤ φCode.length + 1 := by
   simp only [validatesTautologyResult]
@@ -3029,13 +3093,12 @@ theorem validatesTautologyResult_on_pair_eq_inner {π φCode table : List Bool}
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
-formula, recompute or compare the table under `|table|` fuel, then branch to
-the reject or accept slices above.
+formula, length gate `table.length = 2^(maxVar+1)`, then index loop under
+`|table|` fuel, then branch to the reject or accept slices above.
 
-Blocked obligation (2026-09-02): on the success branch, enumerate assignments
-only up to `|table|`, recompute `truthTableOf φ` or compare bit by bit, and
-halt with `false :: φCode` or `[true]`. Reject and tautology accept slices are
-already certified; this cycle pins only the glue lemmas above. -/
+Certified this cycle: length gate Bool plus reject lemmas and
+`validatesTautologyResult_eq_by_index`. Remaining: FinTM2 Stmt for the length
+compare and the per index eval loop. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by

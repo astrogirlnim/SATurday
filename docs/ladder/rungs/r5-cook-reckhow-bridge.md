@@ -1550,3 +1550,44 @@ lower bound via the bridge.
   closes list form iff index form without recomputing truthTableOf on tape.
   gate_pending: merge_certified.
   gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
+
+- 2026-09-08 formalize (Cluster C2 length gate reject path): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "index loop FinTM2 scaffolding or one certified slice toward validatesTautologyResult_computableInPolyTime",
+    "rationale": "by_index equivalence ready; start machine for table index validation."
+  }
+  ```
+  Smallest coherent slice: length gate Bool plus reject lemmas and Result rewrite
+  via by_index (FinTM2 step 3 before the per index loop).
+  Existing names used: validatesTautology, validatesTautology_by_index,
+  validatesTautology_iff_by_index, validatesTautologyResult, decodeFormula,
+  PropFormula.maxVar, validatesTautology_by_index_of_validatesTautology,
+  validatesTautology_of_by_index.
+  Accepted: lengthGateOk, lengthGateOk_iff,
+  lengthGateOk_of_validatesTautology_by_index,
+  not_validatesTautology_by_index_of_lengthGateFail,
+  not_validatesTautology_of_lengthGateFail,
+  validatesTautologyResult_eq_by_index,
+  validatesTautologyResult_of_lengthGateFail.
+  Bridge lake build green; Bridge axiom probe PASS (propext, Quot.sound).
+  Full scripts/check_axioms.sh PASS.
+  Frontier unchanged: validatesTautologyResult_computableInPolyTime (FinTM2 Stmt
+  for length compare then per index eval loop), truthTable_is_prop_proof_system.
+  Most important thing learned: Result can branch on by_index after lengthGateOk,
+  so the machine reject path needs only a length equality test before the loop.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: full axiom gate PASS and decls listed.
+
+- 2026-09-08 formalize (Cluster C2 length gate commit land): SUCCESS.
+  Finished stalled WIP: Lean slice already built; restored decls dropped by
+  Fix(r2) uncommitted Bridge cleanup; re ran scripts/check_axioms.sh PASS.
+  Accepted decls re listed under Cluster C2 length gate reject path.
+  Commit lands ProofSystem lengthGate cluster with rung memory and checklist.
+  Most important thing learned: session log alone is not certification; decls
+  must stay in accepted_declarations and be committed with the Lean.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: gate PASS and decls listed with matching commit.
