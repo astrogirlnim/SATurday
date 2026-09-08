@@ -3361,3 +3361,22 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   `MGGFrontier.exists_mgg_simple_hasExpansionInv_family`.
   gate_pending: merge_certified.
   Next: formalize torus connectivity from translation adjacency.
+
+- 2026-09-08 human gate: merge_certified APPROVED (gate_auto: true, loop wake)
+  for Cluster 29c adjacency constants.
+
+- 2026-09-08 formalize (mggGraph_isConnected): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "MGGFrontier.mggGraph_isConnected via translation walks",
+    "rationale": "Wake after 29c; discharge Frontier connectivity."
+  }
+  ```
+  Accepted: `mgg_adj_right_encode`, `mgg_adj_up_encode` (cell steps).
+  Still Frontier: `mggGraph_isConnected`, `exists_mgg_simple_hasExpansionInv_family`
+  (Fin walk chaining stalled; encode adj is the lemma the walk needs).
+  gate_pending: merge_certified.
+  Next: formalize row/col Reachable induction using encode adj.

@@ -1578,3 +1578,5 @@ SATurday.ProofComplexity.mggNeighbor_up_ne
 SATurday.ProofComplexity.mggEdgeOf_eq_some_of_ne
 SATurday.ProofComplexity.mgg_adj_right
 SATurday.ProofComplexity.mgg_adj_up
+SATurday.ProofComplexity.mgg_adj_right_encode
+SATurday.ProofComplexity.mgg_adj_up_encode

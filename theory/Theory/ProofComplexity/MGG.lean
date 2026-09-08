@@ -228,9 +228,56 @@ theorem mgg_adj_up {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
   · exact Or.inl h
   · exact Or.inr h
 
+/-- One right step from an encoded cell. -/
+theorem mgg_adj_right_encode {m : ℕ} (hm : 1 < m) (x y : Fin m) :
+    (mggGraph m (lt_trans Nat.zero_lt_one hm)).Adj
+      (mggEncode (lt_trans Nat.zero_lt_one hm) (x, y))
+      (mggEncode (lt_trans Nat.zero_lt_one hm) (x + ⟨1, hm⟩, y)) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  have hadj := mgg_adj_right hm (mggEncode hm0 (x, y))
+  have hneq :
+      mggNeighbor hm0 (mggEncode hm0 (x, y)) mggRight =
+        mggEncode hm0 (x + ⟨1, hm⟩, y) := by
+    rw [mggNeighbor_right_eq hm0, mggDecode_encode]
+    congr 1
+    apply Prod.ext
+    · exact Fin.ext (by
+        simp only [Fin.val_add, Fin.val_mk]
+        have : ((1 : Fin m) : ℕ) = 1 := by
+          change 1 % m = 1
+          exact Nat.mod_eq_of_lt hm
+        simp [this])
+    · rfl
+  simpa [hneq] using hadj
+
+/-- One up step from an encoded cell. -/
+theorem mgg_adj_up_encode {m : ℕ} (hm : 1 < m) (x y : Fin m) :
+    (mggGraph m (lt_trans Nat.zero_lt_one hm)).Adj
+      (mggEncode (lt_trans Nat.zero_lt_one hm) (x, y))
+      (mggEncode (lt_trans Nat.zero_lt_one hm) (x, y + ⟨1, hm⟩)) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  have hadj := mgg_adj_up hm (mggEncode hm0 (x, y))
+  have hneq :
+      mggNeighbor hm0 (mggEncode hm0 (x, y)) mggUp =
+        mggEncode hm0 (x, y + ⟨1, hm⟩) := by
+    rw [mggNeighbor_up_eq hm0, mggDecode_encode]
+    congr 1
+    apply Prod.ext
+    · rfl
+    · exact Fin.ext (by
+        simp only [Fin.val_add, Fin.val_mk]
+        have : ((1 : Fin m) : ℕ) = 1 := by
+          change 1 % m = 1
+          exact Nat.mod_eq_of_lt hm
+        simp [this])
+  simpa [hneq] using hadj
+
 namespace MGGFrontier
 
-/-- Torus connectivity via translations; proof deferred to keep this cycle small. -/
+/-- Torus connectivity via translation walks; next formalize discharges using
+`mgg_adj_right_encode` / `mgg_adj_up_encode`. -/
 theorem mggGraph_isConnected {m : ℕ} (hm : 0 < m) :
     (mggGraph m hm).IsConnected := by
   sorry
