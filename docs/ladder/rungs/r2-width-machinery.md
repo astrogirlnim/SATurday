@@ -3380,3 +3380,19 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   (Fin walk chaining stalled; encode adj is the lemma the walk needs).
   gate_pending: merge_certified.
   Next: formalize row/col Reachable induction using encode adj.
+
+- 2026-09-08 formalize (Cluster 29d mggGraph_isConnected): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "mggGraph_isConnected via translation Reachable walks",
+    "rationale": "Wake cycle; discharge Frontier connectivity using encode adj."
+  }
+  ```
+  gate_auto: true (merge prior encode adj). Certified: `mgg_reachable_right_pow`,
+  `mgg_reachable_up_pow`, `mgg_reachable_right_to`, `mgg_reachable_up_to`,
+  `mgg_reachable_encode`, `mggGraph_isConnected` (out of Frontier). Axiom gate PASS.
+  Still Frontier: `exists_mgg_simple_hasExpansionInv_family`.
+  Next: prove or formalize Gabber Galil Inv for `mggInvK`.

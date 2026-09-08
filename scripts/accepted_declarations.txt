@@ -1580,3 +1580,9 @@ SATurday.ProofComplexity.mgg_adj_right
 SATurday.ProofComplexity.mgg_adj_up
 SATurday.ProofComplexity.mgg_adj_right_encode
 SATurday.ProofComplexity.mgg_adj_up_encode
+SATurday.ProofComplexity.mgg_reachable_right_pow
+SATurday.ProofComplexity.mgg_reachable_up_pow
+SATurday.ProofComplexity.mgg_reachable_right_to
+SATurday.ProofComplexity.mgg_reachable_up_to
+SATurday.ProofComplexity.mgg_reachable_encode
+SATurday.ProofComplexity.mggGraph_isConnected

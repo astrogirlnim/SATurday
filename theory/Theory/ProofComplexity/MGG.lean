@@ -274,13 +274,150 @@ theorem mgg_adj_up_encode {m : ℕ} (hm : 1 < m) (x y : Fin m) :
         simp [this])
   simpa [hneq] using hadj
 
-namespace MGGFrontier
+/-! ## Cluster 29d: torus connectivity via translation walks -/
 
-/-- Torus connectivity via translation walks; next formalize discharges using
-`mgg_adj_right_encode` / `mgg_adj_up_encode`. -/
+/-- Pack `n % m` as an element of `Fin m`. -/
+private def mggFinMod {m : ℕ} (hm : 0 < m) (n : ℕ) : Fin m :=
+  ⟨n % m, Nat.mod_lt n hm⟩
+
+/-- `n` successive right steps (needs `1 < m`). -/
+theorem mgg_reachable_right_pow {m : ℕ} (hm : 1 < m) (x y : Fin m) :
+    ∀ n : ℕ,
+      (mggGraph m (lt_trans Nat.zero_lt_one hm)).Reachable
+        (mggEncode (lt_trans Nat.zero_lt_one hm) (x, y))
+        (mggEncode (lt_trans Nat.zero_lt_one hm)
+          (x + mggFinMod (lt_trans Nat.zero_lt_one hm) n, y)) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro n
+  induction n with
+  | zero =>
+    have hx : x + mggFinMod hm0 0 = x := by
+      apply Fin.ext
+      simp [mggFinMod, Nat.zero_mod]
+    simpa [hx] using
+      (Relation.ReflTransGen.refl :
+        (mggGraph m hm0).Reachable
+          (mggEncode hm0 (x, y)) (mggEncode hm0 (x, y)))
+  | succ n ih =>
+    have hstep :
+        (mggGraph m hm0).Adj
+          (mggEncode hm0 (x + mggFinMod hm0 n, y))
+          (mggEncode hm0 ((x + mggFinMod hm0 n) + ⟨1, hm⟩, y)) :=
+      mgg_adj_right_encode hm (x + mggFinMod hm0 n) y
+    have heq :
+        (x + mggFinMod hm0 n) + ⟨1, hm⟩ = x + mggFinMod hm0 (n + 1) := by
+      apply Fin.ext
+      simp only [mggFinMod, Fin.val_add, Fin.val_mk]
+      -- ((x.val + n%m) % m + 1) % m = (x.val + (n+1)%m) % m
+      have hr : (n + 1) % m = (n % m + 1) % m := by
+        calc (n + 1) % m
+            = (n % m + 1 % m) % m := by rw [Nat.add_mod]
+          _ = (n % m + 1) % m := by rw [Nat.mod_eq_of_lt hm]
+      rw [hr]
+      calc (((x.val + n % m) % m) + 1) % m
+          = ((x.val + n % m) + 1) % m := by rw [Nat.mod_add_mod]
+        _ = (x.val + (n % m + 1)) % m := by rw [Nat.add_assoc]
+        _ = (x.val + (n % m + 1) % m) % m := by rw [Nat.add_mod_mod]
+    refine Relation.ReflTransGen.tail ih ?_
+    simpa [heq] using hstep
+
+/-- `n` successive up steps (needs `1 < m`). -/
+theorem mgg_reachable_up_pow {m : ℕ} (hm : 1 < m) (x y : Fin m) :
+    ∀ n : ℕ,
+      (mggGraph m (lt_trans Nat.zero_lt_one hm)).Reachable
+        (mggEncode (lt_trans Nat.zero_lt_one hm) (x, y))
+        (mggEncode (lt_trans Nat.zero_lt_one hm)
+          (x, y + mggFinMod (lt_trans Nat.zero_lt_one hm) n)) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  intro n
+  induction n with
+  | zero =>
+    have hy : y + mggFinMod hm0 0 = y := by
+      apply Fin.ext
+      simp [mggFinMod, Nat.zero_mod]
+    simpa [hy] using
+      (Relation.ReflTransGen.refl :
+        (mggGraph m hm0).Reachable
+          (mggEncode hm0 (x, y)) (mggEncode hm0 (x, y)))
+  | succ n ih =>
+    have hstep :
+        (mggGraph m hm0).Adj
+          (mggEncode hm0 (x, y + mggFinMod hm0 n))
+          (mggEncode hm0 (x, (y + mggFinMod hm0 n) + ⟨1, hm⟩)) :=
+      mgg_adj_up_encode hm x (y + mggFinMod hm0 n)
+    have heq :
+        (y + mggFinMod hm0 n) + ⟨1, hm⟩ = y + mggFinMod hm0 (n + 1) := by
+      apply Fin.ext
+      simp only [mggFinMod, Fin.val_add, Fin.val_mk]
+      have hr : (n + 1) % m = (n % m + 1) % m := by
+        calc (n + 1) % m
+            = (n % m + 1 % m) % m := by rw [Nat.add_mod]
+          _ = (n % m + 1) % m := by rw [Nat.mod_eq_of_lt hm]
+      rw [hr]
+      calc (((y.val + n % m) % m) + 1) % m
+          = ((y.val + n % m) + 1) % m := by rw [Nat.mod_add_mod]
+        _ = (y.val + (n % m + 1)) % m := by rw [Nat.add_assoc]
+        _ = (y.val + (n % m + 1) % m) % m := by rw [Nat.add_mod_mod]
+    refine Relation.ReflTransGen.tail ih ?_
+    simpa [heq] using hstep
+
+/-- Same column: right walk from `x₁` to `x₂`. -/
+theorem mgg_reachable_right_to {m : ℕ} (hm : 1 < m) (x₁ x₂ y : Fin m) :
+    (mggGraph m (lt_trans Nat.zero_lt_one hm)).Reachable
+      (mggEncode (lt_trans Nat.zero_lt_one hm) (x₁, y))
+      (mggEncode (lt_trans Nat.zero_lt_one hm) (x₂, y)) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  have h := mgg_reachable_right_pow hm x₁ y (x₂ - x₁).val
+  have hx : x₁ + mggFinMod hm0 (x₂ - x₁).val = x₂ :=
+    Fin.ext <| by
+      have hlt : (x₂ - x₁).val < m := (x₂ - x₁).isLt
+      simpa [mggFinMod, Nat.mod_eq_of_lt hlt] using
+        congrArg Fin.val (add_sub_cancel x₁ x₂)
+  simpa [hx] using h
+
+/-- Same row: up walk from `y₁` to `y₂`. -/
+theorem mgg_reachable_up_to {m : ℕ} (hm : 1 < m) (x y₁ y₂ : Fin m) :
+    (mggGraph m (lt_trans Nat.zero_lt_one hm)).Reachable
+      (mggEncode (lt_trans Nat.zero_lt_one hm) (x, y₁))
+      (mggEncode (lt_trans Nat.zero_lt_one hm) (x, y₂)) := by
+  have hm0 : 0 < m := lt_trans Nat.zero_lt_one hm
+  letI : NeZero m := mggNeZero hm0
+  have h := mgg_reachable_up_pow hm x y₁ (y₂ - y₁).val
+  have hy : y₁ + mggFinMod hm0 (y₂ - y₁).val = y₂ :=
+    Fin.ext <| by
+      have hlt : (y₂ - y₁).val < m := (y₂ - y₁).isLt
+      simpa [mggFinMod, Nat.mod_eq_of_lt hlt] using
+        congrArg Fin.val (add_sub_cancel y₁ y₂)
+  simpa [hy] using h
+
+/-- Any two encoded cells are reachable when `1 < m`. -/
+theorem mgg_reachable_encode {m : ℕ} (hm : 1 < m) (p q : Fin m × Fin m) :
+    (mggGraph m (lt_trans Nat.zero_lt_one hm)).Reachable
+      (mggEncode (lt_trans Nat.zero_lt_one hm) p)
+      (mggEncode (lt_trans Nat.zero_lt_one hm) q) :=
+  Relation.ReflTransGen.trans
+    (mgg_reachable_right_to hm p.1 q.1 p.2)
+    (mgg_reachable_up_to hm q.1 p.2 q.2)
+
+/-- Torus connectivity: translation generators alone connect `(Z/mZ)²`. -/
 theorem mggGraph_isConnected {m : ℕ} (hm : 0 < m) :
     (mggGraph m hm).IsConnected := by
-  sorry
+  intro u v
+  by_cases hm1 : 1 < m
+  · rw [show u = mggEncode hm (mggDecode hm u) from (mggEncode_decode hm u).symm]
+    rw [show v = mggEncode hm (mggDecode hm v) from (mggEncode_decode hm v).symm]
+    convert mgg_reachable_encode hm1 (mggDecode hm u) (mggDecode hm v)
+  · have hm_eq : m = 1 := by omega
+    subst hm_eq
+    have huv : u = v := Fin.ext <|
+      (Nat.lt_one_iff.mp u.isLt).trans (Nat.lt_one_iff.mp v.isLt).symm
+    subst huv
+    exact Relation.ReflTransGen.refl
+
+namespace MGGFrontier
 
 /-- Intermediate Block A pin: unbounded simple MGG Inv expanders (no regularity). -/
 theorem exists_mgg_simple_hasExpansionInv_family :
