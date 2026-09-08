@@ -7,8 +7,8 @@ import Mathlib.Tactic
 
 Lightweight undirected graphs on `Fin n` for the expander Tseitin width machine.
 Pinned API from docs/ladder/rungs/r2-width-machinery.md: `FinEdge`, `FinGraph`,
-`incident`, `degree`, `IsRegular`, `edgeBoundary`, `HasExpansion`, elementary
-lemmas, and the explicit Petersen graph.
+`incident`, `degree`, `IsRegular`, `edgeBoundary`, `HasExpansion`, `HasExpansionInv`,
+elementary lemmas, and the explicit Petersen graph.
 
 Cluster 1b certifies `petersenGraph_expansion` at pinned alpha = 1. That factor
 is honest and tight on this encoding (some half-size sets have cut ratio exactly
@@ -23,7 +23,7 @@ Cluster 27 (2026-08-15): prism `Y_6` obstruction. Cubic regular on 12
 vertices need not expand at factor 1; ladder like families are filtered out
 of Block A.
 
-LOG: R2 FinGraph API Petersen Heawood construction and expansion; prism obstruction
+LOG: R2 FinGraph API Petersen Heawood expansion Inv packaging; prism obstruction
 -/
 
 namespace SATurday.ProofComplexity
@@ -69,6 +69,15 @@ at least `α * S.card`. -/
 def HasExpansion {n : ℕ} (G : FinGraph n) (α : ℕ) : Prop :=
   ∀ S : Finset (Fin n),
     S.Nonempty → 2 * S.card ≤ n → α * S.card ≤ (edgeBoundary G S).card
+
+/-- Inverse integer expansion: every nonempty half set satisfies
+`S.card ≤ k * |∂S|` (combinatorial expansion at least `1/k`).
+Block A primary pin after 2026-09-04: factor-1 `HasExpansion` fails on standard
+cages past Heawood; fixed inverse `k` matches classical Cheeger lower bounds. -/
+def HasExpansionInv {n : ℕ} (G : FinGraph n) (k : ℕ) : Prop :=
+  ∀ S : Finset (Fin n),
+    S.Nonempty → 2 * S.card ≤ n →
+      S.card ≤ k * (edgeBoundary G S).card
 
 /-! ## Elementary lemmas -/
 
@@ -144,6 +153,25 @@ theorem HasExpansion.degree_ge {n : ℕ} {G : FinGraph n} {α : ℕ}
   have hcard : 2 * ({v} : Finset (Fin n)).card ≤ n := by simp [hn]
   have hbd := h ({v} : Finset (Fin n)) hS hcard
   simpa [edgeBoundary_singleton, card_singleton, mul_one] using hbd
+
+/-- Factor 1 expansion is exactly inverse expansion at `k = 1`. -/
+theorem hasExpansion_iff_hasExpansionInv_one {n : ℕ} {G : FinGraph n} :
+    HasExpansion G 1 ↔ HasExpansionInv G 1 := by
+  constructor <;> intro h S hne hhalf <;> simpa [one_mul] using h S hne hhalf
+
+/-- Any positive integer expansion implies inverse expansion at `k = 1`. -/
+theorem HasExpansion.hasExpansionInv_one {n : ℕ} {G : FinGraph n} {α : ℕ}
+    (h : HasExpansion G α) (hα : 1 ≤ α) : HasExpansionInv G 1 := by
+  intro S hne hhalf
+  have hbd := h S hne hhalf
+  have hle : S.card ≤ α * S.card := Nat.le_mul_of_pos_left S.card hα
+  exact hle.trans (by simpa [one_mul] using hbd)
+
+/-- Larger inverse constant weakens the expansion predicate. -/
+theorem HasExpansionInv.mono {n : ℕ} {G : FinGraph n} {k k' : ℕ}
+    (h : HasExpansionInv G k) (hle : k ≤ k') : HasExpansionInv G k' := by
+  intro S hne hhalf
+  exact (h S hne hhalf).trans (Nat.mul_le_mul_right _ hle)
 
 /-! ## Walks, reachability, and expansion implies connectivity -/
 
@@ -323,6 +351,10 @@ theorem petersenGraph_expansion : HasExpansion petersenGraph 1 := by
   · have : S.card ≤ 5 := by omega
     exact (lt_irrefl _ (lt_of_le_of_lt this hbig)).elim
   · simpa [one_mul] using hle
+
+/-- Petersen satisfies inverse expansion at `k = 1`. -/
+theorem petersenGraph_expansionInv : HasExpansionInv petersenGraph 1 :=
+  hasExpansion_iff_hasExpansionInv_one.mp petersenGraph_expansion
 
 /-! ## Heawood graph (generalized Petersen GP(7,2), n = 14) -/
 
@@ -537,6 +569,10 @@ theorem heawoodGraph_expansion : HasExpansion heawoodGraph 1 := by
   · exact (hne.ne_empty (card_eq_zero.mp h0)).elim
   · exact (lt_irrefl _ (lt_of_lt_of_le hbig hhalf)).elim
   · simpa [one_mul, hcut] using hle
+
+/-- Heawood satisfies inverse expansion at `k = 1` via the certified factor 1. -/
+theorem heawoodGraph_expansionInv : HasExpansionInv heawoodGraph 1 :=
+  hasExpansion_iff_hasExpansionInv_one.mp heawoodGraph_expansion
 
 /-! ## Cluster 27: prism ladder obstruction (Block A family filter)
 

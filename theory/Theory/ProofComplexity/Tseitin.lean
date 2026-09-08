@@ -26,11 +26,12 @@ unconditional width ≥ 4 (sharp floor beats regular axiom width 3).
 Cluster 26 (2026-08-15, accept_prose on Tseitin Block A pivot): informative
 floor threshold `n ≥ 14`, cubic expander packaging into width or size lower
 bounds, and Spreads free reduction from an unbounded `HasExpansion` family.
-Frontier holds the family existence pins (hard: construct Margulis, Gabber
-Galil, LPS, or equivalent). Random CS existence stays secondary in
-`CSExpansionFrontier`.
+Cluster 28 (2026-09-04): restated Block A to `HasExpansionInv` with
+`cubicInvK = 2` and floor 26; Inv width or size packaging certified; Frontier
+holds `exists_cubic_hasExpansionInv_family` (factor-1 family archival).
+Random CS existence stays secondary in `CSExpansionFrontier`.
 
-LOG: R2 Tseitin Cluster 26 cubic expander family packaging
+LOG: R2 Tseitin Cluster 28 HasExpansionInv cubic packaging
 -/
 
 namespace SATurday.ProofComplexity
@@ -1499,21 +1500,188 @@ theorem exists_tseitin_expander_hard_family_of_cubic_expanders
     tseitin_cubic_expander_informative hreg hα h14 χ hχ
   exact ⟨n, G, χ, hN, hreg, hα, hχ, hunsat, hw, hfloor, hwidth⟩
 
+/-! ## Cluster 28: HasExpansionInv packaging (Block A restatement 2026-09-04)
+
+Gate auto accept_prose on killing unbounded `HasExpansion _ 1` as Block A primary.
+Primary pin is inverse expansion at fixed `cubicInvK = 2` with informative floor
+`cubicInvInformativeFloor = 26` (ceil medium floor over k beats cnfWidth 3).
+Connectivity is an explicit hypothesis when `k > 1`. Family inhabitant stays
+Frontier under the new Inv name. -/
+
+/-- Locked inverse expansion constant: combinatorial expansion at least `1/2`. -/
+def cubicInvK : ℕ := 2
+
+/-- Least `n` where ceil(`tseitinMediumFloor n / cubicInvK`) beats axiom width 3. -/
+def cubicInvInformativeFloor : ℕ := 26
+
+/-- Nat ceil of `tseitinMediumFloor n / k`: width floor under inverse expansion. -/
+def tseitinInvWidthFloor (n k : ℕ) : ℕ :=
+  (tseitinMediumFloor n + (k - 1)) / k
+
+/-- Medium complex expansion under the inverse predicate. -/
+theorem tseitin_medium_complex_expands_inv {n : ℕ} {G : FinGraph n} {k : ℕ}
+    (hk : HasExpansionInv G k) {S : Finset (Fin n)}
+    (hne : S.Nonempty) (hHalf : S.card ≤ n / 2) :
+    S.card ≤ k * (edgeBoundary G S).card := by
+  have h2 : 2 * S.card ≤ n := by omega
+  exact hk S hne h2
+
+/-- From `a ≤ k * w` and `0 < k`, conclude ceil(`a / k`) ≤ `w`.
+Proof: `a + (k - 1) < (w + 1) * k`, so the Nat div is `< w + 1`. -/
+theorem tseitinInvWidthFloor_le_of_mul {n k w : ℕ} (hk : 0 < k)
+    (h : tseitinMediumFloor n ≤ k * w) :
+    tseitinInvWidthFloor n k ≤ w := by
+  simp only [tseitinInvWidthFloor]
+  have hlt : tseitinMediumFloor n + (k - 1) < (w + 1) * k := by
+    calc
+      tseitinMediumFloor n + (k - 1)
+          ≤ k * w + (k - 1) := Nat.add_le_add_right h _
+      _ < k * w + k := Nat.add_lt_add_left (Nat.sub_lt hk Nat.zero_lt_one) _
+      _ = k * (w + 1) := (Nat.mul_succ k w).symm
+      _ = (w + 1) * k := Nat.mul_comm _ _
+  exact Nat.lt_succ_iff.mp ((Nat.div_lt_iff_lt_mul hk).2 hlt)
+
+/-- Width floor from a covered medium complex under inverse expansion. -/
+theorem tseitin_width_ge_inv_quot {n : ℕ} {G : FinGraph n} {χ : Charge n}
+    {k : ℕ} (hk : HasExpansionInv G k) (hkpos : 0 < k)
+    {C : Clause} (dC : Derivation (tseitinCNF G χ) C)
+    (hHalf : dC.tseitinComplex.card ≤ n / 2)
+    (hMed : tseitinMediumFloor n ≤ dC.tseitinComplex.card)
+    (hne : dC.tseitinComplex.Nonempty)
+    (hCov : cutCovered G dC.tseitinComplex C)
+    (hn : 0 < n) :
+    tseitinInvWidthFloor n k ≤ dC.width := by
+  have hBd := edgeBoundary_card_le_of_cutCovered hCov hn
+  have hexp := tseitin_medium_complex_expands_inv hk hne hHalf
+  have hSk : dC.tseitinComplex.card ≤ k * C.card := hexp.trans (Nat.mul_le_mul_left k hBd)
+  have hMedk : tseitinMediumFloor n ≤ k * C.card := hMed.trans hSk
+  have hCw : C.card ≤ dC.width := dC.concl_card_le_width
+  have hMedw : tseitinMediumFloor n ≤ k * dC.width :=
+    hMedk.trans (Nat.mul_le_mul_left k hCw)
+  exact tseitinInvWidthFloor_le_of_mul hkpos hMedw
+
+/-- Inv width lower bound given full complex (connectivity supplied separately). -/
+theorem tseitin_inv_expander_width_lower_bound_of_univ {n : ℕ} {G : FinGraph n}
+    {χ : Charge n} {k : ℕ}
+    (hk : HasExpansionInv G k) (hkpos : 0 < k)
+    (d : Derivation (tseitinCNF G χ) (∅ : Clause))
+    (hUniv : d.tseitinComplex = univ) (hn : 2 ≤ n) :
+    tseitinInvWidthFloor n k ≤ d.width := by
+  obtain ⟨C, dC, hHalf, hMed, hw, hCov⟩ := exists_medium_tseitin_complex d hUniv hn
+  have hn0 : 0 < n := by omega
+  by_cases hdiv : tseitinMediumFloor n = 0
+  · -- medium floor 0: ceil quot is `(k - 1) / k = 0`
+    have hquot : (k - 1) / k = 0 := Nat.div_eq_of_lt (Nat.sub_lt hkpos Nat.zero_lt_one)
+    simp only [tseitinInvWidthFloor, hdiv, zero_add, hquot]
+    exact Nat.zero_le _
+  · have hne : dC.tseitinComplex.Nonempty := by
+      have hpos : 0 < tseitinMediumFloor n := Nat.pos_of_ne_zero hdiv
+      exact card_pos.mp (lt_of_lt_of_le hpos hMed)
+    exact (tseitin_width_ge_inv_quot hk hkpos dC hHalf hMed hne hCov hn0).trans hw
+
+/-- Inv width LB: explicit connectivity (required when `k > 1`). -/
+theorem tseitin_inv_expander_width_lower_bound {n : ℕ} {G : FinGraph n}
+    {χ : Charge n} {k : ℕ}
+    (hk : HasExpansionInv G k) (hkpos : 0 < k) (hG : G.IsConnected)
+    (d : Derivation (tseitinCNF G χ) (∅ : Clause)) (hn : 2 ≤ n) :
+    tseitinInvWidthFloor n k ≤ d.width := by
+  have hn0 : 0 < n := by omega
+  exact tseitin_inv_expander_width_lower_bound_of_univ hk hkpos d
+    (tseitin_complex_eq_univ hn0 hG d) hn
+
+/-- Inv size corollary via BSW at the ceil inv width floor. -/
+theorem tseitin_inv_expander_size_lower_bound {n : ℕ} {G : FinGraph n}
+    {χ : Charge n} {k : ℕ}
+    (hk : HasExpansionInv G k) (hkpos : 0 < k) (hG : G.IsConnected)
+    (_hχ : oddCharge χ)
+    (d : Derivation (tseitinCNF G χ) (∅ : Clause)) (hn : 2 ≤ n) :
+    let W := tseitinInvWidthFloor n k
+    2 ^ ((W - cnfWidth (tseitinCNF G χ)) * (W - cnfWidth (tseitinCNF G χ)) /
+          (bswRateConst * (cnfVars (tseitinCNF G χ)).card)) ≤ d.size := by
+  intro W
+  refine bsw_size_lower_bound (tseitinCNF G χ) W ?_ d
+  intro d'
+  exact tseitin_inv_expander_width_lower_bound hk hkpos hG d' hn
+
+/-- At `n ≥ 26` and `k = 2`, ceil medium floor over k is at least 4. -/
+theorem tseitinInvWidthFloor_cubic_gt_three {n : ℕ}
+    (hn : cubicInvInformativeFloor ≤ n) :
+    3 < tseitinInvWidthFloor n cubicInvK := by
+  have hn26 : 26 ≤ n := by simpa [cubicInvInformativeFloor] using hn
+  simp only [tseitinInvWidthFloor, cubicInvK, tseitinMediumFloor]
+  -- goal: 3 < ((n/2 + 2)/2 + 1) / 2
+  have hdiv : 13 ≤ n / 2 := by omega
+  have hmed : 7 ≤ (n / 2 + 2) / 2 := by omega
+  omega
+
+/-- Single cubic Inv packaging: regular 3, connected, Inv-k expansion, and
+`n ≥ cubicInvInformativeFloor` yield informative width. -/
+theorem tseitin_cubic_hasExpansionInv_informative {n : ℕ} {G : FinGraph n}
+    (hreg : IsRegular G 3) (hG : G.IsConnected)
+    (hk : HasExpansionInv G cubicInvK) (hn : cubicInvInformativeFloor ≤ n)
+    (χ : Charge n) (hχ : oddCharge χ) :
+    ¬ Satisfiable (tseitinCNF G χ) ∧
+      cnfWidth (tseitinCNF G χ) = 3 ∧
+        3 < tseitinInvWidthFloor n cubicInvK ∧
+          ∀ d : Derivation (tseitinCNF G χ) (∅ : Clause),
+            tseitinInvWidthFloor n cubicInvK ≤ d.width := by
+  have hn26 : 26 ≤ n := by simpa [cubicInvInformativeFloor] using hn
+  refine ⟨tseitinCNF_unsat G χ hχ, ?_, ?_, ?_⟩
+  · exact cnfWidth_tseitinCNF_of_regular hreg (by omega : 0 < n) (by omega : 0 < 3)
+  · exact tseitinInvWidthFloor_cubic_gt_three hn
+  · intro d
+    exact tseitin_inv_expander_width_lower_bound hk (by decide : 0 < cubicInvK) hG d
+      (by omega : 2 ≤ n)
+
+/-- Size form of the cubic Inv packaging. -/
+theorem tseitin_cubic_hasExpansionInv_size_informative {n : ℕ} {G : FinGraph n}
+    (_hreg : IsRegular G 3) (hG : G.IsConnected)
+    (hk : HasExpansionInv G cubicInvK) (hn : cubicInvInformativeFloor ≤ n)
+    (χ : Charge n) (hχ : oddCharge χ)
+    (d : Derivation (tseitinCNF G χ) (∅ : Clause)) :
+    let W := tseitinInvWidthFloor n cubicInvK
+    2 ^ ((W - cnfWidth (tseitinCNF G χ)) * (W - cnfWidth (tseitinCNF G χ)) /
+          (bswRateConst * (cnfVars (tseitinCNF G χ)).card)) ≤ d.size := by
+  have hn26 : 26 ≤ n := by simpa [cubicInvInformativeFloor] using hn
+  exact tseitin_inv_expander_size_lower_bound hk (by decide : 0 < cubicInvK) hG hχ d
+    (by omega : 2 ≤ n)
+
+/-- Family reduction: unbounded cubic Inv family yields Block A hardness family. -/
+theorem exists_tseitin_expander_hard_family_of_cubic_inv_expanders
+    (hfam :
+      ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n),
+        max N cubicInvInformativeFloor ≤ n ∧
+          IsRegular G 3 ∧ G.IsConnected ∧ HasExpansionInv G cubicInvK) :
+    ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n) (χ : Charge n),
+      N ≤ n ∧ IsRegular G 3 ∧ G.IsConnected ∧ HasExpansionInv G cubicInvK ∧
+        oddCharge χ ∧
+        ¬ Satisfiable (tseitinCNF G χ) ∧
+          cnfWidth (tseitinCNF G χ) = 3 ∧
+            3 < tseitinInvWidthFloor n cubicInvK ∧
+              ∀ d : Derivation (tseitinCNF G χ) (∅ : Clause),
+                tseitinInvWidthFloor n cubicInvK ≤ d.width := by
+  intro N
+  obtain ⟨n, G, hn, hreg, hG, hk⟩ := hfam N
+  have hfl : cubicInvInformativeFloor ≤ n :=
+    le_trans (le_max_right N cubicInvInformativeFloor) hn
+  have hN : N ≤ n := le_trans (le_max_left N cubicInvInformativeFloor) hn
+  have hn26 : 26 ≤ n := by simpa [cubicInvInformativeFloor] using hfl
+  let χ := oddCharge_single n ⟨0, by omega⟩
+  have hχ : oddCharge χ := oddCharge_single_odd n ⟨0, by omega⟩
+  obtain ⟨hunsat, hw, hfloor, hwidth⟩ :=
+    tseitin_cubic_hasExpansionInv_informative hreg hG hk hfl χ hχ
+  exact ⟨n, G, χ, hN, hreg, hG, hk, hχ, hunsat, hw, hfloor, hwidth⟩
+
 namespace TseitinFrontier
 
-/-- Unbounded family of 3-regular integer expanders at factor 1.
-Classical constructions: Margulis, Gabber Galil, LPS Ramanujan graphs.
-Lean inhabitant is the remaining hard gap for Block A after the 2026-08-15
-pivot. Heawood and Petersen are fixed order witnesses only. -/
+/-- Archival: unbounded factor-1 cubic family (killed as Block A primary 2026-09-04).
+Kept for reference; do not chase inhabitants past Heawood. -/
 theorem exists_cubic_hasExpansion_family :
     ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n),
       max N 14 ≤ n ∧ IsRegular G 3 ∧ HasExpansion G 1 := by
   sorry
 
-/-- Block A primary existence pin (Tseitin route): for every `N` an informative
-odd charge Tseitin instance on a cubic expander of order at least `N`.
-Follows from `exists_cubic_hasExpansion_family` via
-`exists_tseitin_expander_hard_family_of_cubic_expanders` once that lands. -/
+/-- Archival Block A pin under factor 1 (superseded by Inv form below). -/
 theorem exists_tseitin_expander_hard_family :
     ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n) (χ : Charge n),
       N ≤ n ∧ IsRegular G 3 ∧ HasExpansion G 1 ∧ oddCharge χ ∧
@@ -1522,6 +1690,29 @@ theorem exists_tseitin_expander_hard_family :
             3 < 1 * tseitinMediumFloor n ∧
               ∀ d : Derivation (tseitinCNF G χ) (∅ : Clause),
                 1 * tseitinMediumFloor n ≤ d.width := by
+  sorry
+
+/-- Primary Block A existence pin: unbounded cubic Inv expanders at `cubicInvK`
+with informative floor `cubicInvInformativeFloor`. Classical constructions:
+Friedman random cubics, LPS style with degree reduction. Lean inhabitant open. -/
+theorem exists_cubic_hasExpansionInv_family :
+    ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n),
+      max N cubicInvInformativeFloor ≤ n ∧
+        IsRegular G 3 ∧ G.IsConnected ∧ HasExpansionInv G cubicInvK := by
+  sorry
+
+/-- Block A primary hardness pin under Inv packaging. Follows from
+`exists_cubic_hasExpansionInv_family` via
+`exists_tseitin_expander_hard_family_of_cubic_inv_expanders` once inhabited. -/
+theorem exists_tseitin_inv_expander_hard_family :
+    ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n) (χ : Charge n),
+      N ≤ n ∧ IsRegular G 3 ∧ G.IsConnected ∧ HasExpansionInv G cubicInvK ∧
+        oddCharge χ ∧
+        ¬ Satisfiable (tseitinCNF G χ) ∧
+          cnfWidth (tseitinCNF G χ) = 3 ∧
+            3 < tseitinInvWidthFloor n cubicInvK ∧
+              ∀ d : Derivation (tseitinCNF G χ) (∅ : Clause),
+                tseitinInvWidthFloor n cubicInvK ≤ d.width := by
   sorry
 
 end TseitinFrontier

@@ -3018,3 +3018,31 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   standard cubic expanders do not satisfy past Heawood; inverse expansion at
   fixed `k = 2` is the correct existence pin shape.
   gate_pending: accept_prose.
+
+- 2026-09-08 human gate: accept_prose APPROVED (gate_auto: true).
+  Rationale: continue after 2026-09-04 Inv restatement; critical path Block A;
+  factor 1 kill is evidence backed; Inv pin is the inhabit target.
+  Next: formalize Cluster 28 packaging.
+
+- 2026-09-08 formalize (Cluster 28 HasExpansionInv packaging): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "HasExpansionInv Cluster 28 packaging",
+    "rationale": "Last session accept_prose for Inv restatement; critical path Block A; WIP packaging already in tree."
+  }
+  ```
+  Accepted (axiom gate PASS): `HasExpansionInv`, bridge lemmas,
+  `petersenGraph_expansionInv`, `heawoodGraph_expansionInv`, `cubicInvK`,
+  `cubicInvInformativeFloor`, `tseitinInvWidthFloor`, inv width or size LBs,
+  `tseitin_cubic_hasExpansionInv_informative`,
+  `exists_tseitin_expander_hard_family_of_cubic_inv_expanders`.
+  Frontier (unchanged hard gap): `exists_cubic_hasExpansionInv_family`,
+  `exists_tseitin_inv_expander_hard_family`; archival factor 1 pins kept.
+  Most important thing learned: ceil inv width floor needs an explicit
+  `< (w+1)*k` argument; omega alone does not close Nat ceil division.
+  gate_pending: merge_certified.
+  Next: inhabit `exists_cubic_hasExpansionInv_family` (prove or formalize
+  constructive or counting route).

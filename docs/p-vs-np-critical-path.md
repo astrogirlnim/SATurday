@@ -49,11 +49,11 @@ hardness plus a fully certified R5 bridge. Neither is complete.
       `exists_cubic_hasExpansion_family`. Prove 2026-09-04: kill unbounded
       `HasExpansion _ 1` as Block A primary (factor 1 fails on McGee,
       Moebius Kantor, Desargues, random cubics past Heawood); pin
-      `HasExpansionInv` with `cubicInvK = 2`, informative floor `26`,
-      pending accept_prose. Next after gate: formalize inv predicate and
-      packaging, then inhabit `exists_cubic_hasExpansionInv_family`
-      (Margulis, Gabber Galil, LPS, or probabilistic method). Random CS
-      Frontier secondary.
+      `HasExpansionInv` with `cubicInvK = 2`, informative floor `26`.
+      Cluster 28 (2026-09-08) certified Inv packaging (predicate, width or size
+      bounds, family reduction); axiom gate PASS. Remaining: inhabit
+      `exists_cubic_hasExpansionInv_family` (Margulis, Gabber Galil, LPS, or
+      probabilistic method). Random CS Frontier secondary.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Move R2 from `prose_accepted` to `certified` only after the existence
@@ -118,13 +118,13 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: accept_prose on the 2026-09-04 inv restatement, then formalize
-   `HasExpansionInv` / `exists_cubic_hasExpansionInv_family` packaging and
-   inhabit that family. Do not hunt unbounded `HasExpansion _ 1`. Do not
+1. R2: inhabit `exists_cubic_hasExpansionInv_family` (Cluster 28 packaging
+   certified 2026-09-08). Do not hunt unbounded `HasExpansion _ 1`. Do not
    chase prism or ladder cubics (Cluster 27). Do not Nat chase Spreads or
    `ExpandsIndices` first moment.
-2. In parallel sessions only: R5 `ProofSystem` start after FormulaEncoding
-   cluster 2 (definitional; no summit claim until Lemmas C to E).
+2. In parallel sessions only: R5 Cluster C continue with mutual
+   `assignmentAtList` equals `allBitstrings` (definitional; no summit claim
+   until Lemmas C to E).
 3. Do not open R3 until R2 is certified or explicitly blocked with a kill or
    redesign decision.
 

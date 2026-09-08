@@ -80,7 +80,9 @@ R4-class results plus the certified R5 bridge.
     random cubics fail factor 1 past Heawood) and pins
     `HasExpansionInv` with `cubicInvK = 2` pending accept_prose; Frontier
     `exists_cubic_hasExpansion_family` archival relative to the inv restatement;
-    random CS Frontier secondary))
+    Cluster 28 (2026-09-08) certified Inv packaging and family reduction,
+    Frontier `exists_cubic_hasExpansionInv_family` primary; random CS Frontier
+    secondary))
 
 - R3 stronger systems
   - status: proposed

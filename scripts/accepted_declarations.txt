@@ -396,6 +396,7 @@ SATurday.ProofComplexity.degree
 SATurday.ProofComplexity.IsRegular
 SATurday.ProofComplexity.edgeBoundary
 SATurday.ProofComplexity.HasExpansion
+SATurday.ProofComplexity.HasExpansionInv
 SATurday.ProofComplexity.mem_incident_iff
 SATurday.ProofComplexity.incident_subset
 SATurday.ProofComplexity.mem_edgeBoundary_iff
@@ -406,6 +407,9 @@ SATurday.ProofComplexity.edgeBoundary_sdiff_univ
 SATurday.ProofComplexity.FinEdge.ne_endpoints
 SATurday.ProofComplexity.edgeBoundary_singleton
 SATurday.ProofComplexity.HasExpansion.degree_ge
+SATurday.ProofComplexity.hasExpansion_iff_hasExpansionInv_one
+SATurday.ProofComplexity.HasExpansion.hasExpansionInv_one
+SATurday.ProofComplexity.HasExpansionInv.mono
 SATurday.ProofComplexity.petersenGraph
 SATurday.ProofComplexity.petersenGraph_card
 SATurday.ProofComplexity.petersenGraph_regular
@@ -413,6 +417,7 @@ SATurday.ProofComplexity.petersenGraph_regular
 # R2 item 2 cluster 1b: Petersen expansion at alpha = 1 (certified 2026-08-04)
 # Pin kept: alpha = 1 is tight (some 5-sets have cut size 5); alpha = 2 is false.
 SATurday.ProofComplexity.petersenGraph_expansion
+SATurday.ProofComplexity.petersenGraph_expansionInv
 
 # R2 item 2 cluster 2 start: Tseitin CNF construction (certified 2026-08-04)
 SATurday.ProofComplexity.Charge
@@ -576,6 +581,7 @@ SATurday.ProofComplexity.singleton_mem_boundaryClauses
 
 # R2 item 2 cluster 5: Heawood expansion and unconditional Tseitin apps (certified 2026-08-09)
 SATurday.ProofComplexity.heawoodGraph_expansion
+SATurday.ProofComplexity.heawoodGraph_expansionInv
 SATurday.ProofComplexity.tseitin_heawood_width_ge_four
 SATurday.ProofComplexity.tseitin_heawood_size_lower_bound
 SATurday.ProofComplexity.tseitin_heawood_width_floor_gt_cnfWidth
@@ -1127,6 +1133,21 @@ SATurday.ProofComplexity.prismGraph6Band_half
 SATurday.ProofComplexity.prismGraph6Band_not_expanding
 SATurday.ProofComplexity.not_hasExpansion_prismGraph6
 SATurday.ProofComplexity.exists_cubic_regular_not_expanding_twelve
+
+# R2 item 2 cluster 28: HasExpansionInv packaging Block A restatement (2026-09-08)
+SATurday.ProofComplexity.cubicInvK
+SATurday.ProofComplexity.cubicInvInformativeFloor
+SATurday.ProofComplexity.tseitinInvWidthFloor
+SATurday.ProofComplexity.tseitin_medium_complex_expands_inv
+SATurday.ProofComplexity.tseitinInvWidthFloor_le_of_mul
+SATurday.ProofComplexity.tseitin_width_ge_inv_quot
+SATurday.ProofComplexity.tseitin_inv_expander_width_lower_bound_of_univ
+SATurday.ProofComplexity.tseitin_inv_expander_width_lower_bound
+SATurday.ProofComplexity.tseitin_inv_expander_size_lower_bound
+SATurday.ProofComplexity.tseitinInvWidthFloor_cubic_gt_three
+SATurday.ProofComplexity.tseitin_cubic_hasExpansionInv_informative
+SATurday.ProofComplexity.tseitin_cubic_hasExpansionInv_size_informative
+SATurday.ProofComplexity.exists_tseitin_expander_hard_family_of_cubic_inv_expanders
 
 # R5 FormulaEncoding cluster 1: PropFormula, TAUT nonvacuity (2026-08-21)
 SATurday.Bridge.PropFormula
