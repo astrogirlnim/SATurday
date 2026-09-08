@@ -3206,3 +3206,26 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   FinGraph. Not yet: `IsRegular mggGraph 8`, Inv expansion, cubicization.
   gate_pending: merge_certified.
   Next: formalize MGG regularity for `m ≥ 3`, then Inv.
+
+- 2026-09-08 human gate: merge_certified APPROVED (gate_auto: true, loop wake).
+  Cluster 29 scaffolding decls remain in accepted list.
+
+- 2026-09-08 formalize (Cluster 29b simple MGG not 8-regular): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "IsRegular mggGraph 8 for m>=3",
+    "rationale": "Wake target after scaffolding merge."
+  }
+  ```
+  Blocked obligation on exact regularity: simple `FinGraph` drops axis
+  self-loops from S/T, so `IsRegular (mggGraph m _) 8` is false.
+  Certified instead: `mggOrigin3_degree` (`= 4` at `m = 3`) and
+  `not_isRegular_mggGraph_three_eight`.
+  Most important thing learned: intermediate MGG pin must use multigraph
+  degree or a restated min-degree / Cayley hypothesis, not simple
+  `IsRegular _ 8`.
+  gate_pending: merge_certified.
+  Next: prove restatement of intermediate MGG regularity hypothesis.

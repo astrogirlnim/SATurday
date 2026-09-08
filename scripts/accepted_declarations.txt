@@ -1563,3 +1563,6 @@ SATurday.ProofComplexity.mggEdgeOf
 SATurday.ProofComplexity.mggGraph
 SATurday.ProofComplexity.mem_mggGraph_of_edgeOf
 SATurday.ProofComplexity.mgg_three_vertex_card
+SATurday.ProofComplexity.mggOrigin3
+SATurday.ProofComplexity.mggOrigin3_degree
+SATurday.ProofComplexity.not_isRegular_mggGraph_three_eight

@@ -99,4 +99,28 @@ theorem mem_mggGraph_of_edgeOf {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) (s : Fin
 
 theorem mgg_three_vertex_card : Fintype.card (Fin (3 * 3)) = 9 := by decide
 
+/-! ## Cluster 29b: simple MGG is not 8-regular
+
+Classical MGG is an 8-regular multigraph. Our `FinGraph` drops self-loops, so
+`S`/`T` generators vanish on the axes. Exact `IsRegular (mggGraph m _) 8` fails
+already at `m = 3` (origin degree 4). Intermediate inhabit must track
+multiplicity or restate the degree hypothesis. -/
+
+private theorem hm3 : (0 : ℕ) < 3 := by decide
+
+/-- Origin vertex on the `m = 3` torus. -/
+def mggOrigin3 : Fin (3 * 3) :=
+  mggEncode hm3 (⟨0, by decide⟩, ⟨0, by decide⟩)
+
+/-- Concrete: origin degree on `m = 3` is 4 (four translations; S/T are loops). -/
+theorem mggOrigin3_degree : degree (mggGraph 3 hm3) mggOrigin3 = 4 := by
+  decide
+
+/-- Hence the simple `m = 3` MGG is not 8-regular. -/
+theorem not_isRegular_mggGraph_three_eight :
+    ¬ IsRegular (mggGraph 3 hm3) 8 := by
+  intro h
+  have := h mggOrigin3
+  simp [mggOrigin3_degree] at this
+
 end SATurday.ProofComplexity
