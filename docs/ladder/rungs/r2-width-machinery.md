@@ -3628,3 +3628,34 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Gabber Galil spectrum, not axis packaging.
   gate_pending: merge_certified (Cluster 30 surface decls).
   next: formalize multi cut to `edgeBoundary` loss, or cite spectral gap Frontier.
+
+- 2026-09-08 formalize (Cluster 31 multi-cut to edgeBoundary): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "next Cluster toward mggGraph_hasExpansionInv using Cluster 30 surface",
+    "rationale": "Axis cut loss ready; push one Lean cluster on Inv expansion path."
+  }
+  ```
+  workstream: R2. Edited only `theory/Theory/ProofComplexity/MGG.lean` (no Bridge).
+  Did not duplicate Cluster 30.
+
+  Accepted (axiom gate on new decls):
+  - Cayley inverse: `mggInvGen`, `mggInvGen_invGen`, `mggNeighbor_invGen`,
+    `mggEdgeOf_invGen_eq_of_eq_some`.
+  - Leaving pairs: `mggLeavingPairs`, `mggLeavingPairs_card` (= `mggMultiCutCard`),
+    `mggEdgeOf_eq_some_mem_edgeBoundary_of_leaving`,
+    `exists_mem_mggLeavingPairs_of_mem_edgeBoundary`, `mggLeavingWitness`.
+  - Cut transfer: `edgeBoundary_card_le_mggMultiCutCard` (`|∂_G| ≤ |∂_M|`).
+
+  Still Frontier sorry: `MGGFrontier.mggGraph_hasExpansionInv` (spectral gap,
+  Cheeger on multi, tighter loss `|∂_M| − |∂_G|` for Inv-4 absorb).
+
+  Most important thing learned: labeled multi-cut surjects onto the simple cut
+  via inverse generators, so `|∂_G| ≤ |∂_M|` is certified; remaining Inv cost is
+  spectral or Cheeger plus a tighter reverse loss bound than the safe 8-fiber.
+  gate_pending: merge_certified (Cluster 31 transfer decls).
+  next: formalize reverse loss bound (axis aware) or cite Gabber Galil spectral
+  Frontier lemma toward Cheeger packaging.

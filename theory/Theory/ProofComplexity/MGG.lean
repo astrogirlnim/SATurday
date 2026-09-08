@@ -962,6 +962,244 @@ theorem mgg_inv4_absorb_of_loss_le_twelfth {s g loss : ℕ}
       _ = 12 * g + 12 * loss := by ring
   omega
 
+/-! ## Cluster 31: multi-cut to simple edgeBoundary transfer
+
+Cluster 30 landed axis loops and `mggMultiCutCard`. This cluster relates the
+labeled multi-cut to `edgeBoundary (mggGraph …)` via Cayley inverse generators
+and leaving pairs, proving `|∂_G S| ≤ |∂_M S|`. Tighter axis loss and spectral
+input remain for later clusters. -/
+
+/-- Inverse generator index: undoes one labeled MGG step. -/
+def mggInvGen (s : Fin 8) : Fin 8 :=
+  match s.val with
+  | 0 => mggLeft
+  | 1 => mggRight
+  | 2 => mggDown
+  | 3 => mggUp
+  | 4 => mggSinv
+  | 5 => mggS
+  | 6 => mggTinv
+  | _ => mggT
+
+theorem mggInvGen_right : mggInvGen mggRight = mggLeft := rfl
+theorem mggInvGen_left : mggInvGen mggLeft = mggRight := rfl
+theorem mggInvGen_up : mggInvGen mggUp = mggDown := rfl
+theorem mggInvGen_down : mggInvGen mggDown = mggUp := rfl
+theorem mggInvGen_S : mggInvGen mggS = mggSinv := rfl
+theorem mggInvGen_Sinv : mggInvGen mggSinv = mggS := rfl
+theorem mggInvGen_T : mggInvGen mggT = mggTinv := rfl
+theorem mggInvGen_Tinv : mggInvGen mggTinv = mggT := rfl
+
+/-- Involution on generator labels. -/
+theorem mggInvGen_invGen (s : Fin 8) : mggInvGen (mggInvGen s) = s := by
+  fin_cases s <;> rfl
+
+/-- Neighbor step then inverse recovers the start vertex. -/
+theorem mggNeighbor_invGen {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) (s : Fin 8) :
+    mggNeighbor hm (mggNeighbor hm v s) (mggInvGen s) = v := by
+  letI : NeZero m := mggNeZero hm
+  fin_cases s
+  · change mggNeighbor hm (mggNeighbor hm v mggRight) mggLeft = v
+    rw [mggNeighbor_right_eq, mggNeighbor_left_eq, mggDecode_encode]
+    simp [mggEncode_decode]
+  · change mggNeighbor hm (mggNeighbor hm v mggLeft) mggRight = v
+    rw [mggNeighbor_left_eq, mggNeighbor_right_eq, mggDecode_encode]
+    simp [mggEncode_decode]
+  · change mggNeighbor hm (mggNeighbor hm v mggUp) mggDown = v
+    rw [mggNeighbor_up_eq, mggNeighbor_down_eq, mggDecode_encode]
+    simp [mggEncode_decode]
+  · change mggNeighbor hm (mggNeighbor hm v mggDown) mggUp = v
+    rw [mggNeighbor_down_eq, mggNeighbor_up_eq, mggDecode_encode]
+    simp [mggEncode_decode]
+  · change mggNeighbor hm (mggNeighbor hm v mggS) mggSinv = v
+    rw [mggNeighbor_S_eq, mggNeighbor_Sinv_eq, mggDecode_encode]
+    simp [mggEncode_decode]
+  · change mggNeighbor hm (mggNeighbor hm v mggSinv) mggS = v
+    rw [mggNeighbor_Sinv_eq, mggNeighbor_S_eq, mggDecode_encode]
+    simp [mggEncode_decode]
+  · change mggNeighbor hm (mggNeighbor hm v mggT) mggTinv = v
+    rw [mggNeighbor_T_eq, mggNeighbor_Tinv_eq, mggDecode_encode]
+    simp [mggEncode_decode]
+  · change mggNeighbor hm (mggNeighbor hm v mggTinv) mggT = v
+    rw [mggNeighbor_Tinv_eq, mggNeighbor_T_eq, mggDecode_encode]
+    simp [mggEncode_decode]
+
+/-- Leaving labeled incidences as a Finset of pairs. -/
+def mggLeavingPairs {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m))) :
+    Finset (Fin (m * m) × Fin 8) :=
+  (S.product (Finset.univ : Finset (Fin 8))).filter fun p =>
+    mggNeighbor hm p.1 p.2 ∉ S
+
+theorem mem_mggLeavingPairs_iff {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (p : Fin (m * m) × Fin 8) :
+    p ∈ mggLeavingPairs hm S ↔ p.1 ∈ S ∧ mggNeighbor hm p.1 p.2 ∉ S := by
+  simp [mggLeavingPairs, mem_product]
+
+theorem mggLeavingPairs_card {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m))) :
+    (mggLeavingPairs hm S).card = mggMultiCutCard hm S := by
+  classical
+  simp only [mggLeavingPairs, mggMultiCutCard]
+  change ((S ×ˢ (univ : Finset (Fin 8))).filter
+      fun p => mggNeighbor hm p.1 p.2 ∉ S).card =
+    ∑ v ∈ S, ((univ : Finset (Fin 8)).filter fun s => mggNeighbor hm v s ∉ S).card
+  rw [card_eq_sum_ones, sum_filter, sum_product]
+  exact sum_congr rfl fun v _ => by
+    rw [card_eq_sum_ones, sum_filter]
+
+/-- A neighbor outside `S` cannot equal a vertex inside `S`. -/
+theorem mggNeighbor_ne_of_mem_not_mem {m : ℕ} {S : Finset (Fin (m * m))}
+    {v w : Fin (m * m)} (hv : v ∈ S) (hw : w ∉ S) : v ≠ w :=
+  fun h => hw (h ▸ hv)
+
+/-- Non-loop neighbor yields adjacency in the simple graph. -/
+theorem mgg_adj_of_neighbor_ne {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) (s : Fin 8)
+    (hne : mggNeighbor hm v s ≠ v) :
+    (mggGraph m hm).Adj v (mggNeighbor hm v s) := by
+  obtain ⟨e, he, hends⟩ := mggEdgeOf_eq_some_of_ne hm v s hne
+  refine ⟨e, mem_mggGraph_of_edgeOf hm v s he, ?_⟩
+  rcases hends with h | h
+  · exact Or.inl h
+  · exact Or.inr h
+
+/-- Leaving non-loop incidence produces a concrete cut edge. -/
+theorem mggEdgeOf_eq_some_mem_edgeBoundary_of_leaving {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) (hv : v ∈ S) (s : Fin 8)
+    (hw : mggNeighbor hm v s ∉ S) :
+    ∃ e, mggEdgeOf hm v s = some e ∧ e ∈ edgeBoundary (mggGraph m hm) S := by
+  have hne : mggNeighbor hm v s ≠ v :=
+    (mggNeighbor_ne_of_mem_not_mem hv hw).symm
+  obtain ⟨e, he, hends⟩ := mggEdgeOf_eq_some_of_ne hm v s hne
+  refine ⟨e, he, ?_⟩
+  refine (mem_edgeBoundary_iff).mpr ⟨mem_mggGraph_of_edgeOf hm v s he, ?_⟩
+  rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · exact Or.inl ⟨h1 ▸ hv, h2 ▸ hw⟩
+  · exact Or.inr ⟨h1 ▸ hw, h2 ▸ hv⟩
+
+/-- Every edge of the simple MGG arises from some labeled `mggEdgeOf`. -/
+theorem exists_mggEdgeOf_eq_some_of_mem {m : ℕ} (hm : 0 < m)
+    {e : FinEdge (m * m)} (he : e ∈ mggGraph m hm) :
+    ∃ (v : Fin (m * m)) (s : Fin 8), mggEdgeOf hm v s = some e := by
+  obtain ⟨v, _, hs⟩ := mem_biUnion.mp he
+  obtain ⟨s, _, hcell⟩ := mem_biUnion.mp hs
+  cases h : mggEdgeOf hm v s with
+  | none =>
+    have : e ∈ (∅ : Finset (FinEdge (m * m))) := by simpa [h] using hcell
+    exact (notMem_empty e this).elim
+  | some e' =>
+    have : e ∈ ({e'} : Finset (FinEdge (m * m))) := by simpa [h] using hcell
+    have hee' : e = e' := mem_singleton.mp this
+    exact ⟨v, s, by rw [h, hee']⟩
+
+/-- Endpoints of a realized `mggEdgeOf` are `v` and its neighbor. -/
+theorem mggEdgeOf_eq_some_endpoints {m : ℕ} (hm : 0 < m)
+    (v : Fin (m * m)) (s : Fin 8) {e : FinEdge (m * m)}
+    (he : mggEdgeOf hm v s = some e) :
+    (e.val.1 = v ∧ e.val.2 = mggNeighbor hm v s) ∨
+      (e.val.1 = mggNeighbor hm v s ∧ e.val.2 = v) := by
+  have hne : mggNeighbor hm v s ≠ v := by
+    intro hloop
+    simp [mggEdgeOf, hloop] at he
+  obtain ⟨e', he', hends⟩ := mggEdgeOf_eq_some_of_ne hm v s hne
+  have : e' = e := by
+    rw [he'] at he; exact Option.some_injective _ he
+  subst this
+  exact hends
+
+/-- Same undirected edge from the inverse generator at the neighbor. -/
+theorem mggEdgeOf_invGen_eq_of_eq_some {m : ℕ} (hm : 0 < m)
+    (v : Fin (m * m)) (s : Fin 8) {e : FinEdge (m * m)}
+    (he : mggEdgeOf hm v s = some e) :
+    mggEdgeOf hm (mggNeighbor hm v s) (mggInvGen s) = some e := by
+  have hends := mggEdgeOf_eq_some_endpoints hm v s he
+  set w := mggNeighbor hm v s
+  have hback : mggNeighbor hm w (mggInvGen s) = v := mggNeighbor_invGen hm v s
+  rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · have hvw : v.val < w.val := by
+      have := e.property
+      simp only [h1, h2] at this
+      exact this
+    have hnw : ¬ w.val < v.val := Nat.not_lt_of_le (Nat.le_of_lt hvw)
+    have heq : e = ⟨(v, w), hvw⟩ := Subtype.ext (Prod.ext h1 h2)
+    rw [heq, mggEdgeOf, hback, dif_neg hnw, dif_pos hvw]
+  · have hwv : w.val < v.val := by
+      have := e.property
+      simp only [h1, h2] at this
+      exact this
+    have heq : e = ⟨(w, v), hwv⟩ := Subtype.ext (Prod.ext h1 h2)
+    rw [heq, mggEdgeOf, hback, dif_pos hwv]
+
+/-- Every simple cut edge is witnessed by at least one leaving labeled pair. -/
+theorem exists_mem_mggLeavingPairs_of_mem_edgeBoundary {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) {e : FinEdge (m * m)}
+    (he : e ∈ edgeBoundary (mggGraph m hm) S) :
+    ∃ p ∈ mggLeavingPairs hm S, mggEdgeOf hm p.1 p.2 = some e := by
+  obtain ⟨heG, hcut⟩ := (mem_edgeBoundary_iff).mp he
+  obtain ⟨v, s, hvs⟩ := exists_mggEdgeOf_eq_some_of_mem hm heG
+  have hends := mggEdgeOf_eq_some_endpoints hm v s hvs
+  set w := mggNeighbor hm v s
+  rcases hends with ⟨he1, he2⟩ | ⟨he1, he2⟩
+  · rcases hcut with ⟨h1S, h2n⟩ | ⟨h1n, h2S⟩
+    · refine ⟨(v, s), (mem_mggLeavingPairs_iff hm S _).mpr ⟨?_, ?_⟩, hvs⟩
+      · simpa [he1] using h1S
+      · simpa [he2] using h2n
+    · have hinv := mggEdgeOf_invGen_eq_of_eq_some hm v s hvs
+      refine ⟨(w, mggInvGen s), (mem_mggLeavingPairs_iff hm S _).mpr ⟨?_, ?_⟩, ?_⟩
+      · simpa [he2] using h2S
+      · rw [show mggNeighbor hm w (mggInvGen s) = v from mggNeighbor_invGen hm v s]
+        simpa [he1] using h1n
+      · simpa [w] using hinv
+  · rcases hcut with ⟨h1S, h2n⟩ | ⟨h1n, h2S⟩
+    · have hinv := mggEdgeOf_invGen_eq_of_eq_some hm v s hvs
+      refine ⟨(w, mggInvGen s), (mem_mggLeavingPairs_iff hm S _).mpr ⟨?_, ?_⟩, ?_⟩
+      · simpa [he1] using h1S
+      · rw [show mggNeighbor hm w (mggInvGen s) = v from mggNeighbor_invGen hm v s]
+        simpa [he2] using h2n
+      · simpa [w] using hinv
+    · refine ⟨(v, s), (mem_mggLeavingPairs_iff hm S _).mpr ⟨?_, ?_⟩, hvs⟩
+      · simpa [he2] using h2S
+      · simpa [he1] using h1n
+
+/-- Chosen leaving witness for a cut edge. -/
+noncomputable def mggLeavingWitness {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) {e : FinEdge (m * m)}
+    (he : e ∈ edgeBoundary (mggGraph m hm) S) : Fin (m * m) × Fin 8 :=
+  Classical.choose (exists_mem_mggLeavingPairs_of_mem_edgeBoundary hm S he)
+
+theorem mggLeavingWitness_mem {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) {e : FinEdge (m * m)}
+    (he : e ∈ edgeBoundary (mggGraph m hm) S) :
+    mggLeavingWitness hm S he ∈ mggLeavingPairs hm S :=
+  (Classical.choose_spec (exists_mem_mggLeavingPairs_of_mem_edgeBoundary hm S he)).1
+
+theorem mggLeavingWitness_edgeOf {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) {e : FinEdge (m * m)}
+    (he : e ∈ edgeBoundary (mggGraph m hm) S) :
+    mggEdgeOf hm (mggLeavingWitness hm S he).1 (mggLeavingWitness hm S he).2 =
+      some e :=
+  (Classical.choose_spec (exists_mem_mggLeavingPairs_of_mem_edgeBoundary hm S he)).2
+
+/-- Simple cut is at most the labeled multi-cut: `|∂_G S| ≤ |∂_M S|`. -/
+theorem edgeBoundary_card_le_mggMultiCutCard {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) :
+    (edgeBoundary (mggGraph m hm) S).card ≤ mggMultiCutCard hm S := by
+  classical
+  rw [← mggLeavingPairs_card hm S]
+  have h :=
+    card_le_card_of_injOn
+      (s := (edgeBoundary (mggGraph m hm) S).attach)
+      (t := mggLeavingPairs hm S)
+      (fun e => mggLeavingWitness hm S e.property)
+      (fun e _ => mggLeavingWitness_mem hm S e.property)
+      (fun e₁ _ e₂ _ h => by
+        have h1 := mggLeavingWitness_edgeOf hm S e₁.property
+        have h2 := mggLeavingWitness_edgeOf hm S e₂.property
+        have h1' :
+            mggEdgeOf hm (mggLeavingWitness hm S e₂.property).1
+              (mggLeavingWitness hm S e₂.property).2 = some (e₁ : FinEdge (m * m)) := by
+          simpa [h] using h1
+        exact Subtype.ext (Option.some_injective _ (h1'.symm.trans h2)))
+  simpa [card_attach] using h
+
 namespace MGGFrontier
 
 /-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/
@@ -982,4 +1220,3 @@ theorem exists_mgg_simple_hasExpansionInv_family :
 end MGGFrontier
 
 end SATurday.ProofComplexity
-
