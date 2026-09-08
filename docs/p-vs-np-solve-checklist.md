@@ -25,8 +25,9 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       assignmentAtList equals allBitstrings and get linkage certified 2026-09-08;
       validatesTautology_by_index equivalence certified 2026-09-08;
       Cluster C2 length gate reject path certified 2026-09-08;
-      Frontier: validatesTautology index loop FinTM2 then TT map sequencer for
-      truthTable_is_prop_proof_system).
+      Cluster C2 writePow2Bits length compare scaffolding certified 2026-09-08;
+      Frontier: count table length to bits, compare to pow2BitsLE, then index
+      loop FinTM2 and TT map sequencer for truthTable_is_prop_proof_system).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

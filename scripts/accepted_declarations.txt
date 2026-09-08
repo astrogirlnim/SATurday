@@ -1575,6 +1575,37 @@ SATurday.Bridge.not_validatesTautology_by_index_of_lengthGateFail
 SATurday.Bridge.not_validatesTautology_of_lengthGateFail
 SATurday.Bridge.validatesTautologyResult_eq_by_index
 SATurday.Bridge.validatesTautologyResult_of_lengthGateFail
+# R5 ProofSystem Cluster C2 writePow2Bits length compare scaffolding (2026-09-08)
+SATurday.Bridge.pow2BitsLE
+SATurday.Bridge.length_pow2BitsLE
+SATurday.Bridge.bitsLEValue
+SATurday.Bridge.bitsLEValue_pow2BitsLE
+SATurday.Bridge.lengthEqPow2
+SATurday.Bridge.lengthEqPow2_iff
+SATurday.Bridge.lengthEqPow2_iff_bits
+SATurday.Bridge.lengthGateOk_eq_lengthEqPow2
+SATurday.Bridge.lengthGateOk_iff_bits
+SATurday.Bridge.pow2BitsWriteOrder
+SATurday.Bridge.pow2BitsWriteOrder_eq_reverse
+SATurday.Bridge.replicate_false_append_cons
+SATurday.Bridge.WritePow2Stack
+SATurday.Bridge.WritePow2Label
+SATurday.Bridge.writePow2BitsComputer
+SATurday.Bridge.writePow2Stk
+SATurday.Bridge.writePow2Cfg
+SATurday.Bridge.writePow2_step_true
+SATurday.Bridge.writePow2_step_false
+SATurday.Bridge.writePow2_step_nil
+SATurday.Bridge.writePow2Bits_initList
+SATurday.Bridge.writePow2Bits_haltList
+SATurday.Bridge.writePow2_evals_true
+SATurday.Bridge.writePow2_evals_false
+SATurday.Bridge.writePow2Bits_evals_from
+SATurday.Bridge.writePow2Bits_evals
+SATurday.Bridge.writePow2BitsTime
+SATurday.Bridge.writePow2BitsTime_eval
+SATurday.Bridge.writePow2BitsComputableInPolyTime
+SATurday.Bridge.writePow2Bits_computableInPolyTime
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode
@@ -1660,3 +1691,29 @@ SATurday.ProofComplexity.mgg_loop_incidences_le_four_mul_axis
 SATurday.ProofComplexity.mgg_gabber_galil_cheeger_nat_witness
 SATurday.ProofComplexity.mgg_card_le_three_mul_of_two_fifth
 SATurday.ProofComplexity.mgg_inv4_absorb_of_loss_le_twelfth
+# R2 item 2 cluster 31: multi-cut to edgeBoundary transfer (2026-09-08)
+SATurday.ProofComplexity.mggInvGen
+SATurday.ProofComplexity.mggInvGen_right
+SATurday.ProofComplexity.mggInvGen_left
+SATurday.ProofComplexity.mggInvGen_up
+SATurday.ProofComplexity.mggInvGen_down
+SATurday.ProofComplexity.mggInvGen_S
+SATurday.ProofComplexity.mggInvGen_Sinv
+SATurday.ProofComplexity.mggInvGen_T
+SATurday.ProofComplexity.mggInvGen_Tinv
+SATurday.ProofComplexity.mggInvGen_invGen
+SATurday.ProofComplexity.mggNeighbor_invGen
+SATurday.ProofComplexity.mggLeavingPairs
+SATurday.ProofComplexity.mem_mggLeavingPairs_iff
+SATurday.ProofComplexity.mggLeavingPairs_card
+SATurday.ProofComplexity.mggNeighbor_ne_of_mem_not_mem
+SATurday.ProofComplexity.mgg_adj_of_neighbor_ne
+SATurday.ProofComplexity.mggEdgeOf_eq_some_mem_edgeBoundary_of_leaving
+SATurday.ProofComplexity.exists_mggEdgeOf_eq_some_of_mem
+SATurday.ProofComplexity.mggEdgeOf_eq_some_endpoints
+SATurday.ProofComplexity.mggEdgeOf_invGen_eq_of_eq_some
+SATurday.ProofComplexity.exists_mem_mggLeavingPairs_of_mem_edgeBoundary
+SATurday.ProofComplexity.mggLeavingWitness
+SATurday.ProofComplexity.mggLeavingWitness_mem
+SATurday.ProofComplexity.mggLeavingWitness_edgeOf
+SATurday.ProofComplexity.edgeBoundary_card_le_mggMultiCutCard

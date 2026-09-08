@@ -425,6 +425,263 @@ theorem not_validatesTautology_of_lengthGateFail (φ : PropFormula)
   exact not_validatesTautology_by_index_of_lengthGateFail φ table h
     (validatesTautology_by_index_of_validatesTautology φ table hval)
 
+/-! ## Cluster C2 length compare scaffolding (binary of `2^n`)
+
+FinTM2 length gate needs a poly size witness for `2^(maxVar+1)`: little endian
+bits `false^n ++ [true]`, not a unary tape of length `2^n`. The machine below
+writes those bits from unary `encodeNat n` (push order yields the reverse). -/
+
+/-- Little endian bits of `2 ^ n`: `n` zeros then a one. -/
+def pow2BitsLE (n : ℕ) : List Bool :=
+  List.replicate n false ++ [true]
+
+theorem length_pow2BitsLE (n : ℕ) : (pow2BitsLE n).length = n + 1 := by
+  simp [pow2BitsLE]
+
+/-- Numeric value of a little endian bit list (head is least significant). -/
+def bitsLEValue : List Bool → ℕ
+  | [] => 0
+  | b :: bs => (bif b then 1 else 0) + 2 * bitsLEValue bs
+
+theorem bitsLEValue_pow2BitsLE (n : ℕ) :
+    bitsLEValue (pow2BitsLE n) = 2 ^ n := by
+  induction n with
+  | zero => simp [pow2BitsLE, bitsLEValue]
+  | succ n ih =>
+      have hform : pow2BitsLE (n + 1) = false :: pow2BitsLE n := by
+        simp [pow2BitsLE, List.replicate_succ]
+      rw [hform, bitsLEValue, ih]
+      simp [Nat.pow_succ, Nat.mul_comm]
+
+/-- Length equals a power of two (FinTM2 compare target on Nat). -/
+def lengthEqPow2 (n : ℕ) (table : List Bool) : Bool :=
+  decide (table.length = 2 ^ n)
+
+theorem lengthEqPow2_iff (n : ℕ) (table : List Bool) :
+    lengthEqPow2 n table = true ↔ table.length = 2 ^ n := by
+  simp [lengthEqPow2]
+
+theorem lengthEqPow2_iff_bits (n : ℕ) (table : List Bool) :
+    lengthEqPow2 n table = true ↔
+      table.length = bitsLEValue (pow2BitsLE n) := by
+  rw [lengthEqPow2_iff, bitsLEValue_pow2BitsLE]
+
+/-- Length gate is lengthEqPow2 at bit width `maxVar + 1`. -/
+theorem lengthGateOk_eq_lengthEqPow2 (φ : PropFormula) (table : List Bool) :
+    lengthGateOk φ table = lengthEqPow2 (φ.maxVar + 1) table := by
+  simp [lengthGateOk, lengthEqPow2]
+
+theorem lengthGateOk_iff_bits (φ : PropFormula) (table : List Bool) :
+    lengthGateOk φ table = true ↔
+      table.length = bitsLEValue (pow2BitsLE (φ.maxVar + 1)) := by
+  rw [lengthGateOk_eq_lengthEqPow2, lengthEqPow2_iff_bits]
+
+/-- Push order of `writePow2BitsComputer`: one then `n` zeros. -/
+def pow2BitsWriteOrder (n : ℕ) : List Bool :=
+  true :: List.replicate n false
+
+theorem pow2BitsWriteOrder_eq_reverse (n : ℕ) :
+    pow2BitsWriteOrder n = (pow2BitsLE n).reverse := by
+  simp [pow2BitsWriteOrder, pow2BitsLE, List.reverse_append, List.reverse_cons,
+    List.reverse_replicate]
+
+/-- Moving one false across a false block: used by writePow2 accumulator step. -/
+theorem replicate_false_append_cons (n : ℕ) (out : List Bool) :
+    List.replicate n false ++ false :: out =
+      false :: List.replicate n false ++ out := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      simpa [List.replicate_succ, List.cons_append] using
+        congrArg (fun t => false :: t) ih
+
+open TM2.Stmt
+
+inductive WritePow2Stack where
+  | inp | out
+  deriving DecidableEq, Repr
+
+instance : Fintype WritePow2Stack where
+  elems := {.inp, .out}
+  complete s := by cases s <;> simp
+
+/-- Read unary `encodeNat n`, push `false` per `true`, then push `true` on the
+terminator and halt. Output is `pow2BitsWriteOrder n`. -/
+inductive WritePow2Label where
+  | loop
+  deriving DecidableEq, Repr
+
+instance : Fintype WritePow2Label where
+  elems := {.loop}
+  complete s := by cases s <;> simp
+
+/-- FinTM2 Stmt scaffolding: unary width `n` to binary bits of `2^n`. -/
+def writePow2BitsComputer : FinTM2 where
+  K := WritePow2Stack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := WritePow2Label
+  main := .loop
+  σ := Option Bool
+  initialState := none
+  m
+    | .loop =>
+        pop WritePow2Stack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) halt)
+            (branch (fun s => decide (s = some true))
+              (push WritePow2Stack.out (fun _ => false) <|
+                load (fun _ => none) <|
+                  goto fun _ => WritePow2Label.loop)
+              (push WritePow2Stack.out (fun _ => true) <|
+                load (fun _ => none) halt))
+
+def writePow2Stk (inp out : List Bool) : WritePow2Stack → List Bool
+  | .inp => inp
+  | .out => out
+
+def writePow2Cfg (l : Option WritePow2Label) (v : Option Bool)
+    (inp out : List Bool) : writePow2BitsComputer.Cfg :=
+  ⟨l, v, writePow2Stk inp out⟩
+
+theorem writePow2_step_true (xs out : List Bool) :
+    TM2.step writePow2BitsComputer.m
+      (writePow2Cfg (some .loop) none (true :: xs) out) =
+      some (writePow2Cfg (some .loop) none xs (false :: out)) := by
+  simp [writePow2BitsComputer, writePow2Cfg, writePow2Stk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some WritePow2Label.loop, none, stk⟩ : writePow2BitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, writePow2Stk]
+
+theorem writePow2_step_false (out : List Bool) :
+    TM2.step writePow2BitsComputer.m
+      (writePow2Cfg (some .loop) none [false] out) =
+      some (writePow2Cfg none none [] (true :: out)) := by
+  simp [writePow2BitsComputer, writePow2Cfg, writePow2Stk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option WritePow2Label), none, stk⟩ : writePow2BitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, writePow2Stk]
+
+theorem writePow2_step_nil (out : List Bool) :
+    TM2.step writePow2BitsComputer.m
+      (writePow2Cfg (some .loop) none [] out) =
+      some (writePow2Cfg none none [] out) := by
+  simp [writePow2BitsComputer, writePow2Cfg, writePow2Stk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option WritePow2Label), none, stk⟩ : writePow2BitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, writePow2Stk]
+
+theorem writePow2Bits_initList (s : List Bool) :
+    initList writePow2BitsComputer s =
+      writePow2Cfg (some .loop) none s [] := by
+  refine congrArg (fun stk =>
+      (⟨some WritePow2Label.loop, none, stk⟩ : writePow2BitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [writePow2BitsComputer, writePow2Stk]
+
+theorem writePow2Bits_haltList (out : List Bool) :
+    haltList writePow2BitsComputer out =
+      writePow2Cfg none none [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option WritePow2Label), none, stk⟩ : writePow2BitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [writePow2BitsComputer, writePow2Stk]
+
+open StateTransition
+
+def writePow2_evals_true (xs out : List Bool) :
+    EvalsToInTime writePow2BitsComputer.step
+      (writePow2Cfg (some .loop) none (true :: xs) out)
+      (some (writePow2Cfg (some .loop) none xs (false :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (writePow2Cfg (some .loop) none (true :: xs) out)).bind
+        writePow2BitsComputer.step =
+      some (writePow2Cfg (some .loop) none xs (false :: out))
+    simp only [FinTM2.step]
+    exact writePow2_step_true xs out
+
+def writePow2_evals_false (out : List Bool) :
+    EvalsToInTime writePow2BitsComputer.step
+      (writePow2Cfg (some .loop) none [false] out)
+      (some (writePow2Cfg none none [] (true :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (writePow2Cfg (some .loop) none [false] out)).bind
+        writePow2BitsComputer.step =
+      some (writePow2Cfg none none [] (true :: out))
+    simp only [FinTM2.step]
+    exact writePow2_step_false out
+
+/-- From `encodeNat n` on inp and arbitrary out accumulator, halt with
+`pow2BitsWriteOrder n ++ out` after `n + 1` steps. -/
+noncomputable def writePow2Bits_evals_from (n : ℕ) (out : List Bool) :
+    EvalsToInTime writePow2BitsComputer.step
+      (writePow2Cfg (some .loop) none (encodeNat n) out)
+      (some (writePow2Cfg none none [] (pow2BitsWriteOrder n ++ out)))
+      (n + 1) := by
+  induction n generalizing out with
+  | zero =>
+      simp only [encodeNat, pow2BitsWriteOrder, List.replicate_zero]
+      have h := writePow2_evals_false out
+      simpa [List.singleton_append] using h
+  | succ n ih =>
+      have hform : encodeNat (n + 1) = true :: encodeNat n := by
+        simp [encodeNat, List.replicate_succ]
+      rw [hform]
+      have h1 := writePow2_evals_true (encodeNat n) out
+      have hrest := ih (false :: out)
+      have htrans :=
+        EvalsToInTime.trans writePow2BitsComputer.step 1 (n + 1) _ _ _ h1 hrest
+      have hout :
+          pow2BitsWriteOrder n ++ false :: out =
+            pow2BitsWriteOrder (n + 1) ++ out := by
+        simp only [pow2BitsWriteOrder, List.replicate_succ, List.cons_append]
+        exact congrArg (fun t => true :: t) (replicate_false_append_cons n out)
+      simpa [hout, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using htrans
+
+/-- On `encodeNat n`, the machine writes `pow2BitsWriteOrder n` in `n + 1` steps. -/
+noncomputable def writePow2Bits_evals (n : ℕ) :
+    TM2OutputsInTime writePow2BitsComputer (encodeNat n)
+      (some (pow2BitsWriteOrder n)) (n + 1) := by
+  have h : EvalsToInTime writePow2BitsComputer.step
+      (initList writePow2BitsComputer (encodeNat n))
+      (some (haltList writePow2BitsComputer (pow2BitsWriteOrder n))) (n + 1) := by
+    rw [writePow2Bits_initList, writePow2Bits_haltList]
+    simpa [List.append_nil] using writePow2Bits_evals_from n []
+  exact h
+
+noncomputable def writePow2BitsTime : Polynomial ℕ := Polynomial.X
+
+theorem writePow2BitsTime_eval (n : ℕ) :
+    writePow2BitsTime.eval n = n := by
+  simp [writePow2BitsTime]
+
+/-- Writing little endian bits of `2^n` (in push order) is poly time in `|encodeNat n|`. -/
+noncomputable def writePow2BitsComputableInPolyTime :
+    TM2ComputableInPolyTime encodeNat idBitEnc pow2BitsWriteOrder where
+  tm := writePow2BitsComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := writePow2BitsTime
+  outputsFun n := by
+    change TM2OutputsInTime writePow2BitsComputer
+      (List.map id (encodeNat n))
+      (some (List.map id (idBitEnc (pow2BitsWriteOrder n))))
+      (writePow2BitsTime.eval (encodeNat n).length)
+    simp only [idBitEnc, List.map_id, id_eq, writePow2BitsTime_eval]
+    have hlen : (encodeNat n).length = n + 1 := by
+      simp [encodeNat]
+    simpa [hlen] using writePow2Bits_evals n
+
+theorem writePow2Bits_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime encodeNat idBitEnc pow2BitsWriteOrder) :=
+  ⟨writePow2BitsComputableInPolyTime⟩
+
 /-! ## Truth table proof map (semantic Cook Reckhow witness) -/
 
 /-- Truth table proof system map: proofs are `encodePair (φCode, table)`.
@@ -3096,9 +3353,9 @@ namespace ProofSystemFrontier
 formula, length gate `table.length = 2^(maxVar+1)`, then index loop under
 `|table|` fuel, then branch to the reject or accept slices above.
 
-Certified this cycle: length gate Bool plus reject lemmas and
-`validatesTautologyResult_eq_by_index`. Remaining: FinTM2 Stmt for the length
-compare and the per index eval loop. -/
+Certified: length gate Bool, reject lemmas, `pow2BitsLE` plus writePow2Bits
+FinTM2 from unary width. Remaining: count table length to bits, compare to
+`pow2BitsLE`, then the per index eval loop. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by

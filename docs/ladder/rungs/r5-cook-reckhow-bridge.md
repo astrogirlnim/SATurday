@@ -1591,3 +1591,38 @@ lower bound via the bridge.
   must stay in accepted_declarations and be committed with the Lean.
   gate_pending: merge_certified.
   gate_auto: true. Rationale: gate PASS and decls listed with matching commit.
+
+- 2026-09-08 formalize (Cluster C2 writePow2Bits length compare scaffolding): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "FinTM2 length compare scaffolding or certified slice for lengthGate",
+    "rationale": "lengthGate semantics ready; start machine Stmt for table length check."
+  }
+  ```
+  Smallest coherent slice: binary bits of `2^n` plus FinTM2 that writes them from
+  unary `encodeNat n` (poly size witness for the length gate expected length).
+  Existing names used: lengthGateOk, encodeNat, lengthGateOk_iff, FinTM2,
+  TM2ComputableInPolyTime, idBitEnc, EvalsToInTime, TM2OutputsInTime.
+  Accepted: pow2BitsLE, length_pow2BitsLE, bitsLEValue, bitsLEValue_pow2BitsLE,
+  lengthEqPow2, lengthEqPow2_iff, lengthEqPow2_iff_bits,
+  lengthGateOk_eq_lengthEqPow2, lengthGateOk_iff_bits, pow2BitsWriteOrder,
+  pow2BitsWriteOrder_eq_reverse, replicate_false_append_cons,
+  WritePow2Stack, WritePow2Label, writePow2BitsComputer, writePow2Stk,
+  writePow2Cfg, writePow2_step_true, writePow2_step_false, writePow2_step_nil,
+  writePow2Bits_initList, writePow2Bits_haltList, writePow2_evals_true,
+  writePow2_evals_false, writePow2Bits_evals_from, writePow2Bits_evals,
+  writePow2BitsTime, writePow2BitsTime_eval, writePow2BitsComputableInPolyTime,
+  writePow2Bits_computableInPolyTime.
+  Bridge lake build green; Bridge only axiom probe PASS (propext, Classical.choice,
+  Quot.sound). Full scripts/check_axioms.sh blocked by parallel R2 MGG olean gap,
+  not by R5.
+  Frontier unchanged: validatesTautologyResult_computableInPolyTime (count table
+  length to bits, compare to pow2BitsLE, then per index eval loop),
+  truthTable_is_prop_proof_system.
+  Most important thing learned: length gate must use O(n) binary bits of `2^n`,
+  not a unary tape of length `2^n`, or reject paths are not poly time.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
