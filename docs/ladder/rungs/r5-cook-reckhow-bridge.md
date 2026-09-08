@@ -1663,3 +1663,38 @@ lower bound via the bridge.
   a binary counter plus bit list equality, not unary length.
   gate_pending: merge_certified.
   gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
+
+- 2026-09-08 formalize (Cluster C2 countLengthBits EvalsToInTime polyTime): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "countLengthBits EvalsToInTime and TM2ComputableInPolyTime",
+    "rationale": "Stmt and steps ready; close polyTime witness for length bit count."
+  }
+  ```
+  Smallest coherent slice: semantic `bitsInc` equals `natBitsLE (n+1)`, generalize
+  inc or restore steps to preserve remaining input, then EvalsToInTime through
+  restore carry, one symbol, full table, and `TM2ComputableInPolyTime idBitEnc
+  idBitEnc lengthBitsLE` with quadratic `countLengthBitsTime`.
+  Existing names used: countLengthBitsComputer, countLenCfg, natBitsLE,
+  lengthBitsLE, EvalsToInTime, TM2OutputsInTime, TM2ComputableInPolyTime,
+  idBitEnc, FinTM2.step.
+  Accepted: bitsInc, length_natBitsLE_le, bitsInc_natBitsLE,
+  countLen_evals_loop_cons, countLen_evals_loop_nil, countLen_evals_inc_nil,
+  countLen_evals_inc_false, countLen_evals_inc_true, countLen_evals_restore_nil,
+  countLen_evals_restore_cons, countLen_evals_restore, countLen_evals_inc,
+  countLen_evals_one, countLen_evals_from, countLengthBits_evals,
+  countLengthBitsTime, countLengthBitsTime_eval,
+  countLengthBitsComputableInPolyTime, countLengthBits_computableInPolyTime.
+  Bridge lake build green; Bridge axiom probe PASS; full scripts/check_axioms.sh
+  PASS (propext, Classical.choice, Quot.sound).
+  Frontier updated: validatesTautologyResult_computableInPolyTime needs FinTM2
+  compare glue of lengthBitsLE to pow2BitsLE, then per index eval loop;
+  truthTable_is_prop_proof_system unchanged.
+  Most important thing learned: carry restore must keep the unread input tape
+  intact; prior step lemmas specialized inp to nil and blocked multi symbol
+  evals.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: full axiom gate PASS and decls listed.
