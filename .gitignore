@@ -82,3 +82,7 @@ archive/research/**/.deps/
 # Temporary files
 *.tmp
 *.temp
+# Secrets
+.env
+.env.*
+!.env.example
