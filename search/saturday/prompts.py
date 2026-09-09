@@ -102,9 +102,10 @@ Emit one Lean 4 fragment that advances ONE open obligation above. Requirements:
 1. Namespace {frontier_ns} only.
 2. No imports. No axioms.
 3. Lean 4 ONLY: `:= by`. NEVER `begin`. NEVER Lean 3 ranges like [0..n].
-4. Preferred: restate ONE open sorry theorem from the list and replace `sorry`
-   with a real proof (or a smaller sorry only on a true subgoal).
-5. Alternate: add a NEW helper lemma that mentions only identifiers from the excerpt.
+4. Preferred: add a NEW helper lemma that only uses identifiers from the excerpt
+   and clearly advances one open obligation.
+5. Do NOT restate an existing theorem or lemma name (even an open sorry).
+   In-place sorry replacement is disabled; new names only.
 6. R2: do NOT reinvent width graft / substitution lemmas. Critical pins are
    exists_cs_clause_expanding_3cnf and exists_spreads_matchable_unsat_random3CNF.
 7. R5: do NOT invent validateIndex or ttMapSequencer. Use existing names only.

@@ -276,56 +276,30 @@ def _replace_decl(source: str, name: str, new_block: str) -> str:
 
 def merge_frontier_fragment(original: str, fragment: str, rung_id: str) -> tuple[str, str]:
     """
-    Merge fragment into original.
+    Merge fragment into original by inserting new Frontier decls only.
 
-    Open sorry decls with matching names are replaced in place.
-    New names are inserted before the module outer end.
+    In-place sorry replacement is disabled until we have a non-greedy Lean
+    parser; a prior regex replace truncated Bridge/ProofSystem.lean.
     """
     open_sorry = set(extract_open_frontier_obligations(original))
     incoming = _existing_decl_names(fragment)
     existing = _existing_decl_names(original)
-    dupes = existing & incoming
-    hard = sorted(dupes - open_sorry)
-    if hard:
+    dupes = sorted(existing & incoming)
+    if dupes:
+        open_dupes = [n for n in dupes if n in open_sorry]
+        hard = [n for n in dupes if n not in open_sorry]
+        if hard:
+            raise ValueError(
+                "decls already defined (certified): " + ", ".join(hard[:12])
+            )
         raise ValueError(
-            "decls already defined (not open sorry): " + ", ".join(hard[:12])
+            "decls already defined as open Frontier sorry: "
+            + ", ".join(open_dupes[:12])
+            + ". Emit a NEW helper lemma name (in-place sorry replace is disabled)."
         )
 
-    replaceable = sorted(dupes & open_sorry)
-    body = _strip_ns_wrapper(fragment)
-    blocks = _split_decl_blocks(body)
-    updated = original
-    for name in replaceable:
-        if name not in blocks:
-            raise ValueError(f"replaceable decl {name} missing from fragment body")
-        print(f"[saturday.apply] replace open sorry decl={name}")
-        updated = _replace_decl(updated, name, blocks[name])
-
-    new_names = sorted(incoming - existing)
-    if new_names:
-        # Keep only new decl blocks (+ header/ns from fragment for insert)
-        new_body_parts = [blocks[n] for n in new_names if n in blocks]
-        if new_body_parts:
-            ns = DEFAULT_FRONTIER_NS.get(rung_id, "LocalDraftFrontier")
-            stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            insert = (
-                f"/- SATurday auto-apply {stamp} (rung {rung_id}). -/\n"
-                f"namespace {ns}\n\n"
-                + "\n\n".join(new_body_parts)
-                + f"\n\nend {ns}\n"
-            )
-            updated = insert_fragment(updated, insert, rung_id)
-        else:
-            updated = insert_fragment(updated, fragment, rung_id)
-    elif not replaceable:
-        updated = insert_fragment(updated, fragment, rung_id)
-
-    mode = []
-    if replaceable:
-        mode.append("replace=" + ",".join(replaceable))
-    if new_names:
-        mode.append("insert=" + ",".join(new_names))
-    return updated, "; ".join(mode) or "insert"
+    updated = insert_fragment(original, fragment, rung_id)
+    return updated, "insert=" + ",".join(sorted(incoming))
 
 
 def apply_frontier_draft(
@@ -389,6 +363,7 @@ def apply_frontier_draft(
             updated, mode = merge_frontier_fragment(backup, fragment, rung_id)
         except ValueError as exc:
             print(f"[saturday.apply] reject merge: {exc}")
+            announce(f"Rejected draft before build: {exc}")
             return ApplyResult(
                 applied=False,
                 reverted=False,
@@ -398,8 +373,28 @@ def apply_frontier_draft(
                 has_sorry="sorry" in fragment,
             )
 
+        # Guard against catastrophic truncation from bad merges
+        backup_lines = backup.count("\n") + 1
+        updated_lines = updated.count("\n") + 1
+        if updated_lines < int(backup_lines * 0.9):
+            msg = (
+                f"refusing apply: file would shrink from {backup_lines} to "
+                f"{updated_lines} lines"
+            )
+            print(f"[saturday.apply] {msg}")
+            announce(msg)
+            return ApplyResult(
+                applied=False,
+                reverted=False,
+                build_ok=False,
+                target=rel,
+                notes=f"auto-apply rejected: {msg}",
+                has_sorry="sorry" in fragment,
+            )
+
         lean_path.write_text(updated, encoding="utf-8")
         print(f"[saturday.apply] wrote candidate bytes={len(updated)} mode={mode}")
+        announce(f"Wrote candidate ({mode}); running lake build...")
         build = _lake_build_unlocked(repo_root)
         if not build["ok"]:
             lean_path.write_text(backup, encoding="utf-8")
