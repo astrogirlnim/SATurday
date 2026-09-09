@@ -76,7 +76,7 @@ def build_formalize_prompt(
     rung = ctx.rungs[choice.rung]
     err_block = prior_errors.strip() or "(none yet)"
     frontier_ns = {
-        "r2-width-machinery": "WidthFrontier",
+        "r2-width-machinery": "CSExpansionFrontier",
         "r5-cook-reckhow-bridge": "ProofSystemFrontier",
     }.get(choice.rung, "LocalDraftFrontier")
     return f"""Rung id: {choice.rung}
@@ -86,7 +86,7 @@ Target: {choice.target}
 Rung memory (truncated):
 {truncate_for_prompt(rung.text, 8000)}
 
-Existing Lean excerpt (truncated):
+Existing Lean Frontier excerpt (truncated):
 {truncate_for_prompt(module_excerpt, 10000)}
 
 Prior lake build or gate errors:
@@ -95,14 +95,19 @@ Prior lake build or gate errors:
 Task:
 Emit one Lean 4 fragment that advances the target. Requirements:
 1. Put all new declarations in namespace {frontier_ns} (name must contain Frontier).
-2. No import lines. No axioms. Lean 4 only (by, not begin/end).
-3. Do NOT restate a theorem or lemma name that already appears in the excerpt.
-   Prefer a NEW helper lemma, or a proof that fills an existing Frontier sorry
-   without repeating the theorem signature if it is already present.
-4. sorry is allowed only inside the Frontier namespace.
-5. Names must be unique in the target module or auto-apply will reject the draft.
+2. No import lines. No axioms.
+3. Lean 4 ONLY: write `:= by` tactics. NEVER write `begin` or a bare `end` proof closer.
+4. Do NOT restate a theorem or lemma name that already appears in the excerpt.
+   Prefer a NEW helper lemma that is used by an existing Frontier sorry, or fill
+   an existing Frontier sorry without repeating its signature.
+5. For R2, the critical open pin is `exists_cs_clause_expanding_3cnf` (and its
+   feeder `exists_spreads_matchable_unsat_random3CNF`). Do not reinvent width graft.
+6. For R5, only use identifiers that already appear in the excerpt. Do not invent
+   `validateIndex`, `ttMapSequencer`, or similar.
+7. Names must be unique in the target module or auto-apply will reject the draft.
+8. sorry is allowed only inside the Frontier namespace.
 After the code fence, emit JSON with keys status, notes, next_recommended_action,
-gate_pending. next_recommended_action must be one of prove, formalize, falsify, audit.
+gate_pending. Set next_recommended_action to formalize.
 """
 
 

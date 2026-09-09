@@ -219,9 +219,10 @@ def _guess_lean_target(ctx: CycleContext, choice: ActionChoice) -> Path:
     mapping = {
         "r0-resolution-foundations": "theory/Theory/ProofComplexity/Resolution.lean",
         "r1-php-haken": "theory/Theory/ProofComplexity/PHP.lean",
-        "r2-width-machinery": "theory/Theory/ProofComplexity/Width.lean",
+        # R2 critical path lives in CSExpansionFrontier, not Width.lean
+        "r2-width-machinery": "theory/Theory/ProofComplexity/CSExpansion.lean",
         "r3-stronger-systems": "theory/Theory/ProofComplexity/Resolution.lean",
-        "r4-frontier": "theory/Theory/ProofComplexity/Width.lean",
+        "r4-frontier": "theory/Theory/ProofComplexity/CSExpansion.lean",
         "r5-cook-reckhow-bridge": "theory/Theory/ProofComplexity/Bridge/ProofSystem.lean",
     }
     rel = mapping.get(choice.rung, "theory/Theory/ProofComplexity/Resolution.lean")
@@ -242,13 +243,26 @@ def _run_formalize(
     lean_path = _guess_lean_target(ctx, choice)
     module_excerpt = ""
     if lean_path.exists():
-        module_excerpt = lean_path.read_text(encoding="utf-8")[-12000:]
+        module_excerpt = _frontier_focus_excerpt(lean_path.read_text(encoding="utf-8"))
     else:
         module_excerpt = f"(missing file {lean_path})"
 
     build = lake_build_locked(ctx.repo_root)
     prior_errors = "" if build["ok"] else build["output"][-6000:]
+    last_apply_err = _latest_apply_error(
+        ctx.repo_root, loop_cfg.draft_dir, choice.rung
+    )
+    if last_apply_err:
+        prior_errors = (
+            (prior_errors + "\n\n" if prior_errors else "")
+            + "Last auto-apply lake failure:\n"
+            + last_apply_err
+        )
     print(f"[saturday.actions] formalize ambient_build_ok={build['ok']}")
+    print(
+        f"[saturday.actions] formalize prior_errors_chars={len(prior_errors)} "
+        f"has_last_apply_err={bool(last_apply_err)}"
+    )
 
     print(f"[saturday.actions] formalize model={role.model}")
     prompt = prompt_builders.build_formalize_prompt(
@@ -314,11 +328,13 @@ def _run_formalize(
             arts.append(applied.target)
         elif applied.reverted:
             status = "partial"
-            next_action = "formalize"
         else:
             status = "partial"
     else:
         notes = notes + " Local CLI writes drafts only; auto_apply is false."
+
+    # Never bounce prose_accepted / active formalize work back to prove via model whim
+    next_action = "formalize"
 
     notes = f"{notes} {apply_notes}"
     if not build["ok"]:
@@ -402,6 +418,37 @@ def _run_lake_build(repo_root: Path) -> Dict[str, Any]:
     ok = proc.returncode == 0
     print(f"[saturday.actions] lake build ok={ok} exit={proc.returncode}")
     return {"ok": ok, "output": output, "returncode": proc.returncode}
+
+
+def _frontier_focus_excerpt(source: str, max_chars: int = 12000) -> str:
+    """Prefer the last *Frontier namespace block (open sorries) over file tail."""
+    matches = list(re.finditer(r"(?m)^namespace \S*Frontier\b", source))
+    if matches:
+        start = matches[-1].start()
+        chunk = source[start:]
+        print(
+            f"[saturday.actions] frontier excerpt from idx={start} "
+            f"chars={min(len(chunk), max_chars)}"
+        )
+        if len(chunk) > max_chars:
+            return chunk[:max_chars]
+        return chunk
+    print("[saturday.actions] no Frontier namespace; using file tail")
+    return source[-max_chars:]
+
+
+def _latest_apply_error(repo_root: Path, draft_dir: str, rung_id: str) -> str:
+    """Load the newest auto-apply lake error artifact for this rung, if any."""
+    directory = repo_root / draft_dir
+    if not directory.is_dir():
+        return ""
+    pattern = f"*_{rung_id}_apply_error.txt"
+    files = sorted(directory.glob(pattern), key=lambda p: p.name, reverse=True)
+    if not files:
+        return ""
+    text = files[0].read_text(encoding="utf-8")
+    print(f"[saturday.actions] loaded prior apply error path={files[0].name}")
+    return text[-6000:]
 
 
 def _write_draft(repo_root: Path, draft_dir: str, name: str, content: str) -> Path:

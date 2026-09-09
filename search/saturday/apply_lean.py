@@ -23,6 +23,11 @@ from typing import Optional
 _THEORY_LOCK = threading.RLock()
 
 LEAN3_BEGIN_RE = re.compile(r"(?m)(?::=\s*begin\b|^\s*begin\s*$)")
+# Proof body: := begin ... end  (bare end; not `end Namespace`)
+LEAN3_PROOF_BLOCK_RE = re.compile(
+    r":=\s*begin\b(.*?)^\s*end\s*$",
+    re.MULTILINE | re.DOTALL,
+)
 AXIOM_RE = re.compile(r"(?m)^\s*axiom\s+")
 NAMESPACE_RE = re.compile(r"(?m)^\s*namespace\s+(\S+)")
 THEOREM_NAME_RE = re.compile(
@@ -37,7 +42,7 @@ OUTER_END_BY_RUNG = {
 }
 
 DEFAULT_FRONTIER_NS = {
-    "r2-width-machinery": "WidthFrontier",
+    "r2-width-machinery": "CSExpansionFrontier",
     "r5-cook-reckhow-bridge": "ProofSystemFrontier",
 }
 
@@ -88,6 +93,14 @@ def lake_build_locked(repo_root: Path) -> dict:
         return _lake_build_unlocked(repo_root)
 
 
+def rewrite_lean3_begin_end(text: str) -> str:
+    """Rewrite Lean 3 `:= begin ... end` proof bodies to Lean 4 `:= by ...`."""
+    rewritten, n = LEAN3_PROOF_BLOCK_RE.subn(r":= by\1", text)
+    if n:
+        print(f"[saturday.apply] rewrote {n} Lean 3 begin/end proof block(s) to by")
+    return rewritten
+
+
 def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[str], str]:
     """
     Validate and normalize a draft into a Frontier-only fragment.
@@ -104,10 +117,11 @@ def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[st
             continue
         lines.append(line)
     text = "\n".join(lines).strip()
+    text = rewrite_lean3_begin_end(text)
     if AXIOM_RE.search(text):
         return None, "draft declares axiom (forbidden)"
     if LEAN3_BEGIN_RE.search(text):
-        return None, "draft looks like Lean 3 (begin/end)"
+        return None, "draft still looks like Lean 3 after begin/end rewrite"
 
     namespaces = NAMESPACE_RE.findall(text)
     if namespaces:
@@ -117,6 +131,14 @@ def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[st
         ns = DEFAULT_FRONTIER_NS.get(rung_id, "LocalDraftFrontier")
         print(f"[saturday.apply] wrapping draft in namespace {ns}")
         text = f"namespace {ns}\n\n{text}\n\nend {ns}"
+
+    expected_ns = DEFAULT_FRONTIER_NS.get(rung_id)
+    if expected_ns:
+        for ns in NAMESPACE_RE.findall(text):
+            if "Frontier" in ns and ns != expected_ns:
+                print(f"[saturday.apply] remap namespace {ns} -> {expected_ns}")
+                text = text.replace(f"namespace {ns}", f"namespace {expected_ns}")
+                text = text.replace(f"end {ns}", f"end {expected_ns}")
 
     namespaces = NAMESPACE_RE.findall(text)
     if not any("Frontier" in ns for ns in namespaces):
