@@ -1687,6 +1687,169 @@ theorem mgg_inv4_absorb_axis_budget_of_large {s g a m : ℕ}
     simpa [show 12 * (4 * a) = 48 * a from by ring] using h48
   exact mgg_inv4_absorb_of_loss_le_twelfth hmain hloss
 
+/-! ## Cluster 34: nearAxis density bound
+
+Cluster 33 left `|nearAxis| ≤ 6m` and off-band `excess ≤ 2` open (needed for
+Inv-4 absorb shape `4a + 2o`). This cluster certifies the density bound via
+coordinate band strips. Off-band excess remains the next obligation. -/
+
+/-- Near-axis coordinates: values in `{0, 1, m-1}` on `Fin m`. -/
+def mggNearAxisCoord (m : ℕ) [NeZero m] : Finset (Fin m) :=
+  (univ : Finset (Fin m)).filter fun i => i.val ≤ 1 ∨ m ≤ i.val + 1
+
+theorem mem_mggNearAxisCoord_iff {m : ℕ} [NeZero m] (i : Fin m) :
+    i ∈ mggNearAxisCoord m ↔ i.val ≤ 1 ∨ m ≤ i.val + 1 := by
+  simp [mggNearAxisCoord]
+
+/-- At most three near-axis coordinates. -/
+theorem mggNearAxisCoord_card_le (m : ℕ) [NeZero m] :
+    (mggNearAxisCoord m).card ≤ 3 := by
+  classical
+  let s : Finset (Fin m) :=
+    {⟨0, Nat.pos_of_neZero m⟩} ∪
+      (if h : 1 < m then ({⟨1, h⟩} : Finset (Fin m)) else ∅) ∪
+        {⟨m - 1, Nat.sub_lt (Nat.pos_of_neZero m) (by decide : 0 < 1)⟩}
+  have hsub : mggNearAxisCoord m ⊆ s := by
+    intro i hi
+    have hi' := (mem_mggNearAxisCoord_iff i).mp hi
+    have him : i.val < m := i.isLt
+    have hval : i.val = 0 ∨ i.val = 1 ∨ i.val = m - 1 := by omega
+    rcases hval with h0 | h1 | hm1
+    · refine mem_union_left _ (mem_union_left _ ?_)
+      exact mem_singleton.mpr (Fin.ext h0)
+    · refine mem_union_left _ (mem_union_right _ ?_)
+      have h1m : 1 < m := by omega
+      simp only [h1m, ↓reduceDIte]
+      exact mem_singleton.mpr (Fin.ext h1)
+    · refine mem_union_right _ ?_
+      exact mem_singleton.mpr (Fin.ext hm1)
+  have hsc : s.card ≤ 3 := by
+    have h1 : ({⟨0, Nat.pos_of_neZero m⟩} : Finset (Fin m)).card ≤ 1 := by
+      simp
+    have h2 :
+        ((if h : 1 < m then ({⟨1, h⟩} : Finset (Fin m)) else ∅)).card ≤ 1 := by
+      split_ifs <;> simp
+    have h3 :
+        ({⟨m - 1, Nat.sub_lt (Nat.pos_of_neZero m) (by decide : 0 < 1)⟩} :
+            Finset (Fin m)).card ≤ 1 := by
+      simp
+    calc
+      s.card ≤
+          ({⟨0, Nat.pos_of_neZero m⟩} : Finset (Fin m)).card +
+            ((if h : 1 < m then ({⟨1, h⟩} : Finset (Fin m)) else ∅)).card +
+              ({⟨m - 1, Nat.sub_lt (Nat.pos_of_neZero m) (by decide : 0 < 1)⟩} :
+                  Finset (Fin m)).card := by
+        simp only [s]
+        exact (card_union_le _ _).trans
+          (Nat.add_le_add_right (card_union_le _ _) _)
+      _ ≤ 1 + 1 + 1 := Nat.add_le_add (Nat.add_le_add h1 h2) h3
+      _ = 3 := by decide
+  exact (card_le_card hsub).trans hsc
+
+/-- Horizontal strips over near-axis first coordinates. -/
+def mggNearAxisRows {m : ℕ} (hm : 0 < m) : Finset (Fin (m * m)) :=
+  letI : NeZero m := mggNeZero hm
+  (mggNearAxisCoord m).biUnion fun x =>
+    (univ : Finset (Fin m)).image fun y => mggEncode hm (x, y)
+
+/-- Vertical strips over near-axis second coordinates. -/
+def mggNearAxisCols {m : ℕ} (hm : 0 < m) : Finset (Fin (m * m)) :=
+  letI : NeZero m := mggNeZero hm
+  (mggNearAxisCoord m).biUnion fun y =>
+    (univ : Finset (Fin m)).image fun x => mggEncode hm (x, y)
+
+theorem mggNearAxis_eq_rows_union_cols {m : ℕ} (hm : 0 < m) :
+    mggNearAxis m hm = mggNearAxisRows hm ∪ mggNearAxisCols hm := by
+  classical
+  letI : NeZero m := mggNeZero hm
+  ext v
+  constructor
+  · intro hv
+    have h := (mem_mggNearAxis_iff hm v).mp hv
+    rw [mem_union]
+    rcases h with hx | hx | hy | hy
+    · refine Or.inl (mem_biUnion.mpr ⟨(mggDecode hm v).1, ?_, ?_⟩)
+      · exact (mem_mggNearAxisCoord_iff _).mpr (Or.inl hx)
+      · exact mem_image.mpr ⟨(mggDecode hm v).2, mem_univ _, mggEncode_decode hm v⟩
+    · refine Or.inl (mem_biUnion.mpr ⟨(mggDecode hm v).1, ?_, ?_⟩)
+      · exact (mem_mggNearAxisCoord_iff _).mpr (Or.inr hx)
+      · exact mem_image.mpr ⟨(mggDecode hm v).2, mem_univ _, mggEncode_decode hm v⟩
+    · refine Or.inr (mem_biUnion.mpr ⟨(mggDecode hm v).2, ?_, ?_⟩)
+      · exact (mem_mggNearAxisCoord_iff _).mpr (Or.inl hy)
+      · exact mem_image.mpr ⟨(mggDecode hm v).1, mem_univ _, mggEncode_decode hm v⟩
+    · refine Or.inr (mem_biUnion.mpr ⟨(mggDecode hm v).2, ?_, ?_⟩)
+      · exact (mem_mggNearAxisCoord_iff _).mpr (Or.inr hy)
+      · exact mem_image.mpr ⟨(mggDecode hm v).1, mem_univ _, mggEncode_decode hm v⟩
+  · intro hv
+    apply (mem_mggNearAxis_iff hm v).mpr
+    rcases mem_union.mp hv with hR | hC
+    · obtain ⟨x, hx, hy⟩ := mem_biUnion.mp hR
+      obtain ⟨y, _, rfl⟩ := mem_image.mp hy
+      have hx' := (mem_mggNearAxisCoord_iff x).mp hx
+      simp [mggDecode_encode]
+      rcases hx' with h | h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl h)
+    · obtain ⟨y, hy, hx⟩ := mem_biUnion.mp hC
+      obtain ⟨x, _, rfl⟩ := mem_image.mp hx
+      have hy' := (mem_mggNearAxisCoord_iff y).mp hy
+      simp [mggDecode_encode]
+      rcases hy' with h | h
+      · exact Or.inr (Or.inr (Or.inl h))
+      · exact Or.inr (Or.inr (Or.inr h))
+
+theorem mggNearAxisRows_card_le {m : ℕ} (hm : 0 < m) :
+    (mggNearAxisRows hm).card ≤ 3 * m := by
+  classical
+  letI : NeZero m := mggNeZero hm
+  have hstrip : ∀ x : Fin m,
+      ((univ : Finset (Fin m)).image fun y => mggEncode hm (x, y)).card ≤ m := by
+    intro x
+    refine (card_image_le).trans ?_
+    simp [card_univ]
+  calc
+    (mggNearAxisRows hm).card
+        ≤ ∑ x ∈ mggNearAxisCoord m,
+            ((univ : Finset (Fin m)).image fun y => mggEncode hm (x, y)).card :=
+      card_biUnion_le
+    _ ≤ ∑ x ∈ mggNearAxisCoord m, m :=
+      sum_le_sum fun x _ => hstrip x
+    _ = (mggNearAxisCoord m).card * m := by
+      simp [sum_const]
+    _ ≤ 3 * m := Nat.mul_le_mul_right m (mggNearAxisCoord_card_le m)
+
+theorem mggNearAxisCols_card_le {m : ℕ} (hm : 0 < m) :
+    (mggNearAxisCols hm).card ≤ 3 * m := by
+  classical
+  letI : NeZero m := mggNeZero hm
+  have hstrip : ∀ y : Fin m,
+      ((univ : Finset (Fin m)).image fun x => mggEncode hm (x, y)).card ≤ m := by
+    intro y
+    refine (card_image_le).trans ?_
+    simp [card_univ]
+  calc
+    (mggNearAxisCols hm).card
+        ≤ ∑ y ∈ mggNearAxisCoord m,
+            ((univ : Finset (Fin m)).image fun x => mggEncode hm (x, y)).card :=
+      card_biUnion_le
+    _ ≤ ∑ y ∈ mggNearAxisCoord m, m :=
+      sum_le_sum fun y _ => hstrip y
+    _ = (mggNearAxisCoord m).card * m := by
+      simp [sum_const]
+    _ ≤ 3 * m := Nat.mul_le_mul_right m (mggNearAxisCoord_card_le m)
+
+/-- Density: `|nearAxis| ≤ 6m` (feeds `mgg_inv4_absorb_axis_budget_of_large`). -/
+theorem mggNearAxis_card_le {m : ℕ} (hm : 0 < m) :
+    (mggNearAxis m hm).card ≤ 6 * m := by
+  rw [mggNearAxis_eq_rows_union_cols hm]
+  calc
+    (mggNearAxisRows hm ∪ mggNearAxisCols hm).card
+        ≤ (mggNearAxisRows hm).card + (mggNearAxisCols hm).card :=
+      card_union_le _ _
+    _ ≤ 3 * m + 3 * m :=
+      Nat.add_le_add (mggNearAxisRows_card_le hm) (mggNearAxisCols_card_le hm)
+    _ = 6 * m := by ring
+
 namespace MGGFrontier
 
 /-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/

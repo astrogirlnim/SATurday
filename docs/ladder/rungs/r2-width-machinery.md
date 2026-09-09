@@ -3723,3 +3723,33 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   Inv absorb needs a near-axis band (not the raw axis) plus off-band excess control.
   gate_pending: merge_certified (Cluster 33 surface decls).
   next: formalize `mggNearAxis_card_le` and off-band excess `≤ 2`, or spectral cite.
+
+- 2026-09-09 formalize (Cluster 34 nearAxis card bound): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 34 nearAxis card bound and or off-band excess le 2",
+    "rationale": "Absorb helpers ready; need nearAxis size or off-band excess for Inv-4."
+  }
+  ```
+  workstream: R2. Dirty WIP Bridge left untouched. Edited only
+  `theory/Theory/ProofComplexity/MGG.lean` and acceptance list.
+
+  Accepted (axiom gate PASS on new decls):
+  - Band coords: `mggNearAxisCoord`, `mem_mggNearAxisCoord_iff`,
+    `mggNearAxisCoord_card_le` (`≤ 3`).
+  - Strip cover: `mggNearAxisRows`, `mggNearAxisCols`,
+    `mggNearAxis_eq_rows_union_cols`,
+    `mggNearAxisRows_card_le`, `mggNearAxisCols_card_le`.
+  - Density: `mggNearAxis_card_le` (`|nearAxis| ≤ 6m`).
+
+  Still open: off-band excess `≤ 2`, Frontier `MGGFrontier.mggGraph_hasExpansionInv`.
+  Off-band attempt deferred after Fin modular collision lemmas did not close in cycle.
+
+  Most important thing learned: nearAxis is the union of at most three row strips
+  and three column strips, so `|nearAxis| ≤ 6m` is elementary and unlocks the
+  `a ≤ 6m` hypothesis in `mgg_inv4_absorb_axis_budget_of_large`.
+  gate_pending: merge_certified (Cluster 34 density decls).
+  next: formalize off-band excess `≤ 2` (shear vs translation disjointness off band).

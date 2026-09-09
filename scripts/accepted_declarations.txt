@@ -1869,3 +1869,13 @@ SATurday.ProofComplexity.mggAxis_subset_nearAxis
 SATurday.ProofComplexity.mggReverseCutLoss_le_sum_shearLeaving
 SATurday.ProofComplexity.mgg_inv4_absorb_of_near_loss
 SATurday.ProofComplexity.mgg_inv4_absorb_axis_budget_of_large
+# R2 item 2 cluster 34: nearAxis density card le 6m (2026-09-09)
+SATurday.ProofComplexity.mggNearAxisCoord
+SATurday.ProofComplexity.mem_mggNearAxisCoord_iff
+SATurday.ProofComplexity.mggNearAxisCoord_card_le
+SATurday.ProofComplexity.mggNearAxisRows
+SATurday.ProofComplexity.mggNearAxisCols
+SATurday.ProofComplexity.mggNearAxis_eq_rows_union_cols
+SATurday.ProofComplexity.mggNearAxisRows_card_le
+SATurday.ProofComplexity.mggNearAxisCols_card_le
+SATurday.ProofComplexity.mggNearAxis_card_le
