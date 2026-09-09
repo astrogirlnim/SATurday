@@ -1735,3 +1735,39 @@ lower bound via the bridge.
   meet haltList, so EvalsToInTime to clean halt is a separate drain slice.
   gate_pending: merge_certified.
   gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
+
+- 2026-09-09 formalize (Cluster C2 bitsEqual EvalsToInTime drain): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "bitsEqual EvalsToInTime with leftover stack drain to haltList",
+    "rationale": "Stmt ready; close polyTime evals for bit equality check."
+  }
+  ```
+  Smallest coherent slice: add `drainRight` so reject empties leftover left then
+  right before writing false; EvalsToInTime to haltList for equal stacks, reject
+  drain, and left-nil right-cons mismatch.
+  Existing names used: bitsEqualComputer, bitsEqCfg, bitsEqual_haltList,
+  BitsEqLabel, EvalsToInTime, bitsEqualPair.
+  Accepted: bitsEq_step_reject_nil, bitsEq_step_reject_cons,
+  bitsEq_step_drainRight_nil, bitsEq_step_drainRight_cons,
+  bitsEq_evals_reject_cons, bitsEq_evals_reject_nil,
+  bitsEq_evals_drainRight_cons, bitsEq_evals_drainRight_nil,
+  bitsEq_evals_drainRight, bitsEq_evals_reject, bitsEq_evals_loop_nil,
+  bitsEq_evals_loop_true, bitsEq_evals_loop_false,
+  bitsEq_evals_expectTrue_true, bitsEq_evals_expectFalse_false,
+  bitsEq_evals_checkRight_nil, bitsEq_evals_checkRight_cons,
+  bitsEq_evals_accept, bitsEq_evals_equal,
+  bitsEq_evals_left_nil_right_cons, bitsEq_evals_reject_to_halt.
+  Removed obsolete bitsEq_step_reject (direct halt without drain).
+  Bridge lake build green; Bridge axiom probe PASS (propext, Classical.choice,
+  Quot.sound). Full scripts/check_axioms.sh blocked by R2 MGG olean gap, not R5.
+  Frontier updated: validatesTautologyResult_computableInPolyTime needs
+  encodePair load glue into bitsEqualComputer, optional full unequal zipper
+  Evals, then per index eval loop; truthTable_is_prop_proof_system unchanged.
+  Most important thing learned: haltList requires empty non-output stacks, so
+  reject must drain leftovers before writing the false bit.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: Bridge axiom probe green and decls listed.

@@ -1687,12 +1687,33 @@ SATurday.Bridge.bitsEq_step_expectFalse_true
 SATurday.Bridge.bitsEq_step_expectFalse_nil
 SATurday.Bridge.bitsEq_step_checkRight_nil
 SATurday.Bridge.bitsEq_step_checkRight_cons
-SATurday.Bridge.bitsEq_step_reject
+SATurday.Bridge.bitsEq_step_reject_nil
+SATurday.Bridge.bitsEq_step_reject_cons
+SATurday.Bridge.bitsEq_step_drainRight_nil
+SATurday.Bridge.bitsEq_step_drainRight_cons
 SATurday.Bridge.bitsEqual_initList
 SATurday.Bridge.bitsEqual_haltList
 SATurday.Bridge.bitsEqualPair
 SATurday.Bridge.bitsEqualPair_eq
 SATurday.Bridge.bitsEqualPair_iff_lengthGate
+# R5 ProofSystem Cluster C2 bitsEqual EvalsToInTime drain (2026-09-09)
+SATurday.Bridge.bitsEq_evals_reject_cons
+SATurday.Bridge.bitsEq_evals_reject_nil
+SATurday.Bridge.bitsEq_evals_drainRight_cons
+SATurday.Bridge.bitsEq_evals_drainRight_nil
+SATurday.Bridge.bitsEq_evals_drainRight
+SATurday.Bridge.bitsEq_evals_reject
+SATurday.Bridge.bitsEq_evals_loop_nil
+SATurday.Bridge.bitsEq_evals_loop_true
+SATurday.Bridge.bitsEq_evals_loop_false
+SATurday.Bridge.bitsEq_evals_expectTrue_true
+SATurday.Bridge.bitsEq_evals_expectFalse_false
+SATurday.Bridge.bitsEq_evals_checkRight_nil
+SATurday.Bridge.bitsEq_evals_checkRight_cons
+SATurday.Bridge.bitsEq_evals_accept
+SATurday.Bridge.bitsEq_evals_equal
+SATurday.Bridge.bitsEq_evals_left_nil_right_cons
+SATurday.Bridge.bitsEq_evals_reject_to_halt
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode

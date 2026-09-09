@@ -31,7 +31,9 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       Cluster C2 countLengthBits EvalsToInTime polyTime for lengthBitsLE
       certified 2026-09-08;
       Cluster C2 bitsEqual compare glue Stmt plus steps certified 2026-09-09;
-      Frontier: bitsEqual EvalsToInTime with stack drain and encodePair load,
+      Cluster C2 bitsEqual EvalsToInTime leftover stack drain to haltList
+      certified 2026-09-09;
+      Frontier: encodePair load glue, full unequal zipper Evals if needed,
       then index loop FinTM2 and TT map sequencer for
       truthTable_is_prop_proof_system).
 
