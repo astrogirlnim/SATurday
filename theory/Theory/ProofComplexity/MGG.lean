@@ -2289,6 +2289,94 @@ theorem mggReverseCutLoss_le_four_near_two_off {m : ℕ} (hm : 3 ≤ m)
             simp [sum_const, nsmul_eq_mul, Nat.mul_comm]
   exact (by simpa [mggReverseCutLoss, near] using hterm.trans (le_of_eq hsplit))
 
+/-! ## Cluster 36: Inv-4 absorb packaging from near loss
+
+Cluster 35 gave `reverseLoss ≤ 4a + 2o`. This cluster packages Inv-4 on a set
+from multi Cheeger plus a twelfth reverseLoss budget, and records the
+`|S ∩ nearAxis| ≤ 6m` and `reverseLoss ≤ 2|S| + 12m` corollaries. Spectral
+Cheeger on the multi cut remains Frontier. -/
+
+/-- Intersection with the near-axis band is at most `6m`. -/
+theorem card_inter_mggNearAxis_le {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) :
+    (S ∩ mggNearAxis m hm).card ≤ 6 * m :=
+  (card_le_card (Finset.inter_subset_right)).trans (mggNearAxis_card_le hm)
+
+/-- Coarse form: `reverseLoss ≤ 2|S| + 12m` via `4a + 2o = 2|S| + 2a`. -/
+theorem mggReverseCutLoss_le_two_mul_card_add_twelve_mul_m {m : ℕ} (hm : 3 ≤ m)
+    (S : Finset (Fin (m * m))) :
+    mggReverseCutLoss (lt_of_lt_of_le (by decide : 0 < 3) hm) S ≤
+      2 * S.card + 12 * m := by
+  classical
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  let near := mggNearAxis m hm0
+  have h := mggReverseCutLoss_le_four_near_two_off hm S
+  have ha : (S ∩ near).card ≤ 6 * m := card_inter_mggNearAxis_le hm0 S
+  have hsplit : 4 * (S ∩ near).card + 2 * (S \ near).card =
+      2 * S.card + 2 * (S ∩ near).card := by
+    have ho : (S ∩ near).card + (S \ near).card = S.card := by
+      rw [← card_inter_add_card_sdiff S near]
+    omega
+  have h2 : 2 * S.card + 2 * (S ∩ near).card ≤ 2 * S.card + 12 * m := by
+    have : 2 * (S ∩ near).card ≤ 12 * m := by
+      have := Nat.mul_le_mul_left 2 ha
+      omega
+    omega
+  calc
+    mggReverseCutLoss hm0 S
+        ≤ 4 * (S ∩ near).card + 2 * (S \ near).card := h
+    _ = 2 * S.card + 2 * (S ∩ near).card := hsplit
+    _ ≤ 2 * S.card + 12 * m := h2
+
+/-- From multi Cheeger and twelfth reverseLoss, conclude Inv-4 on one set. -/
+theorem mgg_card_le_four_mul_edgeBoundary_of_multi_and_twelfth {m : ℕ}
+    (hm : 0 < m) (S : Finset (Fin (m * m)))
+    (hcheeger : S.card ≤ 3 * mggMultiCutCard hm S)
+    (htwelfth : 12 * mggReverseCutLoss hm S ≤ S.card) :
+    S.card ≤ 4 * (edgeBoundary (mggGraph m hm) S).card := by
+  have hle := mggMultiCutCard_le_edgeBoundary_add_reverseLoss hm S
+  have hmain : S.card ≤
+      3 * ((edgeBoundary (mggGraph m hm) S).card + mggReverseCutLoss hm S) :=
+    hcheeger.trans (Nat.mul_le_mul_left 3 hle)
+  exact mgg_inv4_absorb_of_loss_le_twelfth hmain htwelfth
+
+/-- Same Inv-4 glue using the `4a + 2o` reverseLoss bound as the twelfth witness. -/
+theorem mgg_card_le_four_mul_edgeBoundary_of_multi_near_two_off {m : ℕ}
+    (hm : 3 ≤ m) (S : Finset (Fin (m * m)))
+    (hcheeger :
+      S.card ≤ 3 * mggMultiCutCard (lt_of_lt_of_le (by decide : 0 < 3) hm) S)
+    (htwelfth :
+      12 *
+          (4 *
+              (S ∩
+                  mggNearAxis m
+                    (lt_of_lt_of_le (by decide : 0 < 3) hm)).card +
+            2 *
+              (S \
+                  mggNearAxis m
+                    (lt_of_lt_of_le (by decide : 0 < 3) hm)).card) ≤
+        S.card) :
+    S.card ≤
+      4 *
+        (edgeBoundary (mggGraph m (lt_of_lt_of_le (by decide : 0 < 3) hm))
+            S).card := by
+  classical
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  have hloss := mggReverseCutLoss_le_four_near_two_off hm S
+  have htwelfth' : 12 * mggReverseCutLoss hm0 S ≤ S.card :=
+    (Nat.mul_le_mul_left 12 hloss).trans htwelfth
+  exact mgg_card_le_four_mul_edgeBoundary_of_multi_and_twelfth hm0 S hcheeger
+    htwelfth'
+
+/-- Nat form: `4a + 2o` twelfth budget with `a ≤ 6m` reduces to a size check. -/
+theorem mgg_inv4_absorb_near_two_off_of_large {s g a o m : ℕ}
+    (hmain : s ≤ 3 * (g + (4 * a + 2 * o)))
+    (_ha : a ≤ 6 * m)
+    (hb : 48 * a + 24 * o ≤ s) : s ≤ 4 * g := by
+  have hloss : 12 * (4 * a + 2 * o) ≤ s := by
+    simpa [show 12 * (4 * a + 2 * o) = 48 * a + 24 * o from by ring] using hb
+  exact mgg_inv4_absorb_of_near_loss hmain hloss
+
 namespace MGGFrontier
 
 /-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/

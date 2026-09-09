@@ -3760,6 +3760,40 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   {
     "rung": "r2-width-machinery",
     "action_type": "formalize",
+    "target": "Cluster 35 off-band excess le 2 with Fin collision lemmas",
+    "rationale": "nearAxis size ready; off-band excess is the remaining absorb gap before Inv."
+  }
+  ```
+  workstream: R2. Edited only `theory/Theory/ProofComplexity/MGG.lean` and acceptance list.
+  No Bridge touch. No wake armed.
+
+  Accepted (axiom gate PASS on new decls):
+  - Off-band coords: `not_mem_mggNearAxis_iff`.
+  - Shear families: `mggShearSGens`, `mggShearTGens`, `mggShearGens_eq_S_union_T`,
+    `mggShearSGens_disjoint_T`.
+  - Fin collision: `mggNeighbor_*_ne_translation_of_not_mem_nearAxis`,
+    `mggNeighbor_shear_ne_translation_of_not_mem_nearAxis`,
+    `mggNeighbor_S_family_ne_T_family_of_not_mem_nearAxis`.
+  - Excess: `mggLeavingExcess_le_two_of_not_mem_nearAxis`,
+    `mggReverseCutLoss_le_four_near_two_off`
+    (`reverseLoss ≤ 4|S ∩ near| + 2|S \ near|`).
+
+  Still open: Frontier `MGGFrontier.mggGraph_hasExpansionInv` (spectral or Cheeger
+  plus absorb packaging using the certified `4a + 2o` loss shape).
+
+  Most important thing learned: encode`(1,1)` collisions sit inside the near-axis
+  band; off band, shears miss translations and only `{S,S⁻¹}` and `{T,T⁻¹}` can
+  collide, so excess is at most 2 and Inv absorb shape `4a + 2o` is now Lean-ready.
+  gate_pending: merge_certified (Cluster 35 off-band decls).
+  next: formalize Inv packaging (Cheeger or Gabber Galil cite plus absorb) for
+  `mggGraph_hasExpansionInv`.
+
+- 2026-09-09 formalize (Cluster 35 off-band excess le 2): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
     "target": "Cluster 35 off-band leaving excess le 2 and reverseLoss 4a+2o",
     "rationale": "Heartbeat woke on dirty Cluster 35 WIP; certify off-band excess for Inv absorb."
   }
@@ -3785,3 +3819,33 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   two shear families miss each other, so leaving excess collapses to at most
   one collision per shear family (budget 2).
   gate_pending: merge_certified (Cluster 35).
+
+- 2026-09-09 formalize (Cluster 36 Inv-4 absorb packaging): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 36 Inv-4 absorb packaging from near loss 4a+2o",
+    "rationale": "Session wake after Cluster 35; glue multi Cheeger plus twelfth reverseLoss to Inv-4."
+  }
+  ```
+  workstream: R2. gate_auto: true merge_certified (axiom gate PASS).
+  Edited only MGG.lean and acceptance list. Bridge dirty left untouched.
+
+  Accepted:
+  - `card_inter_mggNearAxis_le` (`|S ∩ nearAxis| ≤ 6m`)
+  - `mggReverseCutLoss_le_two_mul_card_add_twelve_mul_m` (`≤ 2|S| + 12m`)
+  - `mgg_card_le_four_mul_edgeBoundary_of_multi_and_twelfth`
+  - `mgg_card_le_four_mul_edgeBoundary_of_multi_near_two_off`
+  - `mgg_inv4_absorb_near_two_off_of_large`
+
+  Still Frontier: `MGGFrontier.mggGraph_hasExpansionInv` (needs multi Cheeger from Gabber Galil
+  spectral, and a twelfth reverseLoss witness that `2|S|+12m` does not give for free).
+
+  Most important thing learned: Inv-4 on a set reduces to multi Cheeger plus
+  `12·reverseLoss ≤ |S|`; the `4a+2o` bound alone is too coarse for that twelfth
+  when off-band vertices scale with `|S|`, so the next obligation is spectral
+  multi expansion (or a sharper reverseLoss).
+  gate_pending: merge_certified (Cluster 36).
+  next: formalize Gabber Galil multi Cheeger Nat surface, or pin spectral lemma.
