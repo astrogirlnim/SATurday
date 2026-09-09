@@ -2428,7 +2428,94 @@ theorem mggGraph_hasExpansionInv_of_multi_cheeger_and_twelfth {m : ℕ}
   exact mgg_card_le_four_mul_edgeBoundary_of_multi_and_twelfth hm S h3
     (htwelfth S hne hhalf)
 
+/-! ## Cluster 38: reverseLoss vs edgeBoundary and Inv-15 packaging
+
+Cluster 37 showed coarse `2|S|+12m` cannot twelfth-absorb. Spectral multi
+Cheeger remains open. This cluster proves leaving excess is at most four times
+the out-neighbor count, hence `reverseLoss ≤ 4|∂_G|`, and packages Inv-15 from
+`MggHasMultiCheeger` alone (no twelfth). Inv-4 still needs spectral plus a
+sharper loss or twelfth witness. -/
+
+/-- If there are no outside neighbors then leaving excess is zero. -/
+theorem mggLeavingExcess_eq_zero_of_outNeighbors_empty {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m))
+    (h : (mggOutNeighbors hm S v).card = 0) :
+    mggLeavingExcess hm S v = 0 := by
+  have hempty : mggOutNeighbors hm S v = ∅ := card_eq_zero.mp h
+  have hL : mggLeavingGens hm S v = ∅ := by
+    simpa [mggOutNeighbors] using (Finset.image_eq_empty.mp hempty)
+  simp [mggLeavingExcess, hL]
+
+/-- Excess ≤ `4 · |outNeighbors|` (uses global excess ≤ 4 for `m ≥ 3`). -/
+theorem mggLeavingExcess_le_four_mul_outNeighbors {m : ℕ} (hm : 3 ≤ m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) :
+    mggLeavingExcess (lt_of_lt_of_le (by decide : 0 < 3) hm) S v ≤
+      4 * (mggOutNeighbors (lt_of_lt_of_le (by decide : 0 < 3) hm) S v).card := by
+  classical
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  by_cases h0 : (mggOutNeighbors hm0 S v).card = 0
+  · rw [mggLeavingExcess_eq_zero_of_outNeighbors_empty hm0 S v h0]
+    exact Nat.zero_le _
+  · have hpos : 0 < (mggOutNeighbors hm0 S v).card := Nat.pos_of_ne_zero h0
+    have hex := mggLeavingExcess_le_four hm S v
+    have : 4 ≤ 4 * (mggOutNeighbors hm0 S v).card := by omega
+    exact hex.trans this
+
+/-- Reverse loss ≤ `4|∂_G S|`. -/
+theorem mggReverseCutLoss_le_four_mul_edgeBoundary {m : ℕ} (hm : 3 ≤ m)
+    (S : Finset (Fin (m * m))) :
+    mggReverseCutLoss (lt_of_lt_of_le (by decide : 0 < 3) hm) S ≤
+      4 * (edgeBoundary (mggGraph m (lt_of_lt_of_le (by decide : 0 < 3) hm))
+          S).card := by
+  classical
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  have hterm :
+      (∑ v ∈ S, mggLeavingExcess hm0 S v) ≤
+        ∑ v ∈ S, 4 * (mggOutNeighbors hm0 S v).card :=
+    Finset.sum_le_sum fun v _ => mggLeavingExcess_le_four_mul_outNeighbors hm S v
+  have hmul :
+      (∑ v ∈ S, 4 * (mggOutNeighbors hm0 S v).card) =
+        4 * ∑ v ∈ S, (mggOutNeighbors hm0 S v).card := by
+    simp [Finset.mul_sum]
+  have hsum : mggReverseCutLoss hm0 S ≤
+      4 * ∑ v ∈ S, (mggOutNeighbors hm0 S v).card := by
+    simpa [mggReverseCutLoss, hmul] using hterm
+  have hle := sum_mggOutNeighbors_card_le_edgeBoundary hm0 S
+  exact hsum.trans (Nat.mul_le_mul_left 4 hle)
+
+/-- From multi Cheeger alone, Inv-15 on the simple graph (`reverseLoss ≤ 4|∂_G|`). -/
+theorem mgg_card_le_fifteen_mul_edgeBoundary_of_multi_cheeger {m : ℕ}
+    (hm : 3 ≤ m) (hcheeger : MggHasMultiCheeger m
+      (lt_of_lt_of_le (by decide : 0 < 3) hm))
+    (S : Finset (Fin (m * m))) (hne : S.Nonempty)
+    (hhalf : 2 * S.card ≤ m * m) :
+    S.card ≤
+      15 *
+        (edgeBoundary (mggGraph m (lt_of_lt_of_le (by decide : 0 < 3) hm))
+            S).card := by
+  classical
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  have h3 := mgg_card_le_three_mul_multiCut_of_cheeger hm0 hcheeger S hne hhalf
+  have hmulti := mggMultiCutCard_le_edgeBoundary_add_reverseLoss hm0 S
+  have hloss := mggReverseCutLoss_le_four_mul_edgeBoundary hm S
+  set g := (edgeBoundary (mggGraph m hm0) S).card
+  have hmain : S.card ≤ 3 * (g + 4 * g) := by
+    have : mggMultiCutCard hm0 S ≤ g + 4 * g :=
+      hmulti.trans (Nat.add_le_add_left hloss g)
+    have : mggMultiCutCard hm0 S ≤ 5 * g := by omega
+    have : S.card ≤ 3 * (5 * g) := h3.trans (Nat.mul_le_mul_left 3 this)
+    omega
+  have : 3 * (g + 4 * g) = 15 * g := by ring
+  simpa [this] using hmain
+
 namespace MGGFrontier
+
+/-- Gabber Galil spectral input: labeled 8-regular multi Cayley graph has
+multi Cheeger rate `2/5` (external; analysis not formalized). -/
+theorem mgg_has_multi_cheeger_of_gabber_galil (m : ℕ) (hm0 : 0 < m)
+    (_hm : mggInformativeFloor ≤ m) :
+    MggHasMultiCheeger m hm0 := by
+  sorry
 
 /-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/
 theorem mggGraph_hasExpansionInv (m : ℕ) (hm0 : 0 < m)
