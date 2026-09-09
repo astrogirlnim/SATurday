@@ -63,6 +63,7 @@ class CycleContext:
     ladder_text: str
     rungs: Dict[str, RungState] = field(default_factory=dict)
     last_session: Optional[Dict[str, Any]] = None
+    recent_sessions: List[Dict[str, Any]] = field(default_factory=list)
     checklist_text: str = ""
     stop_conditions_text: str = ""
     sorry_report: str = ""
@@ -97,19 +98,23 @@ def load_cycle_context(repo_root: Path) -> CycleContext:
 
     sessions_path = repo_root / "search" / "logs" / "saturday_sessions.jsonl"
     last_session = None
+    recent_sessions: List[Dict[str, Any]] = []
     if sessions_path.exists():
         lines = [
             line for line in sessions_path.read_text(encoding="utf-8").splitlines() if line.strip()
         ]
-        if lines:
+        for line in lines[-20:]:
             try:
-                last_session = json.loads(lines[-1])
-                print(
-                    f"[saturday.context] last_session rung={last_session.get('rung')} "
-                    f"action={last_session.get('action_type')} result={last_session.get('result')}"
-                )
+                recent_sessions.append(json.loads(line))
             except json.JSONDecodeError as exc:
-                print(f"[saturday.context] last session JSON parse failed: {exc}")
+                print(f"[saturday.context] skip bad session line: {exc}")
+        if recent_sessions:
+            last_session = recent_sessions[-1]
+            print(
+                f"[saturday.context] last_session rung={last_session.get('rung')} "
+                f"action={last_session.get('action_type')} result={last_session.get('result')} "
+                f"recent_count={len(recent_sessions)}"
+            )
 
     checklist = repo_root / "docs" / "p-vs-np-solve-checklist.md"
     stops = repo_root / "docs" / "p-vs-np-stop-conditions.md"
@@ -122,6 +127,7 @@ def load_cycle_context(repo_root: Path) -> CycleContext:
         ladder_text=ladder_text,
         rungs=rungs,
         last_session=last_session,
+        recent_sessions=recent_sessions,
         checklist_text=_read_text(checklist) if checklist.exists() else "",
         stop_conditions_text=_read_text(stops) if stops.exists() else "",
         sorry_report=sorry_report,

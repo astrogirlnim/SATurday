@@ -38,6 +38,9 @@ def workstream_for_rung(rung_id: str) -> Optional[str]:
     return WORKSTREAM_BY_RUNG.get(rung_id)
 
 
+VALID_ACTIONS = frozenset({"prove", "formalize", "falsify", "audit"})
+
+
 def choose_action_for_rung(
     ctx: CycleContext,
     rung_id: str,
@@ -63,8 +66,7 @@ def choose_action_for_rung(
         action = "falsify"
         rationale = "No recent falsify calibration recorded for this rung"
     elif status == "active":
-        action = "prove"
-        rationale = "Active rung needs mathematical content in prose"
+        action, rationale = _active_rung_action(ctx, rung_id)
     elif status == "proposed":
         action = "prove"
         rationale = "Proposed rung needs an adopt decision path via prove content"
@@ -83,6 +85,66 @@ def choose_action_for_rung(
     print(f"[saturday.chooser] choice={choice}")
     return choice
 
+
+def _sessions_for_rung(ctx: CycleContext, rung_id: str) -> List[dict]:
+    """Recent session records for one rung, oldest to newest."""
+    rows = [s for s in ctx.recent_sessions if s.get("rung") == rung_id]
+    print(f"[saturday.chooser] sessions_for_rung={rung_id} count={len(rows)}")
+    return rows
+
+
+def _active_rung_action(ctx: CycleContext, rung_id: str) -> tuple:
+    """
+    Advance active rungs instead of re-proving forever.
+
+    If the latest local CLI cycle already produced a successful prove (or the
+    model asked for formalize), switch to formalize. After repeated formalize
+    partials, keep formalizing (draft path) rather than bouncing back to prove.
+    """
+    history = _sessions_for_rung(ctx, rung_id)
+    if not history:
+        return "prove", "Active rung needs mathematical content in prose"
+
+    last = history[-1]
+    last_action = last.get("action_type")
+    last_result = last.get("result")
+    raw_next = last.get("next_recommended_action")
+    next_action = raw_next if raw_next in VALID_ACTIONS else None
+    print(
+        f"[saturday.chooser] active history last_action={last_action} "
+        f"last_result={last_result} next_action={next_action}"
+    )
+
+    if last_action == "prove" and last_result in {"success", "partial"}:
+        return (
+            "formalize",
+            "Prior prove cycle produced prose; formalize is next",
+        )
+    if next_action == "formalize":
+        return "formalize", "Last session recommended formalize"
+    if last_action == "formalize" and last_result in {"partial", "success"}:
+        return (
+            "formalize",
+            "Continue formalize on existing prose and drafts",
+        )
+    if last_action == "formalize" and last_result == "blocked":
+        return "prove", "Formalize blocked; new prove approach"
+
+    # Avoid thrashing: if last two proves succeeded, force formalize
+    recent_proves = [
+        s for s in history[-3:]
+        if s.get("action_type") == "prove" and s.get("result") == "success"
+    ]
+    if len(recent_proves) >= 2:
+        return (
+            "formalize",
+            "Multiple successful prove cycles already logged; formalize is next",
+        )
+
+    if next_action in VALID_ACTIONS:
+        return next_action, f"Follow last session next_recommended_action={next_action}"
+
+    return "prove", "Active rung needs mathematical content in prose"
 
 def choose_rung_and_action(
     ctx: CycleContext,

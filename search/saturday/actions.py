@@ -134,11 +134,20 @@ def _run_prove(
     prompt = prompt_builders.build_prove_prompt(ctx, choice)
     print(f"[saturday.actions] prove model={role.model}")
     resp = client.generate(_role_request(loop_cfg, role, prompt, prompt_builders.SYSTEM_PROVE))
-    meta = _parse_trailing_json(resp.text)
-    status = str(meta.get("status", "partial"))
-    notes = str(meta.get("notes") or resp.text[-1200:])
-    next_action = str(meta.get("next_recommended_action", "audit"))
-    gate = str(meta.get("gate_pending", "accept_prose" if status == "success" else "none"))
+        meta = _parse_trailing_json(resp.text)
+        status = str(meta.get("status", "partial"))
+        notes = str(meta.get("notes") or resp.text[-1200:])
+        next_action = str(meta.get("next_recommended_action", "audit"))
+        if next_action not in {"prove", "formalize", "falsify", "audit"}:
+            print(
+                f"[saturday.actions] sanitize next_recommended_action "
+                f"from {next_action!r} to formalize"
+            )
+            next_action = "formalize"
+        gate = str(meta.get("gate_pending", "accept_prose" if status == "success" else "none"))
+        if gate == "adopt_rung" and ctx.rungs[choice.rung].status == "active":
+            gate = "accept_prose" if status == "success" else "none"
+            print(f"[saturday.actions] sanitize gate_pending adopt_rung -> {gate}")
     artifact = str(ctx.rungs[choice.rung].path.relative_to(ctx.repo_root))
     prose_path = _write_draft(
         ctx.repo_root,
@@ -268,6 +277,13 @@ def _run_formalize(
     )
     if not build["ok"]:
         notes = notes + f" Ambient lake build was red (tail): {prior_errors[-800:]}"
+    next_action = str(meta.get("next_recommended_action", "formalize"))
+    if next_action not in {"prove", "formalize", "falsify", "audit"}:
+        print(
+            f"[saturday.actions] sanitize formalize next_recommended_action "
+            f"from {next_action!r} to formalize"
+        )
+        next_action = "formalize"
     arts = [
         str(draft_path.relative_to(ctx.repo_root)),
         str(lean_path.relative_to(ctx.repo_root)) if lean_path.exists() else "",
@@ -279,7 +295,7 @@ def _run_formalize(
         status="partial",
         artifact_refs=arts,
         notes=notes[:2000],
-        next_recommended_action=str(meta.get("next_recommended_action", "formalize")),
+        next_recommended_action=next_action,
         gate_pending="none",
         memory_entry=memory,
         raw_model_text=resp.text,

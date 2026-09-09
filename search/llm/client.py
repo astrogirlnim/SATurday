@@ -12,6 +12,7 @@ repo offline and zero cost policy.
 from __future__ import annotations
 
 import json
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -21,6 +22,12 @@ from urllib.parse import urlparse
 
 
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+
+# One local inference at a time: two 14B models on 16GB unified memory thrash
+# (observed wake with ~9200s formalize). Parallel workstreams still overlap
+# lake build and I/O; only generate() is serialized.
+_INFERENCE_LOCK = threading.Lock()
+_INFERENCE_LOCK_HOLDER = threading.local()
 
 
 @dataclass
@@ -95,6 +102,21 @@ class LocalLLMClient:
             f"prompt_chars={len(request.prompt)} temp={request.temperature} "
             f"num_predict={request.num_predict}"
         )
+        # Re-entrant: nested generate in same thread does not deadlock
+        held = getattr(_INFERENCE_LOCK_HOLDER, "held", False)
+        if held:
+            return self._generate_unlocked(request, style)
+        print("[LocalLLMClient] waiting for inference lock")
+        with _INFERENCE_LOCK:
+            _INFERENCE_LOCK_HOLDER.held = True
+            try:
+                print("[LocalLLMClient] acquired inference lock")
+                return self._generate_unlocked(request, style)
+            finally:
+                _INFERENCE_LOCK_HOLDER.held = False
+                print("[LocalLLMClient] released inference lock")
+
+    def _generate_unlocked(self, request: LLMRequest, style: str) -> LLMResponse:
         if style == "openai_compatible":
             return self._chat_completions(request)
         if style == "ollama":
