@@ -1545,6 +1545,148 @@ theorem mggMultiCutCard_le_edgeBoundary_add_reverseLoss {m : ℕ} (hm : 0 < m)
   have hle := sum_mggOutNeighbors_card_le_edgeBoundary hm S
   omega
 
+/-! ## Cluster 33: axis-aware reverseLoss surface
+
+Cluster 32 certified `reverseLoss ≤ 4|S|`, not Inv-4 absorbable by
+`mgg_inv4_absorb_of_loss_le_twelfth`. Uniform off-axis excess `≤ 2` is false
+(counterexample: encode`(1,1)` collapses shears into translations). This cluster
+lands shear-leaving charge (excess source), a near-axis band definition with
+axis inclusion, and Nat absorb helpers for loss shape `4a + 2o`. Band density
+and off-band excess `≤ 2` remain the next Lean obligations. -/
+
+/-- Leaving shear labels at `v` relative to `S`. -/
+def mggShearLeavingGens {m : ℕ} (hm : 0 < m) (S : Finset (Fin (m * m)))
+    (v : Fin (m * m)) : Finset (Fin 8) :=
+  mggLeavingGens hm S v ∩ mggShearGens
+
+theorem mem_mggShearLeavingGens_iff {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) (s : Fin 8) :
+    s ∈ mggShearLeavingGens hm S v ↔
+      mggNeighbor hm v s ∉ S ∧ s ∈ mggShearGens := by
+  simp [mggShearLeavingGens, mggLeavingGens]
+
+/-- Shear leaving equals leaving generators outside the translation set. -/
+theorem mggShearLeavingGens_eq_sdiff {m : ℕ} (hm : 0 < m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) :
+    mggShearLeavingGens hm S v =
+      mggLeavingGens hm S v \ mggTranslationGens := by
+  classical
+  have hUT : (univ : Finset (Fin 8)) \ mggTranslationGens = mggShearGens := by
+    decide
+  ext s
+  constructor
+  · intro hs
+    have hL := (mem_inter.mp hs).1
+    have hSh := (mem_inter.mp hs).2
+    refine mem_sdiff.mpr ⟨hL, ?_⟩
+    intro hT
+    have : s ∈ (univ : Finset (Fin 8)) \ mggTranslationGens := by
+      simpa [hUT] using hSh
+    exact (mem_sdiff.mp this).2 hT
+  · intro hs
+    have hL := (mem_sdiff.mp hs).1
+    have hT := (mem_sdiff.mp hs).2
+    refine mem_inter.mpr ⟨hL, ?_⟩
+    have : s ∈ (univ : Finset (Fin 8)) \ mggTranslationGens :=
+      mem_sdiff.mpr ⟨mem_univ s, hT⟩
+    simpa [hUT] using this
+
+/-- Excess is at most the number of leaving shear generators. -/
+theorem mggLeavingExcess_le_shearLeavingCard {m : ℕ} (hm : 3 ≤ m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m)) :
+    mggLeavingExcess (lt_of_lt_of_le (by decide : 0 < 3) hm) S v ≤
+      (mggShearLeavingGens (lt_of_lt_of_le (by decide : 0 < 3) hm) S v).card := by
+  classical
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  set L := mggLeavingGens hm0 S v
+  set T := mggTranslationGens ∩ L
+  have hTle : T.card ≤ (mggOutNeighbors hm0 S v).card := by
+    have himg :
+        T.image (mggNeighbor hm0 v) ⊆ mggOutNeighbors hm0 S v := by
+      intro w hw
+      obtain ⟨s, hsT, rfl⟩ := mem_image.mp hw
+      exact mem_image.mpr ⟨s, (mem_inter.mp hsT).2, rfl⟩
+    have hinj : Set.InjOn (mggNeighbor hm0 v) (T : Set (Fin 8)) :=
+      (mggNeighbor_translation_injOn hm v).mono fun s hs => (mem_inter.mp hs).1
+    have : T.card = (T.image (mggNeighbor hm0 v)).card :=
+      (card_image_of_injOn hinj).symm
+    exact (le_of_eq this).trans (card_le_card himg)
+  have hsplit : L.card = T.card + (L \ mggTranslationGens).card := by
+    rw [← card_inter_add_card_sdiff L mggTranslationGens, inter_comm]
+  have hLout :
+      L.card - (mggOutNeighbors hm0 S v).card ≤
+        (L \ mggTranslationGens).card := by
+    have hLT : L.card - T.card = (L \ mggTranslationGens).card := by
+      lia
+    exact (Nat.sub_le_sub_left hTle _).trans (le_of_eq hLT)
+  have heq : (L \ mggTranslationGens).card =
+      (mggShearLeavingGens hm0 S v).card := by
+    rw [mggShearLeavingGens_eq_sdiff hm0 S v]
+  simpa [mggLeavingExcess, L, heq] using hLout
+
+/-- Near-axis band: a coordinate lies in `{0, 1, m-1}` (shear-translation collisions). -/
+def mggNearAxis (m : ℕ) (hm : 0 < m) : Finset (Fin (m * m)) :=
+  letI : NeZero m := mggNeZero hm
+  (univ : Finset (Fin (m * m))).filter fun v =>
+    let p := mggDecode hm v
+    p.1.val ≤ 1 ∨ m ≤ p.1.val + 1 ∨ p.2.val ≤ 1 ∨ m ≤ p.2.val + 1
+
+theorem mem_mggNearAxis_iff {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    v ∈ mggNearAxis m hm ↔
+      letI : NeZero m := mggNeZero hm
+      let p := mggDecode hm v
+      p.1.val ≤ 1 ∨ m ≤ p.1.val + 1 ∨ p.2.val ≤ 1 ∨ m ≤ p.2.val + 1 := by
+  letI : NeZero m := mggNeZero hm
+  simp [mggNearAxis]
+
+/-- Axis is contained in the near-axis band. -/
+theorem mggAxis_subset_nearAxis {m : ℕ} (hm : 0 < m) :
+    mggAxis m hm ⊆ mggNearAxis m hm := by
+  letI : NeZero m := mggNeZero hm
+  intro v hv
+  apply (mem_mggNearAxis_iff hm v).mpr
+  have h := (mem_mggAxis_iff hm v).mp hv
+  rcases h with hx | hy
+  · exact Or.inl (by
+      have : (mggDecode hm v).1.val = 0 := by
+        simpa using congrArg Fin.val hx
+      omega)
+  · exact Or.inr (Or.inr (Or.inl (by
+      have : (mggDecode hm v).2.val = 0 := by
+        simpa using congrArg Fin.val hy
+      omega)))
+
+/-- Total reverse loss ≤ shear-leaving mass (axis-aware collision source). -/
+theorem mggReverseCutLoss_le_sum_shearLeaving {m : ℕ} (hm : 3 ≤ m)
+    (S : Finset (Fin (m * m))) :
+    mggReverseCutLoss (lt_of_lt_of_le (by decide : 0 < 3) hm) S ≤
+      ∑ v ∈ S, (mggShearLeavingGens (lt_of_lt_of_le (by decide : 0 < 3) hm) S v).card := by
+  classical
+  exact Finset.sum_le_sum fun v _ => mggLeavingExcess_le_shearLeavingCard hm S v
+
+/-- Nat absorb helper: loss of shape `4a + 2o` with twelfth budget yields Inv-4. -/
+theorem mgg_inv4_absorb_of_near_loss {s g a o : ℕ}
+    (hmain : s ≤ 3 * (g + (4 * a + 2 * o)))
+    (hloss : 12 * (4 * a + 2 * o) ≤ s) : s ≤ 4 * g :=
+  mgg_inv4_absorb_of_loss_le_twelfth hmain hloss
+
+/-- Density form: pure `4a` loss with `a ≤ 6m` and `576 m ≤ s` absorbs to Inv-4. -/
+theorem mgg_inv4_absorb_axis_budget_of_large {s g a m : ℕ}
+    (hmain : s ≤ 3 * (g + 4 * a))
+    (ha : a ≤ 6 * m)
+    (hs : 576 * m ≤ s) : s ≤ 4 * g := by
+  have hloss : 12 * (4 * a) ≤ s := by
+    have h1 : 48 * a ≤ 48 * (6 * m) := Nat.mul_le_mul_left 48 ha
+    have h2 : 48 * a ≤ 288 * m := by
+      calc
+        48 * a ≤ 48 * (6 * m) := h1
+        _ = 288 * m := by ring
+    have h3 : 288 * m ≤ s :=
+      le_trans (Nat.mul_le_mul_right m (by decide : 288 ≤ 576)) hs
+    have h48 : 48 * a ≤ s := h2.trans h3
+    simpa [show 12 * (4 * a) = 48 * a from by ring] using h48
+  exact mgg_inv4_absorb_of_loss_le_twelfth hmain hloss
+
 namespace MGGFrontier
 
 /-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/

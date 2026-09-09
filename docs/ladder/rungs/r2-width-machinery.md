@@ -3694,3 +3694,32 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   gate_pending: merge_certified (Cluster 32 reverse loss decls).
   next: formalize axis-aware reverseLoss bound, or cite Gabber Galil spectral
   Frontier lemma toward Cheeger packaging.
+
+- 2026-09-09 formalize (Cluster 33 axis-aware excess surface): PARTIAL.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 33 minimal axis excess lemma toward Inv absorb",
+    "rationale": "Retry stalled absorb; land one certifiable excess refinement not full HasExpansionInv."
+  }
+  ```
+  workstream: R2. Dirty WIP from stalled agent: none (tree clean at HEAD 27612a8).
+  Edited only `theory/Theory/ProofComplexity/MGG.lean` (no Bridge).
+
+  Accepted (axiom gate on new decls):
+  - Shear leaving charge: `mggShearLeavingGens`, `mggShearLeavingGens_eq_sdiff`,
+    `mggLeavingExcess_le_shearLeavingCard`, `mggReverseCutLoss_le_sum_shearLeaving`.
+  - Near-axis band: `mggNearAxis`, `mem_mggNearAxis_iff`, `mggAxis_subset_nearAxis`.
+  - Nat absorb helpers: `mgg_inv4_absorb_of_near_loss`,
+    `mgg_inv4_absorb_axis_budget_of_large` (pure `4a` budget under `576 m ≤ |S|`).
+
+  Still open: `mggNearAxis` density `|nearAxis| ≤ 6m`, off-band excess `≤ 2`,
+  and Frontier `MGGFrontier.mggGraph_hasExpansionInv`.
+  Correction vs prior prose: uniform off-axis excess `≤ 2` is false at encode`(1,1)`.
+
+  Most important thing learned: reverseLoss charges exactly to leaving shear labels;
+  Inv absorb needs a near-axis band (not the raw axis) plus off-band excess control.
+  gate_pending: merge_certified (Cluster 33 surface decls).
+  next: formalize `mggNearAxis_card_le` and off-band excess `≤ 2`, or spectral cite.
