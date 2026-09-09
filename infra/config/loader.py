@@ -21,6 +21,13 @@ from pydantic import ValidationError
 from infra.config.schemas import SaturdayConfig
 
 
+def _ensure_dotenv(repo_root: Path) -> None:
+    """Load repo .env once before reading process environment."""
+    from infra.config.dotenv import load_dotenv
+
+    load_dotenv(repo_root)
+
+
 class ConfigLoader:
     """
     Configuration loader with override support.

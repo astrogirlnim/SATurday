@@ -94,9 +94,9 @@ class SaturdayRemoteConfig(BaseModel):
     use_for_formalize: bool = True
     use_for_prove: bool = False
     use_for_audit: bool = False
-    formalize_model: str = "anthropic/claude-sonnet-4"
-    prove_model: str = "anthropic/claude-sonnet-4"
-    audit_model: str = "anthropic/claude-sonnet-4"
+    formalize_model: str = "openai/gpt-6-astra"
+    prove_model: str = "openai/gpt-6-astra"
+    audit_model: str = "openai/gpt-6-astra"
     # Optional OpenRouter ranking headers (no secrets)
     http_referer: str = "https://github.com/astrogirlnim/SATurday"
     app_title: str = "SATurday"

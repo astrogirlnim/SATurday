@@ -33,17 +33,28 @@ def make_remote_client(loop_cfg: SaturdayLoopConfig) -> LocalLLMClient:
 
     Reads API key from the env var named in remote.api_key_env.
     """
+    from infra.config.dotenv import load_dotenv
+
+    # Ensure .env is visible even if client is built before full config load
+    load_dotenv()
+
     remote = remote_config(loop_cfg)
+    # Allow .env / shell override of model without editing YAML
+    model_override = os.environ.get("OPENROUTER_FORMALIZE_MODEL", "").strip()
+    if model_override:
+        remote.formalize_model = model_override
+        print(f"[saturday.llm] OPENROUTER_FORMALIZE_MODEL={model_override}")
     env_name = remote.api_key_env
     api_key = os.environ.get(env_name, "").strip()
     if not api_key:
         raise RuntimeError(
             f"Remote LLM enabled but {env_name} is empty. "
-            f"Export {env_name}=sk-or-... then rerun with --remote."
+            f"Put it in repo .env or export {env_name}=sk-or-... then rerun with --remote."
         )
     announce(
-        f"Remote LLM client ready ({remote.endpoint}). "
-        "This spends OpenRouter credits; local remains default without --remote."
+        f"Remote LLM client ready ({remote.endpoint}, "
+        f"formalize_model={remote.formalize_model}). "
+        "This spends OpenRouter credits."
     )
     headers = {
         "HTTP-Referer": remote.http_referer,

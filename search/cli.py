@@ -27,6 +27,11 @@ repo_root = Path(__file__).parent.parent
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
+# Load repo .env early (OPENROUTER_API_KEY, etc.); never overwrite existing env
+from infra.config.dotenv import load_dotenv
+
+load_dotenv(repo_root)
+
 from search.agents.supervisor import Supervisor
 from search.reporting.md_reporter import MarkdownReporter
 from search.tools.artifact_store import ArtifactStore

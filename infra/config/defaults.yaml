@@ -211,10 +211,10 @@ saturday_loop:
     use_for_formalize: true
     use_for_prove: false
     use_for_audit: false
-    # Pick any OpenRouter model slug; override via config or env as needed
-    formalize_model: "anthropic/claude-sonnet-4"
-    prove_model: "anthropic/claude-sonnet-4"
-    audit_model: "anthropic/claude-sonnet-4"
+    # GPT-6 Astra on OpenRouter (strong research formalize default)
+    formalize_model: "openai/gpt-6-astra"
+    prove_model: "openai/gpt-6-astra"
+    audit_model: "openai/gpt-6-astra"
     http_referer: "https://github.com/astrogirlnim/SATurday"
     app_title: "SATurday"
   falsify_family: "php"
