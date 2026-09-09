@@ -254,6 +254,9 @@ class ConfigLoader:
         print(f"[ConfigLoader]   Load env vars: {load_env}")
         if overrides:
             print(f"[ConfigLoader]   CLI overrides: {len(overrides)} keys")
+
+        # Load repo .env into os.environ before env-var overrides
+        _ensure_dotenv(self.repo_root)
         
         # Start with defaults
         config_dict = self.load_yaml(self.defaults_path)
