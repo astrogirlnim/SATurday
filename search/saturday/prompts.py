@@ -96,8 +96,11 @@ Task:
 Emit one Lean 4 fragment that advances the target. Requirements:
 1. Put all new declarations in namespace {frontier_ns} (name must contain Frontier).
 2. No import lines. No axioms. Lean 4 only (by, not begin/end).
-3. Prefer extending an existing Frontier obligation already named in the excerpt.
+3. Do NOT restate a theorem or lemma name that already appears in the excerpt.
+   Prefer a NEW helper lemma, or a proof that fills an existing Frontier sorry
+   without repeating the theorem signature if it is already present.
 4. sorry is allowed only inside the Frontier namespace.
+5. Names must be unique in the target module or auto-apply will reject the draft.
 After the code fence, emit JSON with keys status, notes, next_recommended_action,
 gate_pending. next_recommended_action must be one of prove, formalize, falsify, audit.
 """

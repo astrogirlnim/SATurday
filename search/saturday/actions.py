@@ -293,6 +293,15 @@ def _run_formalize(
             rung_id=choice.rung,
         )
         apply_notes = applied.notes
+        if applied.build_tail:
+            # Persist compile errors for the next formalize wake
+            err_draft = _write_draft(
+                ctx.repo_root,
+                loop_cfg.draft_dir,
+                f"{choice.rung}_apply_error.txt",
+                applied.build_tail,
+            )
+            arts.append(str(err_draft.relative_to(ctx.repo_root)))
         if applied.applied and applied.build_ok:
             if applied.has_sorry:
                 status = "partial"
