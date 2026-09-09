@@ -3849,3 +3849,32 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   multi expansion (or a sharper reverseLoss).
   gate_pending: merge_certified (Cluster 36).
   next: formalize Gabber Galil multi Cheeger Nat surface, or pin spectral lemma.
+
+- 2026-09-09 formalize (Cluster 37 multi Cheeger Nat surface): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 37 multi Cheeger Nat surface and Inv packaging",
+    "rationale": "R2 dirty cleared through Cluster 36; pin Cheeger Nat surface and reduce HasExpansionInv to multi Cheeger plus twelfth."
+  }
+  ```
+  workstream: R2. gate_auto: true merge_certified (Cluster 37 axiom probe PASS).
+  Edited only MGG.lean and acceptance list. Bridge ProofSystem dirty left untouched.
+  Prior Cluster 35 off-band target already committed at 65dee2e; this cycle advances packaging.
+
+  Accepted:
+  - `mgg_cheeger_two_fifth_nat`, `mgg_cheeger_gap_rational_proxy`
+  - `MggHasMultiCheeger`, `mgg_card_le_three_mul_multiCut_of_cheeger`
+  - `not_twelfth_of_two_mul_card_add_twelve_mul_m` (coarse `2|S|+12m` cannot twelfth)
+  - `mggGraph_hasExpansionInv_of_multi_cheeger_and_twelfth`
+
+  Still Frontier: `MGGFrontier.mggGraph_hasExpansionInv` (discharge `MggHasMultiCheeger`
+  from Gabber Galil spectral, or find a reverseLoss witness stricter than `2|S|+12m`).
+
+  Most important thing learned: Inv packaging is now a pure reduction to multi
+  Cheeger plus twelfth; the coarse near loss bound is formally useless for
+  twelfth, so spectral (or sharper reverseLoss) is the only remaining path.
+  gate_pending: merge_certified (Cluster 37).
+  next: formalize Gabber Galil spectral to `MggHasMultiCheeger`, or sharper reverseLoss.

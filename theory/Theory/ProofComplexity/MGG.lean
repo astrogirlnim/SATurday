@@ -2377,6 +2377,57 @@ theorem mgg_inv4_absorb_near_two_off_of_large {s g a o m : ℕ}
     simpa [show 12 * (4 * a + 2 * o) = 48 * a + 24 * o from by ring] using hb
   exact mgg_inv4_absorb_of_near_loss hmain hloss
 
+/-! ## Cluster 37: multi Cheeger Nat surface and Inv packaging
+
+Cluster 36 left spectral multi Cheeger open. This cluster pins the Nat
+Cheeger inequality from Gabber Galil constants, names the multi cut
+hypothesis, packages it to `HasExpansionInv` under a twelfth reverseLoss
+witness, and records that the coarse `2|S|+12m` loss bound cannot supply
+that twelfth. -/
+
+/-- Nat form of `(8 − 5√2)/2 ≥ 2/5`: equivalent to `36² > 2 · 25²`. -/
+theorem mgg_cheeger_two_fifth_nat : 36 * 36 > 2 * (25 * 25) := by
+  decide
+
+/-- From `5√2 < 71/10` (Cluster 30 witness) and `36² > 2·25²`, recover
+`(8 − 5√2)/2 ≥ 2/5` as a rational comparison proxy used by packaging. -/
+theorem mgg_cheeger_gap_rational_proxy :
+    (8 * 10 - 71) * 5 ≥ 4 * 10 := by
+  decide
+
+/-- Multi cut Cheeger at rate `2/5`: every nonempty half set expands. -/
+def MggHasMultiCheeger (m : ℕ) (hm : 0 < m) : Prop :=
+  ∀ S : Finset (Fin (m * m)),
+    S.Nonempty → 2 * S.card ≤ m * m →
+      2 * S.card ≤ 5 * mggMultiCutCard hm S
+
+/-- Multi Cheeger implies the Inv-3 form used by absorb (`|S| ≤ 3|∂_M|`). -/
+theorem mgg_card_le_three_mul_multiCut_of_cheeger {m : ℕ} (hm : 0 < m)
+    (h : MggHasMultiCheeger m hm) (S : Finset (Fin (m * m)))
+    (hne : S.Nonempty) (hhalf : 2 * S.card ≤ m * m) :
+    S.card ≤ 3 * mggMultiCutCard hm S :=
+  mgg_card_le_three_mul_of_two_fifth (h S hne hhalf)
+
+/-- Coarse reverseLoss `≤ 2|S| + 12m` never meets the twelfth budget when `|S| > 0`. -/
+theorem not_twelfth_of_two_mul_card_add_twelve_mul_m {s m : ℕ}
+    (hs : 0 < s) : ¬ (12 * (2 * s + 12 * m) ≤ s) := by
+  intro h
+  omega
+
+/-- From multi Cheeger plus a pointwise twelfth reverseLoss witness, conclude
+`HasExpansionInv` at `mggInvK`. Spectral discharge of `MggHasMultiCheeger`
+remains Frontier. -/
+theorem mggGraph_hasExpansionInv_of_multi_cheeger_and_twelfth {m : ℕ}
+    (hm : 0 < m) (hcheeger : MggHasMultiCheeger m hm)
+    (htwelfth : ∀ S : Finset (Fin (m * m)),
+      S.Nonempty → 2 * S.card ≤ m * m →
+        12 * mggReverseCutLoss hm S ≤ S.card) :
+    HasExpansionInv (mggGraph m hm) mggInvK := by
+  intro S hne hhalf
+  have h3 := mgg_card_le_three_mul_multiCut_of_cheeger hm hcheeger S hne hhalf
+  exact mgg_card_le_four_mul_edgeBoundary_of_multi_and_twelfth hm S h3
+    (htwelfth S hne hhalf)
+
 namespace MGGFrontier
 
 /-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/
