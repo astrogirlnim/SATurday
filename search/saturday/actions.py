@@ -428,13 +428,32 @@ def _run_formalize(
                 "Local formalize did not stick. Escalating once to OpenRouter "
                 f"({remote.formalize_model})."
             )
-            escalated_err = prior_errors
-            if outcome["build_tail"]:
-                escalated_err = (
-                    (escalated_err + "\n\n" if escalated_err else "")
-                    + "Local attempt compile digest:\n"
-                    + outcome["build_tail"]
+            pieces = []
+            if prior_errors.strip():
+                pieces.append("Prior lake or apply errors:\n" + prior_errors.strip())
+            if outcome.get("build_tail"):
+                pieces.append(
+                    "Local attempt compile digest:\n" + outcome["build_tail"].strip()
                 )
+            local_notes = (outcome.get("notes") or "").strip()
+            if local_notes:
+                pieces.append("Local attempt outcome (reject or revert):\n" + local_notes[:2000])
+            local_lean = (outcome.get("lean_code") or "").strip()
+            if local_lean:
+                pieces.append(
+                    "Local draft that failed (do not repeat its mistakes):\n"
+                    + local_lean[:3000]
+                )
+            pieces.append(
+                "Target only open Frontier obligations for this rung. "
+                "For R2 prefer exists_spreads_matchable_unsat_random3CNF or "
+                "exists_cs_clause_expanding_3cnf helpers; never reinvent width graft."
+            )
+            escalated_err = "\n\n".join(pieces)
+            announce(
+                f"OpenRouter escalate context chars={len(escalated_err)} "
+                f"(includes local reject/compile notes)."
+            )
             try:
                 rclient = make_remote_client(loop_cfg)
                 remote_out = one_pass(
