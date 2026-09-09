@@ -2,7 +2,8 @@
 SATurday CLI - Unified command-line interface for agent-driven research.
 
 Commands:
-- saturday: One local research cycle (CLI + localhost LLMs; canonical offline loop)
+- auto: Autonomous parallel research loop (all next workstreams; Ctrl-C to stop)
+- saturday: One local research cycle (CLI + localhost LLMs)
 - status: Ladder completion, summit readiness, and suggested next commands
 - loop: Repeated saturday wakes with optional parallel workstreams
 - mine: Run legacy full research cycle
@@ -39,6 +40,58 @@ app = typer.Typer(
 
 # Initialize Rich console for pretty output
 console = Console()
+
+
+@app.command("auto")
+def auto_cmd(
+    sleep: Optional[int] = typer.Option(
+        None,
+        "--sleep",
+        "-s",
+        help="Base seconds between wakes (default from saturday_loop config)",
+    ),
+    cycles: int = typer.Option(
+        0,
+        "--cycles",
+        "-n",
+        help="Number of wakes (default 0 = until Ctrl-C)",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Plan only; no LLM calls"),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
+):
+    """
+    Autonomous mode: run all next disjoint workstreams in parallel, forever.
+
+    Each wake runs every actionable parallel path together (typically R2 and R5),
+    sleeps, then wakes again. No rung or action selection required. Stop with Ctrl-C.
+
+    Examples:
+        satday auto
+        satday auto --sleep 120
+        satday auto --cycles 5
+        satday auto --dry-run --cycles 1
+    """
+    console.print("[bold blue]SATurday auto (parallel loop)[/bold blue]")
+    console.print(
+        "Runs all next workstreams each wake. Stop with Ctrl-C. "
+        f"cycles={cycles} sleep={sleep} dry_run={dry_run}"
+    )
+    try:
+        from search.saturday.loop import run_saturday_loop
+
+        waves = run_saturday_loop(
+            repo_root=repo_root,
+            config_file=config,
+            cycles=cycles,
+            sleep_seconds=sleep,
+            parallel=True,
+            dry_run=dry_run,
+        )
+        console.print_json(data={"wakes": len(waves), "waves": waves})
+        console.print(f"[bold green]Auto stopped wakes={len(waves)}[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
+        raise typer.Exit(code=1)
 
 
 @app.command("saturday")

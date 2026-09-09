@@ -16,8 +16,7 @@ Live ladder snapshot (do not duplicate status here; regenerate anytime):
 
 ```bash
 satday status
-satday saturday --parallel
-satday loop --parallel --cycles 3 --sleep 90
+satday auto
 ```
 
 ## Done (do not reopen without cause)

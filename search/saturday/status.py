@@ -155,19 +155,15 @@ def _suggested_commands(
     next_choice: ActionChoice,
     parallel: List[ActionChoice],
 ) -> List[str]:
-    """Concrete CLI commands for the operator."""
+    """Concrete CLI commands for the operator. Lead with autonomous trigger."""
     cmds: List[str] = [
+        "satday auto",
         "satday status",
-        _command_for_choice(next_choice),
     ]
     if len(parallel) >= 2:
         cmds.append("satday saturday --parallel")
-        for choice in parallel:
-            cmds.append(_command_for_choice(choice))
-        cmds.append("satday loop --parallel --cycles 3 --sleep 90")
     else:
-        cmds.append("satday loop --cycles 3 --sleep 90")
-    cmds.append("satday loop --parallel")
+        cmds.append(_command_for_choice(next_choice))
     seen = set()
     ordered: List[str] = []
     for cmd in cmds:

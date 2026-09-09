@@ -8,10 +8,8 @@ CLI summary (completed rungs, suggested next commands, parallel paths, summit
 readiness toward P vs NP):
 
 ```bash
+satday auto
 satday status
-satday status --json
-satday saturday --parallel
-satday loop --parallel --cycles 3 --sleep 90
 ```
 
 Update discipline: the saturday session is the only writer. Statuses change only
