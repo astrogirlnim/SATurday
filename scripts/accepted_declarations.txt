@@ -1714,6 +1714,24 @@ SATurday.Bridge.bitsEq_evals_accept
 SATurday.Bridge.bitsEq_evals_equal
 SATurday.Bridge.bitsEq_evals_left_nil_right_cons
 SATurday.Bridge.bitsEq_evals_reject_to_halt
+# R5 ProofSystem Cluster C2 encodePair load glue into bitsEqual (2026-09-09)
+SATurday.Bridge.bitsEqCfgInp
+SATurday.Bridge.bitsEq_step_parse_false
+SATurday.Bridge.bitsEq_step_parse_true
+SATurday.Bridge.bitsEq_step_parse_nil
+SATurday.Bridge.bitsEq_step_expectBit
+SATurday.Bridge.bitsEq_step_expectBit_nil
+SATurday.Bridge.bitsEq_step_loadRight_cons
+SATurday.Bridge.bitsEq_step_loadRight_nil
+SATurday.Bridge.bitsEq_evals_parse_false
+SATurday.Bridge.bitsEq_evals_one_bit
+SATurday.Bridge.bitsEq_evals_parse_first
+SATurday.Bridge.bitsEq_evals_loadRight_cons
+SATurday.Bridge.bitsEq_evals_loadRight_nil
+SATurday.Bridge.bitsEq_evals_loadRight
+SATurday.Bridge.bitsEq_evals_load_encodePair
+SATurday.Bridge.bitsEqual_reverse
+SATurday.Bridge.bitsEq_evals_encodePair_equal
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode

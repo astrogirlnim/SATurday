@@ -1251,7 +1251,7 @@ theorem countLengthBits_computableInPolyTime :
 
 Length gate machine path after counting: decide structural equality of
 `lengthBitsLE table` and `pow2BitsLE (maxVar+1)`. Semantic `bitsEqual` plus a
-zipper FinTM2 on two preloaded stacks; encodePair loading remains next. -/
+zipper FinTM2 that loads `encodePair` then compares. -/
 
 /-- Structural bit list equality (FinTM2 compare target). -/
 def bitsEqual (xs ys : List Bool) : Bool :=
@@ -1310,42 +1310,63 @@ theorem bitsEqual_lengthBitsLE_pow2BitsLE (n : ℕ) (table : List Bool) :
       table.length = 2 ^ n := by
   rw [bitsEqual_iff, lengthBitsLE_eq_pow2BitsLE_iff]
 
-/-! ## Cluster C2 FinTM2: zip compare two bit stacks
+/-! ## Cluster C2 FinTM2: encodePair load then zip compare
 
-Preloaded `left`/`right` stacks; halt with `[true]` or `[false]` on `out`.
-Loading from `encodePair` is deferred to the next formalize slice. -/
+`inp` holds `encodePair (xs, ys)`. Load parses the self delimiting prefix into
+`left = xs.reverse` and `right = ys.reverse` (reversals cancel for equality),
+then the zipper compare writes `[true]`/`[false]` on `out`. -/
 
 inductive BitsEqStack where
-  | left | right | out
+  | inp | left | right | out
   deriving DecidableEq, Repr
 
 instance : Fintype BitsEqStack where
-  elems := {.left, .right, .out}
+  elems := {.inp, .left, .right, .out}
   complete s := by cases s <;> simp
 
-/-- `loop` pops left; `expectTrue`/`expectFalse` match right; `checkRight`
-accepts when right is empty; `reject`/`drainRight` clear leftovers then write
-`false` so the final config matches `haltList`. -/
+/-- `parse`/`expectBit` unpack the first component; `loadRight` copies the
+second; then `loop`..`drainRight` compare as before. -/
 inductive BitsEqLabel where
+  | parse | expectBit | loadRight
   | loop | expectTrue | expectFalse | checkRight | reject | drainRight
   deriving DecidableEq, Repr
 
 instance : Fintype BitsEqLabel where
-  elems := {.loop, .expectTrue, .expectFalse, .checkRight, .reject, .drainRight}
+  elems := {.parse, .expectBit, .loadRight, .loop, .expectTrue, .expectFalse,
+    .checkRight, .reject, .drainRight}
   complete s := by cases s <;> simp
 
-/-- FinTM2: compare `left` to `right`, write equality bit on `out`.
-Reject paths drain leftover stacks before halt so `haltList` is reachable. -/
+/-- FinTM2: load `encodePair` from `inp` into compare stacks, write equality bit.
+Reject paths drain leftover compare stacks before halt so `haltList` is reachable. -/
 def bitsEqualComputer : FinTM2 where
   K := BitsEqStack
-  k₀ := .left
+  k₀ := .inp
   k₁ := .out
   Γ _ := Bool
   Λ := BitsEqLabel
-  main := .loop
+  main := .parse
   σ := Option Bool
   initialState := none
   m
+    | .parse =>
+        pop BitsEqStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => BitsEqLabel.reject)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => BitsEqLabel.loadRight)
+              (load (fun _ => none) <| goto fun _ => BitsEqLabel.expectBit))
+    | .expectBit =>
+        pop BitsEqStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => BitsEqLabel.reject)
+            (push BitsEqStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => BitsEqLabel.parse)
+    | .loadRight =>
+        pop BitsEqStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => BitsEqLabel.loop)
+            (push BitsEqStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => BitsEqLabel.loadRight)
     | .loop =>
         pop BitsEqStack.left (fun _ o => o) <|
           branch (fun s => decide (s = none))
@@ -1381,14 +1402,22 @@ def bitsEqualComputer : FinTM2 where
               load (fun _ => none) halt)
             (load (fun _ => none) <| goto fun _ => BitsEqLabel.drainRight)
 
-def bitsEqStk (left right out : List Bool) : BitsEqStack → List Bool
+/-- Stack map; compare phase lemmas keep `inp = []`. -/
+def bitsEqStk (inp left right out : List Bool) : BitsEqStack → List Bool
+  | .inp => inp
   | .left => left
   | .right => right
   | .out => out
 
+/-- Compare phase config (`inp` empty after successful load). -/
 def bitsEqCfg (l : Option BitsEqLabel) (v : Option Bool)
     (left right out : List Bool) : bitsEqualComputer.Cfg :=
-  ⟨l, v, bitsEqStk left right out⟩
+  ⟨l, v, bitsEqStk [] left right out⟩
+
+/-- Full config including residual `inp` (load phase). -/
+def bitsEqCfgInp (l : Option BitsEqLabel) (v : Option Bool)
+    (inp left right out : List Bool) : bitsEqualComputer.Cfg :=
+  ⟨l, v, bitsEqStk inp left right out⟩
 
 theorem bitsEq_step_loop_nil (right out : List Bool) :
     TM2.step bitsEqualComputer.m
@@ -1540,11 +1569,83 @@ theorem bitsEq_step_drainRight_cons (left : List Bool) (y : Bool) (ys out : List
       (⟨some BitsEqLabel.drainRight, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, bitsEqStk]
 
+/-! ### encodePair load steps (parse first component, copy second) -/
+
+theorem bitsEq_step_parse_false (rest left right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfgInp (some .parse) none (false :: rest) left right out) =
+      some (bitsEqCfgInp (some .loadRight) none rest left right out) := by
+  simp [bitsEqualComputer, bitsEqCfgInp, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.loadRight, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_parse_true (b : Bool) (rest left right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfgInp (some .parse) none (true :: b :: rest) left right out) =
+      some (bitsEqCfgInp (some .expectBit) none (b :: rest) left right out) := by
+  simp [bitsEqualComputer, bitsEqCfgInp, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.expectBit, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_parse_nil (left right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfgInp (some .parse) none [] left right out) =
+      some (bitsEqCfgInp (some .reject) none [] left right out) := by
+  simp [bitsEqualComputer, bitsEqCfgInp, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.reject, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_expectBit (b : Bool) (rest left right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfgInp (some .expectBit) none (b :: rest) left right out) =
+      some (bitsEqCfgInp (some .parse) none rest (b :: left) right out) := by
+  simp [bitsEqualComputer, bitsEqCfgInp, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.parse, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_expectBit_nil (left right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfgInp (some .expectBit) none [] left right out) =
+      some (bitsEqCfgInp (some .reject) none [] left right out) := by
+  simp [bitsEqualComputer, bitsEqCfgInp, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.reject, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_loadRight_cons (b : Bool) (rest left right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfgInp (some .loadRight) none (b :: rest) left right out) =
+      some (bitsEqCfgInp (some .loadRight) none rest left (b :: right) out) := by
+  simp [bitsEqualComputer, bitsEqCfgInp, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.loadRight, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_loadRight_nil (left right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfgInp (some .loadRight) none [] left right out) =
+      some (bitsEqCfg (some .loop) none left right out) := by
+  simp [bitsEqualComputer, bitsEqCfgInp, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.loop, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
 theorem bitsEqual_initList (s : List Bool) :
     initList bitsEqualComputer s =
-      bitsEqCfg (some .loop) none s [] [] := by
+      bitsEqCfgInp (some .parse) none s [] [] [] := by
   refine congrArg (fun stk =>
-      (⟨some BitsEqLabel.loop, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+      (⟨some BitsEqLabel.parse, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
   funext k; cases k <;> simp [bitsEqualComputer, bitsEqStk]
 
 theorem bitsEqual_haltList (out : List Bool) :
@@ -1827,6 +1928,170 @@ noncomputable def bitsEq_evals_reject_to_halt (left right : List Bool) :
       (left.length + right.length + 2) := by
   have h := bitsEq_evals_reject left right []
   simpa [bitsEqual_haltList] using h
+
+/-! ### Cluster C2: encodePair load EvalsToInTime into compare loop -/
+
+def bitsEq_evals_parse_false (rest left right out : List Bool) :
+    EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfgInp (some .parse) none (false :: rest) left right out)
+      (some (bitsEqCfgInp (some .loadRight) none rest left right out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (bitsEqCfgInp (some .parse) none (false :: rest) left right out)).bind
+        bitsEqualComputer.step =
+      some (bitsEqCfgInp (some .loadRight) none rest left right out)
+    simp only [FinTM2.step]
+    exact bitsEq_step_parse_false rest left right out
+
+def bitsEq_evals_one_bit (b : Bool) (rest left right out : List Bool) :
+    EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfgInp (some .parse) none (true :: b :: rest) left right out)
+      (some (bitsEqCfgInp (some .parse) none rest (b :: left) right out)) 2 where
+  steps := 2
+  steps_le_m := by decide
+  evals_in_steps := by
+    change ((some (bitsEqCfgInp (some .parse) none (true :: b :: rest) left right out)).bind
+        bitsEqualComputer.step).bind bitsEqualComputer.step =
+      some (bitsEqCfgInp (some .parse) none rest (b :: left) right out)
+    simp only [FinTM2.step]
+    change ((TM2.step bitsEqualComputer.m
+        (bitsEqCfgInp (some .parse) none (true :: b :: rest) left right out)).bind
+        (TM2.step bitsEqualComputer.m)) =
+      some (bitsEqCfgInp (some .parse) none rest (b :: left) right out)
+    rw [bitsEq_step_parse_true]
+    exact bitsEq_step_expectBit b rest left right out
+
+noncomputable def bitsEq_evals_parse_first (x rest left right out : List Bool) :
+    EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfgInp (some .parse) none
+        ((x.flatMap fun b => [true, b]) ++ rest) left right out)
+      (some (bitsEqCfgInp (some .parse) none rest (x.reverse ++ left) right out))
+      (2 * x.length) := by
+  induction x generalizing left with
+  | nil =>
+      simpa using EvalsToInTime.refl bitsEqualComputer.step
+        (bitsEqCfgInp (some .parse) none rest left right out)
+  | cons b xs ih =>
+      have h1 :=
+        bitsEq_evals_one_bit b ((xs.flatMap fun b => [true, b]) ++ rest) left right out
+      have h2 := ih (b :: left)
+      have h :=
+        EvalsToInTime.trans bitsEqualComputer.step 2 (2 * xs.length)
+          (bitsEqCfgInp (some .parse) none
+            ((b :: xs).flatMap (fun b => [true, b]) ++ rest) left right out)
+          (bitsEqCfgInp (some .parse) none
+            ((xs.flatMap fun b => [true, b]) ++ rest) (b :: left) right out)
+          (some (bitsEqCfgInp (some .parse) none rest
+            (xs.reverse ++ (b :: left)) right out))
+          (by simpa [List.flatMap] using h1) h2
+      simpa [List.flatMap, List.reverse_cons, List.append_assoc, Nat.mul_succ,
+        Nat.add_comm, Nat.add_left_comm, Nat.add_assoc, two_mul] using h
+
+def bitsEq_evals_loadRight_cons (b : Bool) (rest left right out : List Bool) :
+    EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfgInp (some .loadRight) none (b :: rest) left right out)
+      (some (bitsEqCfgInp (some .loadRight) none rest left (b :: right) out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (bitsEqCfgInp (some .loadRight) none (b :: rest) left right out)).bind
+        bitsEqualComputer.step =
+      some (bitsEqCfgInp (some .loadRight) none rest left (b :: right) out)
+    simp only [FinTM2.step]
+    exact bitsEq_step_loadRight_cons b rest left right out
+
+def bitsEq_evals_loadRight_nil (left right out : List Bool) :
+    EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfgInp (some .loadRight) none [] left right out)
+      (some (bitsEqCfg (some .loop) none left right out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (bitsEqCfgInp (some .loadRight) none [] left right out)).bind
+        bitsEqualComputer.step =
+      some (bitsEqCfg (some .loop) none left right out)
+    simp only [FinTM2.step]
+    exact bitsEq_step_loadRight_nil left right out
+
+noncomputable def bitsEq_evals_loadRight (ys left right out : List Bool) :
+    EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfgInp (some .loadRight) none ys left right out)
+      (some (bitsEqCfg (some .loop) none left (ys.reverse ++ right) out))
+      (ys.length + 1) := by
+  induction ys generalizing right with
+  | nil =>
+      simpa using bitsEq_evals_loadRight_nil left right out
+  | cons y ys ih =>
+      have h1 := bitsEq_evals_loadRight_cons y ys left right out
+      have h2 := ih (y :: right)
+      have h :=
+        EvalsToInTime.trans bitsEqualComputer.step 1 (ys.length + 1) _ _ _ h1 h2
+      refine ⟨⟨h.steps, ?_⟩, ?_⟩
+      · simpa [List.reverse_cons, List.append_assoc] using h.evals_in_steps
+      · refine le_trans h.steps_le_m ?_
+        simp [List.length_cons]
+
+/-- Load `encodePair (xs, ys)` from `inp` into compare stacks (reversed). -/
+noncomputable def bitsEq_evals_load_encodePair (xs ys : List Bool) :
+    EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfgInp (some .parse) none (encodePair (xs, ys)) [] [] [])
+      (some (bitsEqCfg (some .loop) none xs.reverse ys.reverse []))
+      (2 * xs.length + ys.length + 2) := by
+  have hparse :=
+    bitsEq_evals_parse_first xs (false :: ys) [] [] []
+  have htoLoad :=
+    bitsEq_evals_parse_false ys xs.reverse [] []
+  have hload :=
+    bitsEq_evals_loadRight ys xs.reverse [] []
+  have h1 : EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfgInp (some .parse) none (encodePair (xs, ys)) [] [] [])
+      (some (bitsEqCfgInp (some .parse) none (false :: ys) xs.reverse [] []))
+      (2 * xs.length) := by
+    simpa [encodePair, List.append_assoc] using hparse
+  have h12 :=
+    EvalsToInTime.trans bitsEqualComputer.step (2 * xs.length) 1 _ _ _ h1 htoLoad
+  have h12' : EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfgInp (some .parse) none (encodePair (xs, ys)) [] [] [])
+      (some (bitsEqCfgInp (some .loadRight) none ys xs.reverse [] []))
+      (2 * xs.length + 1) := by
+    simpa [Nat.add_comm] using h12
+  have h :=
+    EvalsToInTime.trans bitsEqualComputer.step (2 * xs.length + 1) (ys.length + 1)
+      _ _ _ h12' hload
+  refine ⟨⟨h.steps, ?_⟩, ?_⟩
+  · simpa [List.append_nil] using h.evals_in_steps
+  · refine le_trans h.steps_le_m ?_
+    omega
+
+theorem bitsEqual_reverse (xs ys : List Bool) :
+    bitsEqual xs.reverse ys.reverse = bitsEqual xs ys := by
+  simp [bitsEqual, List.reverse_inj]
+
+/-- Equal pair from `initList (encodePair (xs, xs))` to haltList `[true]`. -/
+noncomputable def bitsEq_evals_encodePair_equal (xs : List Bool) :
+    EvalsToInTime bitsEqualComputer.step
+      (initList bitsEqualComputer (encodePair (xs, xs)))
+      (some (haltList bitsEqualComputer [true]))
+      (2 * xs.length + xs.length + 2 + (2 * xs.length + 2)) := by
+  have hload := bitsEq_evals_load_encodePair xs xs
+  have hcmp0 := bitsEq_evals_equal xs.reverse
+  have hcmp : EvalsToInTime bitsEqualComputer.step
+      (bitsEqCfg (some .loop) none xs.reverse xs.reverse [])
+      (some (haltList bitsEqualComputer [true]))
+      (2 * xs.length + 2) := by
+    simpa [List.length_reverse] using hcmp0
+  have h1 : EvalsToInTime bitsEqualComputer.step
+      (initList bitsEqualComputer (encodePair (xs, xs)))
+      (some (bitsEqCfg (some .loop) none xs.reverse xs.reverse []))
+      (2 * xs.length + xs.length + 2) := by
+    simpa [bitsEqual_initList] using hload
+  have h :=
+    EvalsToInTime.trans bitsEqualComputer.step
+      (2 * xs.length + xs.length + 2) (2 * xs.length + 2) _ _ _ h1 hcmp
+  refine ⟨⟨h.steps, h.evals_in_steps⟩, ?_⟩
+  refine le_trans h.steps_le_m ?_
+  omega
 
 /-! ## Truth table proof map (semantic Cook Reckhow witness) -/
 /-! ## Truth table proof map (semantic Cook Reckhow witness) -/

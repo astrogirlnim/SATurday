@@ -1771,3 +1771,35 @@ lower bound via the bridge.
   reject must drain leftovers before writing the false bit.
   gate_pending: merge_certified.
   gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
+
+- 2026-09-09 formalize (Cluster C2 encodePair load glue): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "encodePair load glue into bitsEqual or lengthGate machine path",
+    "rationale": "Bit equality evals ready; load pair tape into compare stacks."
+  }
+  ```
+  Smallest coherent slice: extend bitsEqualComputer with inp stack and
+  parse or expectBit or loadRight labels; load encodePair (xs, ys) into
+  left = xs.reverse and right = ys.reverse (equality invariant under reverse);
+  EvalsToInTime from initList to compare loop, then to haltList on equal pairs.
+  Existing names used: encodePair, bitsEqualComputer, bitsEqCfg, bitsEq_evals_equal,
+  initList, haltList, EvalsToInTime.
+  Accepted: bitsEqCfgInp, bitsEq_step_parse_false, bitsEq_step_parse_true,
+  bitsEq_step_parse_nil, bitsEq_step_expectBit, bitsEq_step_expectBit_nil,
+  bitsEq_step_loadRight_cons, bitsEq_step_loadRight_nil,
+  bitsEq_evals_parse_false, bitsEq_evals_one_bit, bitsEq_evals_parse_first,
+  bitsEq_evals_loadRight_cons, bitsEq_evals_loadRight_nil, bitsEq_evals_loadRight,
+  bitsEq_evals_load_encodePair, bitsEqual_reverse, bitsEq_evals_encodePair_equal.
+  Bridge lake build green; Bridge axiom probe PASS (propext, Classical.choice,
+  Quot.sound). Full scripts/check_axioms.sh blocked by R2 MGG olean gap, not R5.
+  Frontier updated: validatesTautologyResult_computableInPolyTime needs
+  bitsEqualPair TM2ComputableInPolyTime (unequal paths and poly bound), then
+  per index eval loop; truthTable_is_prop_proof_system unchanged.
+  Most important thing learned: loading both components reversed preserves
+  zipper equality, so reverse restore phases are unnecessary before compare.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
