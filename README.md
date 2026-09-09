@@ -63,12 +63,19 @@ pip install -e .
 ollama serve
 satday saturday --dry-run
 satday saturday --action prove --rung r5-cook-reckhow-bridge
+satday saturday --parallel
 satday status
+satday loop --parallel --cycles 3 --sleep 90
 ```
 
-`satday status` prints completed rungs, active work, the suggested next cycle,
-and summit readiness toward P vs NP (R4 plus R5). Use `satday status --json`
-for machine readable output.
+`satday status` prints completed rungs, active work, suggested next CLI
+commands, parallel R2 and R5 paths when both are actionable, and summit
+readiness toward P vs NP. Use `satday status --json` for machine readable
+output.
+
+`satday saturday --parallel` runs one cycle on each disjoint workstream
+(typically R2 and R5) in the same wake. `satday loop` repeats wakes with a
+dynamic sleep between them (`--cycles 0` means until Ctrl-C).
 
 Models and endpoint live under `saturday_loop` in `infra/config/defaults.yaml`
 (default: Ollama at `http://localhost:11434`; prove/audit `qwen2.5:14b`,
@@ -95,6 +102,7 @@ cd ..
 python3 search/bin/run_proof_size_baseline.py --family php --n-min 4 --n-max 10 --seed 42
 satday saturday --dry-run
 satday status
+satday saturday --parallel --dry-run
 ```
 
 ## Requirements

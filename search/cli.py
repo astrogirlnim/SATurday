@@ -3,7 +3,8 @@ SATurday CLI - Unified command-line interface for agent-driven research.
 
 Commands:
 - saturday: One local research cycle (CLI + localhost LLMs; canonical offline loop)
-- status: Ladder completion and summit readiness toward P vs NP
+- status: Ladder completion, summit readiness, and suggested next commands
+- loop: Repeated saturday wakes with optional parallel workstreams
 - mine: Run legacy full research cycle
 - bench: Benchmark deterministic harness
 - check-proofs: Replay LRAT verification
@@ -52,34 +53,109 @@ def saturday_cmd(
     target: Optional[str] = typer.Option(None, "--target", "-t", help="Target override"),
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Choose rung/action only; no LLM"),
+    parallel: bool = typer.Option(
+        False,
+        "--parallel",
+        help="Run all disjoint workstream cycles together (typically R2 and R5)",
+    ),
 ):
     """
     Run exactly one local saturday cycle against the proof complexity ladder.
 
-    Uses localhost models from saturday_loop config (Ollama or OpenAI compatible).
-    Falsify never calls an LLM. Formalize writes Lean drafts under
-    search/logs/saturday_drafts/ and does not auto merge into theory/.
+    With --parallel, run one cycle on each disjoint workstream (R2 and R5) in
+    the same wake. Each workstream still writes its own session record.
 
     Examples:
         satday saturday --dry-run
         satday saturday --action prove --rung r5-cook-reckhow-bridge
-        satday saturday --action falsify
+        satday saturday --parallel
+        satday saturday --parallel --dry-run
     """
     console.print("[bold blue]SATurday local cycle[/bold blue]")
-    console.print(f"dry_run={dry_run} rung={rung} action={action}")
+    console.print(f"dry_run={dry_run} parallel={parallel} rung={rung} action={action}")
     try:
-        from search.saturday.cycle import run_saturday_cycle
+        if parallel and (rung or action or target):
+            console.print(
+                "[red]Do not combine --parallel with --rung/--action/--target[/red]"
+            )
+            raise typer.Exit(code=1)
+        if parallel:
+            from search.saturday.cycle import run_saturday_parallel
 
-        record = run_saturday_cycle(
+            records = run_saturday_parallel(
+                repo_root=repo_root,
+                config_file=config,
+                dry_run=dry_run,
+            )
+            console.print_json(data=records)
+        else:
+            from search.saturday.cycle import run_saturday_cycle
+
+            record = run_saturday_cycle(
+                repo_root=repo_root,
+                config_file=config,
+                rung=rung,
+                action=action,
+                target=target,
+                dry_run=dry_run,
+            )
+            console.print_json(data=record)
+        console.print("[bold green]Cycle complete[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
+        raise typer.Exit(code=1)
+
+
+@app.command("loop")
+def loop_cmd(
+    cycles: Optional[int] = typer.Option(
+        None,
+        "--cycles",
+        "-n",
+        help="Number of wakes (0 or omit for config default; 0 means until Ctrl-C)",
+    ),
+    sleep: Optional[int] = typer.Option(
+        None,
+        "--sleep",
+        "-s",
+        help="Base seconds between wakes (dynamic adjust still applies)",
+    ),
+    parallel: bool = typer.Option(
+        False,
+        "--parallel",
+        help="Each wake runs disjoint R2 and R5 cycles together",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Plan only; no LLM calls"),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
+):
+    """
+    Repeated saturday wakes with sleep between cycles.
+
+    One cycle (or one parallel wave) per wake, then sleep, then wake again.
+    Stop with Ctrl-C or a finite --cycles value.
+
+    Examples:
+        satday loop --cycles 3 --sleep 90
+        satday loop --parallel --cycles 2
+        satday loop --parallel --dry-run --cycles 1
+    """
+    console.print("[bold blue]SATurday local loop[/bold blue]")
+    console.print(
+        f"cycles={cycles} sleep={sleep} parallel={parallel} dry_run={dry_run}"
+    )
+    try:
+        from search.saturday.loop import run_saturday_loop
+
+        waves = run_saturday_loop(
             repo_root=repo_root,
             config_file=config,
-            rung=rung,
-            action=action,
-            target=target,
+            cycles=cycles,
+            sleep_seconds=sleep,
+            parallel=parallel,
             dry_run=dry_run,
         )
-        console.print_json(data=record)
-        console.print("[bold green]Cycle complete[/bold green]")
+        console.print_json(data=waves)
+        console.print(f"[bold green]Loop complete wakes={len(waves)}[/bold green]")
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
         raise typer.Exit(code=1)
@@ -146,6 +222,20 @@ def status_cmd(
         console.print(f"  action: {nxt['action_type']}")
         console.print(f"  target: {nxt['target']}")
         console.print(f"  rationale: {nxt['rationale']}")
+
+        console.print("\n[bold]Parallel paths[/bold]")
+        if status.parallel_paths:
+            for path in status.parallel_paths:
+                console.print(
+                    f"  [{path.get('workstream') or '-'}] "
+                    f"{path['rung']} -> {path['action_type']}"
+                )
+        else:
+            console.print("  (none; only serial next cycle)")
+
+        console.print("\n[bold]Suggested next commands[/bold]")
+        for cmd in status.suggested_commands:
+            console.print(f"  {cmd}")
 
         console.print("\n[bold]Toward P vs NP (summit)[/bold]")
         console.print(f"  {status.toward_p_vs_np}")

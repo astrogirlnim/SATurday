@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -30,6 +31,18 @@ RUNG_IDS = [
 
 STATUS_RE = re.compile(r"^Status:\s*(\S+)", re.MULTILINE)
 ACTIVE_LIKE = frozenset({"active", "prose_accepted", "blocked"})
+
+# Serialize session log appends across parallel workstreams
+_SESSION_LOCK = threading.Lock()
+_RUNG_LOCKS: Dict[str, threading.Lock] = {}
+_RUNG_LOCKS_GUARD = threading.Lock()
+
+
+def _rung_lock(rung_id: str) -> threading.Lock:
+    with _RUNG_LOCKS_GUARD:
+        if rung_id not in _RUNG_LOCKS:
+            _RUNG_LOCKS[rung_id] = threading.Lock()
+        return _RUNG_LOCKS[rung_id]
 
 
 @dataclass
@@ -161,20 +174,22 @@ def _run_disk_check(repo_root: Path) -> str:
 
 def append_rung_memory(rung: RungState, entry: str) -> None:
     """Append one dated session log entry; never rewrite history."""
-    print(f"[saturday.context] append rung memory path={rung.path}")
-    text = rung.text
-    marker = "## Session log (append-only)"
-    block = f"\n{entry.rstrip()}\n"
-    if marker in text:
-        # Append after the marker section end (end of file is fine)
-        if not text.endswith("\n"):
-            text += "\n"
-        text += block
-    else:
-        text += f"\n{marker}\n{block}"
-    rung.path.write_text(text, encoding="utf-8")
-    rung.text = text
-    print(f"[saturday.context] rung memory updated bytes={len(text)}")
+    lock = _rung_lock(rung.rung_id)
+    with lock:
+        print(f"[saturday.context] append rung memory path={rung.path}")
+        # Re-read to avoid stomping a parallel writer on another process
+        text = rung.path.read_text(encoding="utf-8") if rung.path.exists() else rung.text
+        marker = "## Session log (append-only)"
+        block = f"\n{entry.rstrip()}\n"
+        if marker in text:
+            if not text.endswith("\n"):
+                text += "\n"
+            text += block
+        else:
+            text += f"\n{marker}\n{block}"
+        rung.path.write_text(text, encoding="utf-8")
+        rung.text = text
+        print(f"[saturday.context] rung memory updated bytes={len(text)}")
 
 
 def append_session_record(repo_root: Path, record: Dict[str, Any], sessions_path: str) -> Path:
@@ -182,9 +197,10 @@ def append_session_record(repo_root: Path, record: Dict[str, Any], sessions_path
     path = repo_root / sessions_path
     path.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(record, ensure_ascii=True)
-    print(f"[saturday.context] append session record path={path}")
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(line + "\n")
+    with _SESSION_LOCK:
+        print(f"[saturday.context] append session record path={path}")
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
     return path
 
 

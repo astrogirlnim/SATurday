@@ -2,14 +2,24 @@
 Choose one rung and one action for the local saturday cycle.
 
 Rule based (no LLM): mirrors .cursor/skills/saturday/SKILL.md Step 1.
+
+Parallel workstreams (skill Parallelization):
+- R2 owns docs/ladder/rungs/r2-width-machinery.md and non Bridge ProofComplexity Lean
+- R5 owns docs/ladder/rungs/r5-cook-reckhow-bridge.md and Bridge Lean
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 from search.saturday.context import ACTIVE_LIKE, RUNG_IDS, CycleContext
+
+# Disjoint ownership from saturday skill Parallelization table
+WORKSTREAM_BY_RUNG = {
+    "r2-width-machinery": "R2",
+    "r5-cook-reckhow-bridge": "R5",
+}
 
 
 @dataclass
@@ -20,6 +30,58 @@ class ActionChoice:
     action_type: str
     target: str
     rationale: str
+    workstream: Optional[str] = None
+
+
+def workstream_for_rung(rung_id: str) -> Optional[str]:
+    """Return parallel workstream id when the rung has exclusive ownership."""
+    return WORKSTREAM_BY_RUNG.get(rung_id)
+
+
+def choose_action_for_rung(
+    ctx: CycleContext,
+    rung_id: str,
+    action_override: Optional[str] = None,
+    target_override: Optional[str] = None,
+) -> ActionChoice:
+    """Pick action for a specific rung (shared by serial and parallel choosers)."""
+    if rung_id not in ctx.rungs:
+        raise RuntimeError(f"Unknown rung: {rung_id}")
+    status = ctx.rungs[rung_id].status
+    print(f"[saturday.chooser] action_for_rung rung={rung_id} status={status}")
+
+    if action_override:
+        action = action_override
+        rationale = f"CLI action override on rung with status {status}"
+    elif status == "prose_accepted":
+        action = "formalize"
+        rationale = "Prose accepted gate passed; formalize is next"
+    elif status == "blocked":
+        action = "prove"
+        rationale = "Rung blocked; change approach with a new prove cycle"
+    elif _needs_falsify(ctx, rung_id):
+        action = "falsify"
+        rationale = "No recent falsify calibration recorded for this rung"
+    elif status == "active":
+        action = "prove"
+        rationale = "Active rung needs mathematical content in prose"
+    elif status == "proposed":
+        action = "prove"
+        rationale = "Proposed rung needs an adopt decision path via prove content"
+    else:
+        action = "audit"
+        rationale = "Default audit pass for hygiene and barriers"
+
+    target = target_override or _default_target(ctx, rung_id, action)
+    choice = ActionChoice(
+        rung=rung_id,
+        action_type=action,
+        target=target,
+        rationale=rationale,
+        workstream=workstream_for_rung(rung_id),
+    )
+    print(f"[saturday.chooser] choice={choice}")
+    return choice
 
 
 def choose_rung_and_action(
@@ -42,15 +104,9 @@ def choose_rung_and_action(
     )
 
     if rung_override and action_override:
-        target = target_override or _default_target(ctx, rung_override, action_override)
-        choice = ActionChoice(
-            rung=rung_override,
-            action_type=action_override,
-            target=target,
-            rationale="CLI override of rung and action",
+        return choose_action_for_rung(
+            ctx, rung_override, action_override, target_override
         )
-        print(f"[saturday.chooser] override choice={choice}")
-        return choice
 
     ordered = [rid for rid in RUNG_IDS if rid in ctx.rungs]
     candidates = [
@@ -59,7 +115,6 @@ def choose_rung_and_action(
         if ctx.rungs[rid].status in ACTIVE_LIKE
         or ctx.rungs[rid].status == "prose_accepted"
     ]
-    # Prefer true active and prose_accepted over blocked when both exist
     preferred = [
         rid
         for rid in candidates
@@ -67,7 +122,6 @@ def choose_rung_and_action(
     ]
     pool = preferred or candidates
     if not pool:
-        # Fall back to lowest non certified proposed rung
         pool = [
             rid
             for rid in ordered
@@ -77,44 +131,43 @@ def choose_rung_and_action(
         raise RuntimeError("No actionable rung found in ladder memories")
 
     rung_id = rung_override or pool[0]
-    status = ctx.rungs[rung_id].status
-    print(f"[saturday.chooser] selected rung={rung_id} status={status}")
+    return choose_action_for_rung(ctx, rung_id, action_override, target_override)
 
-    if action_override:
-        action = action_override
-        rationale = f"CLI action override on rung with status {status}"
-    elif status == "prose_accepted":
-        action = "formalize"
-        rationale = "Prose accepted gate passed; formalize is next"
-    elif status == "blocked":
-        action = "prove"
-        rationale = "Rung blocked; change approach with a new prove cycle"
-    elif _needs_falsify(ctx, rung_id):
-        action = "falsify"
-        rationale = "No recent falsify calibration recorded for this rung"
-    elif status == "active":
-        action = "prove"
-        rationale = "Active rung needs mathematical content in prose"
-    else:
-        action = "audit"
-        rationale = "Default audit pass for hygiene and barriers"
 
-    target = target_override or _default_target(ctx, rung_id, action)
-    choice = ActionChoice(
-        rung=rung_id,
-        action_type=action,
-        target=target,
-        rationale=rationale,
+def list_parallel_choices(ctx: CycleContext) -> List[ActionChoice]:
+    """
+    Disjoint next paths safe to run together (one cycle each).
+
+    Only rungs with an exclusive workstream id are included, at most one per
+    workstream. Typical split: R2 formalize plus R5 prove or formalize.
+    """
+    print("[saturday.chooser] list_parallel_choices")
+    ordered = [rid for rid in RUNG_IDS if rid in ctx.rungs]
+    actionable = [
+        rid
+        for rid in ordered
+        if ctx.rungs[rid].status in {"active", "prose_accepted", "blocked"}
+        and workstream_for_rung(rid) is not None
+    ]
+    seen_streams = set()
+    choices: List[ActionChoice] = []
+    for rid in actionable:
+        stream = workstream_for_rung(rid)
+        if stream in seen_streams:
+            continue
+        seen_streams.add(stream)
+        choices.append(choose_action_for_rung(ctx, rid))
+    print(
+        f"[saturday.chooser] parallel_paths={len(choices)} "
+        f"streams={[c.workstream for c in choices]}"
     )
-    print(f"[saturday.chooser] choice={choice}")
-    return choice
+    return choices
 
 
 def _needs_falsify(ctx: CycleContext, rung_id: str) -> bool:
     """True when rung memory has no falsify session log mention recently."""
     text = ctx.rungs[rung_id].text.lower()
     if "falsif" in text and "session log" in text.lower():
-        # Heuristic: if falsify appears in session log section, skip
         session_idx = text.rfind("session log")
         tail = text[session_idx:] if session_idx >= 0 else text
         if "falsif" in tail:
@@ -123,7 +176,6 @@ def _needs_falsify(ctx: CycleContext, rung_id: str) -> bool:
     last = ctx.last_session or {}
     if last.get("rung") == rung_id and last.get("action_type") == "falsify":
         return False
-    # Only auto falsify on early rungs with empirical families
     if rung_id in {"r1-php-haken", "r2-width-machinery"}:
         print(f"[saturday.chooser] falsify candidate for {rung_id}")
         return "falsif" not in text

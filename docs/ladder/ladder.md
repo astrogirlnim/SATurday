@@ -4,12 +4,14 @@ The single source of truth for what the program is climbing, in what order, and
 where each rung stands. One rung memory file per rung in docs/ladder/rungs/.
 Statuses: proposed | active | prose_accepted | certified | blocked | killed.
 
-CLI summary (completed rungs, suggested next cycle, summit readiness toward
-P vs NP):
+CLI summary (completed rungs, suggested next commands, parallel paths, summit
+readiness toward P vs NP):
 
 ```bash
 satday status
 satday status --json
+satday saturday --parallel
+satday loop --parallel --cycles 3 --sleep 90
 ```
 
 Update discipline: the saturday session is the only writer. Statuses change only

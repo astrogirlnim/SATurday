@@ -22,14 +22,20 @@ pip install -e .
 satday saturday --dry-run
 satday saturday --action prove --rung r5-cook-reckhow-bridge
 satday saturday --action falsify
+satday saturday --parallel
 satday status
 satday status --json
+satday loop --parallel --cycles 3 --sleep 90
 ```
 
 Config: `saturday_loop` in `infra/config/defaults.yaml`. Shared client:
 `search/llm/client.py`. Cursor skill remains valid for interactive sessions;
 the CLI is the privacy preserving default. Ollama must be serving before prove,
 formalize, or audit. `satday status` does not call an LLM.
+
+`--parallel` runs one cycle on each disjoint workstream (R2 and R5) in one wake.
+`satday loop` repeats wakes with sleep between; use `--cycles 0` (or config
+`loop_max_cycles: 0`) to run until Ctrl-C.
 
 ## Session Contract
 

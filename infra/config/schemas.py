@@ -111,6 +111,10 @@ class SaturdayLoopConfig(BaseModel):
     falsify_seed: int = Field(42, ge=0)
     draft_dir: str = "search/logs/saturday_drafts"
     sessions_path: str = "search/logs/saturday_sessions.jsonl"
+    # Local CLI loop defaults (satday loop); 0 cycles means run until interrupted
+    loop_sleep_seconds: int = Field(90, ge=0)
+    loop_max_cycles: int = Field(1, ge=0)
+    loop_parallel_default: bool = False
 
 
 class ConjecturerAgentConfig(BaseModel):

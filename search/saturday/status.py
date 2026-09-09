@@ -15,7 +15,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from search.saturday.chooser import choose_rung_and_action
+from search.saturday.chooser import (
+    ActionChoice,
+    choose_rung_and_action,
+    list_parallel_choices,
+)
 from search.saturday.context import RUNG_IDS, CycleContext, load_cycle_context
 
 RUNG_TITLES = {
@@ -27,7 +31,6 @@ RUNG_TITLES = {
     "r5-cook-reckhow-bridge": "R5 Cook Reckhow bridge",
 }
 
-# Main climb order (R5 is parallel after R1; listed last in RUNG_IDS already)
 MAIN_CLIMB = [
     "r0-resolution-foundations",
     "r1-php-haken",
@@ -68,6 +71,8 @@ class SaturdayStatus:
     certified: List[str]
     active_work: List[str]
     next_cycle: Dict[str, str]
+    parallel_paths: List[Dict[str, str]]
+    suggested_commands: List[str]
     summit: SummitReadiness
     last_session: Optional[Dict[str, Any]]
     recent_sessions: List[Dict[str, Any]]
@@ -130,6 +135,50 @@ def _summit_readiness(statuses: Dict[str, str]) -> SummitReadiness:
     )
 
 
+def _choice_dict(choice: ActionChoice) -> Dict[str, str]:
+    return {
+        "rung": choice.rung,
+        "action_type": choice.action_type,
+        "target": choice.target,
+        "rationale": choice.rationale,
+        "workstream": choice.workstream or "",
+    }
+
+
+def _command_for_choice(choice: ActionChoice) -> str:
+    return (
+        f"satday saturday --rung {choice.rung} --action {choice.action_type}"
+    )
+
+
+def _suggested_commands(
+    next_choice: ActionChoice,
+    parallel: List[ActionChoice],
+) -> List[str]:
+    """Concrete CLI commands for the operator."""
+    cmds: List[str] = [
+        "satday status",
+        _command_for_choice(next_choice),
+    ]
+    if len(parallel) >= 2:
+        cmds.append("satday saturday --parallel")
+        for choice in parallel:
+            cmds.append(_command_for_choice(choice))
+        cmds.append("satday loop --parallel --cycles 3 --sleep 90")
+    else:
+        cmds.append("satday loop --cycles 3 --sleep 90")
+    cmds.append("satday loop --parallel")
+    seen = set()
+    ordered: List[str] = []
+    for cmd in cmds:
+        if cmd in seen:
+            continue
+        seen.add(cmd)
+        ordered.append(cmd)
+    print(f"[saturday.status] suggested_commands={len(ordered)}")
+    return ordered
+
+
 def build_saturday_status(repo_root: Path) -> SaturdayStatus:
     """Assemble status from rung memories and session log."""
     repo_root = Path(repo_root)
@@ -170,12 +219,10 @@ def build_saturday_status(repo_root: Path) -> SaturdayStatus:
     ]
 
     choice = choose_rung_and_action(ctx)
-    next_cycle = {
-        "rung": choice.rung,
-        "action_type": choice.action_type,
-        "target": choice.target,
-        "rationale": choice.rationale,
-    }
+    parallel = list_parallel_choices(ctx)
+    next_cycle = _choice_dict(choice)
+    parallel_paths = [_choice_dict(c) for c in parallel]
+    suggested = _suggested_commands(choice, parallel)
 
     recent = _load_recent_sessions(repo_root, limit=5)
     last = recent[-1] if recent else ctx.last_session
@@ -187,6 +234,8 @@ def build_saturday_status(repo_root: Path) -> SaturdayStatus:
         certified=certified,
         active_work=active_work,
         next_cycle=next_cycle,
+        parallel_paths=parallel_paths,
+        suggested_commands=suggested,
         summit=summit,
         last_session=last,
         recent_sessions=recent,
@@ -202,6 +251,8 @@ def status_to_dict(status: SaturdayStatus) -> Dict[str, Any]:
         "certified": status.certified,
         "active_work": status.active_work,
         "next_cycle": status.next_cycle,
+        "parallel_paths": status.parallel_paths,
+        "suggested_commands": status.suggested_commands,
         "summit": asdict(status.summit),
         "last_session": status.last_session,
         "recent_sessions": status.recent_sessions,
