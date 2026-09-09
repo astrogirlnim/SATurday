@@ -3753,3 +3753,35 @@ technique most likely to survive upward, worth auditing for reuse at R3 and R4.
   `a ≤ 6m` hypothesis in `mgg_inv4_absorb_axis_budget_of_large`.
   gate_pending: merge_certified (Cluster 34 density decls).
   next: formalize off-band excess `≤ 2` (shear vs translation disjointness off band).
+
+- 2026-09-09 formalize (Cluster 35 off-band excess le 2): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r2-width-machinery",
+    "action_type": "formalize",
+    "target": "Cluster 35 off-band leaving excess le 2 and reverseLoss 4a+2o",
+    "rationale": "Heartbeat woke on dirty Cluster 35 WIP; certify off-band excess for Inv absorb."
+  }
+  ```
+  workstream: R2. gate_auto: true merge_certified (axiom gate PASS).
+  Edited `theory/Theory/ProofComplexity/MGG.lean` and acceptance list.
+  Left Bridge ProofSystem dirty untouched for R5.
+
+  Accepted:
+  - Off-band characterizations and shear family partition:
+    `not_mem_mggNearAxis_iff`, `mggShearSGens`, `mggShearTGens`,
+    `mggShearGens_eq_S_union_T`, `mggShearSGens_disjoint_T`.
+  - Shear vs translation disjointness off band (S, Sinv, T, Tinv) plus
+    S-family vs T-family image separation.
+  - `mggLeavingExcess_le_two_of_not_mem_nearAxis`,
+    `mggReverseCutLoss_le_four_near_two_off` (`reverseLoss ≤ 4a + 2o`).
+
+  Still Frontier sorry: `MGGFrontier.mggGraph_hasExpansionInv`.
+  Next: absorb packaging with `|nearAxis| ≤ 6m` and `4a+2o` into Inv-4, or
+  spectral Cheeger surface for HasExpansionInv.
+
+  Most important thing learned: off band, shears miss all translations and the
+  two shear families miss each other, so leaving excess collapses to at most
+  one collision per shear family (budget 2).
+  gate_pending: merge_certified (Cluster 35).

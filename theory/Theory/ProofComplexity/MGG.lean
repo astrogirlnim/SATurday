@@ -1850,6 +1850,445 @@ theorem mggNearAxis_card_le {m : ℕ} (hm : 0 < m) :
       Nat.add_le_add (mggNearAxisRows_card_le hm) (mggNearAxisCols_card_le hm)
     _ = 6 * m := by ring
 
+/-! ## Cluster 35: off-band excess ≤ 2
+
+Uniform off-axis excess ≤ 2 fails at encode`(1,1)` (near-axis). Off the
+near-axis band, shear images miss all translations; remaining collisions are
+only within `{S,S⁻¹}` and `{T,T⁻¹}`, so leaving excess is at most 2. -/
+
+/-- Off near-axis means both torus coordinates avoid `{0, 1, m-1}`. -/
+theorem not_mem_mggNearAxis_iff {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    v ∉ mggNearAxis m hm ↔
+      letI : NeZero m := mggNeZero hm
+      let p := mggDecode hm v
+      1 < p.1.val ∧ p.1.val + 1 < m ∧ 1 < p.2.val ∧ p.2.val + 1 < m := by
+  letI : NeZero m := mggNeZero hm
+  constructor
+  · intro hv
+    have h := (mem_mggNearAxis_iff hm v).not.mp hv
+    simp only [not_or] at h
+    exact ⟨Nat.lt_of_not_ge h.1, Nat.lt_of_not_ge h.2.1,
+      Nat.lt_of_not_ge h.2.2.1, Nat.lt_of_not_ge h.2.2.2⟩
+  · intro ⟨hx1, hx2, hy1, hy2⟩ hv
+    have h := (mem_mggNearAxis_iff hm v).mp hv
+    rcases h with h | h | h | h
+    · exact absurd h (not_le_of_gt hx1)
+    · exact absurd h (not_le_of_gt hx2)
+    · exact absurd h (not_le_of_gt hy1)
+    · exact absurd h (not_le_of_gt hy2)
+
+/-- `S` shear family and `T` shear family (at most one collision each). -/
+def mggShearSGens : Finset (Fin 8) := {mggS, mggSinv}
+def mggShearTGens : Finset (Fin 8) := {mggT, mggTinv}
+
+theorem mggShearGens_eq_S_union_T :
+    mggShearGens = mggShearSGens ∪ mggShearTGens := by
+  decide
+
+theorem mggShearSGens_disjoint_T :
+    Disjoint mggShearSGens mggShearTGens := by
+  decide
+
+private theorem mgg_fin_ne_one_of {m : ℕ} [NeZero m] {x : Fin m}
+    (hx : 1 < x.val) : x ≠ 1 := by
+  intro h
+  have hm1 : 1 < m := by omega
+  have hval : x.val = 1 := by
+    simpa [Fin.val_one, Nat.mod_eq_of_lt hm1] using congrArg Fin.val h
+  omega
+
+private theorem mgg_fin_ne_neg_one_of {m : ℕ} [NeZero m] {x : Fin m}
+    (hx : x.val + 1 < m) : x ≠ (-1 : Fin m) := by
+  intro h
+  have hm1 : 1 < m := by omega
+  obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (NeZero.ne m)
+  have : x.val = n := by
+    simpa [Fin.coe_neg_one] using congrArg Fin.val h
+  omega
+
+private theorem mgg_fin_add_right_eq_add_one {m : ℕ} [NeZero m] {x y : Fin m}
+    (h : x + y = y + 1) : x = 1 :=
+  add_right_cancel (h.trans (add_comm y 1))
+
+private theorem mgg_fin_add_right_eq_sub_one {m : ℕ} [NeZero m] {x y : Fin m}
+    (h : x + y = y - 1) : x = (-1 : Fin m) := by
+  have h' : x + y = (-1) + y :=
+    (h.trans (sub_eq_add_neg y 1)).trans (add_comm y (-1))
+  exact add_right_cancel h'
+
+private theorem mgg_fin_add_left_eq_add_one {m : ℕ} [NeZero m] {x y : Fin m}
+    (h : x + y = x + 1) : y = 1 :=
+  add_left_cancel h
+
+private theorem mgg_fin_add_left_eq_sub_one {m : ℕ} [NeZero m] {x y : Fin m}
+    (h : x + y = x - 1) : y = (-1 : Fin m) := by
+  have h' : x + y = x + (-1) := by rwa [sub_eq_add_neg] at h
+  exact add_left_cancel h'
+
+private theorem mgg_fin_sub_right_eq_add_one {m : ℕ} [NeZero m] {x y : Fin m}
+    (h : y - x = y + 1) : x = (-1 : Fin m) := by
+  have h' : y + -x = y + 1 := by simpa [sub_eq_add_neg] using h
+  have : -x = 1 := add_left_cancel h'
+  simpa using congrArg (fun z : Fin m => -z) this
+
+private theorem mgg_fin_sub_right_eq_sub_one {m : ℕ} [NeZero m] {x y : Fin m}
+    (h : y - x = y - 1) : x = 1 := by
+  have h' : y + -x = y + -1 := by simpa [sub_eq_add_neg] using h
+  have : -x = -1 := add_left_cancel h'
+  simpa using congrArg (fun z : Fin m => -z) this
+
+private theorem mgg_fin_eq_sub_self_imp_zero {m : ℕ} [NeZero m] {x y : Fin m}
+    (h : x = x - y) : y = 0 := by
+  have h' : x = x + -y := by simpa [sub_eq_add_neg] using h
+  have : x + -y = x := h'.symm
+  have : -y = 0 := add_eq_left.mp this
+  exact neg_eq_zero.mp this
+
+private theorem mgg_offBand {m : ℕ} (hm : 0 < m) {v : Fin (m * m)}
+    (hv : v ∉ mggNearAxis m hm) :
+    letI : NeZero m := mggNeZero hm
+    let p := mggDecode hm v
+    1 < p.1.val ∧ p.1.val + 1 < m ∧ 1 < p.2.val ∧ p.2.val + 1 < m :=
+  (not_mem_mggNearAxis_iff hm v).mp hv
+
+/-- Off band, `S` misses every translation neighbor. -/
+theorem mggNeighbor_S_ne_translation_of_not_mem_nearAxis {m : ℕ} (hm : 0 < m)
+    (v : Fin (m * m)) (hv : v ∉ mggNearAxis m hm) {t : Fin 8}
+    (ht : t ∈ mggTranslationGens) :
+    mggNeighbor hm v mggS ≠ mggNeighbor hm v t := by
+  letI : NeZero m := mggNeZero hm
+  have ⟨hx1, hx2, hy1, hy2⟩ := mgg_offBand hm hv
+  have ht' := (mem_mggTranslationGens_iff t).mp ht
+  intro heq
+  rcases ht' with hR | hL | hU | hD
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_S_eq hm v) (mggNeighbor_right_eq hm v) heq
+    exact Fin.add_one_ne_of_one_lt (by omega) (mggDecode hm v).1
+      (Prod.ext_iff.mp hpq).1.symm
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_S_eq hm v) (mggNeighbor_left_eq hm v) heq
+    exact Fin.sub_one_ne_of_one_lt (by omega) (mggDecode hm v).1
+      (Prod.ext_iff.mp hpq).1.symm
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_S_eq hm v) (mggNeighbor_up_eq hm v) heq
+    exact mgg_fin_ne_one_of hx1
+      (mgg_fin_add_right_eq_add_one (Prod.ext_iff.mp hpq).2)
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_S_eq hm v) (mggNeighbor_down_eq hm v) heq
+    exact mgg_fin_ne_neg_one_of hx2
+      (mgg_fin_add_right_eq_sub_one (Prod.ext_iff.mp hpq).2)
+
+/-- Off band, `S⁻¹` misses every translation neighbor. -/
+theorem mggNeighbor_Sinv_ne_translation_of_not_mem_nearAxis {m : ℕ} (hm : 0 < m)
+    (v : Fin (m * m)) (hv : v ∉ mggNearAxis m hm) {t : Fin 8}
+    (ht : t ∈ mggTranslationGens) :
+    mggNeighbor hm v mggSinv ≠ mggNeighbor hm v t := by
+  letI : NeZero m := mggNeZero hm
+  have ⟨hx1, hx2, hy1, hy2⟩ := mgg_offBand hm hv
+  have ht' := (mem_mggTranslationGens_iff t).mp ht
+  intro heq
+  rcases ht' with hR | hL | hU | hD
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_Sinv_eq hm v) (mggNeighbor_right_eq hm v) heq
+    exact Fin.add_one_ne_of_one_lt (by omega) (mggDecode hm v).1
+      (Prod.ext_iff.mp hpq).1.symm
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_Sinv_eq hm v) (mggNeighbor_left_eq hm v) heq
+    exact Fin.sub_one_ne_of_one_lt (by omega) (mggDecode hm v).1
+      (Prod.ext_iff.mp hpq).1.symm
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_Sinv_eq hm v) (mggNeighbor_up_eq hm v) heq
+    exact mgg_fin_ne_neg_one_of hx2
+      (mgg_fin_sub_right_eq_add_one (Prod.ext_iff.mp hpq).2)
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_Sinv_eq hm v) (mggNeighbor_down_eq hm v) heq
+    exact mgg_fin_ne_one_of hx1
+      (mgg_fin_sub_right_eq_sub_one (Prod.ext_iff.mp hpq).2)
+
+/-- Off band, `T` misses every translation neighbor. -/
+theorem mggNeighbor_T_ne_translation_of_not_mem_nearAxis {m : ℕ} (hm : 0 < m)
+    (v : Fin (m * m)) (hv : v ∉ mggNearAxis m hm) {t : Fin 8}
+    (ht : t ∈ mggTranslationGens) :
+    mggNeighbor hm v mggT ≠ mggNeighbor hm v t := by
+  letI : NeZero m := mggNeZero hm
+  have ⟨hx1, hx2, hy1, hy2⟩ := mgg_offBand hm hv
+  have ht' := (mem_mggTranslationGens_iff t).mp ht
+  intro heq
+  rcases ht' with hR | hL | hU | hD
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_T_eq hm v) (mggNeighbor_right_eq hm v) heq
+    exact mgg_fin_ne_one_of hy1
+      (mgg_fin_add_left_eq_add_one (Prod.ext_iff.mp hpq).1)
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_T_eq hm v) (mggNeighbor_left_eq hm v) heq
+    exact mgg_fin_ne_neg_one_of hy2
+      (mgg_fin_add_left_eq_sub_one (Prod.ext_iff.mp hpq).1)
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_T_eq hm v) (mggNeighbor_up_eq hm v) heq
+    exact Fin.add_one_ne_of_one_lt (by omega) (mggDecode hm v).2
+      (Prod.ext_iff.mp hpq).2.symm
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_T_eq hm v) (mggNeighbor_down_eq hm v) heq
+    exact Fin.sub_one_ne_of_one_lt (by omega) (mggDecode hm v).2
+      (Prod.ext_iff.mp hpq).2.symm
+
+/-- Off band, `T⁻¹` misses every translation neighbor. -/
+theorem mggNeighbor_Tinv_ne_translation_of_not_mem_nearAxis {m : ℕ} (hm : 0 < m)
+    (v : Fin (m * m)) (hv : v ∉ mggNearAxis m hm) {t : Fin 8}
+    (ht : t ∈ mggTranslationGens) :
+    mggNeighbor hm v mggTinv ≠ mggNeighbor hm v t := by
+  letI : NeZero m := mggNeZero hm
+  have ⟨hx1, hx2, hy1, hy2⟩ := mgg_offBand hm hv
+  have ht' := (mem_mggTranslationGens_iff t).mp ht
+  intro heq
+  rcases ht' with hR | hL | hU | hD
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_Tinv_eq hm v) (mggNeighbor_right_eq hm v) heq
+    have h1 := (Prod.ext_iff.mp hpq).1
+    have h1' : (mggDecode hm v).1 + -((mggDecode hm v).2) =
+        (mggDecode hm v).1 + 1 := by
+      simpa [sub_eq_add_neg] using h1
+    have : -((mggDecode hm v).2) = 1 := add_left_cancel h1'
+    have hy : (mggDecode hm v).2 = (-1 : Fin m) := by
+      simpa using congrArg (fun z : Fin m => -z) this
+    exact mgg_fin_ne_neg_one_of hy2 hy
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_Tinv_eq hm v) (mggNeighbor_left_eq hm v) heq
+    have h1 := (Prod.ext_iff.mp hpq).1
+    have h1' : (mggDecode hm v).1 + -((mggDecode hm v).2) =
+        (mggDecode hm v).1 + -1 := by
+      simpa [sub_eq_add_neg] using h1
+    have : -((mggDecode hm v).2) = -1 := add_left_cancel h1'
+    have hy : (mggDecode hm v).2 = 1 := by
+      simpa using congrArg (fun z : Fin m => -z) this
+    exact mgg_fin_ne_one_of hy1 hy
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_Tinv_eq hm v) (mggNeighbor_up_eq hm v) heq
+    exact Fin.add_one_ne_of_one_lt (by omega) (mggDecode hm v).2
+      (Prod.ext_iff.mp hpq).2.symm
+  · subst t
+    have hpq := mgg_decode_neighbor_eq hm v
+      (mggNeighbor_Tinv_eq hm v) (mggNeighbor_down_eq hm v) heq
+    exact Fin.sub_one_ne_of_one_lt (by omega) (mggDecode hm v).2
+      (Prod.ext_iff.mp hpq).2.symm
+
+/-- Off band, every shear neighbor misses every translation neighbor. -/
+theorem mggNeighbor_shear_ne_translation_of_not_mem_nearAxis {m : ℕ} (hm : 0 < m)
+    (v : Fin (m * m)) (hv : v ∉ mggNearAxis m hm) {s t : Fin 8}
+    (hs : s ∈ mggShearGens) (ht : t ∈ mggTranslationGens) :
+    mggNeighbor hm v s ≠ mggNeighbor hm v t := by
+  have hs' : s = mggS ∨ s = mggSinv ∨ s = mggT ∨ s = mggTinv := by
+    simpa [mggShearGens, mem_insert, mem_singleton] using hs
+  rcases hs' with hs | hs | hs | hs <;> subst s
+  · exact mggNeighbor_S_ne_translation_of_not_mem_nearAxis hm v hv ht
+  · exact mggNeighbor_Sinv_ne_translation_of_not_mem_nearAxis hm v hv ht
+  · exact mggNeighbor_T_ne_translation_of_not_mem_nearAxis hm v hv ht
+  · exact mggNeighbor_Tinv_ne_translation_of_not_mem_nearAxis hm v hv ht
+
+/-- Off band, `S`-family images miss `T`-family images. -/
+theorem mggNeighbor_S_family_ne_T_family_of_not_mem_nearAxis {m : ℕ} (hm : 0 < m)
+    (v : Fin (m * m)) (hv : v ∉ mggNearAxis m hm) {s t : Fin 8}
+    (hs : s ∈ mggShearSGens) (ht : t ∈ mggShearTGens) :
+    mggNeighbor hm v s ≠ mggNeighbor hm v t := by
+  letI : NeZero m := mggNeZero hm
+  have ⟨hx1, hx2, hy1, hy2⟩ := mgg_offBand hm hv
+  have hs' : s = mggS ∨ s = mggSinv := by
+    simpa [mggShearSGens, mem_insert, mem_singleton] using hs
+  have ht' : t = mggT ∨ t = mggTinv := by
+    simpa [mggShearTGens, mem_insert, mem_singleton] using ht
+  intro heq
+  have hy0 : (mggDecode hm v).2 = 0 := by
+    rcases hs' with hs | hs <;> rcases ht' with ht | ht <;> subst s <;> subst t
+    · have hpq := mgg_decode_neighbor_eq hm v
+        (mggNeighbor_S_eq hm v) (mggNeighbor_T_eq hm v) heq
+      exact add_eq_left.mp (Prod.ext_iff.mp hpq).1.symm
+    · have hpq := mgg_decode_neighbor_eq hm v
+        (mggNeighbor_S_eq hm v) (mggNeighbor_Tinv_eq hm v) heq
+      exact mgg_fin_eq_sub_self_imp_zero (Prod.ext_iff.mp hpq).1
+    · have hpq := mgg_decode_neighbor_eq hm v
+        (mggNeighbor_Sinv_eq hm v) (mggNeighbor_T_eq hm v) heq
+      exact add_eq_left.mp (Prod.ext_iff.mp hpq).1.symm
+    · have hpq := mgg_decode_neighbor_eq hm v
+        (mggNeighbor_Sinv_eq hm v) (mggNeighbor_Tinv_eq hm v) heq
+      exact mgg_fin_eq_sub_self_imp_zero (Prod.ext_iff.mp hpq).1
+  have : (mggDecode hm v).2.val = 0 := congrArg Fin.val hy0
+  omega
+
+private theorem mgg_card_sub_image_le_one {α β : Type*} [DecidableEq β]
+    (s : Finset α) (f : α → β) (hc : s.card ≤ 2) :
+    s.card - (s.image f).card ≤ 1 := by
+  classical
+  have hi := card_image_le (f := f) (s := s)
+  by_cases hne : s.Nonempty
+  · have himg : 0 < (s.image f).card := card_pos.mpr (hne.image _)
+    omega
+  · have : s.card = 0 := card_eq_zero.mpr (not_nonempty_iff_eq_empty.mp hne)
+    omega
+
+/-- Off band, leaving excess is at most 2 (Inv absorb `2o` term). -/
+theorem mggLeavingExcess_le_two_of_not_mem_nearAxis {m : ℕ} (hm : 3 ≤ m)
+    (S : Finset (Fin (m * m))) (v : Fin (m * m))
+    (hv : v ∉ mggNearAxis m (lt_of_lt_of_le (by decide : 0 < 3) hm)) :
+    mggLeavingExcess (lt_of_lt_of_le (by decide : 0 < 3) hm) S v ≤ 2 := by
+  classical
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  set L := mggLeavingGens hm0 S v with hLdef
+  set T := mggTranslationGens ∩ L with hTdef
+  set Sh := mggShearGens ∩ L with hShdef
+  set ShS := mggShearSGens ∩ L with hShSdef
+  set ShT := mggShearTGens ∩ L with hShTdef
+  have hSh : Sh = L \ mggTranslationGens := by
+    ext s
+    constructor
+    · intro hs
+      refine mem_sdiff.mpr ⟨(mem_inter.mp hs).2, ?_⟩
+      intro hT
+      have hdisj : Disjoint mggShearGens mggTranslationGens := by decide
+      exact Finset.disjoint_left.1 hdisj (mem_inter.mp hs).1 hT
+    · intro hs
+      have hUT : (univ : Finset (Fin 8)) \ mggTranslationGens = mggShearGens := by
+        decide
+      refine mem_inter.mpr ⟨?_, (mem_sdiff.mp hs).1⟩
+      have : s ∈ (univ : Finset (Fin 8)) \ mggTranslationGens :=
+        mem_sdiff.mpr ⟨mem_univ s, (mem_sdiff.mp hs).2⟩
+      simpa [hUT] using this
+  have hLsplit : L.card = T.card + Sh.card := by
+    have : L.card = T.card + (L \ mggTranslationGens).card := by
+      rw [← card_inter_add_card_sdiff L mggTranslationGens, inter_comm]
+    simpa [hSh] using this
+  have hSh' : Sh = ShS ∪ ShT := by
+    calc
+      Sh = mggShearGens ∩ L := rfl
+      _ = (mggShearSGens ∪ mggShearTGens) ∩ L := by rw [mggShearGens_eq_S_union_T]
+      _ = (mggShearSGens ∩ L) ∪ (mggShearTGens ∩ L) := by
+          rw [union_inter_distrib_right]
+      _ = ShS ∪ ShT := rfl
+  have hdisjST : Disjoint ShS ShT :=
+    Disjoint.mono inter_subset_left inter_subset_left mggShearSGens_disjoint_T
+  have hShsplit : Sh.card = ShS.card + ShT.card := by
+    rw [hSh', card_union_of_disjoint hdisjST]
+  have hShex : Sh.card - (Sh.image (mggNeighbor hm0 v)).card ≤ 2 := by
+    have hunion : Sh.image (mggNeighbor hm0 v) =
+        ShS.image (mggNeighbor hm0 v) ∪ ShT.image (mggNeighbor hm0 v) := by
+      rw [hSh', image_union]
+    have hdisj :
+        Disjoint (ShS.image (mggNeighbor hm0 v))
+          (ShT.image (mggNeighbor hm0 v)) := by
+      refine disjoint_left.2 ?_
+      intro w hwS hwT
+      obtain ⟨s, hsS, rfl⟩ := mem_image.mp hwS
+      obtain ⟨t, htT, hwt⟩ := mem_image.mp hwT
+      exact mggNeighbor_S_family_ne_T_family_of_not_mem_nearAxis hm0 v hv
+        (mem_inter.mp hsS).1 (mem_inter.mp htT).1 hwt.symm
+    have hSimg :
+        (Sh.image (mggNeighbor hm0 v)).card =
+          (ShS.image (mggNeighbor hm0 v)).card +
+            (ShT.image (mggNeighbor hm0 v)).card := by
+      rw [hunion, card_union_of_disjoint hdisj]
+    have hSle :=
+      mgg_card_sub_image_le_one ShS (mggNeighbor hm0 v)
+        ((card_le_card inter_subset_left).trans
+          (by decide : mggShearSGens.card ≤ 2))
+    have hTle' :=
+      mgg_card_sub_image_le_one ShT (mggNeighbor hm0 v)
+        ((card_le_card inter_subset_left).trans
+          (by decide : mggShearTGens.card ≤ 2))
+    omega
+  have hdisjTS :
+      Disjoint (T.image (mggNeighbor hm0 v)) (Sh.image (mggNeighbor hm0 v)) := by
+    refine disjoint_left.2 ?_
+    intro w hwT hwSh
+    obtain ⟨t, htT, rfl⟩ := mem_image.mp hwT
+    obtain ⟨s, hsSh, hws⟩ := mem_image.mp hwSh
+    exact mggNeighbor_shear_ne_translation_of_not_mem_nearAxis hm0 v hv
+      (mem_inter.mp hsSh).1 (mem_inter.mp htT).1 hws
+  have himgL :
+      T.card + (Sh.image (mggNeighbor hm0 v)).card ≤
+        (mggOutNeighbors hm0 S v).card := by
+    have hsub :
+        T.image (mggNeighbor hm0 v) ∪ Sh.image (mggNeighbor hm0 v) ⊆
+          mggOutNeighbors hm0 S v := by
+      intro w hw
+      rcases mem_union.mp hw with hw | hw
+      · obtain ⟨s, hsT, rfl⟩ := mem_image.mp hw
+        exact mem_image.mpr ⟨s, (mem_inter.mp hsT).2, rfl⟩
+      · obtain ⟨s, hsSh, rfl⟩ := mem_image.mp hw
+        exact mem_image.mpr ⟨s, (mem_inter.mp hsSh).2, rfl⟩
+    have hcard :
+        (T.image (mggNeighbor hm0 v) ∪ Sh.image (mggNeighbor hm0 v)).card =
+          (T.image (mggNeighbor hm0 v)).card +
+            (Sh.image (mggNeighbor hm0 v)).card :=
+      card_union_of_disjoint hdisjTS
+    have hinj : Set.InjOn (mggNeighbor hm0 v) (T : Set (Fin 8)) :=
+      (mggNeighbor_translation_injOn hm v).mono fun s hs => (mem_inter.mp hs).1
+    have hTcard : (T.image (mggNeighbor hm0 v)).card = T.card :=
+      card_image_of_injOn hinj
+    have := card_le_card hsub
+    omega
+  have : L.card - (mggOutNeighbors hm0 S v).card ≤ 2 := by
+    have h1 : L.card - (mggOutNeighbors hm0 S v).card ≤
+        L.card - (T.card + (Sh.image (mggNeighbor hm0 v)).card) :=
+      Nat.sub_le_sub_left himgL _
+    have h2 : L.card - (T.card + (Sh.image (mggNeighbor hm0 v)).card) =
+        Sh.card - (Sh.image (mggNeighbor hm0 v)).card := by
+      omega
+    calc
+      L.card - (mggOutNeighbors hm0 S v).card
+          ≤ L.card - (T.card + (Sh.image (mggNeighbor hm0 v)).card) := h1
+      _ = Sh.card - (Sh.image (mggNeighbor hm0 v)).card := h2
+      _ ≤ 2 := hShex
+  simpa [mggLeavingExcess, L] using this
+
+/-- Reverse loss ≤ `4|S ∩ nearAxis| + 2|S \ nearAxis|`. -/
+theorem mggReverseCutLoss_le_four_near_two_off {m : ℕ} (hm : 3 ≤ m)
+    (S : Finset (Fin (m * m))) :
+    mggReverseCutLoss (lt_of_lt_of_le (by decide : 0 < 3) hm) S ≤
+      4 * (S ∩ mggNearAxis m (lt_of_lt_of_le (by decide : 0 < 3) hm)).card +
+        2 * (S \ mggNearAxis m (lt_of_lt_of_le (by decide : 0 < 3) hm)).card := by
+  classical
+  have hm0 : 0 < m := lt_of_lt_of_le (by decide : 0 < 3) hm
+  let near := mggNearAxis m hm0
+  have hterm :
+      (∑ v ∈ S, mggLeavingExcess hm0 S v) ≤
+        ∑ v ∈ S, (if v ∈ near then (4 : ℕ) else 2) := by
+    refine Finset.sum_le_sum fun v _ => ?_
+    by_cases hv : v ∈ near
+    · simpa [hv] using mggLeavingExcess_le_four hm S v
+    · simpa [hv] using mggLeavingExcess_le_two_of_not_mem_nearAxis hm S v hv
+  have hsplit :
+      (∑ v ∈ S, (if v ∈ near then (4 : ℕ) else 2)) =
+        4 * (S ∩ near).card + 2 * (S \ near).card := by
+    have hite :=
+      (Finset.sum_ite (s := S) (p := fun v => v ∈ near)
+        (f := fun _ => (4 : ℕ)) (g := fun _ => (2 : ℕ)))
+    have hfilter : S.filter (fun v => v ∉ near) = S \ near := by
+      ext x; simp [mem_filter, mem_sdiff]
+    have hnearF : S.filter (fun v => v ∈ near) = S ∩ near := filter_mem_eq_inter
+    calc
+      (∑ v ∈ S, (if v ∈ near then (4 : ℕ) else 2))
+          = (∑ v ∈ S.filter (fun v => v ∈ near), 4) +
+              ∑ v ∈ S.filter (fun v => v ∉ near), 2 := hite
+      _ = (∑ v ∈ S ∩ near, 4) + ∑ v ∈ S \ near, 2 := by
+            simp [hnearF, hfilter]
+      _ = 4 * (S ∩ near).card + 2 * (S \ near).card := by
+            simp [sum_const, nsmul_eq_mul, Nat.mul_comm]
+  exact (by simpa [mggReverseCutLoss, near] using hterm.trans (le_of_eq hsplit))
+
 namespace MGGFrontier
 
 /-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/
