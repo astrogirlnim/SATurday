@@ -618,76 +618,36 @@ conjecture_id={conjecture_id}"""
         temperature: float = 0.1,
     ) -> str:
         """
-        Call Ollama REST API to generate a completion.
-
-        V11: num_predict and temperature are now parameters.
-        mathstral:7b uses num_predict=8192, temperature=0.1.
-        deepseek-r1:1.5b / llama3.2:1b use num_predict=4096, temperature=0.2.
-
-        Uses /api/generate endpoint with stream=false.
+        Call local Ollama via shared LocalLLMClient.
 
         Args:
             endpoint:    Ollama base URL
-            model:       Model name
+            model:       Ollama model name
             prompt:      Input prompt
             num_predict: Max tokens to generate
             temperature: Sampling temperature
 
         Returns:
             Response text from the model
-
-        Raises:
-            Exception on network or HTTP error
         """
-        import urllib.request
-        import urllib.error
+        from search.llm.client import LLMRequest, LocalLLMClient
 
-        url = f"{endpoint}/api/generate"
-        payload = json.dumps({
-            "model": model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": temperature,
-                # V11: token budget is configurable; mathstral needs more than 4096
-                # for a complete Lean proof with imports, namespace, and tactics.
-                "num_predict": num_predict,
-            },
-        }).encode("utf-8")
-
-        print(f"[ConjecturerAgent] POST {url} model={model}")
-        start_time = time.time()
-
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
+        print(
+            f"[ConjecturerAgent] local LLM model={model} endpoint={endpoint} "
+            f"num_predict={num_predict} temperature={temperature}"
         )
-
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            raw = resp.read().decode("utf-8")
-
-        elapsed = time.time() - start_time
-        print(f"[ConjecturerAgent] Ollama response received in {elapsed:.1f}s ({len(raw)} bytes)")
-
-        data = json.loads(raw)
-
-        # DeepSeek-R1 models output chain-of-thought in "thinking" and the final answer
-        # in "response". If "response" is empty, fall back to "thinking" content.
-        response_text = data.get("response", "")
-        thinking_text = data.get("thinking", "")
-        done_reason   = data.get("done_reason", "unknown")
-
-        print(f"[ConjecturerAgent] done_reason={done_reason}, response={len(response_text)} chars, thinking={len(thinking_text)} chars")
-
-        if not response_text and thinking_text:
-            # Model used all tokens in thinking; extract structured blocks from thinking
-            print(f"[ConjecturerAgent] Response empty, using thinking field ({len(thinking_text)} chars)")
-            response_text = thinking_text
-
-        print(f"[ConjecturerAgent] LLM effective response length: {len(response_text)} chars")
-        return response_text
+        client = LocalLLMClient(endpoint=endpoint, api_style="ollama", timeout_seconds=120)
+        resp = client.generate(
+            LLMRequest(
+                model=model,
+                prompt=prompt,
+                temperature=temperature,
+                num_predict=num_predict,
+                api_style="ollama",
+            )
+        )
+        print(f"[ConjecturerAgent] LLM effective response length: {len(resp.text)} chars")
+        return resp.text
 
     # ------------------------------------------------------------------
     # V10: Non-Relativizing Tweak Proposal (Oracle Feedback Loop)

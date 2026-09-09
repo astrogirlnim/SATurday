@@ -350,9 +350,6 @@ class FormalizerAgent(AgentBase):
         Returns:
             True if sorry was successfully closed, False otherwise
         """
-        import urllib.request
-        import urllib.error
-        import json
         import time
 
         lean_file = self.project_root / lean_file if not str(lean_file).startswith("/") else lean_file
@@ -471,17 +468,6 @@ The output must start with "import" and end with the closing "end" line.
 CURRENT FILE TO FIX:
 {original_content}"""
 
-        url = f"{endpoint}/api/generate"
-        payload_dict = {
-            "model": model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": temperature,
-                "num_predict": num_predict,
-            },
-        }
-
         for attempt in range(1, max_attempts + 1):
             context.log(self.name, f"[V14] Attempt {attempt}/{max_attempts} for {lean_file.name}")
             print(f"LOG [FormalizerAgent V14]: Calling {model} to close sorry in {lean_file.name} "
@@ -489,18 +475,24 @@ CURRENT FILE TO FIX:
             start = time.time()
 
             try:
-                req = urllib.request.Request(
-                    url,
-                    data=json.dumps(payload_dict).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, timeout=180) as resp:
-                    raw = resp.read().decode("utf-8")
+                from search.llm.client import LLMRequest, LocalLLMClient
 
+                client = LocalLLMClient(
+                    endpoint=endpoint,
+                    api_style="ollama",
+                    timeout_seconds=180,
+                )
+                llm_resp = client.generate(
+                    LLMRequest(
+                        model=model,
+                        prompt=prompt,
+                        temperature=temperature,
+                        num_predict=num_predict,
+                        api_style="ollama",
+                    )
+                )
                 elapsed = time.time() - start
-                data = json.loads(raw)
-                response_text = data.get("response", "") or data.get("thinking", "")
+                response_text = llm_resp.text
                 print(f"LOG [FormalizerAgent V14]: LLM responded in {elapsed:.1f}s "
                       f"({len(response_text)} chars)", file=sys.stderr)
 

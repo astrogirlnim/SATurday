@@ -2,7 +2,8 @@
 SATurday CLI - Unified command-line interface for agent-driven research.
 
 Commands:
-- mine: Run full research cycle
+- saturday: One local research cycle (CLI + localhost LLMs; canonical offline loop)
+- mine: Run legacy full research cycle
 - bench: Benchmark deterministic harness
 - check-proofs: Replay LRAT verification
 - verify: Build Lean project
@@ -36,6 +37,51 @@ app = typer.Typer(
 
 # Initialize Rich console for pretty output
 console = Console()
+
+
+@app.command("saturday")
+def saturday_cmd(
+    rung: Optional[str] = typer.Option(None, "--rung", "-r", help="Rung id override"),
+    action: Optional[str] = typer.Option(
+        None,
+        "--action",
+        "-a",
+        help="Action override: prove|formalize|falsify|audit",
+    ),
+    target: Optional[str] = typer.Option(None, "--target", "-t", help="Target override"),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Choose rung/action only; no LLM"),
+):
+    """
+    Run exactly one local saturday cycle against the proof complexity ladder.
+
+    Uses localhost models from saturday_loop config (Ollama or OpenAI compatible).
+    Falsify never calls an LLM. Formalize writes Lean drafts under
+    search/logs/saturday_drafts/ and does not auto merge into theory/.
+
+    Examples:
+        satday saturday --dry-run
+        satday saturday --action prove --rung r5-cook-reckhow-bridge
+        satday saturday --action falsify
+    """
+    console.print("[bold blue]SATurday local cycle[/bold blue]")
+    console.print(f"dry_run={dry_run} rung={rung} action={action}")
+    try:
+        from search.saturday.cycle import run_saturday_cycle
+
+        record = run_saturday_cycle(
+            repo_root=repo_root,
+            config_file=config,
+            rung=rung,
+            action=action,
+            target=target,
+            dry_run=dry_run,
+        )
+        console.print_json(data=record)
+        console.print("[bold green]Cycle complete[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
+        raise typer.Exit(code=1)
 
 
 @app.command()

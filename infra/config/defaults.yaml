@@ -56,12 +56,11 @@ agents:
     # Options: "template", "llm" (llm requires local model)
     template_depth: 3
     # Maximum depth for template generation
-    # V11: LLM configuration (mathstral:7b is default math-capable model)
+    # Legacy mine pipeline LLM (disabled). Prefer saturday_loop for research.
     llm:
       enabled: false
       # Set to true to activate LLM conjecture path. Requires Ollama running.
-      model: "mathstral:7b"
-      # V11: mathstral:7b pulls from ollama (4.1GB). Fallback: deepseek-r1:1.5b
+      model: "qwen2.5-coder:14b"
       endpoint: "http://localhost:11434"
       num_predict: 8192
       temperature: 0.1
@@ -180,4 +179,31 @@ cost:
   # Block all API calls
   allowed_domains: []
   # No external domains allowed
+
+# Local saturday research loop (CLI + localhost models; option A)
+saturday_loop:
+  enabled: true
+  endpoint: "http://localhost:11434"
+  api_style: "ollama"
+  timeout_seconds: 600
+  require_local: true
+  prove:
+    model: "qwen2.5:14b"
+    num_predict: 8192
+    temperature: 0.2
+  formalize:
+    # Prefer Goedel-Prover-V2-8B behind an OpenAI compatible local server when available
+    model: "qwen2.5-coder:14b"
+    num_predict: 8192
+    temperature: 0.1
+  audit:
+    model: "qwen2.5:14b"
+    num_predict: 4096
+    temperature: 0.1
+  falsify_family: "php"
+  falsify_n_min: 4
+  falsify_n_max: 10
+  falsify_seed: 42
+  draft_dir: "search/logs/saturday_drafts"
+  sessions_path: "search/logs/saturday_sessions.jsonl"
 

@@ -53,24 +53,39 @@ archive/   - Retired pre-reboot program, kept for reference
 
 ## Sessions and Skills
 
-The canonical entrypoint is the `saturday` cursor skill: one session, one rung,
-one action (`prove`, `formalize`, `falsify`, or `audit` via the `prover`,
-`formalizer`, `falsifier`, `barrier-auditor` skills), one rung memory append,
-one line in `search/logs/saturday_sessions.jsonl`, stop. Three human gates:
-adopting or killing a rung, accepting a prose proof for formalization, and
-merging a certified result.
+The **canonical offline entrypoint** is the local CLI cycle (no third party LLM):
+
+```bash
+pip install -e .
+ollama serve
+satday saturday --dry-run
+satday saturday --action prove --rung r5-cook-reckhow-bridge
+```
+
+Models and endpoint live under `saturday_loop` in `infra/config/defaults.yaml`
+(default: Ollama at `http://localhost:11434`; prove/audit `qwen2.5:14b`,
+formalize `qwen2.5-coder:14b`). Prefer Goedel-Prover-V2-8B behind an OpenAI
+compatible local server for Lean drafts when available.
+
+The Cursor `saturday` skill remains an interactive alternate that uses the
+in-IDE agent. Prefer the CLI for privacy, cost control, and reproducibility.
+
+Contract is unchanged: one session, one rung, one action, one rung memory
+append, one line in `search/logs/saturday_sessions.jsonl`, stop. Three human
+gates: adopting or killing a rung, accepting a prose proof for formalization,
+and merging a certified result.
 
 ## Quick Start
 
 ```bash
-# Build the Lean library (requires elan; mathlib cache in theory/.lake)
+ollama pull qwen2.5:14b
+ollama pull qwen2.5-coder:14b
+pip install -e .
 cd theory && lake build
-
-# Run the acceptance gate (build + sorry quarantine + axiom check)
+cd ..
 ./scripts/check_axioms.sh
-
-# Run a budgeted falsifier baseline (deterministic, hard caps)
 python3 search/bin/run_proof_size_baseline.py --family php --n-min 4 --n-max 10 --seed 42
+satday saturday --dry-run
 ```
 
 ## Requirements
@@ -78,6 +93,7 @@ python3 search/bin/run_proof_size_baseline.py --family php --n-min 4 --n-max 10 
 - macOS on Apple Silicon (tested on M4), 16GB+ RAM
 - Lean 4 toolchain pinned by `theory/lean-toolchain` (v4.30.0-rc1) via elan
 - Python 3.11+ (the falsifier runner is stdlib-only)
+- Optional: Ollama (or any OpenAI compatible local server) for prove, formalize, audit
 - kissat 3.1.1 (built at `infra/build/kissat`)
 
 ## Standards

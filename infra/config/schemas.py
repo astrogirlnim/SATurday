@@ -56,22 +56,61 @@ class PlannerAgentConfig(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    """LLM configuration for the conjecturer agent (V9/V11).
-    
-    V11 upgrade: default model changed from llama3.2:1b to mathstral:7b.
-    mathstral:7b is a 7B parameter math-reasoning model trained on Lean 4 and
-    mathematical proof tasks. It produces non-trivial Lean tactics rather than
-    True := by sorry stubs.
+    """LLM configuration for the legacy conjecturer agent.
+
+    Defaults align with the local saturday_loop formalize role. Prefer
+    Goedel-Prover-V2-8B via an OpenAI compatible server when available;
+    qwen2.5-coder:14b is the Ollama packaged default.
     """
     enabled: bool = False
-    # V11: mathstral:7b is the primary math-capable model.
-    # Fallback: deepseek-r1:1.5b (installed), llama3.2:1b (installed).
-    model: str = "mathstral:7b"
+    model: str = "qwen2.5-coder:14b"
     endpoint: str = "http://localhost:11434"
-    # V11: token budget for mathstral (7B needs more than 1.5B for Lean tactics)
     num_predict: int = 8192
-    # V11: lower temperature for Lean proof generation (more deterministic)
     temperature: float = 0.1
+
+
+class SaturdayRoleLLMConfig(BaseModel):
+    """Per role local model settings for the saturday CLI loop."""
+    model: str
+    num_predict: int = Field(8192, gt=0)
+    temperature: float = Field(0.1, ge=0.0)
+
+
+class SaturdayLoopConfig(BaseModel):
+    """
+    Local saturday research loop (option A: CLI + localhost models).
+
+    This is the offline replacement for Cursor cloud agents driving the
+    saturday skill. Falsify never calls an LLM.
+    """
+    enabled: bool = True
+    endpoint: str = "http://localhost:11434"
+    # ollama = /api/generate; openai_compatible = /v1/chat/completions
+    api_style: str = Field("ollama", pattern="^(ollama|openai_compatible)$")
+    timeout_seconds: int = Field(600, gt=0)
+    require_local: bool = True
+    # Role models sized for Apple Silicon 16GB+ unified memory
+    prove: SaturdayRoleLLMConfig = SaturdayRoleLLMConfig(
+        model="qwen2.5:14b",
+        num_predict=8192,
+        temperature=0.2,
+    )
+    formalize: SaturdayRoleLLMConfig = SaturdayRoleLLMConfig(
+        model="qwen2.5-coder:14b",
+        num_predict=8192,
+        temperature=0.1,
+    )
+    audit: SaturdayRoleLLMConfig = SaturdayRoleLLMConfig(
+        model="qwen2.5:14b",
+        num_predict=4096,
+        temperature=0.1,
+    )
+    falsify_family: str = "php"
+    falsify_n_min: int = Field(4, gt=0)
+    falsify_n_max: int = Field(10, gt=0)
+    falsify_seed: int = Field(42, ge=0)
+    draft_dir: str = "search/logs/saturday_drafts"
+    sessions_path: str = "search/logs/saturday_sessions.jsonl"
 
 
 class ConjecturerAgentConfig(BaseModel):
@@ -269,6 +308,7 @@ class SaturdayConfig(BaseModel):
     verification: VerificationConfig = VerificationConfig()
     reproducibility: ReproducibilityConfig = ReproducibilityConfig()
     cost: CostConfig = CostConfig()
+    saturday_loop: SaturdayLoopConfig = SaturdayLoopConfig()
     
     class Config:
         """Pydantic config."""
