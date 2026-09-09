@@ -3,6 +3,7 @@ SATurday CLI - Unified command-line interface for agent-driven research.
 
 Commands:
 - saturday: One local research cycle (CLI + localhost LLMs; canonical offline loop)
+- status: Ladder completion and summit readiness toward P vs NP
 - mine: Run legacy full research cycle
 - bench: Benchmark deterministic harness
 - check-proofs: Replay LRAT verification
@@ -79,6 +80,93 @@ def saturday_cmd(
         )
         console.print_json(data=record)
         console.print("[bold green]Cycle complete[/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
+        raise typer.Exit(code=1)
+
+
+@app.command("status")
+def status_cmd(
+    json_out: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit machine readable JSON instead of tables",
+    ),
+):
+    """
+    Review saturday ladder status: completed rungs and progress toward P vs NP.
+
+    Reads rung memories under docs/ladder/rungs/ and recent lines from
+    search/logs/saturday_sessions.jsonl. Does not call an LLM.
+
+    Examples:
+        satday status
+        satday status --json
+    """
+    console.print("[bold blue]SATurday ladder status[/bold blue]")
+    try:
+        from search.saturday.status import build_saturday_status, status_to_dict
+
+        status = build_saturday_status(repo_root)
+        payload = status_to_dict(status)
+        if json_out:
+            console.print_json(data=payload)
+            return
+
+        table = Table(title="Ladder rungs")
+        table.add_column("Rung", style="cyan")
+        table.add_column("Title")
+        table.add_column("Status", style="magenta")
+        table.add_column("Memory")
+        for row in status.rungs:
+            table.add_row(row.rung_id, row.title, row.status, row.memory)
+        console.print(table)
+
+        console.print("\n[bold]Counts[/bold]")
+        for key in sorted(status.counts):
+            console.print(f"  {key}: {status.counts[key]}")
+
+        console.print("\n[bold]Certified[/bold]")
+        if status.certified:
+            for rid in status.certified:
+                console.print(f"  {rid}")
+        else:
+            console.print("  (none)")
+
+        console.print("\n[bold]Active work[/bold]")
+        if status.active_work:
+            for rid in status.active_work:
+                console.print(f"  {rid}")
+        else:
+            console.print("  (none)")
+
+        nxt = status.next_cycle
+        console.print("\n[bold]Suggested next cycle[/bold]")
+        console.print(f"  rung: {nxt['rung']}")
+        console.print(f"  action: {nxt['action_type']}")
+        console.print(f"  target: {nxt['target']}")
+        console.print(f"  rationale: {nxt['rationale']}")
+
+        console.print("\n[bold]Toward P vs NP (summit)[/bold]")
+        console.print(f"  {status.toward_p_vs_np}")
+        console.print(f"  R4 certified: {status.summit.r4_certified}")
+        console.print(f"  R5 certified: {status.summit.r5_certified}")
+        console.print(f"  Summit ready: {status.summit.summit_ready}")
+        if status.summit.blockers:
+            console.print("  Blockers:")
+            for blocker in status.summit.blockers:
+                console.print(f"    - {blocker}")
+
+        if status.last_session:
+            console.print("\n[bold]Last saturday session[/bold]")
+            console.print(
+                f"  rung={status.last_session.get('rung')} "
+                f"action={status.last_session.get('action_type')} "
+                f"result={status.last_session.get('result')} "
+                f"gate={status.last_session.get('gate_pending')}"
+            )
+
+        console.print("\n[bold green]Status complete[/bold green]")
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
         raise typer.Exit(code=1)

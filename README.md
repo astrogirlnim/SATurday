@@ -25,15 +25,18 @@ proof systems imply NP != coNP (Cook-Reckhow), which implies P != NP.
 
 ## The Ladder
 
+Statuses live in `docs/ladder/rungs/` and are summarized by `satday status`.
+
 - R0 (certified): resolution soundness and refutational completeness
-  (`theory/Theory/ProofComplexity/Resolution.lean`).
-- R1 (active): Haken's exponential lower bound for pigeonhole formulas;
-  family and non-vacuity witness certified, bound stated in a quarantined
-  Frontier namespace (`theory/Theory/ProofComplexity/PHP.lean`).
-- R2: width machinery (Ben-Sasson-Wigderson), Tseitin and random k-CNF bounds.
-- R3: one certified bound above resolution.
-- R4: the open frontier (AC0[p]-Frege and beyond).
-- R5: the Cook-Reckhow bridge formalized over a real machine model.
+- R1 (certified): Haken exponential lower bound for PHP
+- R2 (prose_accepted): width machinery (Ben Sasson Wigderson), Tseitin, random k CNF
+- R3 (proposed): one certified bound above resolution
+- R4 (proposed): open frontier (AC0[p] Frege and beyond)
+- R5 (active): Cook Reckhow bridge over a real machine model
+
+Summit: R4 class hardness plus certified R5 imply the packaging path to
+`NP != coNP` and then `P != NP`. See `docs/ladder/ladder.md` and
+`docs/p-vs-np-critical-path.md`.
 
 Postmortems for the retired pre-reboot program (vacuous monotone parity target,
 sheaf obstruction closure) are in `docs/postmortems/`. Pre-reboot ORACLE
@@ -60,7 +63,12 @@ pip install -e .
 ollama serve
 satday saturday --dry-run
 satday saturday --action prove --rung r5-cook-reckhow-bridge
+satday status
 ```
+
+`satday status` prints completed rungs, active work, the suggested next cycle,
+and summit readiness toward P vs NP (R4 plus R5). Use `satday status --json`
+for machine readable output.
 
 Models and endpoint live under `saturday_loop` in `infra/config/defaults.yaml`
 (default: Ollama at `http://localhost:11434`; prove/audit `qwen2.5:14b`,
@@ -86,6 +94,7 @@ cd ..
 ./scripts/check_axioms.sh
 python3 search/bin/run_proof_size_baseline.py --family php --n-min 4 --n-max 10 --seed 42
 satday saturday --dry-run
+satday status
 ```
 
 ## Requirements

@@ -4,6 +4,14 @@ The single source of truth for what the program is climbing, in what order, and
 where each rung stands. One rung memory file per rung in docs/ladder/rungs/.
 Statuses: proposed | active | prose_accepted | certified | blocked | killed.
 
+CLI summary (completed rungs, suggested next cycle, summit readiness toward
+P vs NP):
+
+```bash
+satday status
+satday status --json
+```
+
 Update discipline: the saturday session is the only writer. Statuses change only
 through session actions. Human gates: adopting or killing a rung, accepting a prose
 proof for formalization, and merging a certified result into the accepted tree.

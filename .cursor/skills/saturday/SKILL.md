@@ -22,12 +22,14 @@ pip install -e .
 satday saturday --dry-run
 satday saturday --action prove --rung r5-cook-reckhow-bridge
 satday saturday --action falsify
+satday status
+satday status --json
 ```
 
 Config: `saturday_loop` in `infra/config/defaults.yaml`. Shared client:
 `search/llm/client.py`. Cursor skill remains valid for interactive sessions;
 the CLI is the privacy preserving default. Ollama must be serving before prove,
-formalize, or audit.
+formalize, or audit. `satday status` does not call an LLM.
 
 ## Session Contract
 

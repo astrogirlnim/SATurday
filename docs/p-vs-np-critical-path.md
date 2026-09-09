@@ -12,6 +12,12 @@ Super polynomial lower bounds for all propositional proof systems imply
 `NP != coNP` (Cook Reckhow), which implies `P != NP`. Summit needs R4 class
 hardness plus a fully certified R5 bridge. Neither is complete.
 
+Live ladder snapshot (do not duplicate status here; regenerate anytime):
+
+```bash
+satday status
+```
+
 ## Done (do not reopen without cause)
 
 - [x] R0 resolution soundness and completeness
