@@ -1698,3 +1698,40 @@ lower bound via the bridge.
   evals.
   gate_pending: merge_certified.
   gate_auto: true. Rationale: full axiom gate PASS and decls listed.
+
+- 2026-09-09 formalize (Cluster C2 bitsEqual compare glue Stmt): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "lengthGate compare semantics or minimal FinTM2 bit equality check slice",
+    "rationale": "Retry stalled compare glue; land one certifiable step not a monolith."
+  }
+  ```
+  Smallest coherent slice: semantic `bitsEqual` equals zipper `bitsEqualZip`,
+  lengthGate rewrite via bitsEqual of lengthBitsLE to pow2BitsLE, plus
+  `bitsEqualComputer` Stmt and single step lemmas on preloaded stacks.
+  Existing names used: lengthBitsLE, pow2BitsLE, lengthBitsEqPow2,
+  lengthGateOk, FinTM2, encodePair (deferred load).
+  Accepted: bitsEqual, bitsEqual_iff, bitsEqualZip, bitsEqualZip_nil_nil,
+  bitsEqualZip_nil_cons, bitsEqualZip_cons_nil, bitsEqualZip_cons_cons,
+  bitsEqual_eq_bitsEqualZip, lengthBitsEqPow2_eq_bitsEqual,
+  lengthGateOk_eq_bitsEqual, bitsEqual_lengthBitsLE_pow2BitsLE,
+  BitsEqStack, BitsEqLabel, bitsEqualComputer, bitsEqStk, bitsEqCfg,
+  bitsEq_step_loop_nil, bitsEq_step_loop_true, bitsEq_step_loop_false,
+  bitsEq_step_expectTrue_true, bitsEq_step_expectTrue_false,
+  bitsEq_step_expectTrue_nil, bitsEq_step_expectFalse_false,
+  bitsEq_step_expectFalse_true, bitsEq_step_expectFalse_nil,
+  bitsEq_step_checkRight_nil, bitsEq_step_checkRight_cons,
+  bitsEq_step_reject, bitsEqual_initList, bitsEqual_haltList,
+  bitsEqualPair, bitsEqualPair_eq, bitsEqualPair_iff_lengthGate.
+  Bridge lake build green; Bridge axiom probe PASS (propext, Classical.choice,
+  Quot.sound). Full scripts/check_axioms.sh blocked by R2 MGG olean gap, not R5.
+  Frontier updated: validatesTautologyResult_computableInPolyTime needs
+  bitsEqual EvalsToInTime with leftover stack drain to haltList, encodePair
+  load glue, then per index eval loop; truthTable_is_prop_proof_system unchanged.
+  Most important thing learned: reject without draining left or right cannot
+  meet haltList, so EvalsToInTime to clean halt is a separate drain slice.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: Bridge axiom probe green and decls listed.

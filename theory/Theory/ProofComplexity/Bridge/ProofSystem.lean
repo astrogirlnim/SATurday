@@ -1247,6 +1247,284 @@ theorem countLengthBits_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc lengthBitsLE) :=
   ⟨countLengthBitsComputableInPolyTime⟩
 
+/-! ## Cluster C2 bit list equality (compare glue to `pow2BitsLE`)
+
+Length gate machine path after counting: decide structural equality of
+`lengthBitsLE table` and `pow2BitsLE (maxVar+1)`. Semantic `bitsEqual` plus a
+zipper FinTM2 on two preloaded stacks; encodePair loading remains next. -/
+
+/-- Structural bit list equality (FinTM2 compare target). -/
+def bitsEqual (xs ys : List Bool) : Bool :=
+  decide (xs = ys)
+
+theorem bitsEqual_iff (xs ys : List Bool) :
+    bitsEqual xs ys = true ↔ xs = ys := by
+  simp [bitsEqual]
+
+/-- Zipper form matching FinTM2 dual pop (heads compared pairwise). -/
+def bitsEqualZip : List Bool → List Bool → Bool
+  | [], [] => true
+  | x :: xs, y :: ys => (decide (x = y) && bitsEqualZip xs ys)
+  | _, _ => false
+
+theorem bitsEqualZip_nil_nil : bitsEqualZip [] [] = true := rfl
+
+theorem bitsEqualZip_nil_cons (y : Bool) (ys : List Bool) :
+    bitsEqualZip [] (y :: ys) = false := rfl
+
+theorem bitsEqualZip_cons_nil (x : Bool) (xs : List Bool) :
+    bitsEqualZip (x :: xs) [] = false := rfl
+
+theorem bitsEqualZip_cons_cons (x y : Bool) (xs ys : List Bool) :
+    bitsEqualZip (x :: xs) (y :: ys) =
+      (decide (x = y) && bitsEqualZip xs ys) := rfl
+
+theorem bitsEqual_eq_bitsEqualZip (xs ys : List Bool) :
+    bitsEqual xs ys = bitsEqualZip xs ys := by
+  induction xs generalizing ys with
+  | nil =>
+      cases ys with
+      | nil => simp [bitsEqual, bitsEqualZip]
+      | cons y ys => simp [bitsEqual, bitsEqualZip]
+  | cons x xs ih =>
+      cases ys with
+      | nil => simp [bitsEqual, bitsEqualZip]
+      | cons y ys =>
+          by_cases hxy : x = y
+          · subst hxy
+            simpa [bitsEqual, bitsEqualZip] using ih ys
+          · simp [bitsEqual, bitsEqualZip, hxy]
+
+theorem lengthBitsEqPow2_eq_bitsEqual (n : ℕ) (table : List Bool) :
+    lengthBitsEqPow2 n table =
+      bitsEqual (lengthBitsLE table) (pow2BitsLE n) := by
+  simp [lengthBitsEqPow2, lengthBitsLE, bitsEqual]
+
+theorem lengthGateOk_eq_bitsEqual (φ : PropFormula) (table : List Bool) :
+    lengthGateOk φ table =
+      bitsEqual (lengthBitsLE table) (pow2BitsLE (φ.maxVar + 1)) := by
+  rw [lengthGateOk_eq_lengthBitsEqPow2, lengthBitsEqPow2_eq_bitsEqual]
+
+theorem bitsEqual_lengthBitsLE_pow2BitsLE (n : ℕ) (table : List Bool) :
+    bitsEqual (lengthBitsLE table) (pow2BitsLE n) = true ↔
+      table.length = 2 ^ n := by
+  rw [bitsEqual_iff, lengthBitsLE_eq_pow2BitsLE_iff]
+
+/-! ## Cluster C2 FinTM2: zip compare two bit stacks
+
+Preloaded `left`/`right` stacks; halt with `[true]` or `[false]` on `out`.
+Loading from `encodePair` is deferred to the next formalize slice. -/
+
+inductive BitsEqStack where
+  | left | right | out
+  deriving DecidableEq, Repr
+
+instance : Fintype BitsEqStack where
+  elems := {.left, .right, .out}
+  complete s := by cases s <;> simp
+
+/-- `loop` pops left; `expectTrue`/`expectFalse` match right; `checkRight` drains. -/
+inductive BitsEqLabel where
+  | loop | expectTrue | expectFalse | checkRight | reject
+  deriving DecidableEq, Repr
+
+instance : Fintype BitsEqLabel where
+  elems := {.loop, .expectTrue, .expectFalse, .checkRight, .reject}
+  complete s := by cases s <;> simp
+
+/-- FinTM2: compare `left` to `right`, write equality bit on `out`. -/
+def bitsEqualComputer : FinTM2 where
+  K := BitsEqStack
+  k₀ := .left
+  k₁ := .out
+  Γ _ := Bool
+  Λ := BitsEqLabel
+  main := .loop
+  σ := Option Bool
+  initialState := none
+  m
+    | .loop =>
+        pop BitsEqStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => BitsEqLabel.checkRight)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <| goto fun _ => BitsEqLabel.expectTrue)
+              (load (fun _ => none) <| goto fun _ => BitsEqLabel.expectFalse))
+    | .expectTrue =>
+        pop BitsEqStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = some true))
+            (load (fun _ => none) <| goto fun _ => BitsEqLabel.loop)
+            (load (fun _ => none) <| goto fun _ => BitsEqLabel.reject)
+    | .expectFalse =>
+        pop BitsEqStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = some false))
+            (load (fun _ => none) <| goto fun _ => BitsEqLabel.loop)
+            (load (fun _ => none) <| goto fun _ => BitsEqLabel.reject)
+    | .checkRight =>
+        pop BitsEqStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push BitsEqStack.out (fun _ => true) <|
+              load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => BitsEqLabel.reject)
+    | .reject =>
+        push BitsEqStack.out (fun _ => false) <|
+          load (fun _ => none) halt
+
+def bitsEqStk (left right out : List Bool) : BitsEqStack → List Bool
+  | .left => left
+  | .right => right
+  | .out => out
+
+def bitsEqCfg (l : Option BitsEqLabel) (v : Option Bool)
+    (left right out : List Bool) : bitsEqualComputer.Cfg :=
+  ⟨l, v, bitsEqStk left right out⟩
+
+theorem bitsEq_step_loop_nil (right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .loop) none [] right out) =
+      some (bitsEqCfg (some .checkRight) none [] right out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.checkRight, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_loop_true (xs right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .loop) none (true :: xs) right out) =
+      some (bitsEqCfg (some .expectTrue) none xs right out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.expectTrue, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_loop_false (xs right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .loop) none (false :: xs) right out) =
+      some (bitsEqCfg (some .expectFalse) none xs right out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.expectFalse, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_expectTrue_true (left ys out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .expectTrue) none left (true :: ys) out) =
+      some (bitsEqCfg (some .loop) none left ys out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.loop, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_expectTrue_false (left ys out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .expectTrue) none left (false :: ys) out) =
+      some (bitsEqCfg (some .reject) none left ys out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.reject, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_expectTrue_nil (left out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .expectTrue) none left [] out) =
+      some (bitsEqCfg (some .reject) none left [] out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.reject, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_expectFalse_false (left ys out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .expectFalse) none left (false :: ys) out) =
+      some (bitsEqCfg (some .loop) none left ys out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.loop, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_expectFalse_true (left ys out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .expectFalse) none left (true :: ys) out) =
+      some (bitsEqCfg (some .reject) none left ys out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.reject, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_expectFalse_nil (left out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .expectFalse) none left [] out) =
+      some (bitsEqCfg (some .reject) none left [] out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.reject, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_checkRight_nil (left out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .checkRight) none left [] out) =
+      some (bitsEqCfg none none left [] (true :: out)) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option BitsEqLabel), none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_checkRight_cons (left : List Bool) (y : Bool) (ys out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .checkRight) none left (y :: ys) out) =
+      some (bitsEqCfg (some .reject) none left ys out) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some BitsEqLabel.reject, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEq_step_reject (left right out : List Bool) :
+    TM2.step bitsEqualComputer.m
+      (bitsEqCfg (some .reject) none left right out) =
+      some (bitsEqCfg none none left right (false :: out)) := by
+  simp [bitsEqualComputer, bitsEqCfg, bitsEqStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option BitsEqLabel), none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, bitsEqStk]
+
+theorem bitsEqual_initList (s : List Bool) :
+    initList bitsEqualComputer s =
+      bitsEqCfg (some .loop) none s [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some BitsEqLabel.loop, none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [bitsEqualComputer, bitsEqStk]
+
+theorem bitsEqual_haltList (out : List Bool) :
+    haltList bitsEqualComputer out =
+      bitsEqCfg none none [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option BitsEqLabel), none, stk⟩ : bitsEqualComputer.Cfg)) ?_
+  funext k; cases k <;> simp [bitsEqualComputer, bitsEqStk]
+
+/-- Semantic output of the zip machine on preloaded stacks (Evals fuel next). -/
+def bitsEqualPair (p : List Bool × List Bool) : Bool :=
+  bitsEqual p.1 p.2
+
+theorem bitsEqualPair_eq (xs ys : List Bool) :
+    bitsEqualPair (xs, ys) = bitsEqual xs ys := rfl
+
+theorem bitsEqualPair_iff_lengthGate (n : ℕ) (table : List Bool) :
+    bitsEqualPair (lengthBitsLE table, pow2BitsLE n) = true ↔
+      table.length = 2 ^ n := by
+  simpa [bitsEqualPair] using bitsEqual_lengthBitsLE_pow2BitsLE n table
+
 /-! ## Truth table proof map (semantic Cook Reckhow witness) -/
 /-! ## Truth table proof map (semantic Cook Reckhow witness) -/
 
@@ -3920,10 +4198,10 @@ formula, length gate `table.length = 2^(maxVar+1)`, then index loop under
 `|table|` fuel, then branch to the reject or accept slices above.
 
 Certified: length gate Bool, reject lemmas, `pow2BitsLE` plus writePow2Bits
-FinTM2, `natBitsLE`/`lengthBitsEqPow2` compare, `countLengthBitsComputer`
-Stmt plus steps, and `countLengthBits` EvalsToInTime polyTime for
-`lengthBitsLE`. Remaining: FinTM2 compare glue to pow2BitsLE, then per index
-eval loop. -/
+FinTM2, `natBitsLE`/`lengthBitsEqPow2` compare, `countLengthBits` polyTime,
+`bitsEqual`/`bitsEqualZip` lengthGate rewrites, and `bitsEqualComputer` Stmt
+plus steps. Remaining: bitsEqual EvalsToInTime with stack drain to haltList,
+encodePair load glue, then per index eval loop. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by

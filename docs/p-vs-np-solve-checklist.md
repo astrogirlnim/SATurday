@@ -30,8 +30,10 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       certified 2026-09-08;
       Cluster C2 countLengthBits EvalsToInTime polyTime for lengthBitsLE
       certified 2026-09-08;
-      Frontier: FinTM2 compare glue to pow2BitsLE, then index loop FinTM2 and
-      TT map sequencer for truthTable_is_prop_proof_system).
+      Cluster C2 bitsEqual compare glue Stmt plus steps certified 2026-09-09;
+      Frontier: bitsEqual EvalsToInTime with stack drain and encodePair load,
+      then index loop FinTM2 and TT map sequencer for
+      truthTable_is_prop_proof_system).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

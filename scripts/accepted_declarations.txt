@@ -1659,6 +1659,40 @@ SATurday.Bridge.countLengthBitsTime
 SATurday.Bridge.countLengthBitsTime_eval
 SATurday.Bridge.countLengthBitsComputableInPolyTime
 SATurday.Bridge.countLengthBits_computableInPolyTime
+# R5 ProofSystem Cluster C2 bitsEqual compare glue Stmt (2026-09-09)
+SATurday.Bridge.bitsEqual
+SATurday.Bridge.bitsEqual_iff
+SATurday.Bridge.bitsEqualZip
+SATurday.Bridge.bitsEqualZip_nil_nil
+SATurday.Bridge.bitsEqualZip_nil_cons
+SATurday.Bridge.bitsEqualZip_cons_nil
+SATurday.Bridge.bitsEqualZip_cons_cons
+SATurday.Bridge.bitsEqual_eq_bitsEqualZip
+SATurday.Bridge.lengthBitsEqPow2_eq_bitsEqual
+SATurday.Bridge.lengthGateOk_eq_bitsEqual
+SATurday.Bridge.bitsEqual_lengthBitsLE_pow2BitsLE
+SATurday.Bridge.BitsEqStack
+SATurday.Bridge.BitsEqLabel
+SATurday.Bridge.bitsEqualComputer
+SATurday.Bridge.bitsEqStk
+SATurday.Bridge.bitsEqCfg
+SATurday.Bridge.bitsEq_step_loop_nil
+SATurday.Bridge.bitsEq_step_loop_true
+SATurday.Bridge.bitsEq_step_loop_false
+SATurday.Bridge.bitsEq_step_expectTrue_true
+SATurday.Bridge.bitsEq_step_expectTrue_false
+SATurday.Bridge.bitsEq_step_expectTrue_nil
+SATurday.Bridge.bitsEq_step_expectFalse_false
+SATurday.Bridge.bitsEq_step_expectFalse_true
+SATurday.Bridge.bitsEq_step_expectFalse_nil
+SATurday.Bridge.bitsEq_step_checkRight_nil
+SATurday.Bridge.bitsEq_step_checkRight_cons
+SATurday.Bridge.bitsEq_step_reject
+SATurday.Bridge.bitsEqual_initList
+SATurday.Bridge.bitsEqual_haltList
+SATurday.Bridge.bitsEqualPair
+SATurday.Bridge.bitsEqualPair_eq
+SATurday.Bridge.bitsEqualPair_iff_lengthGate
 
 # R2 item 2 cluster 29: MGG scaffolding (2026-09-08)
 SATurday.ProofComplexity.mggDecode
