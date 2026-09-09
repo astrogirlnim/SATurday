@@ -134,20 +134,20 @@ def _run_prove(
     prompt = prompt_builders.build_prove_prompt(ctx, choice)
     print(f"[saturday.actions] prove model={role.model}")
     resp = client.generate(_role_request(loop_cfg, role, prompt, prompt_builders.SYSTEM_PROVE))
-        meta = _parse_trailing_json(resp.text)
-        status = str(meta.get("status", "partial"))
-        notes = str(meta.get("notes") or resp.text[-1200:])
-        next_action = str(meta.get("next_recommended_action", "audit"))
-        if next_action not in {"prove", "formalize", "falsify", "audit"}:
-            print(
-                f"[saturday.actions] sanitize next_recommended_action "
-                f"from {next_action!r} to formalize"
-            )
-            next_action = "formalize"
-        gate = str(meta.get("gate_pending", "accept_prose" if status == "success" else "none"))
-        if gate == "adopt_rung" and ctx.rungs[choice.rung].status == "active":
-            gate = "accept_prose" if status == "success" else "none"
-            print(f"[saturday.actions] sanitize gate_pending adopt_rung -> {gate}")
+    meta = _parse_trailing_json(resp.text)
+    status = str(meta.get("status", "partial"))
+    notes = str(meta.get("notes") or resp.text[-1200:])
+    next_action = str(meta.get("next_recommended_action", "audit"))
+    if next_action not in {"prove", "formalize", "falsify", "audit"}:
+        print(
+            f"[saturday.actions] sanitize next_recommended_action "
+            f"from {next_action!r} to formalize"
+        )
+        next_action = "formalize"
+    gate = str(meta.get("gate_pending", "accept_prose" if status == "success" else "none"))
+    if gate == "adopt_rung" and ctx.rungs[choice.rung].status == "active":
+        gate = "accept_prose" if status == "success" else "none"
+        print(f"[saturday.actions] sanitize gate_pending adopt_rung -> {gate}")
     artifact = str(ctx.rungs[choice.rung].path.relative_to(ctx.repo_root))
     prose_path = _write_draft(
         ctx.repo_root,
