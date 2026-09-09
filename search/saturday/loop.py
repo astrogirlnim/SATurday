@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 from infra.config.loader import load_config
 from infra.config.schemas import SaturdayLoopConfig
 from search.saturday.cycle import run_saturday_cycle, run_saturday_parallel
+from search.saturday.ui import announce, banner, summarize_wave
 
 
 def suggest_sleep_seconds(records: List[Dict[str, Any]], default_sleep: int) -> int:
@@ -59,6 +60,15 @@ def run_saturday_loop(
     base_sleep = loop_cfg.loop_sleep_seconds if sleep_seconds is None else sleep_seconds
     use_parallel = loop_cfg.loop_parallel_default if parallel is None else parallel
 
+    banner("SATurday auto loop")
+    announce(
+        "This loop explores proofs, applies Lean drafts, reverts on compile "
+        "failure, and feeds errors into the next wake. Stop with Ctrl-C."
+    )
+    announce(
+        f"Settings: max_cycles={max_cycles or 'until interrupted'} "
+        f"base_sleep={base_sleep}s parallel={use_parallel} dry_run={dry_run}"
+    )
     print(
         f"[saturday.loop] start max_cycles={max_cycles} base_sleep={base_sleep} "
         f"parallel={use_parallel} dry_run={dry_run}"
@@ -69,6 +79,11 @@ def run_saturday_loop(
     try:
         while True:
             wake += 1
+            banner(f"Wake {wake} starting")
+            announce(
+                "Choosing next workstreams, then running prove/formalize/"
+                "falsify/audit as selected."
+            )
             print(f"[saturday.loop] wake={wake}")
             if use_parallel:
                 records = run_saturday_parallel(
@@ -89,16 +104,24 @@ def run_saturday_loop(
                 f"[saturday.loop] wake={wake} finished "
                 f"results={[r.get('result') for r in records]}"
             )
+            summarize_wave(wake, records)
 
             if max_cycles > 0 and wake >= max_cycles:
+                announce(f"Reached configured max_cycles={max_cycles}. Stopping.")
                 print(f"[saturday.loop] reached max_cycles={max_cycles}; stopping")
                 break
 
             sleep_for = suggest_sleep_seconds(records, base_sleep)
+            announce(
+                f"Sleeping {sleep_for}s before the next wake "
+                "(gives lake/model breathing room; errors stay on disk for retry)."
+            )
             print(f"[saturday.loop] sleeping {sleep_for}s before next wake")
             time.sleep(sleep_for)
     except KeyboardInterrupt:
+        announce(f"Interrupted after wake {wake}. Progress so far is in rung memory and sessions.")
         print(f"[saturday.loop] interrupted after wake={wake}")
 
+    announce(f"Loop finished. Completed wakes: {len(waves)}.")
     print(f"[saturday.loop] done waves={len(waves)}")
     return waves

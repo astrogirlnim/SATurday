@@ -71,10 +71,12 @@ def build_formalize_prompt(
     choice: ActionChoice,
     module_excerpt: str,
     prior_errors: str = "",
+    open_obligations: str = "",
 ) -> str:
     """Formalizer skill prompt."""
     rung = ctx.rungs[choice.rung]
     err_block = prior_errors.strip() or "(none yet)"
+    obligations = open_obligations.strip() or "(none detected)"
     frontier_ns = {
         "r2-width-machinery": "CSExpansionFrontier",
         "r5-cook-reckhow-bridge": "ProofSystemFrontier",
@@ -83,8 +85,11 @@ def build_formalize_prompt(
 Status: {rung.status}
 Target: {choice.target}
 
+Open Frontier sorry obligations (ONLY these names may be restated to fill proofs):
+{obligations}
+
 Rung memory (truncated):
-{truncate_for_prompt(rung.text, 8000)}
+{truncate_for_prompt(rung.text, 6000)}
 
 Existing Lean Frontier excerpt (truncated):
 {truncate_for_prompt(module_excerpt, 10000)}
@@ -93,21 +98,18 @@ Prior lake build or gate errors:
 {truncate_for_prompt(err_block, 6000)}
 
 Task:
-Emit one Lean 4 fragment that advances the target. Requirements:
-1. Put all new declarations in namespace {frontier_ns} (name must contain Frontier).
-2. No import lines. No axioms.
-3. Lean 4 ONLY: write `:= by` tactics. NEVER write `begin` or a bare `end` proof closer.
-4. Do NOT restate a theorem or lemma name that already appears in the excerpt.
-   Prefer a NEW helper lemma that is used by an existing Frontier sorry, or fill
-   an existing Frontier sorry without repeating its signature.
-5. For R2, the critical open pin is `exists_cs_clause_expanding_3cnf` (and its
-   feeder `exists_spreads_matchable_unsat_random3CNF`). Do not reinvent width graft.
-6. For R5, only use identifiers that already appear in the excerpt. Do not invent
-   `validateIndex`, `ttMapSequencer`, or similar.
-7. Names must be unique in the target module or auto-apply will reject the draft.
-8. sorry is allowed only inside the Frontier namespace.
-After the code fence, emit JSON with keys status, notes, next_recommended_action,
-gate_pending. Set next_recommended_action to formalize.
+Emit one Lean 4 fragment that advances ONE open obligation above. Requirements:
+1. Namespace {frontier_ns} only.
+2. No imports. No axioms.
+3. Lean 4 ONLY: `:= by`. NEVER `begin`. NEVER Lean 3 ranges like [0..n].
+4. Preferred: restate ONE open sorry theorem from the list and replace `sorry`
+   with a real proof (or a smaller sorry only on a true subgoal).
+5. Alternate: add a NEW helper lemma that mentions only identifiers from the excerpt.
+6. R2: do NOT reinvent width graft / substitution lemmas. Critical pins are
+   exists_cs_clause_expanding_3cnf and exists_spreads_matchable_unsat_random3CNF.
+7. R5: do NOT invent validateIndex or ttMapSequencer. Use existing names only.
+8. After the code fence, JSON with status, notes, next_recommended_action=formalize,
+   gate_pending.
 """
 
 

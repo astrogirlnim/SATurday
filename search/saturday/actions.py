@@ -17,6 +17,7 @@ from search.llm.client import LLMRequest, LocalLLMClient
 from search.saturday.chooser import ActionChoice
 from search.saturday.context import CycleContext, truncate_for_prompt
 from search.saturday import prompts as prompt_builders
+from search.saturday.ui import announce, explain_apply_outcome
 
 
 LEAN_FENCE_RE = re.compile(r"```lean\s*(.*?)```", re.DOTALL | re.IGNORECASE)
@@ -242,13 +243,35 @@ def _run_formalize(
     role = loop_cfg.formalize
     lean_path = _guess_lean_target(ctx, choice)
     module_excerpt = ""
+    open_obs = ""
     if lean_path.exists():
-        module_excerpt = _frontier_focus_excerpt(lean_path.read_text(encoding="utf-8"))
+        from search.saturday.apply_lean import extract_open_frontier_obligations
+
+        full = lean_path.read_text(encoding="utf-8")
+        module_excerpt = _frontier_focus_excerpt(full)
+        names = extract_open_frontier_obligations(module_excerpt)
+        if not names:
+            names = extract_open_frontier_obligations(full)
+        open_obs = "\n".join(f"- {n}" for n in names) if names else ""
+        print(f"[saturday.actions] open Frontier obligations={names}")
+        if names:
+            announce(
+                f"Open Frontier obligations for {choice.rung}: " + ", ".join(names)
+            )
+        else:
+            announce(
+                f"No open Frontier sorry found in {lean_path.name}; "
+                "model will still try a helper lemma."
+            )
     else:
         module_excerpt = f"(missing file {lean_path})"
 
     build = lake_build_locked(ctx.repo_root)
-    prior_errors = "" if build["ok"] else build["output"][-6000:]
+    prior_errors = ""
+    if not build["ok"]:
+        from search.saturday.apply_lean import build_error_digest
+
+        prior_errors = build_error_digest(build["output"], limit=6000)
     last_apply_err = _latest_apply_error(
         ctx.repo_root, loop_cfg.draft_dir, choice.rung
     )
@@ -265,8 +288,16 @@ def _run_formalize(
     )
 
     print(f"[saturday.actions] formalize model={role.model}")
+    announce(
+        f"Asking local model {role.model} for a Lean 4 Frontier draft "
+        f"(prior error context: {len(prior_errors)} chars)."
+    )
     prompt = prompt_builders.build_formalize_prompt(
-        ctx, choice, module_excerpt, prior_errors=prior_errors
+        ctx,
+        choice,
+        module_excerpt,
+        prior_errors=prior_errors,
+        open_obligations=open_obs,
     )
     resp = client.generate(
         _role_request(loop_cfg, role, prompt, prompt_builders.SYSTEM_FORMALIZE)
@@ -300,6 +331,10 @@ def _run_formalize(
     gate = "none"
     if getattr(loop_cfg, "auto_apply", True):
         print(f"[saturday.actions] auto_apply enabled for {choice.rung}")
+        announce(
+            f"Auto-apply on: validating draft, merging into {lean_path.name}, "
+            "then lake build (revert if red)."
+        )
         applied = apply_frontier_draft(
             repo_root=ctx.repo_root,
             lean_path=lean_path,
@@ -307,6 +342,13 @@ def _run_formalize(
             rung_id=choice.rung,
         )
         apply_notes = applied.notes
+        explain_apply_outcome(
+            applied=applied.applied,
+            reverted=applied.reverted,
+            build_ok=applied.build_ok,
+            notes=applied.notes,
+            build_tail=applied.build_tail,
+        )
         if applied.build_tail:
             # Persist compile errors for the next formalize wake
             err_draft = _write_draft(

@@ -74,6 +74,11 @@ def auto_cmd(
     console.print("[bold blue]SATurday auto (parallel loop)[/bold blue]")
     console.print(
         "Runs all next workstreams each wake. Stop with Ctrl-C. "
+        "Look for lines starting with >>> for human readable status; "
+        "[saturday.*] lines are detailed debug logs."
+    )
+    console.print(
+        "Runs all next workstreams each wake. Stop with Ctrl-C. "
         f"cycles={cycles} sleep={sleep} dry_run={dry_run}"
     )
     try:

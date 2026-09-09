@@ -26,6 +26,7 @@ from search.saturday.context import (
     append_session_record,
     load_cycle_context,
 )
+from search.saturday.ui import announce
 
 
 def run_saturday_cycle(
@@ -85,6 +86,11 @@ def _execute_choice(
         f"[saturday.cycle] choice rung={choice.rung} action={choice.action_type} "
         f"target={choice.target!r} workstream={workstream_note}"
     )
+    announce(
+        f"[{workstream_note or choice.workstream}] Starting {choice.action_type} "
+        f"on {choice.rung}: {choice.target}"
+    )
+    announce(f"[{workstream_note or choice.workstream}] Why: {choice.rationale}")
     # Fresh context per worker so parallel paths do not share RungState buffers
     ctx = load_cycle_context(repo_root)
     if choice.rung not in ctx.rungs:
@@ -121,6 +127,11 @@ def _execute_choice(
     print(
         f"[saturday.cycle] action done status={result.status} "
         f"gate={result.gate_pending} next={result.next_recommended_action}"
+    )
+    announce(
+        f"[{workstream_note or choice.workstream}] Finished {choice.action_type}: "
+        f"status={result.status}, next={result.next_recommended_action}, "
+        f"gate={result.gate_pending}"
     )
 
     append_rung_memory(ctx.rungs[choice.rung], result.memory_entry)
@@ -165,6 +176,7 @@ def run_saturday_parallel(
         repo_root = Path(__file__).resolve().parents[2]
     repo_root = Path(repo_root)
     print(f"[saturday.cycle] parallel start repo_root={repo_root} dry_run={dry_run}")
+    announce("Loading ladder context and picking disjoint workstreams (usually R2 + R5).")
 
     config: SaturdayConfig = load_config(config_file=config_file, repo_root=repo_root)
     loop_cfg: SaturdayLoopConfig = config.saturday_loop
@@ -174,10 +186,12 @@ def run_saturday_parallel(
     ctx = load_cycle_context(repo_root)
     choices = list_parallel_choices(ctx)
     if not choices:
+        announce("No parallel workstreams ready; falling back to a single cycle.")
         print("[saturday.cycle] no parallel workstreams actionable; falling back to serial")
         return [run_saturday_cycle(repo_root=repo_root, config_file=config_file, dry_run=dry_run)]
 
     if len(choices) == 1:
+        announce(f"Only one workstream ready: {choices[0].workstream} on {choices[0].rung}.")
         print("[saturday.cycle] only one parallel path; running serial")
         c0 = choices[0]
         return [
@@ -193,6 +207,10 @@ def run_saturday_parallel(
         ]
 
     records: List[Dict[str, Any]] = []
+    announce(
+        "Running in parallel: "
+        + ", ".join(f"{c.workstream}={c.action_type}/{c.rung}" for c in choices)
+    )
     print(f"[saturday.cycle] launching {len(choices)} parallel workers")
     with ThreadPoolExecutor(max_workers=len(choices)) as pool:
         futures = {
