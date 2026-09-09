@@ -12,6 +12,9 @@ satday auto
 satday status
 ```
 
+Formalize auto-applies Frontier drafts into `theory/` when lake build stays green
+(`saturday_loop.auto_apply`, default true). Failed applies are reverted.
+
 Update discipline: the saturday session is the only writer. Statuses change only
 through session actions. Human gates: adopting or killing a rung, accepting a prose
 proof for formalization, and merging a certified result into the accepted tree.

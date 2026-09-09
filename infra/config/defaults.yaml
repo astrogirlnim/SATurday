@@ -206,6 +206,7 @@ saturday_loop:
   falsify_seed: 42
   draft_dir: "search/logs/saturday_drafts"
   sessions_path: "search/logs/saturday_sessions.jsonl"
+  auto_apply: true
   loop_sleep_seconds: 90
   loop_max_cycles: 1
   loop_parallel_default: false

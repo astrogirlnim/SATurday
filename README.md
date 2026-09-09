@@ -68,6 +68,10 @@ satday auto
 workstreams in parallel (typically R2 and R5), sleeps, then continues until
 Ctrl-C. No rung or action selection.
 
+Formalize **auto-applies** Frontier Lean drafts into `theory/` when
+`saturday_loop.auto_apply` is true (default). Lake build must stay green or the
+file is reverted; `sorry` remains allowed only inside Frontier namespaces.
+
 `satday status` prints progress and still suggests `satday auto` first.
 
 Models and endpoint live under `saturday_loop` in `infra/config/defaults.yaml`

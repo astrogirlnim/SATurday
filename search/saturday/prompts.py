@@ -19,9 +19,10 @@ SYSTEM_PROVE = (
 
 SYSTEM_FORMALIZE = (
     "You are the SATurday formalizer. Emit Lean 4 only inside a fenced lean code block. "
-    "No new axioms. Prefer mathlib idioms. Work in progress may use a namespace ending "
-    "in Frontier with sorry; accepted code must not. Avoid hyphens as punctuation in "
-    "comments; spell connections in words."
+    "No new axioms. Prefer mathlib idioms. Work in progress MUST live in a namespace whose "
+    "name contains Frontier and may use sorry. Do not emit import lines. Do not use Lean 3 "
+    "begin/end. Use Lean 4 by tactics only. Avoid hyphens as punctuation in comments; "
+    "spell connections in words."
 )
 
 SYSTEM_AUDIT = (
@@ -74,6 +75,10 @@ def build_formalize_prompt(
     """Formalizer skill prompt."""
     rung = ctx.rungs[choice.rung]
     err_block = prior_errors.strip() or "(none yet)"
+    frontier_ns = {
+        "r2-width-machinery": "WidthFrontier",
+        "r5-cook-reckhow-bridge": "ProofSystemFrontier",
+    }.get(choice.rung, "LocalDraftFrontier")
     return f"""Rung id: {choice.rung}
 Status: {rung.status}
 Target: {choice.target}
@@ -88,9 +93,13 @@ Prior lake build or gate errors:
 {truncate_for_prompt(err_block, 6000)}
 
 Task:
-Emit one Lean 4 module fragment that advances the target. Prefer extending an
-existing Frontier namespace. Do not invent axioms. After the code fence, emit JSON
-with keys status, notes, next_recommended_action, gate_pending.
+Emit one Lean 4 fragment that advances the target. Requirements:
+1. Put all new declarations in namespace {frontier_ns} (name must contain Frontier).
+2. No import lines. No axioms. Lean 4 only (by, not begin/end).
+3. Prefer extending an existing Frontier obligation already named in the excerpt.
+4. sorry is allowed only inside the Frontier namespace.
+After the code fence, emit JSON with keys status, notes, next_recommended_action,
+gate_pending. next_recommended_action must be one of prove, formalize, falsify, audit.
 """
 
 

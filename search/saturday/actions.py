@@ -236,6 +236,8 @@ def _run_formalize(
     loop_cfg: SaturdayLoopConfig,
     client: LocalLLMClient,
 ) -> ActionResult:
+    from search.saturday.apply_lean import apply_frontier_draft, lake_build_locked
+
     role = loop_cfg.formalize
     lean_path = _guess_lean_target(ctx, choice)
     module_excerpt = ""
@@ -244,9 +246,7 @@ def _run_formalize(
     else:
         module_excerpt = f"(missing file {lean_path})"
 
-    # Ambient lake build is informational only. Local CLI never patches the
-    # accepted Lean tree automatically; drafts land under draft_dir for review.
-    build = _run_lake_build(ctx.repo_root)
+    build = lake_build_locked(ctx.repo_root)
     prior_errors = "" if build["ok"] else build["output"][-6000:]
     print(f"[saturday.actions] formalize ambient_build_ok={build['ok']}")
 
@@ -266,17 +266,6 @@ def _run_formalize(
         lean_code + "\n",
     )
     meta = _parse_trailing_json(resp.text)
-    notes = str(
-        meta.get("notes")
-        or f"Lean draft at {draft_path.relative_to(ctx.repo_root)}"
-    )
-    notes = (
-        notes
-        + " Local CLI writes drafts only; apply into theory/ then run "
-        "scripts/check_axioms.sh before merge_certified."
-    )
-    if not build["ok"]:
-        notes = notes + f" Ambient lake build was red (tail): {prior_errors[-800:]}"
     next_action = str(meta.get("next_recommended_action", "formalize"))
     if next_action not in {"prove", "formalize", "falsify", "audit"}:
         print(
@@ -284,19 +273,56 @@ def _run_formalize(
             f"from {next_action!r} to formalize"
         )
         next_action = "formalize"
+
     arts = [
         str(draft_path.relative_to(ctx.repo_root)),
         str(lean_path.relative_to(ctx.repo_root)) if lean_path.exists() else "",
     ]
     arts = [a for a in arts if a]
-    memory = _dated_entry("formalize", "partial", arts, notes[:500])
+    notes = str(meta.get("notes") or f"Lean draft at {draft_path.relative_to(ctx.repo_root)}")
+
+    apply_notes = "auto_apply disabled"
+    status = "partial"
+    gate = "none"
+    if getattr(loop_cfg, "auto_apply", True):
+        print(f"[saturday.actions] auto_apply enabled for {choice.rung}")
+        applied = apply_frontier_draft(
+            repo_root=ctx.repo_root,
+            lean_path=lean_path,
+            lean_code=lean_code,
+            rung_id=choice.rung,
+        )
+        apply_notes = applied.notes
+        if applied.applied and applied.build_ok:
+            if applied.has_sorry:
+                status = "partial"
+                gate = "none"
+                next_action = "formalize"
+            else:
+                status = "success"
+                gate = "merge_certified"
+                next_action = "formalize"
+            arts.append(applied.target)
+        elif applied.reverted:
+            status = "partial"
+            next_action = "formalize"
+        else:
+            status = "partial"
+    else:
+        notes = notes + " Local CLI writes drafts only; auto_apply is false."
+
+    notes = f"{notes} {apply_notes}"
+    if not build["ok"]:
+        notes = notes + f" Ambient lake build was red (tail): {prior_errors[-800:]}"
+
+    memory = _dated_entry("formalize", status, arts, notes[:500])
     memory = memory + "\n\n" + truncate_for_prompt(lean_code, 4000)
     return ActionResult(
-        status="partial",
+        status=status,
         artifact_refs=arts,
         notes=notes[:2000],
         next_recommended_action=next_action,
-        gate_pending="none",
+        gate_pending=gate,
         memory_entry=memory,
         raw_model_text=resp.text,
     )

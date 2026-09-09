@@ -24,9 +24,10 @@ satday status
 ```
 
 `satday auto` runs all next disjoint workstreams in parallel each wake and
-loops until Ctrl-C. Config: `saturday_loop` in `infra/config/defaults.yaml`.
-Shared client: `search/llm/client.py`. Ollama must be serving before prove,
-formalize, or audit.
+loops until Ctrl-C. Formalize auto-applies Frontier drafts into `theory/` when
+lake build stays green (`saturday_loop.auto_apply`). Config:
+`saturday_loop` in `infra/config/defaults.yaml`. Shared client:
+`search/llm/client.py`. Ollama must be serving before prove, formalize, or audit.
 
 ## Session Contract
 
