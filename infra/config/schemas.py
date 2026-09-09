@@ -76,12 +76,39 @@ class SaturdayRoleLLMConfig(BaseModel):
     temperature: float = Field(0.1, ge=0.0)
 
 
+class SaturdayRemoteConfig(BaseModel):
+    """
+    Optional hosted LLM escalation (OpenRouter).
+
+    Off by default. Enable with satday --remote (or remote.enabled=true) and
+    set OPENROUTER_API_KEY in the environment. Never commit the key.
+    """
+    enabled: bool = False
+    # escalate: local formalize first, then remote if apply fails
+    # remote: formalize uses OpenRouter only
+    mode: str = Field("escalate", pattern="^(escalate|remote)$")
+    endpoint: str = "https://openrouter.ai/api/v1"
+    api_style: str = Field("openai_compatible", pattern="^(openai_compatible)$")
+    api_key_env: str = "OPENROUTER_API_KEY"
+    timeout_seconds: int = Field(600, gt=0)
+    use_for_formalize: bool = True
+    use_for_prove: bool = False
+    use_for_audit: bool = False
+    formalize_model: str = "anthropic/claude-sonnet-4"
+    prove_model: str = "anthropic/claude-sonnet-4"
+    audit_model: str = "anthropic/claude-sonnet-4"
+    # Optional OpenRouter ranking headers (no secrets)
+    http_referer: str = "https://github.com/astrogirlnim/SATurday"
+    app_title: str = "SATurday"
+
+
 class SaturdayLoopConfig(BaseModel):
     """
     Local saturday research loop (option A: CLI + localhost models).
 
     This is the offline replacement for Cursor cloud agents driving the
-    saturday skill. Falsify never calls an LLM.
+    saturday skill. Falsify never calls an LLM. Optional remote escalation
+    is gated by saturday_loop.remote and CLI --remote.
     """
     enabled: bool = True
     endpoint: str = "http://localhost:11434"
@@ -105,6 +132,7 @@ class SaturdayLoopConfig(BaseModel):
         num_predict=4096,
         temperature=0.1,
     )
+    remote: SaturdayRemoteConfig = SaturdayRemoteConfig()
     falsify_family: str = "php"
     falsify_n_min: int = Field(4, gt=0)
     falsify_n_max: int = Field(10, gt=0)

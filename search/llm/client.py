@@ -1,12 +1,14 @@
 """
-Local LLM HTTP client (stdlib only).
+LLM HTTP client (stdlib only).
 
 Supports:
 - Ollama native POST {endpoint}/api/generate
 - OpenAI compatible POST {endpoint}/v1/chat/completions
+  (also {endpoint}/chat/completions when endpoint already ends in /v1)
+- Optional Bearer auth for OpenRouter / hosted OpenAI compatible APIs
 
-Refuses non local hosts when require_local is True (default), matching the
-repo offline and zero cost policy.
+Default require_local=True refuses non loopback hosts (offline policy).
+Remote OpenRouter use is opt in via saturday_loop.remote + satday --remote.
 """
 
 from __future__ import annotations
@@ -23,9 +25,7 @@ from urllib.parse import urlparse
 
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
 
-# One local inference at a time: two 14B models on 16GB unified memory thrash
-# (observed wake with ~9200s formalize). Parallel workstreams still overlap
-# lake build and I/O; only generate() is serialized.
+# One inference at a time across local and remote callers in this process
 _INFERENCE_LOCK = threading.Lock()
 _INFERENCE_LOCK_HOLDER = threading.local()
 
@@ -54,13 +54,15 @@ class LLMResponse:
 
 class LocalLLMClient:
     """
-    HTTP client for local inference servers.
+    HTTP client for local or explicitly enabled remote inference.
 
-    Variables consumed from config or callers:
-    - endpoint: base URL, default http://localhost:11434
+    Variables:
+    - endpoint: base URL
     - api_style: ollama | openai_compatible
-    - timeout_seconds: urllib timeout
+    - timeout_seconds
     - require_local: reject remote hosts when True
+    - api_key: optional Bearer token (never logged)
+    - extra_headers: optional provider headers (OpenRouter referer/title)
     """
 
     def __init__(
@@ -69,15 +71,22 @@ class LocalLLMClient:
         api_style: str = "ollama",
         timeout_seconds: int = 600,
         require_local: bool = True,
+        api_key: Optional[str] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+        label: str = "local",
     ) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.api_style = api_style
         self.timeout_seconds = timeout_seconds
         self.require_local = require_local
+        self.api_key = api_key
+        self.extra_headers = dict(extra_headers or {})
+        self.label = label
         print(
-            f"[LocalLLMClient] init endpoint={self.endpoint} "
+            f"[LocalLLMClient] init label={self.label} endpoint={self.endpoint} "
             f"api_style={self.api_style} timeout={self.timeout_seconds}s "
-            f"require_local={self.require_local}"
+            f"require_local={self.require_local} "
+            f"auth={'yes' if self.api_key else 'no'}"
         )
         if self.require_local:
             self._assert_local(self.endpoint)
@@ -90,19 +99,17 @@ class LocalLLMClient:
         if host not in _LOCAL_HOSTS:
             raise ValueError(
                 f"Non local LLM endpoint blocked by offline policy: {endpoint}. "
-                "Set saturday_loop.require_local=false only for an explicit LAN "
-                "inference box you control."
+                "Use saturday_loop.remote with satday --remote for OpenRouter."
             )
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         """Run one completion and return normalized text."""
         style = request.api_style or self.api_style
         print(
-            f"[LocalLLMClient] generate model={request.model} style={style} "
-            f"prompt_chars={len(request.prompt)} temp={request.temperature} "
-            f"num_predict={request.num_predict}"
+            f"[LocalLLMClient] generate label={self.label} model={request.model} "
+            f"style={style} prompt_chars={len(request.prompt)} "
+            f"temp={request.temperature} num_predict={request.num_predict}"
         )
-        # Re-entrant: nested generate in same thread does not deadlock
         held = getattr(_INFERENCE_LOCK_HOLDER, "held", False)
         if held:
             return self._generate_unlocked(request, style)
@@ -123,6 +130,13 @@ class LocalLLMClient:
             return self._ollama_generate(request)
         raise ValueError(f"Unknown api_style: {style}")
 
+    def _chat_url(self) -> str:
+        """OpenAI compatible chat completions URL."""
+        base = self.endpoint.rstrip("/")
+        if base.endswith("/v1"):
+            return f"{base}/chat/completions"
+        return f"{base}/v1/chat/completions"
+
     def _ollama_generate(self, request: LLMRequest) -> LLMResponse:
         """POST /api/generate (Ollama native)."""
         url = f"{self.endpoint}/api/generate"
@@ -142,7 +156,6 @@ class LocalLLMClient:
         text = raw.get("response", "")
         if not isinstance(text, str):
             text = str(text)
-        # DeepSeek R1 style fields when present
         thinking = raw.get("thinking")
         if thinking and not text:
             text = str(thinking)
@@ -151,8 +164,8 @@ class LocalLLMClient:
         return LLMResponse(text=text, model=request.model, elapsed_seconds=elapsed, raw=raw)
 
     def _chat_completions(self, request: LLMRequest) -> LLMResponse:
-        """POST /v1/chat/completions (OpenAI compatible: Ollama, MLX, llama.cpp)."""
-        url = f"{self.endpoint}/v1/chat/completions"
+        """POST chat/completions (Ollama OpenAI compat, OpenRouter, etc.)."""
+        url = self._chat_url()
         messages: List[Dict[str, str]] = []
         if request.system:
             messages.append({"role": "system", "content": request.system})
@@ -170,6 +183,9 @@ class LocalLLMClient:
         if choices:
             message = choices[0].get("message") or {}
             text = message.get("content") or ""
+            # Some models put reasoning separately
+            if not text and message.get("reasoning"):
+                text = str(message.get("reasoning"))
         if not isinstance(text, str):
             text = str(text)
         elapsed = float(raw.get("_elapsed_seconds", 0.0))
@@ -179,11 +195,15 @@ class LocalLLMClient:
     def _post_json(self, url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """POST JSON and parse object response."""
         body = json.dumps(payload).encode("utf-8")
-        print(f"[LocalLLMClient] POST {url} bytes={len(body)}")
+        headers = {"Content-Type": "application/json"}
+        headers.update(self.extra_headers)
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        print(f"[LocalLLMClient] POST {url} bytes={len(body)} auth={'yes' if self.api_key else 'no'}")
         req = urllib.request.Request(
             url,
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         started = time.time()
@@ -197,7 +217,7 @@ class LocalLLMClient:
         except urllib.error.URLError as exc:
             print(f"[LocalLLMClient] URL error: {exc}")
             raise RuntimeError(
-                f"LLM unreachable at {url}. Is Ollama or your local server running?"
+                f"LLM unreachable at {url}. Check local server or OpenRouter network."
             ) from exc
         elapsed = time.time() - started
         print(f"[LocalLLMClient] response bytes={len(raw_bytes)} elapsed={elapsed:.1f}s")

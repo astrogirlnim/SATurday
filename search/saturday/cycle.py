@@ -14,7 +14,6 @@ from typing import Any, Dict, List, Optional
 
 from infra.config.loader import load_config
 from infra.config.schemas import SaturdayConfig, SaturdayLoopConfig
-from search.llm.client import LocalLLMClient
 from search.saturday.actions import run_action
 from search.saturday.chooser import (
     ActionChoice,
@@ -26,6 +25,7 @@ from search.saturday.context import (
     append_session_record,
     load_cycle_context,
 )
+from search.saturday.llm_factory import enable_remote_on_config, make_local_client
 from search.saturday.ui import announce
 
 
@@ -37,6 +37,8 @@ def run_saturday_cycle(
     target: Optional[str] = None,
     dry_run: bool = False,
     workstream_note: Optional[str] = None,
+    remote: bool = False,
+    remote_mode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Execute exactly one saturday session and stop.
@@ -52,6 +54,8 @@ def run_saturday_cycle(
     loop_cfg: SaturdayLoopConfig = config.saturday_loop
     if not loop_cfg.enabled:
         raise RuntimeError("saturday_loop.enabled is false in config")
+    if remote:
+        enable_remote_on_config(loop_cfg, mode=remote_mode or "escalate")
 
     print(
         f"[saturday.cycle] loop endpoint={loop_cfg.endpoint} "
@@ -116,12 +120,7 @@ def _execute_choice(
 
     client = None
     if choice.action_type != "falsify":
-        client = LocalLLMClient(
-            endpoint=loop_cfg.endpoint,
-            api_style=loop_cfg.api_style,
-            timeout_seconds=loop_cfg.timeout_seconds,
-            require_local=loop_cfg.require_local,
-        )
+        client = make_local_client(loop_cfg)
 
     result = run_action(ctx, choice, loop_cfg, client)
     print(
@@ -166,6 +165,8 @@ def run_saturday_parallel(
     repo_root: Optional[Path] = None,
     config_file: Optional[Path] = None,
     dry_run: bool = False,
+    remote: bool = False,
+    remote_mode: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Run one cycle on each disjoint parallel workstream (typically R2 and R5).
@@ -182,13 +183,23 @@ def run_saturday_parallel(
     loop_cfg: SaturdayLoopConfig = config.saturday_loop
     if not loop_cfg.enabled:
         raise RuntimeError("saturday_loop.enabled is false in config")
+    if remote:
+        enable_remote_on_config(loop_cfg, mode=remote_mode or "escalate")
 
     ctx = load_cycle_context(repo_root)
     choices = list_parallel_choices(ctx)
     if not choices:
         announce("No parallel workstreams ready; falling back to a single cycle.")
         print("[saturday.cycle] no parallel workstreams actionable; falling back to serial")
-        return [run_saturday_cycle(repo_root=repo_root, config_file=config_file, dry_run=dry_run)]
+        return [
+            run_saturday_cycle(
+                repo_root=repo_root,
+                config_file=config_file,
+                dry_run=dry_run,
+                remote=remote,
+                remote_mode=remote_mode,
+            )
+        ]
 
     if len(choices) == 1:
         announce(f"Only one workstream ready: {choices[0].workstream} on {choices[0].rung}.")
@@ -203,6 +214,8 @@ def run_saturday_parallel(
                 target=c0.target,
                 dry_run=dry_run,
                 workstream_note=c0.workstream,
+                remote=remote,
+                remote_mode=remote_mode,
             )
         ]
 

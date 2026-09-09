@@ -57,6 +57,16 @@ def auto_cmd(
         help="Number of wakes (default 0 = until Ctrl-C)",
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Plan only; no LLM calls"),
+    remote: bool = typer.Option(
+        False,
+        "--remote",
+        help="Escalate formalize to OpenRouter after local apply fails (needs OPENROUTER_API_KEY)",
+    ),
+    remote_only: bool = typer.Option(
+        False,
+        "--remote-only",
+        help="Formalize via OpenRouter only (skip local model; needs OPENROUTER_API_KEY)",
+    ),
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
 ):
     """
@@ -67,6 +77,8 @@ def auto_cmd(
 
     Examples:
         satday auto
+        satday auto --remote
+        satday auto --remote-only
         satday auto --sleep 120
         satday auto --cycles 5
         satday auto --dry-run --cycles 1
@@ -78,9 +90,12 @@ def auto_cmd(
         "[saturday.*] lines are detailed debug logs."
     )
     console.print(
-        "Runs all next workstreams each wake. Stop with Ctrl-C. "
-        f"cycles={cycles} sleep={sleep} dry_run={dry_run}"
+        f"cycles={cycles} sleep={sleep} dry_run={dry_run} "
+        f"remote={remote or remote_only} remote_only={remote_only}"
     )
+    if remote_only and not remote:
+        remote = True
+    remote_mode = "remote" if remote_only else ("escalate" if remote else None)
     try:
         from search.saturday.loop import run_saturday_loop
 
@@ -91,6 +106,8 @@ def auto_cmd(
             sleep_seconds=sleep,
             parallel=True,
             dry_run=dry_run,
+            remote=remote,
+            remote_mode=remote_mode,
         )
         console.print_json(data={"wakes": len(waves), "waves": waves})
         console.print(f"[bold green]Auto stopped wakes={len(waves)}[/bold green]")
@@ -116,6 +133,16 @@ def saturday_cmd(
         "--parallel",
         help="Run all disjoint workstream cycles together (typically R2 and R5)",
     ),
+    remote: bool = typer.Option(
+        False,
+        "--remote",
+        help="Escalate formalize to OpenRouter after local apply fails",
+    ),
+    remote_only: bool = typer.Option(
+        False,
+        "--remote-only",
+        help="Formalize via OpenRouter only",
+    ),
 ):
     """
     Run exactly one local saturday cycle against the proof complexity ladder.
@@ -126,11 +153,17 @@ def saturday_cmd(
     Examples:
         satday saturday --dry-run
         satday saturday --action prove --rung r5-cook-reckhow-bridge
-        satday saturday --parallel
+        satday saturday --parallel --remote
         satday saturday --parallel --dry-run
     """
     console.print("[bold blue]SATurday local cycle[/bold blue]")
-    console.print(f"dry_run={dry_run} parallel={parallel} rung={rung} action={action}")
+    if remote_only:
+        remote = True
+    remote_mode = "remote" if remote_only else ("escalate" if remote else None)
+    console.print(
+        f"dry_run={dry_run} parallel={parallel} rung={rung} action={action} "
+        f"remote={remote} remote_only={remote_only}"
+    )
     try:
         if parallel and (rung or action or target):
             console.print(
@@ -144,6 +177,8 @@ def saturday_cmd(
                 repo_root=repo_root,
                 config_file=config,
                 dry_run=dry_run,
+                remote=remote,
+                remote_mode=remote_mode,
             )
             console.print_json(data=records)
         else:
@@ -156,6 +191,8 @@ def saturday_cmd(
                 action=action,
                 target=target,
                 dry_run=dry_run,
+                remote=remote,
+                remote_mode=remote_mode,
             )
             console.print_json(data=record)
         console.print("[bold green]Cycle complete[/bold green]")
@@ -184,6 +221,16 @@ def loop_cmd(
         help="Each wake runs disjoint R2 and R5 cycles together",
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Plan only; no LLM calls"),
+    remote: bool = typer.Option(
+        False,
+        "--remote",
+        help="Escalate formalize to OpenRouter after local apply fails",
+    ),
+    remote_only: bool = typer.Option(
+        False,
+        "--remote-only",
+        help="Formalize via OpenRouter only",
+    ),
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
 ):
     """
@@ -194,12 +241,16 @@ def loop_cmd(
 
     Examples:
         satday loop --cycles 3 --sleep 90
-        satday loop --parallel --cycles 2
+        satday loop --parallel --cycles 2 --remote
         satday loop --parallel --dry-run --cycles 1
     """
     console.print("[bold blue]SATurday local loop[/bold blue]")
+    if remote_only:
+        remote = True
+    remote_mode = "remote" if remote_only else ("escalate" if remote else None)
     console.print(
-        f"cycles={cycles} sleep={sleep} parallel={parallel} dry_run={dry_run}"
+        f"cycles={cycles} sleep={sleep} parallel={parallel} dry_run={dry_run} "
+        f"remote={remote} remote_only={remote_only}"
     )
     try:
         from search.saturday.loop import run_saturday_loop
@@ -211,6 +262,8 @@ def loop_cmd(
             sleep_seconds=sleep,
             parallel=parallel,
             dry_run=dry_run,
+            remote=remote,
+            remote_mode=remote_mode,
         )
         console.print_json(data=waves)
         console.print(f"[bold green]Loop complete wakes={len(waves)}[/bold green]")

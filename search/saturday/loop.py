@@ -43,12 +43,15 @@ def run_saturday_loop(
     sleep_seconds: Optional[int] = None,
     parallel: Optional[bool] = None,
     dry_run: bool = False,
+    remote: bool = False,
+    remote_mode: Optional[str] = None,
 ) -> List[List[Dict[str, Any]]]:
     """
     Run repeated saturday wakes.
 
     cycles: None uses config.loop_max_cycles; 0 means until interrupted.
     parallel: None uses config.loop_parallel_default.
+    remote: enable OpenRouter escalation for formalize (needs OPENROUTER_API_KEY).
     """
     if repo_root is None:
         repo_root = Path(__file__).resolve().parents[2]
@@ -67,11 +70,16 @@ def run_saturday_loop(
     )
     announce(
         f"Settings: max_cycles={max_cycles or 'until interrupted'} "
-        f"base_sleep={base_sleep}s parallel={use_parallel} dry_run={dry_run}"
+        f"base_sleep={base_sleep}s parallel={use_parallel} dry_run={dry_run} "
+        f"remote={remote}"
     )
+    if remote:
+        from search.saturday.llm_factory import enable_remote_on_config
+
+        enable_remote_on_config(loop_cfg, mode=remote_mode or "escalate")
     print(
         f"[saturday.loop] start max_cycles={max_cycles} base_sleep={base_sleep} "
-        f"parallel={use_parallel} dry_run={dry_run}"
+        f"parallel={use_parallel} dry_run={dry_run} remote={remote}"
     )
 
     waves: List[List[Dict[str, Any]]] = []
@@ -90,6 +98,8 @@ def run_saturday_loop(
                     repo_root=repo_root,
                     config_file=config_file,
                     dry_run=dry_run,
+                    remote=remote,
+                    remote_mode=remote_mode,
                 )
             else:
                 records = [
@@ -97,6 +107,8 @@ def run_saturday_loop(
                         repo_root=repo_root,
                         config_file=config_file,
                         dry_run=dry_run,
+                        remote=remote,
+                        remote_mode=remote_mode,
                     )
                 ]
             waves.append(records)

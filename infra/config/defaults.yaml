@@ -200,6 +200,23 @@ saturday_loop:
     model: "qwen2.5:14b"
     num_predict: 4096
     temperature: 0.1
+  # Optional OpenRouter escalation (off by default; enable with satday --remote)
+  remote:
+    enabled: false
+    mode: "escalate"
+    endpoint: "https://openrouter.ai/api/v1"
+    api_style: "openai_compatible"
+    api_key_env: "OPENROUTER_API_KEY"
+    timeout_seconds: 600
+    use_for_formalize: true
+    use_for_prove: false
+    use_for_audit: false
+    # Pick any OpenRouter model slug; override via config or env as needed
+    formalize_model: "anthropic/claude-sonnet-4"
+    prove_model: "anthropic/claude-sonnet-4"
+    audit_model: "anthropic/claude-sonnet-4"
+    http_referer: "https://github.com/astrogirlnim/SATurday"
+    app_title: "SATurday"
   falsify_family: "php"
   falsify_n_min: 4
   falsify_n_max: 10

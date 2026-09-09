@@ -25,9 +25,12 @@ satday status
 
 `satday auto` runs all next disjoint workstreams in parallel each wake and
 loops until Ctrl-C. Formalize auto-applies Frontier drafts into `theory/` when
-lake build stays green (`saturday_loop.auto_apply`). Config:
+lake build stays green (`saturday_loop.auto_apply`). Optional OpenRouter
+escalation: `satday auto --remote` (local first, then hosted model on apply
+failure) or `--remote-only` (needs `OPENROUTER_API_KEY`). Config:
 `saturday_loop` in `infra/config/defaults.yaml`. Shared client:
-`search/llm/client.py`. Ollama must be serving before prove, formalize, or audit.
+`search/llm/client.py`. Ollama must be serving before prove, formalize, or audit
+unless `--remote-only`.
 
 ## Session Contract
 

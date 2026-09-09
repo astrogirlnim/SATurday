@@ -67,14 +67,17 @@ def _role_request(
     role: SaturdayRoleLLMConfig,
     prompt: str,
     system: str,
+    *,
+    model_override: Optional[str] = None,
+    api_style_override: Optional[str] = None,
 ) -> LLMRequest:
     return LLMRequest(
-        model=role.model,
+        model=model_override or role.model,
         prompt=prompt,
         system=system,
         temperature=role.temperature,
         num_predict=role.num_predict,
-        api_style=loop_cfg.api_style,
+        api_style=api_style_override or loop_cfg.api_style,
     )
 
 
@@ -239,6 +242,11 @@ def _run_formalize(
     client: LocalLLMClient,
 ) -> ActionResult:
     from search.saturday.apply_lean import apply_frontier_draft, lake_build_locked
+    from search.saturday.llm_factory import (
+        make_remote_client,
+        remote_config,
+        want_remote_formalize,
+    )
 
     role = loop_cfg.formalize
     lean_path = _guess_lean_target(ctx, choice)
@@ -282,116 +290,187 @@ def _run_formalize(
             + last_apply_err
         )
     print(f"[saturday.actions] formalize ambient_build_ok={build['ok']}")
-    print(
-        f"[saturday.actions] formalize prior_errors_chars={len(prior_errors)} "
-        f"has_last_apply_err={bool(last_apply_err)}"
-    )
 
-    print(f"[saturday.actions] formalize model={role.model}")
-    announce(
-        f"Asking local model {role.model} for a Lean 4 Frontier draft "
-        f"(prior error context: {len(prior_errors)} chars)."
-    )
-    prompt = prompt_builders.build_formalize_prompt(
-        ctx,
-        choice,
-        module_excerpt,
-        prior_errors=prior_errors,
-        open_obligations=open_obs,
-    )
-    resp = client.generate(
-        _role_request(loop_cfg, role, prompt, prompt_builders.SYSTEM_FORMALIZE)
-    )
-    fence = LEAN_FENCE_RE.search(resp.text)
-    lean_code = fence.group(1).strip() if fence else resp.text
-    draft_path = _write_draft(
-        ctx.repo_root,
-        loop_cfg.draft_dir,
-        f"{choice.rung}_formalize.lean",
-        lean_code + "\n",
-    )
-    meta = _parse_trailing_json(resp.text)
-    next_action = str(meta.get("next_recommended_action", "formalize"))
-    if next_action not in {"prove", "formalize", "falsify", "audit"}:
-        print(
-            f"[saturday.actions] sanitize formalize next_recommended_action "
-            f"from {next_action!r} to formalize"
-        )
-        next_action = "formalize"
+    remote = remote_config(loop_cfg)
+    use_remote = want_remote_formalize(loop_cfg)
+    remote_only = use_remote and remote.mode == "remote"
 
-    arts = [
-        str(draft_path.relative_to(ctx.repo_root)),
-        str(lean_path.relative_to(ctx.repo_root)) if lean_path.exists() else "",
-    ]
-    arts = [a for a in arts if a]
-    notes = str(meta.get("notes") or f"Lean draft at {draft_path.relative_to(ctx.repo_root)}")
-
-    apply_notes = "auto_apply disabled"
-    status = "partial"
-    gate = "none"
-    if getattr(loop_cfg, "auto_apply", True):
-        print(f"[saturday.actions] auto_apply enabled for {choice.rung}")
+    def one_pass(
+        *,
+        gen_client: LocalLLMClient,
+        model: str,
+        api_style: str,
+        tag: str,
+        err_ctx: str,
+    ) -> dict:
         announce(
-            f"Auto-apply on: validating draft, merging into {lean_path.name}, "
-            "then lake build (revert if red)."
+            f"Asking {tag} model {model} for a Lean 4 Frontier draft "
+            f"(error context: {len(err_ctx)} chars)."
         )
-        applied = apply_frontier_draft(
-            repo_root=ctx.repo_root,
-            lean_path=lean_path,
-            lean_code=lean_code,
-            rung_id=choice.rung,
+        prompt = prompt_builders.build_formalize_prompt(
+            ctx,
+            choice,
+            module_excerpt,
+            prior_errors=err_ctx,
+            open_obligations=open_obs,
         )
-        apply_notes = applied.notes
-        explain_apply_outcome(
-            applied=applied.applied,
-            reverted=applied.reverted,
-            build_ok=applied.build_ok,
-            notes=applied.notes,
-            build_tail=applied.build_tail,
-        )
-        if applied.build_tail:
-            # Persist compile errors for the next formalize wake
-            err_draft = _write_draft(
-                ctx.repo_root,
-                loop_cfg.draft_dir,
-                f"{choice.rung}_apply_error.txt",
-                applied.build_tail,
+        resp = gen_client.generate(
+            _role_request(
+                loop_cfg,
+                role,
+                prompt,
+                prompt_builders.SYSTEM_FORMALIZE,
+                model_override=model,
+                api_style_override=api_style,
             )
-            arts.append(str(err_draft.relative_to(ctx.repo_root)))
-        if applied.applied and applied.build_ok:
-            if applied.has_sorry:
-                status = "partial"
-                gate = "none"
-                next_action = "formalize"
+        )
+        fence = LEAN_FENCE_RE.search(resp.text)
+        lean_code = fence.group(1).strip() if fence else resp.text
+        draft_path = _write_draft(
+            ctx.repo_root,
+            loop_cfg.draft_dir,
+            f"{choice.rung}_formalize_{tag}.lean",
+            lean_code + "\n",
+        )
+        meta = _parse_trailing_json(resp.text)
+        arts = [
+            str(draft_path.relative_to(ctx.repo_root)),
+            str(lean_path.relative_to(ctx.repo_root)) if lean_path.exists() else "",
+        ]
+        arts = [a for a in arts if a]
+        notes = str(
+            meta.get("notes")
+            or f"Lean draft ({tag}) at {draft_path.relative_to(ctx.repo_root)}"
+        )
+        apply_notes = "auto_apply disabled"
+        status = "partial"
+        gate = "none"
+        applied_ok = False
+        build_tail = ""
+        if getattr(loop_cfg, "auto_apply", True):
+            announce(
+                f"Auto-apply ({tag}): merge into {lean_path.name}, lake build, "
+                "revert if red."
+            )
+            applied = apply_frontier_draft(
+                repo_root=ctx.repo_root,
+                lean_path=lean_path,
+                lean_code=lean_code,
+                rung_id=choice.rung,
+            )
+            apply_notes = applied.notes
+            build_tail = applied.build_tail or ""
+            explain_apply_outcome(
+                applied=applied.applied,
+                reverted=applied.reverted,
+                build_ok=applied.build_ok,
+                notes=applied.notes,
+                build_tail=applied.build_tail,
+            )
+            if applied.build_tail:
+                err_draft = _write_draft(
+                    ctx.repo_root,
+                    loop_cfg.draft_dir,
+                    f"{choice.rung}_apply_error.txt",
+                    applied.build_tail,
+                )
+                arts.append(str(err_draft.relative_to(ctx.repo_root)))
+            if applied.applied and applied.build_ok:
+                applied_ok = True
+                if applied.has_sorry:
+                    status = "partial"
+                    gate = "none"
+                else:
+                    status = "success"
+                    gate = "merge_certified"
+                arts.append(applied.target)
             else:
-                status = "success"
-                gate = "merge_certified"
-                next_action = "formalize"
-            arts.append(applied.target)
-        elif applied.reverted:
-            status = "partial"
+                status = "partial"
         else:
-            status = "partial"
+            notes = notes + " Local CLI writes drafts only; auto_apply is false."
+        return {
+            "status": status,
+            "gate": gate,
+            "notes": f"{notes} {apply_notes}",
+            "arts": arts,
+            "lean_code": lean_code,
+            "raw": resp.text,
+            "applied_ok": applied_ok,
+            "build_tail": build_tail,
+            "tag": tag,
+            "model": model,
+        }
+
+    if remote_only:
+        rclient = make_remote_client(loop_cfg)
+        outcome = one_pass(
+            gen_client=rclient,
+            model=remote.formalize_model,
+            api_style=remote.api_style,
+            tag="openrouter",
+            err_ctx=prior_errors,
+        )
     else:
-        notes = notes + " Local CLI writes drafts only; auto_apply is false."
+        outcome = one_pass(
+            gen_client=client,
+            model=role.model,
+            api_style=loop_cfg.api_style,
+            tag="local",
+            err_ctx=prior_errors,
+        )
+        if (
+            use_remote
+            and remote.mode == "escalate"
+            and not outcome["applied_ok"]
+            and getattr(loop_cfg, "auto_apply", True)
+        ):
+            announce(
+                "Local formalize did not stick. Escalating once to OpenRouter "
+                f"({remote.formalize_model})."
+            )
+            escalated_err = prior_errors
+            if outcome["build_tail"]:
+                escalated_err = (
+                    (escalated_err + "\n\n" if escalated_err else "")
+                    + "Local attempt compile digest:\n"
+                    + outcome["build_tail"]
+                )
+            try:
+                rclient = make_remote_client(loop_cfg)
+                remote_out = one_pass(
+                    gen_client=rclient,
+                    model=remote.formalize_model,
+                    api_style=remote.api_style,
+                    tag="openrouter",
+                    err_ctx=escalated_err,
+                )
+                # Prefer remote outcome; keep local draft refs
+                remote_out["arts"] = list(
+                    dict.fromkeys(outcome["arts"] + remote_out["arts"])
+                )
+                remote_out["notes"] = (
+                    f"local:{outcome['notes'][:400]} | remote:{remote_out['notes']}"
+                )
+                outcome = remote_out
+            except Exception as exc:
+                announce(f"OpenRouter escalation failed: {exc}")
+                outcome["notes"] = outcome["notes"] + f" OpenRouter escalate failed: {exc}"
 
-    # Never bounce prose_accepted / active formalize work back to prove via model whim
     next_action = "formalize"
-
-    notes = f"{notes} {apply_notes}"
+    notes = outcome["notes"]
     if not build["ok"]:
         notes = notes + f" Ambient lake build was red (tail): {prior_errors[-800:]}"
 
-    memory = _dated_entry("formalize", status, arts, notes[:500])
-    memory = memory + "\n\n" + truncate_for_prompt(lean_code, 4000)
+    memory = _dated_entry("formalize", outcome["status"], outcome["arts"], notes[:500])
+    memory = memory + "\n\n" + truncate_for_prompt(outcome["lean_code"], 4000)
     return ActionResult(
-        status=status,
-        artifact_refs=arts,
+        status=outcome["status"],
+        artifact_refs=outcome["arts"],
         notes=notes[:2000],
         next_recommended_action=next_action,
-        gate_pending=gate,
+        gate_pending=outcome["gate"],
         memory_entry=memory,
-        raw_model_text=resp.text,
+        raw_model_text=outcome["raw"],
     )
 
 
