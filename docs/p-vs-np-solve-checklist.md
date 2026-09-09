@@ -35,8 +35,9 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       certified 2026-09-09;
       Cluster C2 encodePair load glue into bitsEqualComputer
       certified 2026-09-09;
-      Frontier: optional full unequal zipper Evals if needed,
-      then index loop FinTM2 and TT map sequencer for
+      Cluster C2 bitsEqualPair TM2ComputableInPolyTime under encodePair
+      certified 2026-09-09;
+      Frontier: per index eval loop FinTM2 and TT map sequencer for
       truthTable_is_prop_proof_system).
 
 ## 1) Pick One Main Attack

@@ -1803,3 +1803,35 @@ lower bound via the bridge.
   zipper equality, so reverse restore phases are unnecessary before compare.
   gate_pending: merge_certified.
   gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
+
+- 2026-09-09 formalize (Cluster C2 bitsEqualPair polyTime): SUCCESS.
+  Choice:
+  ```json
+  {
+    "rung": "r5-cook-reckhow-bridge",
+    "action_type": "formalize",
+    "target": "bitsEqualPair TM2ComputableInPolyTime under encodePair",
+    "rationale": "Prior cycle left unequal zipper and polyTime packaging as the next closed slice."
+  }
+  ```
+  Salvaged dirty Bridge WIP: unequal zipper Evals (expectTrue or expectFalse
+  mismatch and nil paths), bitsEq_evals_unequal, bitsEq_evals_zip,
+  bitsEq_evals_encodePair_unequal, bitsEqualPair_evals, bitsEqualPairTime,
+  and bitsEqualPairComputableInPolyTime.
+  Existing names used: bitsEqualComputer, bitsEq_evals_equal,
+  bitsEq_evals_load_encodePair, bitsEqual_reverse, bitsEqualPair, encodePair,
+  bitEnc, EvalsToInTime, TM2ComputableInPolyTime.
+  Accepted: bitsEq_evals_expectTrue_false, bitsEq_evals_expectTrue_nil,
+  bitsEq_evals_expectFalse_true, bitsEq_evals_expectFalse_nil,
+  bitsEq_evals_left_cons_right_nil, bitsEq_evals_mismatch, bitsEq_evals_unequal,
+  bitsEq_evals_zip, bitsEq_evals_encodePair_unequal, bitsEqualPair_evals,
+  bitsEqualPairTime, bitsEqualPairTime_eval, bitsEqualPairComputableInPolyTime,
+  bitsEqualPair_computableInPolyTime.
+  Bridge lake build green; Bridge axiom probe PASS (propext, Classical.choice,
+  Quot.sound). Full scripts/check_axioms.sh blocked by R2 MGG WIP, not R5.
+  Frontier updated: validatesTautologyResult_computableInPolyTime needs per
+  index eval loop then TT map sequencer; truthTable_is_prop_proof_system unchanged.
+  Most important thing learned: zipper reject paths drain leftovers before
+  haltList, so unequal polyTime reuses the same linear bound as equal paths.
+  gate_pending: merge_certified.
+  gate_auto: true. Rationale: Bridge axiom probe green and decls listed.
