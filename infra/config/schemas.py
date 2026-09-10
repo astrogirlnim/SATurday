@@ -86,7 +86,7 @@ class SaturdayRemoteConfig(BaseModel):
     enabled: bool = False
     # escalate: local formalize first, then remote if apply fails
     # remote: formalize uses OpenRouter only
-    mode: str = Field("escalate", pattern="^(escalate|remote)$")
+    mode: str = Field("remote", pattern="^(escalate|remote)$")
     endpoint: str = "https://openrouter.ai/api/v1"
     api_style: str = Field("openai_compatible", pattern="^(openai_compatible)$")
     api_key_env: str = "OPENROUTER_API_KEY"

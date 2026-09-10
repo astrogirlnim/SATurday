@@ -77,9 +77,12 @@ def enable_remote_on_config(loop_cfg: SaturdayLoopConfig, mode: Optional[str] = 
     remote.enabled = True
     if mode in {"escalate", "remote"}:
         remote.mode = mode
+    else:
+        # CLI --remote default: skip weak local formalize
+        remote.mode = remote.mode or "remote"
     loop_cfg.remote = remote
     announce(
-        f"OpenRouter escalation ON (mode={remote.mode}, "
+        f"OpenRouter formalize ON (mode={remote.mode}, "
         f"formalize_model={remote.formalize_model})."
     )
 

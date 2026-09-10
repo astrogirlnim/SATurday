@@ -2456,9 +2456,10 @@ theorem mggLeavingExcess_le_four_mul_outNeighbors {m : ℕ} (hm : 3 ≤ m)
   by_cases h0 : (mggOutNeighbors hm0 S v).card = 0
   · rw [mggLeavingExcess_eq_zero_of_outNeighbors_empty hm0 S v h0]
     exact Nat.zero_le _
-  · have hpos : 0 < (mggOutNeighbors hm0 S v).card := Nat.pos_of_ne_zero h0
-    have hex := mggLeavingExcess_le_four hm S v
-    have : 4 ≤ 4 * (mggOutNeighbors hm0 S v).card := by omega
+  · have hex := mggLeavingExcess_le_four hm S v
+    have : 4 ≤ 4 * (mggOutNeighbors hm0 S v).card := by
+      have : 0 < (mggOutNeighbors hm0 S v).card := Nat.pos_of_ne_zero h0
+      omega
     exact hex.trans this
 
 /-- Reverse loss ≤ `4|∂_G S|`. -/
@@ -2508,6 +2509,24 @@ theorem mgg_card_le_fifteen_mul_edgeBoundary_of_multi_cheeger {m : ℕ}
   have : 3 * (g + 4 * g) = 15 * g := by ring
   simpa [this] using hmain
 
+/-- Multi Cheeger alone yields `HasExpansionInv _ 15` (weaker than locked `mggInvK`). -/
+theorem mggGraph_hasExpansionInv15_of_multi_cheeger {m : ℕ}
+    (hm : 3 ≤ m)
+    (hcheeger : MggHasMultiCheeger m
+      (lt_of_lt_of_le (by decide : 0 < 3) hm)) :
+    HasExpansionInv
+      (mggGraph m (lt_of_lt_of_le (by decide : 0 < 3) hm)) 15 := by
+  intro S hne hhalf
+  exact mgg_card_le_fifteen_mul_edgeBoundary_of_multi_cheeger hm hcheeger S hne
+    hhalf
+
+/-- Twelfth absorb is incompatible with the Inv-15 loss regime `loss ≤ 4g`
+when `|S| ≤ 15g` and `g > 0`: `12 · 4g ≰ |S|`. -/
+theorem not_twelfth_compatible_with_inv15 {s g : ℕ}
+    (hg : 0 < g) (hs : s ≤ 15 * g) : ¬ (12 * (4 * g) ≤ s) := by
+  intro h
+  omega
+
 namespace MGGFrontier
 
 /-- Gabber Galil spectral input: labeled 8-regular multi Cayley graph has
@@ -2517,7 +2536,8 @@ theorem mgg_has_multi_cheeger_of_gabber_galil (m : ℕ) (hm0 : 0 < m)
     MggHasMultiCheeger m hm0 := by
   sorry
 
-/-- Gabber Galil style Inv on every informative simple MGG (spectral gap open). -/
+/-- Locked Inv-4 on informative simple MGG. Needs spectral `MggHasMultiCheeger`
+plus a reverseLoss stricter than both `2|S|+12m` and `4|∂_G|`. -/
 theorem mggGraph_hasExpansionInv (m : ℕ) (hm0 : 0 < m)
     (hm : mggInformativeFloor ≤ m) :
     HasExpansionInv (mggGraph m hm0) mggInvK := by

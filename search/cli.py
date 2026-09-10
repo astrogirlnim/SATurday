@@ -65,12 +65,17 @@ def auto_cmd(
     remote: bool = typer.Option(
         False,
         "--remote",
-        help="Escalate formalize to OpenRouter after local apply fails (needs OPENROUTER_API_KEY)",
+        help="Use OpenRouter (GPT-6 Astra) for formalize; needs OPENROUTER_API_KEY",
     ),
     remote_only: bool = typer.Option(
         False,
         "--remote-only",
-        help="Formalize via OpenRouter only (skip local model; needs OPENROUTER_API_KEY)",
+        help="Alias for --remote (OpenRouter formalize only)",
+    ),
+    escalate: bool = typer.Option(
+        False,
+        "--escalate",
+        help="With --remote: try local first, then OpenRouter on failure",
     ),
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
 ):
@@ -83,7 +88,7 @@ def auto_cmd(
     Examples:
         satday auto
         satday auto --remote
-        satday auto --remote-only
+        satday auto --remote --escalate
         satday auto --sleep 120
         satday auto --cycles 5
         satday auto --dry-run --cycles 1
@@ -94,13 +99,19 @@ def auto_cmd(
         "Look for lines starting with >>> for human readable status; "
         "[saturday.*] lines are detailed debug logs."
     )
+    if remote_only:
+        remote = True
+    # Default --remote skips weak local formalize; --escalate restores local-first
+    if remote and escalate:
+        remote_mode = "escalate"
+    elif remote or remote_only:
+        remote_mode = "remote"
+    else:
+        remote_mode = None
     console.print(
         f"cycles={cycles} sleep={sleep} dry_run={dry_run} "
-        f"remote={remote or remote_only} remote_only={remote_only}"
+        f"remote={bool(remote)} remote_mode={remote_mode}"
     )
-    if remote_only and not remote:
-        remote = True
-    remote_mode = "remote" if remote_only else ("escalate" if remote else None)
     try:
         from search.saturday.loop import run_saturday_loop
 
@@ -111,7 +122,7 @@ def auto_cmd(
             sleep_seconds=sleep,
             parallel=True,
             dry_run=dry_run,
-            remote=remote,
+            remote=bool(remote),
             remote_mode=remote_mode,
         )
         console.print_json(data={"wakes": len(waves), "waves": waves})
@@ -141,12 +152,17 @@ def saturday_cmd(
     remote: bool = typer.Option(
         False,
         "--remote",
-        help="Escalate formalize to OpenRouter after local apply fails",
+        help="Use OpenRouter (GPT-6 Astra) for formalize; needs OPENROUTER_API_KEY",
     ),
     remote_only: bool = typer.Option(
         False,
         "--remote-only",
-        help="Formalize via OpenRouter only",
+        help="Alias for --remote (OpenRouter formalize only)",
+    ),
+    escalate: bool = typer.Option(
+        False,
+        "--escalate",
+        help="With --remote: try local first, then OpenRouter on failure",
     ),
 ):
     """
@@ -159,15 +175,21 @@ def saturday_cmd(
         satday saturday --dry-run
         satday saturday --action prove --rung r5-cook-reckhow-bridge
         satday saturday --parallel --remote
+        satday saturday --parallel --remote --escalate
         satday saturday --parallel --dry-run
     """
     console.print("[bold blue]SATurday local cycle[/bold blue]")
     if remote_only:
         remote = True
-    remote_mode = "remote" if remote_only else ("escalate" if remote else None)
+    if remote and escalate:
+        remote_mode = "escalate"
+    elif remote or remote_only:
+        remote_mode = "remote"
+    else:
+        remote_mode = None
     console.print(
         f"dry_run={dry_run} parallel={parallel} rung={rung} action={action} "
-        f"remote={remote} remote_only={remote_only}"
+        f"remote={bool(remote)} remote_mode={remote_mode}"
     )
     try:
         if parallel and (rung or action or target):
@@ -229,12 +251,17 @@ def loop_cmd(
     remote: bool = typer.Option(
         False,
         "--remote",
-        help="Escalate formalize to OpenRouter after local apply fails",
+        help="Use OpenRouter (GPT-6 Astra) for formalize; needs OPENROUTER_API_KEY",
     ),
     remote_only: bool = typer.Option(
         False,
         "--remote-only",
-        help="Formalize via OpenRouter only",
+        help="Alias for --remote (OpenRouter formalize only)",
+    ),
+    escalate: bool = typer.Option(
+        False,
+        "--escalate",
+        help="With --remote: try local first, then OpenRouter on failure",
     ),
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
 ):
@@ -247,15 +274,21 @@ def loop_cmd(
     Examples:
         satday loop --cycles 3 --sleep 90
         satday loop --parallel --cycles 2 --remote
+        satday loop --parallel --cycles 2 --remote --escalate
         satday loop --parallel --dry-run --cycles 1
     """
     console.print("[bold blue]SATurday local loop[/bold blue]")
     if remote_only:
         remote = True
-    remote_mode = "remote" if remote_only else ("escalate" if remote else None)
+    if remote and escalate:
+        remote_mode = "escalate"
+    elif remote or remote_only:
+        remote_mode = "remote"
+    else:
+        remote_mode = None
     console.print(
         f"cycles={cycles} sleep={sleep} parallel={parallel} dry_run={dry_run} "
-        f"remote={remote} remote_only={remote_only}"
+        f"remote={bool(remote)} remote_mode={remote_mode}"
     )
     try:
         from search.saturday.loop import run_saturday_loop

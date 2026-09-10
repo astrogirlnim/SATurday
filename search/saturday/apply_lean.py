@@ -85,8 +85,9 @@ def _lake_build_unlocked(repo_root: Path) -> dict:
 
     theory = repo_root / "theory"
     print(f"[saturday.apply] lake build in {theory}")
+    # macOS AppleDouble sidecar files break lake UTF-8 reads (._Foo.lean)
     subprocess.run(
-        ["find", ".", "-name", "._*", "-not", "-path", "./.lake/*", "-delete"],
+        ["find", ".", "-name", "._*", "-delete"],
         cwd=str(theory),
         capture_output=True,
         text=True,
@@ -234,14 +235,23 @@ def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[st
                 "or exists_spreads_matchable_unsat_random3CNF"
             )
 
+    if rung_id == "r2-width-machinery" and re.search(r"\bFormula\b", text):
+        # CNF is the type in this module; Formula is almost always a hallucinated type
+        if "PropFormula" not in text:
+            return None, (
+                "off-target R2 draft uses unknown type Formula; use CNF "
+                "(and prefer helpers around exists_spreads_matchable_unsat_random3CNF)"
+            )
+
     if rung_id == "r5-cook-reckhow-bridge":
-        banned = ("validateIndex", "ttMapSequencer", "perIndexEvalLoop")
+        banned = ("validateIndex", "ttMapSequencer", "perIndexEvalLoop", "idEnc")
         hit = [b for b in banned if b in text]
         if hit:
             return None, (
                 "off-target R5 draft invents unknown identifiers: "
                 + ", ".join(hit)
-                + ". Use only names from the ProofSystemFrontier excerpt."
+                + ". Use only names from the ProofSystemFrontier excerpt "
+                "(idBitEnc, validatesTautologyResult_on_pair, ...)."
             )
 
     namespaces = NAMESPACE_RE.findall(text)

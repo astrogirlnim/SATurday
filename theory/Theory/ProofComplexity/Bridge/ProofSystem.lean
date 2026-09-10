@@ -5128,4 +5128,28 @@ theorem validatesTautologyResult_batch_output_bound
 
 end ProofSystemFrontier
 
+/- SATurday auto-apply 2026-09-10T00:39:14Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Validation increases total batch output size by at most one bit per
+input. This gives an additive allocation bound for the polynomial time
+obligation, but does not establish a machine running time bound. -/
+theorem validatesTautologyResult_batch_additive_length_bound
+    (inputs : List (List Bool)) :
+    (inputs.map (fun π =>
+      (validatesTautologyResult_on_pair π).length)).sum
+      ≤ (inputs.map List.length).sum + inputs.length := by
+  induction inputs with
+  | nil =>
+      simp
+  | cons π inputs ih =>
+      have hπ :
+          (validatesTautologyResult_on_pair π).length ≤ π.length + 1 :=
+        validatesTautologyResult_on_pair_length_frontier π
+      simp only [List.map_cons, List.sum_cons, List.length_cons]
+      omega
+
+end ProofSystemFrontier
+
+
 end SATurday.Bridge

@@ -5126,4 +5126,59 @@ theorem random3CNF_witness_of_filter_budgets
 
 end CSExpansionFrontier
 
+/- SATurday auto-apply 2026-09-10T00:38:42Z (rung r2-width-machinery). -/
+namespace CSExpansionFrontier
+
+/-- A finite cover of satisfiable samples gives a union bound for the
+satisfiability budget. The cover may overlap, as happens when its members
+correspond to different satisfying assignments. -/
+theorem random3CNF_witness_of_model_cover_budgets
+    {ι : Type*}
+    (N n a b : ℕ)
+    (Ω : Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (I : Finset ι)
+    (B : ι → Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (hsize : max N 128 ≤ n)
+    (hstruct :
+      (Ω.filter (fun ω =>
+        ¬ ((cnfVars (random3CNF n (random3CNFClauseCount n) ω)).card = n ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) ≤ 3 ∧
+          Spreads (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) 2 ∧
+          IsCSMatchable (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) <
+            csClauseWidthFloor (random3CNFMatchScale n) 1))).card ≤ a)
+    (hcover :
+      ∀ ω ∈ Ω,
+        Satisfiable (random3CNF n (random3CNFClauseCount n) ω) →
+          ∃ i ∈ I, ω ∈ B i)
+    (hmodels : I.sum (fun i => (B i).card) ≤ b)
+    (hbudget : a + b < Ω.card) :
+    ∃ ω : EnsembleIndex n (random3CNFClauseCount n),
+      let F := random3CNF n (random3CNFClauseCount n) ω
+      let r := random3CNFMatchScale n
+      max N 128 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        Spreads F r 2 ∧ IsCSMatchable F r ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor r 1 := by
+  classical
+  have hsat :
+      (Ω.filter (fun ω =>
+        Satisfiable (random3CNF n (random3CNFClauseCount n) ω))).card ≤ b := by
+    calc
+      (Ω.filter (fun ω =>
+          Satisfiable (random3CNF n (random3CNFClauseCount n) ω))).card
+          ≤ (I.biUnion B).card := by
+            apply Finset.card_le_card
+            intro ω hω
+            obtain ⟨hmem, hmodel⟩ := Finset.mem_filter.mp hω
+            obtain ⟨i, hi, hBi⟩ := hcover ω hmem hmodel
+            exact Finset.mem_biUnion.mpr ⟨i, hi, hBi⟩
+      _ ≤ I.sum (fun i => (B i).card) := Finset.card_biUnion_le
+      _ ≤ b := hmodels
+  exact random3CNF_witness_of_filter_budgets
+    N n a b Ω hsize hstruct hsat hbudget
+
+end CSExpansionFrontier
+
 end SATurday.ProofComplexity
