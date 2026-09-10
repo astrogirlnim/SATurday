@@ -106,9 +106,10 @@ class SaturdayRemoteConfig(BaseModel):
     use_for_prove: bool = True
     use_for_audit: bool = False
     # Role-tuned OpenRouter defaults (override via env or YAML)
-    # formalize: Lean/prover-oriented; prove: general theorizing
-    formalize_model: str = "deepseek/deepseek-prover-v2"
-    formalize_fallback_model: str = "openai/gpt-6-astra"
+    # formalize: Lean-oriented hosted model; prove: general theorizing
+    # deepseek/deepseek-prover-v2 often has no OpenRouter endpoints (HTTP 404)
+    formalize_model: str = "openai/gpt-6-astra"
+    formalize_fallback_model: str = "deepseek/deepseek-r1"
     prove_model: str = "anthropic/claude-opus-4.5"
     prove_fallback_model: str = "google/gemini-2.5-pro"
     audit_model: str = "anthropic/claude-sonnet-4.5"

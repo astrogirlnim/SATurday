@@ -101,9 +101,15 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <body>
 <header>
   <h1>SATurday</h1>
-  <p>Live ladder progress, critical Frontier pins, reflection plateau counters, and kill switch.</p>
+  <p>Live auto-loop feed, critical Frontier pins, reflection counters, and kill switch.</p>
 </header>
 <main>
+  <section class="card" id="liveCard">
+    <h2>Loop now</h2>
+    <div id="liveSummary" class="mono"></div>
+    <div class="row" style="margin-top:0.8rem" id="liveStats"></div>
+    <div id="liveFeed" class="mono" style="margin-top:0.9rem;max-height:280px;overflow:auto;line-height:1.45"></div>
+  </section>
   <section class="row" id="summary"></section>
   <section class="card">
     <h2>Kill switch</h2>
@@ -134,12 +140,49 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </section>
 </main>
 <footer>
-  Refreshing every 5s from <span class="mono">/api/progress</span>. Preferred research driver: <span class="mono">satday auto --remote</span>.
+  Refreshing every 2s from <span class="mono">/api/progress</span> (includes <span class="mono">live</span> heartbeat). Driver: <span class="mono">satday auto --remote</span>.
 </footer>
 <script>
+function esc(s) {
+  return String(s || '').replace(/[&<>"'`]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));
+}
 async function load() {
   const res = await fetch('/api/progress');
   const data = await res.json();
+  const live = data.live || {};
+  const stats = live.stats || {};
+  const models = live.models || {};
+  const runCls = live.running && !live.stale ? 'ok' : (live.stale ? 'warn' : 'bad');
+  document.getElementById('liveSummary').innerHTML = `
+    <div><span class="${runCls}">${live.running ? (live.stale ? 'STALE heartbeat' : 'AUTO RUNNING') : 'AUTO NOT RUNNING'}</span>
+      · wake <strong>${live.wake || 0}</strong>
+      · phase <strong>${esc(live.phase || 'unknown')}</strong>
+      · pid ${esc(live.pid || '—')}
+      · updated ${esc(live.updated_at || '—')}${live.age_seconds != null ? ' (' + live.age_seconds + 's ago)' : ''}</div>
+    <div style="margin-top:0.35rem">${esc(live.detail || '')}</div>
+    <div class="muted" style="margin-top:0.35rem">models formalize=${esc(models.formalize || '—')} prove=${esc(models.prove || '—')}</div>
+  `;
+  document.getElementById('liveStats').innerHTML = `
+    <div class="card"><h2>This auto run</h2>
+      <div>accepted <span class="ok">${stats.accepted || 0}</span></div>
+      <div>reverted <span class="bad">${stats.reverted || 0}</span></div>
+      <div>rejected <span class="warn">${stats.rejected || 0}</span></div>
+      <div>wakes ${stats.wakes || live.wake || 0}</div>
+    </div>
+    <div class="card"><h2>Workstreams</h2>
+      ${Object.keys(live.workstreams || {}).length
+        ? Object.entries(live.workstreams).map(([k,v]) =>
+            `<div><strong>${esc(k)}</strong>: ${esc(v.phase)} — ${esc(v.detail)}</div>`).join('')
+        : '<div class="muted">No workstream heartbeat yet</div>'}
+    </div>
+  `;
+  const events = live.events || [];
+  document.getElementById('liveFeed').innerHTML = events.length
+    ? events.slice(0, 40).map(e =>
+        `<div>[${esc(e.ts)}] ${e.workstream ? '['+esc(e.workstream)+'] ' : ''}${esc(e.detail || e.phase || '')}</div>`
+      ).join('')
+    : '<div class="muted">No live events yet. If auto is running, restart it so it writes search/logs/saturday_live.json</div>';
+
   const sum = document.getElementById('summary');
   sum.innerHTML = `
     <div class="card"><h2>Rung certification</h2><div class="big">${data.rung_completion_pct}%</div>
@@ -148,7 +191,7 @@ async function load() {
     <div class="card"><h2>Critical pins</h2><div class="big">${data.critical_pin_pct}%</div>
       <div class="muted">${data.critical_total - data.critical_open} closed / ${data.critical_total} tracked</div>
       <div class="bar"><span style="width:${data.critical_pin_pct}%"></span></div></div>
-    <div class="card"><h2>Toward P vs NP</h2><div style="font-size:1rem;line-height:1.45">${data.toward_p_vs_np || ''}</div></div>
+    <div class="card"><h2>Toward P vs NP</h2><div style="font-size:1rem;line-height:1.45">${esc(data.toward_p_vs_np || '')}</div></div>
   `;
   const killed = data.control && data.control.killed;
   const ks = document.getElementById('killState');
@@ -162,12 +205,12 @@ async function load() {
     const pins = (r.open_critical_pins || []).join(', ') || (r.status === 'certified' ? '(none)' : '—');
     const ref = r.reflect || {};
     return `<tr>
-      <td><strong>${r.title}</strong><div class="mono muted">${r.rung_id}</div>
+      <td><strong>${esc(r.title)}</strong><div class="mono muted">${esc(r.rung_id)}</div>
         <div class="muted">pin progress ${r.pin_progress_pct}%</div></td>
-      <td><span class="pill ${st}">${r.status}</span>${r.paused ? ' <span class="pill bad">paused</span>' : ''}
-        ${r.force_action ? ` <span class="pill warn">force:${r.force_action}</span>` : ''}</td>
+      <td><span class="pill ${st}">${esc(r.status)}</span>${r.paused ? ' <span class="pill bad">paused</span>' : ''}
+        ${r.force_action ? ` <span class="pill warn">force:${esc(r.force_action)}</span>` : ''}</td>
       <td class="mono">${r.pin_progress_pct}%</td>
-      <td class="mono">${pins}</td>
+      <td class="mono">${esc(pins)}</td>
       <td class="mono muted">noProg=${ref.wakes_without_obligation_progress || 0}
         dup=${ref.consecutive_near_duplicates || 0}
         err=${ref.consecutive_same_error || 0}</td>
@@ -175,7 +218,7 @@ async function load() {
   }).join('');
   const sess = document.getElementById('sessions');
   sess.innerHTML = (data.recent_sessions || []).slice().reverse().map(s =>
-    `<div>${s.ts || s.timestamp || ''} · ${s.workstream || ''} ${s.rung} / ${s.action_type} -> ${s.result}</div>`
+    `<div>${esc(s.ts || s.timestamp || '')} · ${esc(s.workstream || '')} ${esc(s.rung)} / ${esc(s.action_type)} -> ${esc(s.result)} · ${esc((s.notes || '').slice(0,120))}</div>`
   ).join('') || '<div class="muted">No sessions yet</div>';
 }
 document.getElementById('killBtn').onclick = async () => {
@@ -188,7 +231,7 @@ document.getElementById('unkillBtn').onclick = async () => {
   load();
 };
 load();
-setInterval(load, 5000);
+setInterval(load, 2000);
 </script>
 </body>
 </html>

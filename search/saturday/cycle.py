@@ -95,6 +95,17 @@ def _execute_choice(
         f"on {choice.rung}: {choice.target}"
     )
     announce(f"[{workstream_note or choice.workstream}] Why: {choice.rationale}")
+    try:
+        from search.saturday.live import bump_stat, set_phase
+
+        set_phase(
+            choice.action_type,
+            f"{choice.rung}: {choice.target}",
+            workstream=workstream_note or choice.workstream,
+        )
+        bump_stat(choice.action_type)
+    except Exception as exc:
+        print(f"[saturday.cycle] live phase skipped: {exc}")
     # Fresh context per worker so parallel paths do not share RungState buffers
     ctx = load_cycle_context(repo_root)
     if choice.rung not in ctx.rungs:

@@ -212,8 +212,9 @@ saturday_loop:
     use_for_prove: true
     use_for_audit: false
     # Role-tuned OpenRouter models (override with OPENROUTER_FORMALIZE_MODEL / OPENROUTER_PROVE_MODEL)
-    formalize_model: "deepseek/deepseek-prover-v2"
-    formalize_fallback_model: "openai/gpt-6-astra"
+    # Note: deepseek/deepseek-prover-v2 currently has no live OpenRouter endpoints (404).
+    formalize_model: "openai/gpt-6-astra"
+    formalize_fallback_model: "deepseek/deepseek-r1"
     prove_model: "anthropic/claude-opus-4.5"
     prove_fallback_model: "google/gemini-2.5-pro"
     audit_model: "anthropic/claude-sonnet-4.5"

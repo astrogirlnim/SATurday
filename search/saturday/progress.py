@@ -110,6 +110,10 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
             except json.JSONDecodeError:
                 continue
 
+    from search.saturday.live import load_live
+
+    live = load_live(repo_root)
+
     return {
         "toward_p_vs_np": status.toward_p_vs_np,
         "rung_completion_pct": rung_pct,
@@ -130,5 +134,6 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
             "satday unkill",
         ],
         "recent_sessions": recent,
+        "live": live,
         "status": status_to_dict(status),
     }

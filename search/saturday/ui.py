@@ -12,6 +12,12 @@ from typing import Any, Dict, List, Optional
 def announce(message: str) -> None:
     """Print one plain status line the operator can skim."""
     print(f">>> {message}", flush=True)
+    try:
+        from search.saturday.live import push_event
+
+        push_event(message, kind="status")
+    except Exception as exc:
+        print(f"[saturday.ui] live push skipped: {exc}", flush=True)
 
 
 def banner(title: str) -> None:
@@ -20,6 +26,12 @@ def banner(title: str) -> None:
     print(line, flush=True)
     print(f">>> {title}", flush=True)
     print(line, flush=True)
+    try:
+        from search.saturday.live import push_event
+
+        push_event(title, kind="banner")
+    except Exception:
+        pass
 
 
 def summarize_record(record: Dict[str, Any]) -> str:

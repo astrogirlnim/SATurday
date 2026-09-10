@@ -48,11 +48,28 @@ def run_saturday_loop(
     base_sleep = loop_cfg.loop_sleep_seconds if sleep_seconds is None else sleep_seconds
     use_parallel = loop_cfg.loop_parallel_default if parallel is None else parallel
 
+    from search.saturday.live import configure_live, mark_stopped, set_models, set_wake
+
+    configure_live(repo_root)
+
     banner("SATurday auto loop")
     announce(
         "This loop explores proofs, applies Lean drafts, reverts on compile "
         "failure, and feeds errors into the next wake. Stop with Ctrl-C."
     )
+    if remote:
+        from search.saturday.llm_factory import enable_remote_on_config, remote_config
+
+        enable_remote_on_config(loop_cfg, mode=remote_mode or "remote")
+        rem = remote_config(loop_cfg)
+        set_models(
+            {
+                "formalize": rem.formalize_model,
+                "prove": rem.prove_model,
+                "formalize_fallback": getattr(rem, "formalize_fallback_model", ""),
+                "prove_fallback": getattr(rem, "prove_fallback_model", ""),
+            }
+        )
     announce(
         f"Settings: max_cycles={max_cycles or 'until interrupted'} "
         f"inter_wake_sleep={base_sleep}s parallel={use_parallel} dry_run={dry_run} "
@@ -63,10 +80,6 @@ def run_saturday_loop(
             "Pacing: next wake starts immediately when the prior wave finishes "
             "(OpenRouter cooldown is per-request in the remote client)."
         )
-    if remote:
-        from search.saturday.llm_factory import enable_remote_on_config
-
-        enable_remote_on_config(loop_cfg, mode=remote_mode or "remote")
     print(
         f"[saturday.loop] start max_cycles={max_cycles} inter_wake_sleep={base_sleep} "
         f"parallel={use_parallel} dry_run={dry_run} remote={remote}"
@@ -77,6 +90,7 @@ def run_saturday_loop(
     try:
         while True:
             wake += 1
+            set_wake(wake)
             banner(f"Wake {wake} starting")
             announce(
                 "Choosing next workstreams, then running prove/formalize/"
@@ -89,6 +103,7 @@ def run_saturday_loop(
             if killed:
                 announce(f"Kill switch engaged; stopping auto. Reason: {kill_reason}")
                 print(f"[saturday.loop] kill switch stop reason={kill_reason!r}")
+                mark_stopped(f"kill: {kill_reason}")
                 break
 
             if use_parallel:
@@ -116,17 +131,17 @@ def run_saturday_loop(
             )
             summarize_wave(wake, records)
 
-            from search.saturday.control import is_killed
-
             killed, kill_reason = is_killed(repo_root)
             if killed:
                 announce(f"Kill switch engaged after wake; stopping. Reason: {kill_reason}")
                 print(f"[saturday.loop] post-wake kill reason={kill_reason!r}")
+                mark_stopped(f"kill: {kill_reason}")
                 break
 
             if max_cycles > 0 and wake >= max_cycles:
                 announce(f"Reached configured max_cycles={max_cycles}. Stopping.")
                 print(f"[saturday.loop] reached max_cycles={max_cycles}; stopping")
+                mark_stopped(f"max_cycles={max_cycles}")
                 break
 
             if base_sleep > 0:
@@ -142,7 +157,9 @@ def run_saturday_loop(
     except KeyboardInterrupt:
         announce(f"Interrupted after wake {wake}. Progress so far is in rung memory and sessions.")
         print(f"[saturday.loop] interrupted after wake={wake}")
+        mark_stopped("interrupted")
 
     announce(f"Loop finished. Completed wakes: {len(waves)}.")
     print(f"[saturday.loop] done waves={len(waves)}")
+    mark_stopped(f"finished wakes={len(waves)}")
     return waves
