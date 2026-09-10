@@ -1,5 +1,7 @@
 """
-Progress snapshot for dashboard and status: rungs, critical pins, control, reflect.
+Progress snapshot for dashboard and status: rungs, Frontier obligations, control, reflect.
+
+Pin lists are dynamic extracts of open Frontier sorries (no hard-coded names).
 """
 
 from __future__ import annotations
@@ -10,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from search.saturday.apply_lean import extract_open_frontier_obligations
 from search.saturday.control import load_control
-from search.saturday.reflect import CRITICAL_PINS, load_reflect, open_critical_pins
+from search.saturday.reflect import load_reflect
 from search.saturday.status import RUNG_TITLES, build_saturday_status, status_to_dict
 
 
@@ -44,21 +46,18 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
     reflect = load_reflect(repo_root)
 
     rung_rows: List[Dict[str, Any]] = []
-    critical_total = 0
-    critical_open = 0
+    frontier_open_total = 0
     for row in status.rungs:
         obs = _obligations_for_rung(repo_root, row.rung_id)
-        crit = CRITICAL_PINS.get(row.rung_id, [])
-        open_crit = open_critical_pins(obs, row.rung_id)
-        critical_total += len(crit)
-        critical_open += len(open_crit)
+        frontier_open_total += len(obs)
         ref = reflect.rungs.get(row.rung_id)
-        closed_crit = [c for c in crit if c not in open_crit]
-        pin_pct = (
-            int(100 * (len(crit) - len(open_crit)) / len(crit)) if crit else (
-                100 if row.status == "certified" else 0
-            )
-        )
+        prev = list(ref.last_obligations) if ref else []
+        closed_since = sorted(set(prev) - set(obs)) if prev else []
+        # Live pin list = whatever Frontier sorries remain (dynamic).
+        pin_pct = 100 if not obs else 0
+        if prev and len(prev) > 0:
+            closed_n = max(0, len(prev) - len(obs))
+            pin_pct = int(100 * closed_n / len(prev))
         rung_rows.append(
             {
                 "rung_id": row.rung_id,
@@ -66,12 +65,13 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
                 "status": row.status,
                 "memory": row.memory,
                 "open_frontier_sorries": obs,
-                "critical_pins": crit,
-                "open_critical_pins": open_crit,
-                "closed_critical_pins": closed_crit,
+                "critical_pins": obs,
+                "open_critical_pins": obs,
+                "closed_critical_pins": closed_since,
                 "pin_progress_pct": pin_pct,
                 "paused": row.rung_id in control.paused_rungs,
                 "force_action": control.force_actions.get(row.rung_id),
+                "force_action_source": control.force_action_sources.get(row.rung_id),
                 "reflect": {
                     "wakes_without_obligation_progress": (
                         ref.wakes_without_obligation_progress if ref else 0
@@ -92,11 +92,9 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
 
     certified = sum(1 for r in status.rungs if r.status == "certified")
     rung_pct = int(100 * certified / max(1, len(status.rungs)))
-    pin_pct = (
-        int(100 * (critical_total - critical_open) / critical_total)
-        if critical_total
-        else rung_pct
-    )
+    # Aggregate: rungs with zero open Frontier sorries count as clear.
+    clear_rungs = sum(1 for r in rung_rows if not r["open_frontier_sorries"])
+    pin_pct = int(100 * clear_rungs / max(1, len(rung_rows)))
 
     sessions_path = repo_root / "search" / "logs" / "saturday_sessions.jsonl"
     recent: List[Dict[str, Any]] = []
@@ -120,8 +118,8 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
         "critical_pin_pct": pin_pct,
         "certified_count": certified,
         "rung_count": len(status.rungs),
-        "critical_open": critical_open,
-        "critical_total": critical_total,
+        "critical_open": frontier_open_total,
+        "critical_total": frontier_open_total,
         "control": control.to_dict(),
         "reflect_updated_at": reflect.updated_at,
         "rungs": rung_rows,

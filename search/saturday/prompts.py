@@ -2,10 +2,13 @@
 Prompt builders for local saturday roles.
 
 Style invariant from skills: generated prose avoids hyphens as punctuation.
+Frontier namespace names come from apply_lean.DEFAULT_FRONTIER_NS (single source).
+Open obligations are injected dynamically; no hard-coded pin name lists.
 """
 
 from __future__ import annotations
 
+from search.saturday.apply_lean import DEFAULT_FRONTIER_NS
 from search.saturday.chooser import ActionChoice
 from search.saturday.context import CycleContext, truncate_for_prompt
 
@@ -77,15 +80,12 @@ def build_formalize_prompt(
     rung = ctx.rungs[choice.rung]
     err_block = prior_errors.strip() or "(none yet)"
     obligations = open_obligations.strip() or "(none detected)"
-    frontier_ns = {
-        "r2-width-machinery": "CSExpansionFrontier",
-        "r5-cook-reckhow-bridge": "ProofSystemFrontier",
-    }.get(choice.rung, "LocalDraftFrontier")
+    frontier_ns = DEFAULT_FRONTIER_NS.get(choice.rung, "LocalDraftFrontier")
     return f"""Rung id: {choice.rung}
 Status: {rung.status}
 Target: {choice.target}
 
-Open Frontier sorry obligations (ONLY these names may be restated to fill proofs):
+Open Frontier sorry obligations (live extract from the Lean home; dynamic):
 {obligations}
 
 Rung memory (truncated):
@@ -98,18 +98,19 @@ Prior lake build or gate errors:
 {truncate_for_prompt(err_block, 6000)}
 
 Task:
-Emit one Lean 4 fragment that advances ONE open obligation above. Requirements:
+Emit one Lean 4 fragment that DISCHARGES at least one open obligation above.
+Requirements:
 1. Namespace {frontier_ns} only.
 2. No imports. No axioms.
 3. Lean 4 ONLY: `:= by`. NEVER `begin`. NEVER Lean 3 ranges like [0..n].
-4. Preferred: add a NEW helper lemma that only uses identifiers from the excerpt
-   and clearly advances one open obligation.
-5. Do NOT restate an existing theorem or lemma name (even an open sorry).
-   In-place sorry replacement is disabled; new names only.
-6. R2: do NOT reinvent width graft / substitution lemmas. Critical pins are
-   exists_cs_clause_expanding_3cnf and exists_spreads_matchable_unsat_random3CNF.
-7. R5: do NOT invent validateIndex or ttMapSequencer. Use existing names only.
-8. After the code fence, JSON with status, notes, next_recommended_action=formalize,
+4. REQUIRED: restate ONE open obligation name from the list with a real proof
+   (not sorry). That name must match exactly so apply can replace the open sorry.
+5. Optional: include NEW helper lemmas in the same fragment if they are needed
+   to support that discharge. Helpers alone without discharging an open name
+   will be rejected.
+6. Prefer identifiers that already appear in the excerpt; do not invent
+   machines or sequencers that are not present.
+7. After the code fence, JSON with status, notes, next_recommended_action=formalize,
    gate_pending.
 """
 

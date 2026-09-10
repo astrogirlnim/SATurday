@@ -40,10 +40,13 @@ Optional OpenRouter (`OPENROUTER_API_KEY` in `.env`):
 - Override with `OPENROUTER_FORMALIZE_MODEL` / `OPENROUTER_PROVE_MODEL`.
 
 **Dashboard + kill switch:** run `satday dashboard` and open
-`http://127.0.0.1:8765/`. It shows rung certification, critical Frontier pin
-progress, reflection plateau counters, and a kill button. Auto also stops if
-`search/logs/saturday_KILL` exists or reflect engages auto-kill after repeated
-no-progress / duplicate / same-error wakes. Config: `saturday_loop.reflect` in
+`http://127.0.0.1:8765/`. It shows rung certification, live Frontier sorry
+progress (dynamic extract, no hard-coded pin names), reflection plateau
+counters, and a kill button. Auto also stops if `search/logs/saturday_KILL`
+exists. Reflect progress requires the open Frontier sorry set to shrink;
+helper-only drafts are rejected. Plateau recovery defaults to staying on
+`formalize` (`plateau_switch_action`). Operator `force_actions` are sticky and
+are not overwritten by reflect. Config: `saturday_loop.reflect` in
 `infra/config/defaults.yaml`.
 
 Preferred research driver is `satday auto --remote`, not chat

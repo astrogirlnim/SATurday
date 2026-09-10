@@ -45,14 +45,6 @@ OPEN_SORRY_DECL_RE = re.compile(
     r"(?:(?!^\s*(?:theorem|lemma|namespace|end)\s).)*?"
     r":=\s*by\s+sorry\b"
 )
-# Off-target R2 drafts that reinvent completed graft/width substitution
-R2_OFF_TARGET_RE = re.compile(
-    r"d\.width\s*≤\s*max\s+W\s+dG\.width|exists_derivation_graft_width|"
-    r"derivation_width_after_substitution|width_substitution_bound|"
-    r"width_after_substitution",
-    re.IGNORECASE,
-)
-
 OUTER_END_BY_RUNG = {
     "r2-width-machinery": "end SATurday.ProofComplexity",
     "r5-cook-reckhow-bridge": "end SATurday.Bridge",
@@ -227,33 +219,6 @@ def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[st
     if LEAN3_RANGE_RE.search(text):
         return None, "draft uses Lean 3 range syntax [a..b]; use List.range or Finset.range"
 
-    if rung_id == "r2-width-machinery" and R2_OFF_TARGET_RE.search(text):
-        if "exists_cs_clause_expanding" not in text and "exists_spreads_matchable" not in text:
-            return None, (
-                "off-target R2 draft (width graft already certified). "
-                "Target CSExpansionFrontier.exists_cs_clause_expanding_3cnf "
-                "or exists_spreads_matchable_unsat_random3CNF"
-            )
-
-    if rung_id == "r2-width-machinery" and re.search(r"\bFormula\b", text):
-        # CNF is the type in this module; Formula is almost always a hallucinated type
-        if "PropFormula" not in text:
-            return None, (
-                "off-target R2 draft uses unknown type Formula; use CNF "
-                "(and prefer helpers around exists_spreads_matchable_unsat_random3CNF)"
-            )
-
-    if rung_id == "r5-cook-reckhow-bridge":
-        banned = ("validateIndex", "ttMapSequencer", "perIndexEvalLoop", "idEnc")
-        hit = [b for b in banned if b in text]
-        if hit:
-            return None, (
-                "off-target R5 draft invents unknown identifiers: "
-                + ", ".join(hit)
-                + ". Use only names from the ProofSystemFrontier excerpt "
-                "(idBitEnc, validatesTautologyResult_on_pair, ...)."
-            )
-
     namespaces = NAMESPACE_RE.findall(text)
     if namespaces:
         if not any("Frontier" in ns for ns in namespaces):
@@ -327,71 +292,133 @@ def _strip_ns_wrapper(fragment: str) -> str:
 
 def _split_decl_blocks(body: str) -> dict[str, str]:
     """Map decl name -> full theorem/lemma block text (best effort)."""
-    matches = list(
-        re.finditer(r"(?m)^(?:/--[\s\S]*?-/)\s*|^(?:theorem|lemma)\s+", body)
-    )
-    # Find theorem/lemma starts only
     starts = [
         m.start()
         for m in re.finditer(r"(?m)^(?:theorem|lemma)\s+[A-Za-z0-9_']+", body)
     ]
-    # Include preceding doc comment if any
     blocks: dict[str, str] = {}
     for i, start in enumerate(starts):
-        # back up over optional /-- ... -/
+        # Bounded lookback only: whole-file /--.*?-/ with DOTALL can swallow 100k+.
+        window = body[max(0, start - 4000) : start]
         doc_start = start
-        prefix = body[:start]
-        doc = re.search(r"(?ms)(/--.*?-/)\s*\Z", prefix)
+        doc = re.search(r"(?ms)(/--(?:(?!-/).)*?-/\s*)\Z", window)
         if doc:
-            doc_start = doc.start(1)
+            doc_start = start - len(window) + doc.start(1)
         end = starts[i + 1] if i + 1 < len(starts) else len(body)
+        region = body[start:end]
+        cut = re.search(r"(?m)^(namespace|end)\s", region)
+        if cut:
+            end = start + cut.start()
         chunk = body[doc_start:end].strip()
         name_m = re.match(
-            r"(?ms)(?:/--.*?-/\s*)?(?:theorem|lemma)\s+([A-Za-z0-9_']+)", chunk
+            r"(?ms)(?:/--(?:(?!-/).)*?-/\s*)?(?:theorem|lemma)\s+([A-Za-z0-9_']+)",
+            chunk,
         )
         if name_m:
             blocks[name_m.group(1)] = chunk
     return blocks
 
 
-def _replace_decl(source: str, name: str, new_block: str) -> str:
-    """Replace an existing theorem/lemma block by name."""
-    pattern = re.compile(
-        rf"(?ms)(?:/--.*?-/\s*)?(?:theorem|lemma)\s+{re.escape(name)}\b.*?"
-        rf"(?=(?:/--.*?-/\s*)?(?:theorem|lemma)\s+|\nnamespace |\nend |\Z)"
+def _open_sorry_block_span(source: str, name: str) -> tuple[int, int, str]:
+    """Locate one open-sorry theorem/lemma by name; return (start, end, old_text)."""
+    for m in OPEN_SORRY_DECL_RE.finditer(source):
+        if m.group(2) != name:
+            continue
+        start = m.start()
+        window = source[max(0, start - 4000) : start]
+        doc = re.search(r"(?ms)(/--(?:(?!-/).)*?-/\s*)\Z", window)
+        if doc:
+            start = start - len(window) + doc.start(1)
+        end = m.end()
+        rest = source[end:]
+        nxt = re.search(r"(?m)^(theorem|lemma|def|namespace|end)\s", rest)
+        if nxt:
+            end = end + nxt.start()
+        return start, end, source[start:end]
+    raise ValueError(f"open Frontier sorry span not found: {name}")
+
+
+def _replace_open_sorry_block(source: str, name: str, new_block: str) -> str:
+    """
+    Replace one open-sorry theorem/lemma using span location (not greedy regex).
+
+    The previous whole-file non-greedy `.*?` replace could truncate large modules.
+    """
+    start, end, old = _open_sorry_block_span(source, name)
+    if not re.search(r":=\s*by\s+sorry\b", old):
+        raise ValueError(f"refusing replace of non-open-sorry decl: {name}")
+    print(
+        f"[saturday.apply] replace open sorry decl={name} "
+        f"span=[{start},{end}) chars={end - start}"
     )
-    new_source, n = pattern.subn(new_block.rstrip() + "\n\n", source, count=1)
-    if n != 1:
-        raise ValueError(f"failed to replace decl {name} (matches={n})")
-    return new_source
+    return source[:start] + new_block.rstrip() + "\n\n" + source[end:]
+
 
 
 def merge_frontier_fragment(original: str, fragment: str, rung_id: str) -> tuple[str, str]:
     """
-    Merge fragment into original by inserting new Frontier decls only.
+    Merge fragment into original.
 
-    In-place sorry replacement is disabled until we have a non-greedy Lean
-    parser; a prior regex replace truncated Bridge/ProofSystem.lean.
+    Policy (dynamic, no pin-name allowlist):
+    - If open Frontier sorries exist, the draft MUST replace at least one by name
+      (proof discharge). Helpers may accompany that discharge in the same fragment.
+    - Pure helper inserts that leave every open sorry untouched are rejected.
+    - Certified (non-sorry) decls cannot be redefined.
     """
     open_sorry = set(extract_open_frontier_obligations(original))
-    incoming = _existing_decl_names(fragment)
-    existing = _existing_decl_names(original)
-    dupes = sorted(existing & incoming)
-    if dupes:
-        open_dupes = [n for n in dupes if n in open_sorry]
-        hard = [n for n in dupes if n not in open_sorry]
-        if hard:
-            raise ValueError(
-                "decls already defined (certified): " + ", ".join(hard[:12])
-            )
+    body = _strip_ns_wrapper(fragment)
+    incoming_blocks = _split_decl_blocks(body)
+    if not incoming_blocks:
+        # defs / structures only: fall back to name set
+        incoming = _existing_decl_names(fragment)
+        if not incoming:
+            raise ValueError("fragment has no theorem/lemma decls to merge")
         raise ValueError(
-            "decls already defined as open Frontier sorry: "
-            + ", ".join(open_dupes[:12])
-            + ". Emit a NEW helper lemma name (in-place sorry replace is disabled)."
+            "fragment decls could not be split into blocks; "
+            "emit theorem/lemma with := by ..."
         )
 
-    updated = insert_fragment(original, fragment, rung_id)
-    return updated, "insert=" + ",".join(sorted(incoming))
+    existing = _existing_decl_names(original)
+    updated = original
+    replaced: list[str] = []
+    helpers: list[str] = []
+
+    for name, block in incoming_blocks.items():
+        if name in open_sorry:
+            updated = _replace_open_sorry_block(updated, name, block)
+            replaced.append(name)
+            continue
+        if name in existing:
+            raise ValueError(
+                "decls already defined (certified): " + name
+            )
+        helpers.append(name)
+
+    if open_sorry and not replaced:
+        raise ValueError(
+            "draft does not discharge any open Frontier sorry. Open: "
+            + ", ".join(sorted(open_sorry)[:20])
+            + ". Restate one of those names with a real proof (helpers may "
+            "accompany it in the same fragment)."
+        )
+
+    if helpers:
+        helper_blocks = [
+            incoming_blocks[n] for n in helpers if n in incoming_blocks
+        ]
+        helper_body = "\n\n".join(helper_blocks)
+        ns = DEFAULT_FRONTIER_NS.get(rung_id, "LocalDraftFrontier")
+        helper_frag = (
+            f"namespace {ns}\n\n{helper_body}\n\nend {ns}\n"
+        )
+        updated = insert_fragment(updated, helper_frag, rung_id)
+
+    mode_parts = []
+    if replaced:
+        mode_parts.append("replace=" + ",".join(sorted(replaced)))
+    if helpers:
+        mode_parts.append("insert=" + ",".join(sorted(helpers)))
+    return updated, ";".join(mode_parts) if mode_parts else "noop"
 
 
 def apply_frontier_draft(
@@ -427,18 +454,32 @@ def apply_frontier_draft(
             has_sorry="sorry" in lean_code,
         )
 
-    # Plateau novelty gate: reject near-duplicate helper families
+    # Plateau novelty gate: reject near-duplicate helper families.
+    # Open Frontier obligation names are exempt (discharges are the goal).
     try:
         from infra.config.loader import load_config
-        from search.saturday.reflect import draft_is_novel, load_reflect
+        from search.saturday.reflect import draft_is_novel, extract_decl_names, load_reflect
 
         loop_cfg = load_config(repo_root=repo_root).saturday_loop
         reflect_cfg = getattr(loop_cfg, "reflect", None)
         if reflect_cfg and getattr(reflect_cfg, "reject_near_duplicate_drafts", True):
+            open_now = set()
+            if lean_path.exists():
+                open_now = set(
+                    extract_open_frontier_obligations(
+                        lean_path.read_text(encoding="utf-8")
+                    )
+                )
+            names = extract_decl_names(fragment)
+            helper_names = [n for n in names if n not in open_now]
             state = load_reflect(repo_root)
             row = state.rungs.get(rung_id)
             recent = row.recent_decl_names if row else []
-            novel, why = draft_is_novel(fragment, recent)
+            # Only score novelty on non-obligation helpers
+            probe = "\n".join(f"lemma {n} : True := by sorry" for n in helper_names)
+            novel, why = draft_is_novel(probe if helper_names else "", recent)
+            if not helper_names:
+                novel, why = True, "discharge-only draft (open Frontier names)"
             print(f"[saturday.apply] novelty check novel={novel} why={why}")
             if not novel:
                 announce(f"Rejected near-duplicate draft: {why}")

@@ -1,8 +1,11 @@
 """
 Plateau / novelty reflection for satday auto (no LLM required).
 
-Tracks Frontier obligation progress, draft name novelty, and error classes.
-When stuck, forces prove/falsify/audit or engages the kill switch.
+Progress is defined dynamically: the open Frontier sorry set extracted from
+the rung Lean home must shrink. There is no hard-coded pin name list.
+
+When stuck on formalize, default recovery stays on formalize (config-driven)
+rather than flipping to prose. Operator force_actions are never overwritten.
 """
 
 from __future__ import annotations
@@ -27,21 +30,6 @@ DECL_RE = re.compile(
     r"(?:theorem|lemma|def)\s+([A-Za-z0-9_']+)",
     re.MULTILINE,
 )
-
-# Critical open pins: closing these is real progress; helper spam is not.
-CRITICAL_PINS: Dict[str, List[str]] = {
-    "r2-width-machinery": [
-        "exists_spreads_matchable_unsat_random3CNF",
-        "exists_cs_clause_expanding_3cnf",
-        "exists_cs_expanding_3cnf",
-        "cs_expansion_width_lower_bound",
-        "boundaryCovered_of_eraseMinimal",
-    ],
-    "r5-cook-reckhow-bridge": [
-        "validatesTautologyResult_computableInPolyTime",
-        "truthTable_is_prop_proof_system",
-    ],
-}
 
 
 @dataclass
@@ -138,6 +126,8 @@ def extract_decl_names(lean_text: str) -> List[str]:
 def error_class(digest: str) -> str:
     """Normalize lake error digests into coarse classes."""
     text = (digest or "").lower()
+    if "ambient" in text and ("red" in text or "build" in text):
+        return "ambient_red"
     if "unknown identifier" in text:
         return "unknown_identifier"
     if "type mismatch" in text:
@@ -150,7 +140,6 @@ def error_class(digest: str) -> str:
         return "unknown_formula"
     if not text.strip():
         return "empty"
-    # first error token blob
     for line in text.splitlines():
         if "error:" in line:
             return re.sub(r"\s+", " ", line)[:120]
@@ -177,10 +166,46 @@ def draft_is_novel(lean_text: str, recent_names: Sequence[str]) -> tuple[bool, s
     return True, f"novel decls={names}"
 
 
-def open_critical_pins(obligations: Sequence[str], rung_id: str) -> List[str]:
-    crit = CRITICAL_PINS.get(rung_id, [])
-    open_set = set(obligations)
-    return [c for c in crit if c in open_set]
+def frontier_progressed(
+    prev: Sequence[str], now: Sequence[str]
+) -> tuple[bool, str]:
+    """True when the open Frontier sorry set strictly shrinks."""
+    if not prev:
+        return False, "no prior obligation baseline"
+    closed = sorted(set(prev) - set(now))
+    if closed:
+        return True, f"frontier sorries closed: {closed}"
+    if set(now) < set(prev):
+        return True, "frontier sorry set shrank"
+    return False, "frontier sorry set unchanged"
+
+
+def _apply_plateau_recovery(
+    repo_root: Path,
+    rung_id: str,
+    prefer_switch: str,
+    reason: str,
+) -> Optional[str]:
+    """
+    Apply config-driven plateau recovery without clobbering operator force.
+
+    prefer_switch values:
+      formalize | prove | falsify | audit — force that action
+      clear — drop force so chooser decides
+      stay — keep current force / chooser; no write
+    """
+    action = (prefer_switch or "formalize").strip().lower()
+    if action in {"stay", "none", ""}:
+        print(f"[saturday.reflect] plateau stay: {reason}")
+        return None
+    if action == "clear":
+        from search.saturday.control import clear_force_action
+
+        clear_force_action(repo_root, rung_id)
+        print(f"[saturday.reflect] plateau clear force: {reason}")
+        return None
+    set_force_action(repo_root, rung_id, action, source="reflect")
+    return action
 
 
 def record_wave_outcome(
@@ -194,6 +219,7 @@ def record_wave_outcome(
     reverted: bool,
     error_digest: str,
     cfg: Any,
+    ambient_ok: bool = True,
 ) -> ReflectDecision:
     """
     Update reflect state after one workstream finishes a wake.
@@ -209,43 +235,40 @@ def record_wave_outcome(
     max_dupes = int(getattr(cfg, "max_consecutive_near_duplicates", 3))
     max_same_err = int(getattr(cfg, "max_consecutive_same_error", 3))
     auto_kill = bool(getattr(cfg, "auto_kill_on_plateau", True))
-    prefer_switch = str(getattr(cfg, "plateau_switch_action", "prove"))
+    prefer_switch = str(getattr(cfg, "plateau_switch_action", "formalize"))
 
     prev = list(row.last_obligations)
     now = list(obligations_now)
-    crit_prev = set(open_critical_pins(prev, rung_id)) if prev else None
-    crit_now = set(open_critical_pins(now, rung_id))
+    progressed, prog_note = frontier_progressed(prev, now)
+    if progressed:
+        notes.append(prog_note)
 
-    progressed = False
-    if crit_prev is not None and crit_now < crit_prev:
-        progressed = True
-        notes.append(f"critical pins closed: {sorted(crit_prev - crit_now)}")
-    elif prev and set(now) < set(prev):
-        progressed = True
-        notes.append("frontier sorry set shrank")
-
-    if action == "formalize" and not progressed:
+    # Ambient lake red is infrastructure, not a formalize strategy failure.
+    if not ambient_ok:
+        notes.append("ambient lake red; skip no-progress increment")
+        print(f"[saturday.reflect] ambient red on {rung_id}; not counting plateau")
+    elif action == "formalize" and not progressed:
         row.wakes_without_obligation_progress += 1
     elif progressed:
         row.wakes_without_obligation_progress = 0
 
-    # Novelty tracking for applied or attempted decls
     for name in applied_decls:
         row.recent_decl_names = (row.recent_decl_names + [name])[-40:]
         pref = decl_prefix(name)
         row.recent_decl_prefixes = (row.recent_decl_prefixes + [pref])[-40:]
 
-    if reverted or result == "partial":
-        ec = error_class(error_digest)
-        if ec and ec != "empty":
-            if row.recent_error_classes and row.recent_error_classes[-1] == ec:
-                row.consecutive_same_error += 1
-            else:
-                row.consecutive_same_error = 1
-            row.recent_error_classes = (row.recent_error_classes + [ec])[-20:]
-            notes.append(f"error_class={ec} streak={row.consecutive_same_error}")
+    ec = error_class(error_digest)
+    if (reverted or result == "partial") and ambient_ok and ec not in {"empty", "ambient_red"}:
+        if row.recent_error_classes and row.recent_error_classes[-1] == ec:
+            row.consecutive_same_error += 1
+        else:
+            row.consecutive_same_error = 1
+        row.recent_error_classes = (row.recent_error_classes + [ec])[-20:]
+        notes.append(f"error_class={ec} streak={row.consecutive_same_error}")
+    elif progressed or not ambient_ok:
+        if not ambient_ok:
+            row.consecutive_same_error = 0
 
-    # Near-duplicate applied helpers that do not close critical pins
     if applied_decls and not progressed:
         if any(is_near_duplicate_name(n, row.recent_decl_names[:-1]) for n in applied_decls):
             row.consecutive_near_duplicates += 1
@@ -263,23 +286,33 @@ def record_wave_outcome(
     state.rungs[rung_id] = row
     save_reflect(repo_root, state)
 
-    # Decision policy
     if row.wakes_without_obligation_progress >= max_no_progress:
-        decision.action_override = prefer_switch
+        override = _apply_plateau_recovery(
+            repo_root,
+            rung_id,
+            prefer_switch,
+            f"{rung_id}: {row.wakes_without_obligation_progress} formalize wakes "
+            f"without Frontier sorry progress",
+        )
+        decision.action_override = override
         decision.reason = (
             f"{rung_id}: {row.wakes_without_obligation_progress} formalize wakes "
-            f"without critical/Frontier progress; force {prefer_switch}"
+            f"without Frontier sorry progress; recovery={prefer_switch}"
         )
-        set_force_action(repo_root, rung_id, prefer_switch)
         notes.append(decision.reason)
 
     if row.consecutive_near_duplicates >= max_dupes:
-        decision.action_override = prefer_switch
+        override = _apply_plateau_recovery(
+            repo_root,
+            rung_id,
+            prefer_switch,
+            f"{rung_id}: near-duplicate helper families",
+        )
+        decision.action_override = override or decision.action_override
         decision.reason = (
             f"{rung_id}: {row.consecutive_near_duplicates} near-duplicate helper "
-            f"families; force {prefer_switch}"
+            f"families; recovery={prefer_switch}"
         )
-        set_force_action(repo_root, rung_id, prefer_switch)
         notes.append(decision.reason)
 
     if row.consecutive_same_error >= max_same_err:
@@ -289,15 +322,26 @@ def record_wave_outcome(
             f"{rung_id}: same error class {max_same_err} times; pause formalize, audit"
         )
         pause_rung(repo_root, rung_id, decision.reason)
-        set_force_action(repo_root, rung_id, "audit")
+        set_force_action(repo_root, rung_id, "audit", source="reflect")
         notes.append(decision.reason)
         if auto_kill and row.wakes_without_obligation_progress >= max_no_progress:
             decision.kill = True
             engage_kill(repo_root, decision.reason, source="reflect")
             notes.append("auto kill engaged")
 
-    # Full auto kill when both rungs plateau hard
-    if auto_kill and row.wakes_without_obligation_progress >= max_no_progress + 2:
+    # Hard kill only when recovery is not "keep formalizing".
+    kill_on_formalize_hold = prefer_switch not in {
+        "formalize",
+        "stay",
+        "none",
+        "clear",
+        "",
+    }
+    if (
+        auto_kill
+        and kill_on_formalize_hold
+        and row.wakes_without_obligation_progress >= max_no_progress + 2
+    ):
         decision.kill = True
         decision.reason = (
             f"{rung_id}: plateau beyond {max_no_progress + 2} wakes; kill auto loop"
@@ -321,5 +365,16 @@ def suggest_action_override(repo_root: Path, rung_id: str) -> Optional[str]:
         return "audit"
     forced = ctrl.force_actions.get(rung_id)
     if forced:
-        print(f"[saturday.reflect] force_action {rung_id} -> {forced}")
+        src = ctrl.force_action_sources.get(rung_id, "")
+        print(f"[saturday.reflect] force_action {rung_id} -> {forced} (src={src})")
     return forced
+
+
+# Back-compat alias for older imports; always empty (pins are dynamic).
+CRITICAL_PINS: Dict[str, List[str]] = {}
+
+
+def open_critical_pins(obligations: Sequence[str], rung_id: str = "") -> List[str]:
+    """All open Frontier obligations count as the live pin list (dynamic)."""
+    _ = rung_id
+    return list(obligations)

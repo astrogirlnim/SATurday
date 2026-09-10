@@ -31,6 +31,8 @@ class ControlState:
     at: str = ""
     paused_rungs: List[str] = field(default_factory=list)
     force_actions: Dict[str, str] = field(default_factory=dict)
+    # Per-rung provenance for force_actions: operator | reflect | cli | dashboard
+    force_action_sources: Dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -67,10 +69,12 @@ def load_control(repo_root: Path) -> ControlState:
                 at=str(raw.get("at") or ""),
                 paused_rungs=list(raw.get("paused_rungs") or []),
                 force_actions=dict(raw.get("force_actions") or {}),
+                force_action_sources=dict(raw.get("force_action_sources") or {}),
             )
             print(
                 f"[saturday.control] loaded killed={state.killed} "
-                f"paused={state.paused_rungs} force={state.force_actions}"
+                f"paused={state.paused_rungs} force={state.force_actions} "
+                f"force_src={state.force_action_sources}"
             )
         except (json.JSONDecodeError, OSError, TypeError) as exc:
             print(f"[saturday.control] bad control file: {exc}")
@@ -142,16 +146,44 @@ def pause_rung(repo_root: Path, rung_id: str, reason: str = "") -> ControlState:
     return state
 
 
-def set_force_action(repo_root: Path, rung_id: str, action: str) -> ControlState:
+def set_force_action(
+    repo_root: Path,
+    rung_id: str,
+    action: str,
+    *,
+    source: str = "reflect",
+) -> ControlState:
+    """
+    Set per-rung forced action.
+
+    Operator-sourced forces are sticky: reflect/cli cannot overwrite them.
+    Pass source=\"operator\" (or clear_force_action) to change an operator force.
+    """
     state = load_control(repo_root)
+    existing_src = str(state.force_action_sources.get(rung_id) or "")
+    if existing_src == "operator" and source != "operator":
+        print(
+            f"[saturday.control] skip force overwrite rung={rung_id} "
+            f"kept={state.force_actions.get(rung_id)!r} "
+            f"blocked_source={source!r} wanted={action!r}"
+        )
+        return state
     state.force_actions[rung_id] = action
+    state.force_action_sources[rung_id] = source
     state.at = _now()
+    if source == "operator":
+        state.source = "operator"
     save_control(repo_root, state)
+    print(
+        f"[saturday.control] force_action rung={rung_id} -> {action!r} "
+        f"source={source}"
+    )
     return state
 
 
 def clear_force_action(repo_root: Path, rung_id: str) -> ControlState:
     state = load_control(repo_root)
     state.force_actions.pop(rung_id, None)
+    state.force_action_sources.pop(rung_id, None)
     save_control(repo_root, state)
     return state

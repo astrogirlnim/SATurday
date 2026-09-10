@@ -163,6 +163,8 @@ def _execute_choice(
         decls = extract_decl_names(result.raw_model_text or "")
         applied_ok = "auto-apply succeeded" in (result.notes or "")
         reverted = "reverted" in (result.notes or "").lower()
+        notes_l = (result.notes or "").lower()
+        ambient_ok = "ambient lake build was red" not in notes_l
         decision = record_wave_outcome(
             repo_root,
             rung_id=choice.rung,
@@ -173,6 +175,7 @@ def _execute_choice(
             reverted=reverted or (not applied_ok and choice.action_type == "formalize"),
             error_digest=result.notes or "",
             cfg=getattr(loop_cfg, "reflect", None) or type("R", (), {})(),
+            ambient_ok=ambient_ok,
         )
         if decision.reason:
             announce(f"Reflect: {decision.reason}")

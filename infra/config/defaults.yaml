@@ -228,7 +228,8 @@ saturday_loop:
     max_wakes_without_obligation_progress: 5
     max_consecutive_near_duplicates: 3
     max_consecutive_same_error: 3
-    plateau_switch_action: "prove"
+    # Stay on formalize when Frontier sorries are not shrinking; do not flip to prose
+    plateau_switch_action: "formalize"
     auto_kill_on_plateau: true
     reject_near_duplicate_drafts: true
   falsify_family: "php"

@@ -77,12 +77,16 @@ class SaturdayRoleLLMConfig(BaseModel):
 
 
 class SaturdayReflectConfig(BaseModel):
-    """Plateau detection and auto kill (no LLM)."""
+    """Plateau detection and auto kill (no hard-coded pin names)."""
     enabled: bool = True
     max_wakes_without_obligation_progress: int = Field(5, ge=1)
     max_consecutive_near_duplicates: int = Field(3, ge=1)
     max_consecutive_same_error: int = Field(3, ge=1)
-    plateau_switch_action: str = Field("prove", pattern="^(prove|falsify|audit)$")
+    # formalize|stay|clear keep machine work; prove|falsify|audit switch roles
+    plateau_switch_action: str = Field(
+        "formalize",
+        pattern="^(prove|falsify|audit|formalize|stay|clear)$",
+    )
     auto_kill_on_plateau: bool = True
     reject_near_duplicate_drafts: bool = True
 
