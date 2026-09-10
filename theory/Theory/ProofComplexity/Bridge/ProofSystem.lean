@@ -65,6 +65,11 @@ theorem evalOn_eq_eval_getD (φ : PropFormula) (σ : List Bool) :
   | and φ ψ ihφ ihψ => simp [PropFormula.eval, PropFormula.evalOn, ihφ, ihψ]
   | or φ ψ ihφ ihψ => simp [PropFormula.eval, PropFormula.evalOn, ihφ, ihψ]
 
+/-- Encoded interpretive eval agrees with `evalOn` on `encodeFormula` images. -/
+theorem evalEncoded_encodeFormula_evalOn (φ : PropFormula) (σ : List Bool) :
+    evalEncoded σ (encodeFormula φ) = some (φ.evalOn σ) := by
+  simpa [evalOn_eq_eval_getD] using evalEncoded_encodeFormula φ σ
+
 /-- Evaluation depends only on assignments to variables at most `maxVar`. -/
 theorem eval_eq_of_agree (φ : PropFormula) (σ τ : ℕ → Bool)
     (h : ∀ i ≤ φ.maxVar, σ i = τ i) :

@@ -534,4 +534,137 @@ theorem length_decodeFormulaResult_le (bs : List Bool) :
       have henc := encodeFormula_of_decodeFormula h
       simp [henc]
 
+/-! ## Interpretive evaluation on encodings (R5 index loop)
+
+FinTM2 index validation evaluates `encodeFormula φ` under an assignment tape
+without rebuilding an inductive `PropFormula` value. The fuelled evaluator below
+mirrors `decodeFormulaPrefixFuel` and returns the Boolean result plus unread
+suffix. -/
+
+/-- Fuelled prefix evaluation of an encoded formula under assignment list `σ`. -/
+def evalEncodedPrefixFuel :
+    ℕ → List Bool → List Bool → Option (Bool × List Bool)
+  | 0, _, _ => none
+  | _fuel + 1, false :: false :: rest, σ =>
+      match decodeNat rest with
+      | some (n, rest') => some (σ.getD n false, rest')
+      | none => none
+  | fuel + 1, false :: true :: rest, σ =>
+      match evalEncodedPrefixFuel fuel rest σ with
+      | some (b, rest') => some (!b, rest')
+      | none => none
+  | fuel + 1, true :: false :: rest, σ =>
+      match evalEncodedPrefixFuel fuel rest σ with
+      | some (bφ, rest₁) =>
+          match evalEncodedPrefixFuel fuel rest₁ σ with
+          | some (bψ, rest₂) => some (bφ && bψ, rest₂)
+          | none => none
+      | none => none
+  | fuel + 1, true :: true :: rest, σ =>
+      match evalEncodedPrefixFuel fuel rest σ with
+      | some (bφ, rest₁) =>
+          match evalEncodedPrefixFuel fuel rest₁ σ with
+          | some (bψ, rest₂) => some (bφ || bψ, rest₂)
+          | none => none
+      | none => none
+  | _ + 1, _, _ => none
+
+/-- Strong round trip: encoded `φ` evaluates like `eval` under `σ.getD`. -/
+theorem evalEncodedPrefixFuel_encodeFormula_append (φ : PropFormula)
+    (σ : List Bool) :
+    ∀ (fuel : ℕ) (suffix : List Bool),
+      (encodeFormula φ).length ≤ fuel →
+        evalEncodedPrefixFuel (fuel + 1) (encodeFormula φ ++ suffix) σ =
+          some (φ.eval (fun i => σ.getD i false), suffix) := by
+  induction φ with
+  | var n =>
+      intro fuel suffix hfuel
+      cases fuel with
+      | zero =>
+          exact (Nat.not_lt_zero _ (lt_of_lt_of_le
+            (encodeFormula_length_pos (.var n)) hfuel)).elim
+      | succ f =>
+          have hbits :
+              encodeFormula (.var n) ++ suffix =
+                false :: false :: (encodeNat n ++ suffix) := by
+            simp [encodeFormula]
+          rw [hbits, evalEncodedPrefixFuel, decodeNat_encodeNat_append]
+          simp [PropFormula.eval]
+  | not φ ih =>
+      intro fuel suffix hfuel
+      cases fuel with
+      | zero =>
+          exact (Nat.not_lt_zero _ (lt_of_lt_of_le
+            (encodeFormula_length_pos (.not φ)) hfuel)).elim
+      | succ f =>
+          have hlen : (encodeFormula φ).length ≤ f := by
+            rw [length_encodeFormula_not] at hfuel
+            omega
+          have hbits :
+              encodeFormula (.not φ) ++ suffix =
+                false :: true :: (encodeFormula φ ++ suffix) := by
+            simp [encodeFormula]
+          rw [hbits, evalEncodedPrefixFuel, ih f suffix hlen]
+          simp [PropFormula.eval]
+  | and φ ψ ihφ ihψ =>
+      intro fuel suffix hfuel
+      cases fuel with
+      | zero =>
+          exact (Nat.not_lt_zero _ (lt_of_lt_of_le
+            (encodeFormula_length_pos (.and φ ψ)) hfuel)).elim
+      | succ f =>
+          have hφ : (encodeFormula φ).length ≤ f := by
+            rw [length_encodeFormula_and] at hfuel
+            omega
+          have hψ : (encodeFormula ψ).length ≤ f := by
+            rw [length_encodeFormula_and] at hfuel
+            omega
+          have ihφ' := ihφ f (encodeFormula ψ ++ suffix) hφ
+          have hbits :
+              encodeFormula (.and φ ψ) ++ suffix =
+                true :: false ::
+                  (encodeFormula φ ++ (encodeFormula ψ ++ suffix)) := by
+            simp [encodeFormula, List.append_assoc]
+          rw [hbits, evalEncodedPrefixFuel, ihφ']
+          have ihψ' := ihψ f suffix hψ
+          simpa [PropFormula.eval, ihψ'] using rfl
+  | or φ ψ ihφ ihψ =>
+      intro fuel suffix hfuel
+      cases fuel with
+      | zero =>
+          exact (Nat.not_lt_zero _ (lt_of_lt_of_le
+            (encodeFormula_length_pos (.or φ ψ)) hfuel)).elim
+      | succ f =>
+          have hφ : (encodeFormula φ).length ≤ f := by
+            rw [length_encodeFormula_or] at hfuel
+            omega
+          have hψ : (encodeFormula ψ).length ≤ f := by
+            rw [length_encodeFormula_or] at hfuel
+            omega
+          have ihφ' := ihφ f (encodeFormula ψ ++ suffix) hφ
+          have hbits :
+              encodeFormula (.or φ ψ) ++ suffix =
+                true :: true ::
+                  (encodeFormula φ ++ (encodeFormula ψ ++ suffix)) := by
+            simp [encodeFormula, List.append_assoc]
+          rw [hbits, evalEncodedPrefixFuel, ihφ']
+          have ihψ' := ihψ f suffix hψ
+          simpa [PropFormula.eval, ihψ'] using rfl
+
+/-- Full encoded evaluation: whole string consumed. -/
+def evalEncoded (σ code : List Bool) : Option Bool :=
+  match evalEncodedPrefixFuel (code.length + 1) code σ with
+  | some (b, []) => some b
+  | _ => none
+
+theorem evalEncoded_encodeFormula (φ : PropFormula) (σ : List Bool) :
+    evalEncoded σ (encodeFormula φ) =
+      some (φ.eval (fun i => σ.getD i false)) := by
+  unfold evalEncoded
+  have h :=
+    evalEncodedPrefixFuel_encodeFormula_append φ σ (encodeFormula φ).length []
+      (le_rfl)
+  rw [List.append_nil] at h
+  simp only [h]
+
 end SATurday.Bridge
