@@ -5151,5 +5151,125 @@ theorem validatesTautologyResult_batch_additive_length_bound
 
 end ProofSystemFrontier
 
+/- SATurday auto-apply 2026-09-10T01:07:36Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- With one delimiter bit per entry, validation expands an encoded batch
+by at most a factor of two. This is a polynomial output allocation bound
+for the validator, not a certificate of TM2 running time. -/
+theorem validatesTautologyResult_delimited_batch_size_bound
+    (inputs : List (List Bool)) :
+    (inputs.map (fun π =>
+      (validatesTautologyResult_on_pair π).length + 1)).sum
+      ≤ 2 * ((inputs.map List.length).sum + inputs.length) := by
+  have hdelimiters :
+      (inputs.map (fun π =>
+        (validatesTautologyResult_on_pair π).length + 1)).sum =
+      (inputs.map (fun π =>
+        (validatesTautologyResult_on_pair π).length)).sum +
+        inputs.length := by
+    induction inputs with
+    | nil =>
+        simp
+    | cons π inputs ih =>
+        simp only [List.map_cons, List.sum_cons, List.length_cons]
+        omega
+  have hallocation :=
+    validatesTautologyResult_batch_additive_length_bound inputs
+  rw [hdelimiters]
+  omega
+
+end ProofSystemFrontier
+
+/- SATurday auto-apply 2026-09-10T01:11:27Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Quadratic costs charged to individual validation outputs fit within a
+quadratic budget in the total input size and entry count. This supports
+cost aggregation for the polynomial time obligation, but does not supply
+the missing TM2 implementation or its running time proof. -/
+theorem validatesTautologyResult_batch_quadratic_budget
+    (inputs : List (List Bool)) :
+    (inputs.map (fun π =>
+      (validatesTautologyResult_on_pair π).length ^ 2)).sum
+      ≤ ((inputs.map List.length).sum + inputs.length) ^ 2 := by
+  induction inputs with
+  | nil =>
+      simp
+  | cons π inputs ih =>
+      have hπ :
+          (validatesTautologyResult_on_pair π).length ≤ π.length + 1 :=
+        validatesTautologyResult_on_pair_length_frontier π
+      have hπsq :
+          (validatesTautologyResult_on_pair π).length ^ 2
+            ≤ (π.length + 1) ^ 2 := by
+        nlinarith
+      simp only [List.map_cons, List.sum_cons, List.length_cons]
+      calc
+        (validatesTautologyResult_on_pair π).length ^ 2 +
+            (inputs.map (fun ρ =>
+              (validatesTautologyResult_on_pair ρ).length ^ 2)).sum
+            ≤ (π.length + 1) ^ 2 +
+                ((inputs.map List.length).sum + inputs.length) ^ 2 :=
+          Nat.add_le_add hπsq ih
+        _ ≤ (π.length + (inputs.map List.length).sum +
+                (inputs.length + 1)) ^ 2 := by
+          nlinarith [Nat.zero_le
+            ((π.length + 1) *
+              ((inputs.map List.length).sum + inputs.length))]
+
+end ProofSystemFrontier
+
+/- SATurday auto-apply 2026-09-10T01:14:21Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Quadratic charges for scanning both the input and validation output,
+including one delimiter, admit a uniform quadratic batch budget.
+This is size accounting for the polynomial time obligation, not a
+machine implementation or a running time witness. -/
+theorem validatesTautologyResult_batch_joint_scan_budget
+    (inputs : List (List Bool)) :
+    (inputs.map (fun π =>
+      (π.length +
+        (validatesTautologyResult_on_pair π).length + 1) ^ 2)).sum
+      ≤ 4 * ((inputs.map List.length).sum + inputs.length) ^ 2 := by
+  induction inputs with
+  | nil =>
+      simp
+  | cons π inputs ih =>
+      have hout :=
+        validatesTautologyResult_on_pair_length_frontier π
+      have hlocal :
+          π.length +
+              (validatesTautologyResult_on_pair π).length + 1
+            ≤ 2 * (π.length + 1) := by
+        omega
+      have hlocal_sq :
+          (π.length +
+              (validatesTautologyResult_on_pair π).length + 1) ^ 2
+            ≤ 4 * (π.length + 1) ^ 2 := by
+        have hmul := Nat.mul_le_mul hlocal hlocal
+        nlinarith only [hmul]
+      simp only [List.map_cons, List.sum_cons, List.length_cons]
+      calc
+        (π.length +
+              (validatesTautologyResult_on_pair π).length + 1) ^ 2 +
+            (inputs.map (fun ρ =>
+              (ρ.length +
+                (validatesTautologyResult_on_pair ρ).length + 1) ^ 2)).sum
+            ≤ 4 * (π.length + 1) ^ 2 +
+                4 * ((inputs.map List.length).sum + inputs.length) ^ 2 :=
+          Nat.add_le_add hlocal_sq ih
+        _ ≤ 4 * (π.length + (inputs.map List.length).sum +
+                (inputs.length + 1)) ^ 2 := by
+          nlinarith [Nat.zero_le
+            ((π.length + 1) *
+              ((inputs.map List.length).sum + inputs.length))]
+
+end ProofSystemFrontier
+
+
+
+
 
 end SATurday.Bridge

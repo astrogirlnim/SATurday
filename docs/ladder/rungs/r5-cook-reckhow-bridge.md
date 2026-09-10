@@ -2592,3 +2592,135 @@ end ProofSystemFrontier
 /-
 {"status":"partial","notes":"Proves an additive batch output allocation bound in terms of total input size and batch count. The TM2 polynomial running time witness remains open.","next_recommended_action":"formalize","gate_pending":true}
 -/
+
+- 2026-09-10 local saturday formalize: result=partial; artifacts: search/logs/saturday_drafts/20260910T010736Z_r5-cook-reckhow-bridge_formalize_openrouter.lean, theory/Theory/ProofComplexity/Bridge/ProofSystem.lean, theory/Theory/ProofComplexity/Bridge/ProofSystem.lean; learned: Adds a linear size bound for delimiter encoded validation batches. This supports output allocation accounting for validatesTautologyResult_computableInPolyTime; the TM2 running time witness remains open. auto-apply succeeded into theory/Theory/ProofComplexity/Bridge/ProofSystem.lean. mode=insert=validatesTautologyResult_delimited_batch_size_bound. decls=['validatesTautologyResult_delimited_batch_size_bound']. frontier_sorry=False.
+
+namespace ProofSystemFrontier
+
+/-- With one delimiter bit per entry, validation expands an encoded batch
+by at most a factor of two. This is a polynomial output allocation bound
+for the validator, not a certificate of TM2 running time. -/
+theorem validatesTautologyResult_delimited_batch_size_bound
+    (inputs : List (List Bool)) :
+    (inputs.map (fun π =>
+      (validatesTautologyResult_on_pair π).length + 1)).sum
+      ≤ 2 * ((inputs.map List.length).sum + inputs.length) := by
+  have hdelimiters :
+      (inputs.map (fun π =>
+        (validatesTautologyResult_on_pair π).length + 1)).sum =
+      (inputs.map (fun π =>
+        (validatesTautologyResult_on_pair π).length)).sum +
+        inputs.length := by
+    induction inputs with
+    | nil =>
+        simp
+    | cons π inputs ih =>
+        simp only [List.map_cons, List.sum_cons, List.length_cons]
+        omega
+  have hallocation :=
+    validatesTautologyResult_batch_additive_length_bound inputs
+  rw [hdelimiters]
+  omega
+
+end ProofSystemFrontier
+
+/-
+{"status":"partial","notes":"Adds a linear size bound for delimiter encoded validation batches. This supports output allocation accounting for validatesTautologyResult_computableInPolyTime; the TM2 running time witness remains open.","next_recommended_action":"formalize","gate_pending":true}
+-/
+
+- 2026-09-10 local saturday formalize: result=partial; artifacts: search/logs/saturday_drafts/20260910T011127Z_r5-cook-reckhow-bridge_formalize_openrouter.lean, theory/Theory/ProofComplexity/Bridge/ProofSystem.lean, theory/Theory/ProofComplexity/Bridge/ProofSystem.lean; learned: Adds quadratic aggregation of validation output costs. The TM2 implementation and polynomial running time witness remain open. auto-apply succeeded into theory/Theory/ProofComplexity/Bridge/ProofSystem.lean. mode=insert=validatesTautologyResult_batch_quadratic_budget. decls=['validatesTautologyResult_batch_quadratic_budget']. frontier_sorry=False.
+
+namespace ProofSystemFrontier
+
+/-- Quadratic costs charged to individual validation outputs fit within a
+quadratic budget in the total input size and entry count. This supports
+cost aggregation for the polynomial time obligation, but does not supply
+the missing TM2 implementation or its running time proof. -/
+theorem validatesTautologyResult_batch_quadratic_budget
+    (inputs : List (List Bool)) :
+    (inputs.map (fun π =>
+      (validatesTautologyResult_on_pair π).length ^ 2)).sum
+      ≤ ((inputs.map List.length).sum + inputs.length) ^ 2 := by
+  induction inputs with
+  | nil =>
+      simp
+  | cons π inputs ih =>
+      have hπ :
+          (validatesTautologyResult_on_pair π).length ≤ π.length + 1 :=
+        validatesTautologyResult_on_pair_length_frontier π
+      have hπsq :
+          (validatesTautologyResult_on_pair π).length ^ 2
+            ≤ (π.length + 1) ^ 2 := by
+        nlinarith
+      simp only [List.map_cons, List.sum_cons, List.length_cons]
+      calc
+        (validatesTautologyResult_on_pair π).length ^ 2 +
+            (inputs.map (fun ρ =>
+              (validatesTautologyResult_on_pair ρ).length ^ 2)).sum
+            ≤ (π.length + 1) ^ 2 +
+                ((inputs.map List.length).sum + inputs.length) ^ 2 :=
+          Nat.add_le_add hπsq ih
+        _ ≤ (π.length + (inputs.map List.length).sum +
+                (inputs.length + 1)) ^ 2 := by
+          nlinarith [Nat.zero_le
+            ((π.length + 1) *
+              ((inputs.map List.length).sum + inputs.length))]
+
+end ProofSystemFrontier
+
+/-
+{"status":"partial","notes":"Adds quadratic aggregation of validation output costs. The TM2 implementation and polynomial running time witness remain open.","next_recommended_action":"formalize","gate_pending":true}
+-/
+
+- 2026-09-10 local saturday formalize: result=partial; artifacts: search/logs/saturday_drafts/20260910T011421Z_r5-cook-reckhow-bridge_formalize_openrouter.lean, theory/Theory/ProofComplexity/Bridge/ProofSystem.lean, theory/Theory/ProofComplexity/Bridge/ProofSystem.lean; learned: Adds a quadratic batch bound for joint input and validation output scan sizes. The TM2 implementation and running time witness remain open. auto-apply succeeded into theory/Theory/ProofComplexity/Bridge/ProofSystem.lean. mode=insert=validatesTautologyResult_batch_joint_scan_budget. decls=['validatesTautologyResult_batch_joint_scan_budget']. frontier_sorry=False.
+
+namespace ProofSystemFrontier
+
+/-- Quadratic charges for scanning both the input and validation output,
+including one delimiter, admit a uniform quadratic batch budget.
+This is size accounting for the polynomial time obligation, not a
+machine implementation or a running time witness. -/
+theorem validatesTautologyResult_batch_joint_scan_budget
+    (inputs : List (List Bool)) :
+    (inputs.map (fun π =>
+      (π.length +
+        (validatesTautologyResult_on_pair π).length + 1) ^ 2)).sum
+      ≤ 4 * ((inputs.map List.length).sum + inputs.length) ^ 2 := by
+  induction inputs with
+  | nil =>
+      simp
+  | cons π inputs ih =>
+      have hout :=
+        validatesTautologyResult_on_pair_length_frontier π
+      have hlocal :
+          π.length +
+              (validatesTautologyResult_on_pair π).length + 1
+            ≤ 2 * (π.length + 1) := by
+        omega
+      have hlocal_sq :
+          (π.length +
+              (validatesTautologyResult_on_pair π).length + 1) ^ 2
+            ≤ 4 * (π.length + 1) ^ 2 := by
+        have hmul := Nat.mul_le_mul hlocal hlocal
+        nlinarith only [hmul]
+      simp only [List.map_cons, List.sum_cons, List.length_cons]
+      calc
+        (π.length +
+              (validatesTautologyResult_on_pair π).length + 1) ^ 2 +
+            (inputs.map (fun ρ =>
+              (ρ.length +
+                (validatesTautologyResult_on_pair ρ).length + 1) ^ 2)).sum
+            ≤ 4 * (π.length + 1) ^ 2 +
+                4 * ((inputs.map List.length).sum + inputs.length) ^ 2 :=
+          Nat.add_le_add hlocal_sq ih
+        _ ≤ 4 * (π.length + (inputs.map List.length).sum +
+                (inputs.length + 1)) ^ 2 := by
+          nlinarith [Nat.zero_le
+            ((π.length + 1) *
+              ((inputs.map List.length).sum + inputs.length))]
+
+end ProofSystemFrontier
+
+/-
+{"status":"partial","notes":"Adds a quadratic batch bound for joint input and validation output scan sizes. The TM2 implementation and running time witness remain open.","next_recommended_action":"formalize","gate_pending":true}
+-/

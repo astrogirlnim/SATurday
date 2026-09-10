@@ -4664,3 +4664,175 @@ end CSExpansionFrontier
 /-
 {"status":"partial","notes":"Added a finite model cover union bound helper for the random witness obligation. Overlapping model events are permitted. Quantitative structural and model counts remain open. Not build checked.","next_recommended_action":"formalize","gate_pending":true}
 -/
+
+- 2026-09-10 local saturday formalize: result=partial; artifacts: search/logs/saturday_drafts/20260910T010753Z_r2-width-machinery_formalize_openrouter.lean, theory/Theory/ProofComplexity/CSExpansion.lean, theory/Theory/ProofComplexity/CSExpansion.lean; learned: Added a uniform per model counting reduction for exists_spreads_matchable_unsat_random3CNF. Structural and model event estimates remain open. Not build checked. auto-apply succeeded into theory/Theory/ProofComplexity/CSExpansion.lean. mode=insert=random3CNF_witness_of_uniform_model_budgets. decls=['random3CNF_witness_of_uniform_model_budgets']. frontier_sorry=False.
+
+namespace CSExpansionFrontier
+
+/-- Uniform bounds for individual model events suffice for the random witness
+budget. The events may overlap. Quantitative bounds for the structural failures
+and for each model event remain separate obligations. -/
+theorem random3CNF_witness_of_uniform_model_budgets
+    {ι : Type*}
+    (N n a b : ℕ)
+    (Ω : Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (I : Finset ι)
+    (B : ι → Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (hsize : max N 128 ≤ n)
+    (hstruct :
+      (Ω.filter (fun ω =>
+        ¬ ((cnfVars (random3CNF n (random3CNFClauseCount n) ω)).card = n ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) ≤ 3 ∧
+          Spreads (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) 2 ∧
+          IsCSMatchable (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) <
+            csClauseWidthFloor (random3CNFMatchScale n) 1))).card ≤ a)
+    (hcover :
+      ∀ ω ∈ Ω,
+        Satisfiable (random3CNF n (random3CNFClauseCount n) ω) →
+          ∃ i ∈ I, ω ∈ B i)
+    (hmodel : ∀ i ∈ I, (B i).card ≤ b)
+    (hbudget : a + I.card * b < Ω.card) :
+    ∃ ω : EnsembleIndex n (random3CNFClauseCount n),
+      let F := random3CNF n (random3CNFClauseCount n) ω
+      let r := random3CNFMatchScale n
+      max N 128 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        Spreads F r 2 ∧ IsCSMatchable F r ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor r 1 := by
+  classical
+  have hmodels : I.sum (fun i => (B i).card) ≤ I.card * b := by
+    calc
+      I.sum (fun i => (B i).card) ≤ I.sum (fun _ => b) := by
+        apply Finset.sum_le_sum
+        intro i hi
+        exact hmodel i hi
+      _ = I.card * b := by
+        simp
+  exact random3CNF_witness_of_model_cover_budgets
+    N n a (I.card * b) Ω I B hsize hstruct hcover hmodels hbudget
+
+end CSExpansionFrontier
+
+/-
+{"status":"partial","notes":"Added a uniform per model counting reduction for exists_spreads_matchable_unsat_random3CNF. Structural and model event estimates remain open. Not build checked.","next_recommended_action":"formalize","gate_pending":true}
+-/
+
+- 2026-09-10 local saturday formalize: result=partial; artifacts: search/logs/saturday_drafts/20260910T011108Z_r2-width-machinery_formalize_openrouter.lean, theory/Theory/ProofComplexity/CSExpansion.lean, theory/Theory/ProofComplexity/CSExpansion.lean; learned: Added a structural event union bound reduction for exists_spreads_matchable_unsat_random3CNF. Individual event estimates remain open. Not build checked. auto-apply succeeded into theory/Theory/ProofComplexity/CSExpansion.lean. mode=insert=random3CNF_witness_of_structural_cover_budgets. decls=['random3CNF_witness_of_structural_cover_budgets']. frontier_sorry=False.
+
+namespace CSExpansionFrontier
+
+/-- Separate structural failure events can be budgeted individually.
+Together with uniform model event bounds, their union bound supplies the
+remaining counting premise for the random witness reduction. -/
+theorem random3CNF_witness_of_structural_cover_budgets
+    {ι κ : Type*}
+    (N n b : ℕ)
+    (Ω : Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (I : Finset ι)
+    (B : ι → Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (J : Finset κ)
+    (D : κ → Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (c : κ → ℕ)
+    (hsize : max N 128 ≤ n)
+    (hstructCover :
+      ∀ ω ∈ Ω,
+        ¬ ((cnfVars (random3CNF n (random3CNFClauseCount n) ω)).card = n ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) ≤ 3 ∧
+          Spreads (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) 2 ∧
+          IsCSMatchable (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) <
+            csClauseWidthFloor (random3CNFMatchScale n) 1) →
+        ∃ j ∈ J, ω ∈ D j)
+    (hstructBounds : ∀ j ∈ J, (D j).card ≤ c j)
+    (hcover :
+      ∀ ω ∈ Ω,
+        Satisfiable (random3CNF n (random3CNFClauseCount n) ω) →
+          ∃ i ∈ I, ω ∈ B i)
+    (hmodel : ∀ i ∈ I, (B i).card ≤ b)
+    (hbudget : J.sum c + I.card * b < Ω.card) :
+    ∃ ω : EnsembleIndex n (random3CNFClauseCount n),
+      let F := random3CNF n (random3CNFClauseCount n) ω
+      let r := random3CNFMatchScale n
+      max N 128 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        Spreads F r 2 ∧ IsCSMatchable F r ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor r 1 := by
+  classical
+  have hbadcard : (J.biUnion D).card ≤ J.sum c := by
+    calc
+      (J.biUnion D).card ≤ J.sum (fun j => (D j).card) := by
+        exact Finset.card_biUnion_le
+      _ ≤ J.sum c := by
+        apply Finset.sum_le_sum
+        intro j hj
+        exact hstructBounds j hj
+  refine random3CNF_witness_of_uniform_model_budgets
+    N n (J.sum c) b Ω I B hsize ?_ hcover hmodel hbudget
+  refine le_trans ?_ hbadcard
+  apply Finset.card_le_card
+  intro ω hω
+  rcases Finset.mem_filter.mp hω with ⟨hΩ, hfailure⟩
+  rcases hstructCover ω hΩ hfailure with ⟨j, hj, hD⟩
+  exact Finset.mem_biUnion.mpr ⟨j, hj, hD⟩
+
+end CSExpansionFrontier
+
+/-
+{"status":"partial","notes":"Added a structural event union bound reduction for exists_spreads_matchable_unsat_random3CNF. Individual event estimates remain open. Not build checked.","next_recommended_action":"formalize","gate_pending":true}
+-/
+
+- 2026-09-10 local saturday formalize: result=partial; artifacts: search/logs/saturday_drafts/20260910T011450Z_r2-width-machinery_formalize_openrouter.lean, theory/Theory/ProofComplexity/CSExpansion.lean, search/logs/saturday_drafts/20260910T011505Z_r2-width-machinery_apply_error.txt; learned: Added a pointwise choice event cardinality bound for the model event estimates. Its specialization to random3CNF remains open. Not build checked. auto-apply reverted: lake build failed. Digest: error: Theory/ProofComplexity/CSExpansion.lean:5333:6: Type mismatch
+error: Lean exited with code 1
+error: build failed
+
+namespace CSExpansionFrontier
+
+/-- A pointwise restriction on a finite space of clause choices gives a
+power bound. This supplies the independent choice counting step for model
+event budgets in `exists_spreads_matchable_unsat_random3CNF`.
+The application still requires identifying the allowed choices for each
+clause under a fixed assignment. -/
+theorem cs_pointwise_choice_event_card_le_pow
+    {α : Type*}
+    (m a : ℕ)
+    (Ω : Finset (Fin m → α))
+    (A : Fin m → Finset α)
+    (hA : ∀ i, (A i).card ≤ a) :
+    (Ω.filter (fun ω => ∀ i, ω i ∈ A i)).card ≤ a ^ m := by
+  classical
+  let E := Ω.filter (fun ω => ∀ i, ω i ∈ A i)
+  let encode :
+      {ω // ω ∈ E} → ((i : Fin m) → {x // x ∈ A i}) :=
+    fun ω i =>
+      ⟨ω.val i, (Finset.mem_filter.mp ω.property).2 i⟩
+  have hinj : Function.Injective encode := by
+    intro x y h
+    apply Subtype.ext
+    funext i
+    exact congrArg Subtype.val (congrFun h i)
+  have hcount : E.card ≤ ∏ i : Fin m, (A i).card := by
+    calc
+      E.card = Fintype.card {ω // ω ∈ E} := by
+        simp
+      _ ≤ Fintype.card ((i : Fin m) → {x // x ∈ A i}) := by
+        exact Fintype.card_le_of_injective encode hinj
+      _ = ∏ i : Fin m, (A i).card := by
+        simp [Fintype.card_pi]
+  change E.card ≤ a ^ m
+  calc
+    E.card ≤ ∏ i : Fin m, (A i).card := hcount
+    _ ≤ ∏ _i : Fin m, a := by
+      apply Finset.prod_le_prod
+      intro i hi
+      exact hA i
+    _ = a ^ m := by
+      simp
+
+end CSExpansionFrontier
+
+/-
+{"status":"partial","notes":"Added a pointwise choice event cardinality bound for the model event estimates. Its specialization to random3CNF remains open. Not build checked.","next_recommended_action":"formalize","gate_pending":true}
+-/

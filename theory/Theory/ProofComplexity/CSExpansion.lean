@@ -5181,4 +5181,115 @@ theorem random3CNF_witness_of_model_cover_budgets
 
 end CSExpansionFrontier
 
+/- SATurday auto-apply 2026-09-10T01:07:53Z (rung r2-width-machinery). -/
+namespace CSExpansionFrontier
+
+/-- Uniform bounds for individual model events suffice for the random witness
+budget. The events may overlap. Quantitative bounds for the structural failures
+and for each model event remain separate obligations. -/
+theorem random3CNF_witness_of_uniform_model_budgets
+    {ι : Type*}
+    (N n a b : ℕ)
+    (Ω : Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (I : Finset ι)
+    (B : ι → Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (hsize : max N 128 ≤ n)
+    (hstruct :
+      (Ω.filter (fun ω =>
+        ¬ ((cnfVars (random3CNF n (random3CNFClauseCount n) ω)).card = n ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) ≤ 3 ∧
+          Spreads (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) 2 ∧
+          IsCSMatchable (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) <
+            csClauseWidthFloor (random3CNFMatchScale n) 1))).card ≤ a)
+    (hcover :
+      ∀ ω ∈ Ω,
+        Satisfiable (random3CNF n (random3CNFClauseCount n) ω) →
+          ∃ i ∈ I, ω ∈ B i)
+    (hmodel : ∀ i ∈ I, (B i).card ≤ b)
+    (hbudget : a + I.card * b < Ω.card) :
+    ∃ ω : EnsembleIndex n (random3CNFClauseCount n),
+      let F := random3CNF n (random3CNFClauseCount n) ω
+      let r := random3CNFMatchScale n
+      max N 128 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        Spreads F r 2 ∧ IsCSMatchable F r ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor r 1 := by
+  classical
+  have hmodels : I.sum (fun i => (B i).card) ≤ I.card * b := by
+    calc
+      I.sum (fun i => (B i).card) ≤ I.sum (fun _ => b) := by
+        apply Finset.sum_le_sum
+        intro i hi
+        exact hmodel i hi
+      _ = I.card * b := by
+        simp
+  exact random3CNF_witness_of_model_cover_budgets
+    N n a (I.card * b) Ω I B hsize hstruct hcover hmodels hbudget
+
+end CSExpansionFrontier
+
+/- SATurday auto-apply 2026-09-10T01:11:08Z (rung r2-width-machinery). -/
+namespace CSExpansionFrontier
+
+/-- Separate structural failure events can be budgeted individually.
+Together with uniform model event bounds, their union bound supplies the
+remaining counting premise for the random witness reduction. -/
+theorem random3CNF_witness_of_structural_cover_budgets
+    {ι κ : Type*}
+    (N n b : ℕ)
+    (Ω : Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (I : Finset ι)
+    (B : ι → Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (J : Finset κ)
+    (D : κ → Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (c : κ → ℕ)
+    (hsize : max N 128 ≤ n)
+    (hstructCover :
+      ∀ ω ∈ Ω,
+        ¬ ((cnfVars (random3CNF n (random3CNFClauseCount n) ω)).card = n ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) ≤ 3 ∧
+          Spreads (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) 2 ∧
+          IsCSMatchable (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) <
+            csClauseWidthFloor (random3CNFMatchScale n) 1) →
+        ∃ j ∈ J, ω ∈ D j)
+    (hstructBounds : ∀ j ∈ J, (D j).card ≤ c j)
+    (hcover :
+      ∀ ω ∈ Ω,
+        Satisfiable (random3CNF n (random3CNFClauseCount n) ω) →
+          ∃ i ∈ I, ω ∈ B i)
+    (hmodel : ∀ i ∈ I, (B i).card ≤ b)
+    (hbudget : J.sum c + I.card * b < Ω.card) :
+    ∃ ω : EnsembleIndex n (random3CNFClauseCount n),
+      let F := random3CNF n (random3CNFClauseCount n) ω
+      let r := random3CNFMatchScale n
+      max N 128 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        Spreads F r 2 ∧ IsCSMatchable F r ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor r 1 := by
+  classical
+  have hbadcard : (J.biUnion D).card ≤ J.sum c := by
+    calc
+      (J.biUnion D).card ≤ J.sum (fun j => (D j).card) := by
+        exact Finset.card_biUnion_le
+      _ ≤ J.sum c := by
+        apply Finset.sum_le_sum
+        intro j hj
+        exact hstructBounds j hj
+  refine random3CNF_witness_of_uniform_model_budgets
+    N n (J.sum c) b Ω I B hsize ?_ hcover hmodel hbudget
+  refine le_trans ?_ hbadcard
+  apply Finset.card_le_card
+  intro ω hω
+  rcases Finset.mem_filter.mp hω with ⟨hΩ, hfailure⟩
+  rcases hstructCover ω hΩ hfailure with ⟨j, hj, hD⟩
+  exact Finset.mem_biUnion.mpr ⟨j, hj, hD⟩
+
+end CSExpansionFrontier
+
+
+
 end SATurday.ProofComplexity
