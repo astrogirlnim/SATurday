@@ -74,6 +74,9 @@ class LocalLLMClient:
         api_key: Optional[str] = None,
         extra_headers: Optional[Dict[str, str]] = None,
         label: str = "local",
+        min_request_interval_seconds: float = 0.0,
+        rate_limit_backoff_seconds: float = 30.0,
+        rate_limit_retries: int = 0,
     ) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.api_style = api_style
@@ -82,11 +85,17 @@ class LocalLLMClient:
         self.api_key = api_key
         self.extra_headers = dict(extra_headers or {})
         self.label = label
+        self.min_request_interval_seconds = float(min_request_interval_seconds)
+        self.rate_limit_backoff_seconds = float(rate_limit_backoff_seconds)
+        self.rate_limit_retries = int(rate_limit_retries)
+        self._last_request_ended_at = 0.0
         print(
             f"[LocalLLMClient] init label={self.label} endpoint={self.endpoint} "
             f"api_style={self.api_style} timeout={self.timeout_seconds}s "
             f"require_local={self.require_local} "
-            f"auth={'yes' if self.api_key else 'no'}"
+            f"auth={'yes' if self.api_key else 'no'} "
+            f"min_interval={self.min_request_interval_seconds}s "
+            f"rate_limit_retries={self.rate_limit_retries}"
         )
         if self.require_local:
             self._assert_local(self.endpoint)
@@ -192,37 +201,78 @@ class LocalLLMClient:
         print(f"[LocalLLMClient] chat done chars={len(text)} elapsed={elapsed:.1f}s")
         return LLMResponse(text=text, model=request.model, elapsed_seconds=elapsed, raw=raw)
 
+    def _pace_before_request(self) -> None:
+        """Optional min gap between HTTP calls (OpenRouter cooldown)."""
+        gap = self.min_request_interval_seconds
+        if gap <= 0:
+            return
+        elapsed = time.time() - self._last_request_ended_at
+        if self._last_request_ended_at > 0 and elapsed < gap:
+            wait = gap - elapsed
+            print(
+                f"[LocalLLMClient] cooldown label={self.label} "
+                f"wait={wait:.2f}s (min_interval={gap}s)"
+            )
+            time.sleep(wait)
+
     def _post_json(self, url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """POST JSON and parse object response."""
+        """POST JSON and parse object response. Retries on HTTP 429 when configured."""
         body = json.dumps(payload).encode("utf-8")
         headers = {"Content-Type": "application/json"}
         headers.update(self.extra_headers)
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        print(f"[LocalLLMClient] POST {url} bytes={len(body)} auth={'yes' if self.api_key else 'no'}")
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers=headers,
-            method="POST",
-        )
-        started = time.time()
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
-                raw_bytes = resp.read()
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            print(f"[LocalLLMClient] HTTP {exc.code}: {detail[:500]}")
-            raise RuntimeError(f"LLM HTTP {exc.code} at {url}: {detail[:500]}") from exc
-        except urllib.error.URLError as exc:
-            print(f"[LocalLLMClient] URL error: {exc}")
-            raise RuntimeError(
-                f"LLM unreachable at {url}. Check local server or OpenRouter network."
-            ) from exc
-        elapsed = time.time() - started
-        print(f"[LocalLLMClient] response bytes={len(raw_bytes)} elapsed={elapsed:.1f}s")
-        data = json.loads(raw_bytes.decode("utf-8"))
-        if not isinstance(data, dict):
-            raise RuntimeError(f"LLM returned non object JSON from {url}")
-        data["_elapsed_seconds"] = elapsed
-        return data
+        attempts = 1 + max(0, self.rate_limit_retries)
+        last_exc: Optional[BaseException] = None
+        for attempt in range(1, attempts + 1):
+            self._pace_before_request()
+            print(
+                f"[LocalLLMClient] POST {url} bytes={len(body)} "
+                f"auth={'yes' if self.api_key else 'no'} attempt={attempt}/{attempts}"
+            )
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers=headers,
+                method="POST",
+            )
+            started = time.time()
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                    raw_bytes = resp.read()
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                print(f"[LocalLLMClient] HTTP {exc.code}: {detail[:500]}")
+                self._last_request_ended_at = time.time()
+                last_exc = RuntimeError(
+                    f"LLM HTTP {exc.code} at {url}: {detail[:500]}"
+                )
+                if exc.code == 429 and attempt < attempts:
+                    backoff = self.rate_limit_backoff_seconds * attempt
+                    print(
+                        f"[LocalLLMClient] rate limited; backoff {backoff:.1f}s "
+                        f"before retry {attempt + 1}/{attempts}"
+                    )
+                    time.sleep(backoff)
+                    continue
+                raise last_exc from exc
+            except urllib.error.URLError as exc:
+                print(f"[LocalLLMClient] URL error: {exc}")
+                self._last_request_ended_at = time.time()
+                raise RuntimeError(
+                    f"LLM URL error at {url}: {exc}"
+                ) from exc
+            elapsed = time.time() - started
+            self._last_request_ended_at = time.time()
+            try:
+                raw = json.loads(raw_bytes.decode("utf-8"))
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    f"LLM non-JSON response at {url}: {raw_bytes[:300]!r}"
+                ) from exc
+            if not isinstance(raw, dict):
+                raise RuntimeError(f"LLM response is not a JSON object at {url}")
+            raw["_elapsed_seconds"] = elapsed
+            return raw
+        assert last_exc is not None
+        raise last_exc

@@ -53,7 +53,7 @@ def auto_cmd(
         None,
         "--sleep",
         "-s",
-        help="Base seconds between wakes (default from saturday_loop config)",
+        help="Optional seconds between wakes (default 0: start next wake immediately)",
     ),
     cycles: int = typer.Option(
         0,
@@ -83,21 +83,22 @@ def auto_cmd(
     Autonomous mode: run all next disjoint workstreams in parallel, forever.
 
     Each wake runs every actionable parallel path together (typically R2 and R5),
-    sleeps, then wakes again. No rung or action selection required. Stop with Ctrl-C.
+    then starts the next wake immediately. OpenRouter pacing is per-request
+    cooldown, not inter-wake sleep. Stop with Ctrl-C.
 
     Examples:
         satday auto
         satday auto --remote
         satday auto --remote --escalate
-        satday auto --sleep 120
+        satday auto --sleep 30
         satday auto --cycles 5
         satday auto --dry-run --cycles 1
     """
     console.print("[bold blue]SATurday auto (parallel loop)[/bold blue]")
     console.print(
-        "Runs all next workstreams each wake. Stop with Ctrl-C. "
-        "Look for lines starting with >>> for human readable status; "
-        "[saturday.*] lines are detailed debug logs."
+        "Runs all next workstreams each wake, then continues immediately. "
+        "Stop with Ctrl-C. Look for lines starting with >>> for human readable "
+        "status; [saturday.*] lines are detailed debug logs."
     )
     if remote_only:
         remote = True
@@ -240,7 +241,7 @@ def loop_cmd(
         None,
         "--sleep",
         "-s",
-        help="Base seconds between wakes (dynamic adjust still applies)",
+        help="Optional seconds between wakes (default 0: immediate next wake)",
     ),
     parallel: bool = typer.Option(
         False,
@@ -266,13 +267,13 @@ def loop_cmd(
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
 ):
     """
-    Repeated saturday wakes with sleep between cycles.
+    Repeated saturday wakes with optional sleep between cycles.
 
-    One cycle (or one parallel wave) per wake, then sleep, then wake again.
-    Stop with Ctrl-C or a finite --cycles value.
+    Default pacing: finish a wake, then start the next immediately.
+    OpenRouter cooldown is per-request. Stop with Ctrl-C or a finite --cycles.
 
     Examples:
-        satday loop --cycles 3 --sleep 90
+        satday loop --cycles 3
         satday loop --parallel --cycles 2 --remote
         satday loop --parallel --cycles 2 --remote --escalate
         satday loop --parallel --dry-run --cycles 1

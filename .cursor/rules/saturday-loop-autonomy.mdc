@@ -5,7 +5,18 @@ alwaysApply: true
 
 # Saturday loop autonomy
 
-When the agent is running a `/loop` saturday cycle (wake sentinel
+Preferred research driver is the offline CLI:
+
+```text
+satday auto --remote
+```
+
+That loop is event-paced: finish a wake, then start the next immediately.
+OpenRouter pacing is per-request cooldown / 429 backoff in the LLM client, not
+an arbitrary inter-wake sleep. Do not drive ongoing research via chat
+`AGENT_LOOP_WAKE_saturday` wakes unless the user explicitly asks.
+
+When the agent is nonetheless running a `/loop` saturday cycle (wake sentinel
 `AGENT_LOOP_WAKE_saturday` or equivalent):
 
 - Run exactly one saturday cycle per wake (skill: `.cursor/skills/saturday/SKILL.md`).
@@ -22,8 +33,6 @@ When the agent is running a `/loop` saturday cycle (wake sentinel
   all parallel cycles finish.
 - Prefer finishing in-progress formalize clusters (build, axiom gate, rung
   memory, session record, commit without push) over idle ticks.
-- Cadence is **dynamic**: one-shot wakes (not a fixed 30m while loop). After each
-  cycle (or after all parallel cycles when coordinating), re-arm
-  `sleep <seconds>` then `AGENT_LOOP_WAKE_saturday` with a delay fit to the work
-  (short after prose or light Lean; longer only after heavy builds). Never leave
-  a fixed `while true; sleep 1800` saturday loop running.
+- Prefer `satday auto` over re-arming chat wakes. If a chat wake must be used,
+  arm a short one-shot delay only; never leave a fixed `while true; sleep 1800`
+  saturday loop running.

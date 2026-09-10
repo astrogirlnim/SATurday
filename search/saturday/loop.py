@@ -1,8 +1,9 @@
 """
-Local saturday wake loop: repeated cycles with dynamic sleep between wakes.
+Local saturday wake loop: repeated cycles with event-driven pacing.
 
-Matches the saturday skill contract: one cycle (or one parallel wave) per wake,
-then sleep, then wake again. Not a fixed while sleep 1800 loop with no stop.
+One cycle (or one parallel wave) per wake, then immediately start the next
+unless an optional --sleep override or config loop_sleep_seconds is set.
+OpenRouter rate pacing lives in the remote LLM client, not here.
 Stop with Ctrl-C or --cycles N.
 """
 
@@ -16,24 +17,6 @@ from infra.config.loader import load_config
 from infra.config.schemas import SaturdayLoopConfig
 from search.saturday.cycle import run_saturday_cycle, run_saturday_parallel
 from search.saturday.ui import announce, banner, summarize_wave
-
-
-def suggest_sleep_seconds(records: List[Dict[str, Any]], default_sleep: int) -> int:
-    """Pick next sleep from last wave results (light vs heavy)."""
-    if not records:
-        return default_sleep
-    actions = {r.get("action_type") for r in records}
-    results = {r.get("result") for r in records}
-    if "falsify" in actions or "formalize" in actions:
-        sleep = max(default_sleep, 120)
-    elif "prove" in actions or "audit" in actions:
-        sleep = max(30, min(default_sleep, 90))
-    else:
-        sleep = default_sleep
-    if results <= {"blocked"}:
-        sleep = max(sleep, 60)
-    print(f"[saturday.loop] suggest_sleep={sleep}s actions={actions} results={results}")
-    return sleep
 
 
 def run_saturday_loop(
@@ -51,7 +34,8 @@ def run_saturday_loop(
 
     cycles: None uses config.loop_max_cycles; 0 means until interrupted.
     parallel: None uses config.loop_parallel_default.
-    remote: enable OpenRouter escalation for formalize (needs OPENROUTER_API_KEY).
+    sleep_seconds: optional override; 0 means no inter-wake sleep (default).
+    remote: enable OpenRouter for formalize (needs OPENROUTER_API_KEY).
     """
     if repo_root is None:
         repo_root = Path(__file__).resolve().parents[2]
@@ -60,6 +44,7 @@ def run_saturday_loop(
     loop_cfg: SaturdayLoopConfig = config.saturday_loop
 
     max_cycles = loop_cfg.loop_max_cycles if cycles is None else cycles
+    # Default 0: callback-style pacing (finish wave -> next wake)
     base_sleep = loop_cfg.loop_sleep_seconds if sleep_seconds is None else sleep_seconds
     use_parallel = loop_cfg.loop_parallel_default if parallel is None else parallel
 
@@ -70,15 +55,20 @@ def run_saturday_loop(
     )
     announce(
         f"Settings: max_cycles={max_cycles or 'until interrupted'} "
-        f"base_sleep={base_sleep}s parallel={use_parallel} dry_run={dry_run} "
+        f"inter_wake_sleep={base_sleep}s parallel={use_parallel} dry_run={dry_run} "
         f"remote={remote}"
     )
+    if base_sleep <= 0:
+        announce(
+            "Pacing: next wake starts immediately when the prior wave finishes "
+            "(OpenRouter cooldown is per-request in the remote client)."
+        )
     if remote:
         from search.saturday.llm_factory import enable_remote_on_config
 
-        enable_remote_on_config(loop_cfg, mode=remote_mode or "escalate")
+        enable_remote_on_config(loop_cfg, mode=remote_mode or "remote")
     print(
-        f"[saturday.loop] start max_cycles={max_cycles} base_sleep={base_sleep} "
+        f"[saturday.loop] start max_cycles={max_cycles} inter_wake_sleep={base_sleep} "
         f"parallel={use_parallel} dry_run={dry_run} remote={remote}"
     )
 
@@ -123,13 +113,16 @@ def run_saturday_loop(
                 print(f"[saturday.loop] reached max_cycles={max_cycles}; stopping")
                 break
 
-            sleep_for = suggest_sleep_seconds(records, base_sleep)
-            announce(
-                f"Sleeping {sleep_for}s before the next wake "
-                "(gives lake/model breathing room; errors stay on disk for retry)."
-            )
-            print(f"[saturday.loop] sleeping {sleep_for}s before next wake")
-            time.sleep(sleep_for)
+            if base_sleep > 0:
+                announce(
+                    f"Optional inter-wake sleep {base_sleep}s "
+                    "(CLI --sleep or loop_sleep_seconds override)."
+                )
+                print(f"[saturday.loop] sleeping {base_sleep}s before next wake")
+                time.sleep(base_sleep)
+            else:
+                announce("Starting next wake now (no inter-wake sleep).")
+                print("[saturday.loop] immediate next wake (no sleep)")
     except KeyboardInterrupt:
         announce(f"Interrupted after wake {wake}. Progress so far is in rung memory and sessions.")
         print(f"[saturday.loop] interrupted after wake={wake}")

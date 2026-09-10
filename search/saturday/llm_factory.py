@@ -68,6 +68,9 @@ def make_remote_client(loop_cfg: SaturdayLoopConfig) -> LocalLLMClient:
         api_key=api_key,
         extra_headers=headers,
         label="openrouter",
+        min_request_interval_seconds=remote.min_request_interval_seconds,
+        rate_limit_backoff_seconds=remote.rate_limit_backoff_seconds,
+        rate_limit_retries=remote.rate_limit_retries,
     )
 
 

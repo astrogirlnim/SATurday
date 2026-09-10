@@ -100,6 +100,11 @@ class SaturdayRemoteConfig(BaseModel):
     # Optional OpenRouter ranking headers (no secrets)
     http_referer: str = "https://github.com/astrogirlnim/SATurday"
     app_title: str = "SATurday"
+    # Min seconds between OpenRouter HTTP calls (shared inference lock already serializes)
+    min_request_interval_seconds: float = Field(2.0, ge=0.0)
+    # Extra wait after HTTP 429 before retry
+    rate_limit_backoff_seconds: float = Field(30.0, ge=0.0)
+    rate_limit_retries: int = Field(3, ge=0)
 
 
 class SaturdayLoopConfig(BaseModel):
@@ -141,8 +146,10 @@ class SaturdayLoopConfig(BaseModel):
     sessions_path: str = "search/logs/saturday_sessions.jsonl"
     # When true, formalize auto-applies Frontier drafts into theory/ if lake build stays green
     auto_apply: bool = True
-    # Local CLI loop defaults (satday loop); 0 cycles means run until interrupted
-    loop_sleep_seconds: int = Field(90, ge=0)
+    # Local CLI loop defaults. 0 sleep = start next wake immediately when prior
+    # wave finishes (OpenRouter pacing lives on remote.min_request_interval_seconds).
+    # 0 cycles means run until interrupted.
+    loop_sleep_seconds: int = Field(0, ge=0)
     loop_max_cycles: int = Field(1, ge=0)
     loop_parallel_default: bool = False
 
