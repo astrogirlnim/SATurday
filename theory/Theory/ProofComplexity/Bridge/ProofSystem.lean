@@ -3014,6 +3014,387 @@ noncomputable def padBits_evals_revBits (bits inp fuel work out : List Bool) :
       simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
         Nat.add_assoc] using h
 
+/-- Load `encodePair (xs, ys)` into reversed fuel/bits, then enter `revBits`. -/
+noncomputable def padBits_evals_load_encodePair (xs ys : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .parse) none (encodePair (xs, ys)) [] [] [] [])
+      (some (padBitsCfg (some .revBits) none [] xs.reverse ys.reverse [] []))
+      (2 * xs.length + ys.length + 2) := by
+  have hparse :=
+    padBits_evals_parse_first xs (false :: ys) [] [] [] []
+  have htoLoad :=
+    padBits_evals_parse_false ys xs.reverse [] [] []
+  have hload :=
+    padBits_evals_loadBits ys xs.reverse [] [] []
+  have h1 : EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .parse) none (encodePair (xs, ys)) [] [] [] [])
+      (some (padBitsCfg (some .parse) none (false :: ys) xs.reverse [] [] []))
+      (2 * xs.length) := by
+    simpa [encodePair, List.append_assoc] using hparse
+  have h12 :=
+    EvalsToInTime.trans padBitsComputer.step (2 * xs.length) 1 _ _ _ h1 htoLoad
+  have h12' : EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .parse) none (encodePair (xs, ys)) [] [] [] [])
+      (some (padBitsCfg (some .loadBits) none ys xs.reverse [] [] []))
+      (2 * xs.length + 1) := by
+    simpa [Nat.add_comm] using h12
+  have h :=
+    EvalsToInTime.trans padBitsComputer.step (2 * xs.length + 1) (ys.length + 1)
+      _ _ _ h12' hload
+  refine ⟨⟨h.steps, ?_⟩, ?_⟩
+  · simpa [List.append_nil] using h.evals_in_steps
+  · refine le_trans h.steps_le_m ?_
+    omega
+
+def padBits_evals_sync_false (rest inp bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .sync) none inp (false :: rest) bits work out)
+      (some (padBitsCfg (some .loop) none inp rest bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .sync) none inp (false :: rest) bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .loop) none inp rest bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_sync_false rest bits work out inp
+
+def padBits_evals_loop_nil (inp bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .loop) none inp [] bits work out)
+      (some (padBitsCfg (some .revOut) none inp [] bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .loop) none inp [] bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .revOut) none inp [] bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_loop_nil inp bits work out
+
+def padBits_evals_loop_true (rest inp bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .loop) none inp (true :: rest) bits work out)
+      (some (padBitsCfg (some .takeBit) none inp rest bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .loop) none inp (true :: rest) bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .takeBit) none inp rest bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_loop_true inp rest bits work out
+
+def padBits_evals_takeBit_cons (b : Bool) (rest fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .takeBit) none (b :: rest) fuel bits work out)
+      (some (padBitsCfg (some .loop) none rest fuel bits (b :: work) out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .takeBit) none (b :: rest) fuel bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .loop) none rest fuel bits (b :: work) out)
+    simp only [FinTM2.step]
+    exact padBits_step_takeBit_cons b rest fuel bits work out
+
+def padBits_evals_takeBit_nil (fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .takeBit) none [] fuel bits work out)
+      (some (padBitsCfg (some .loop) none [] fuel bits (false :: work) out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .takeBit) none [] fuel bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .loop) none [] fuel bits (false :: work) out)
+    simp only [FinTM2.step]
+    exact padBits_step_takeBit_nil fuel bits work out
+
+theorem take_append_replicate_false_succ (m : ℕ) (l : List Bool) :
+    (l ++ List.replicate (m + 1) false).take m =
+      (l ++ List.replicate m false).take m := by
+  have hlen : m ≤ (l ++ List.replicate m false).length := by
+    simp
+  have hrep : List.replicate (m + 1) false =
+      List.replicate m false ++ [false] := by
+    simpa [List.replicate_one] using List.replicate_add m 1 false
+  calc
+    (l ++ List.replicate (m + 1) false).take m
+        = (l ++ (List.replicate m false ++ [false])).take m := by rw [hrep]
+    _ = ((l ++ List.replicate m false) ++ [false]).take m := by
+          rw [List.append_assoc]
+    _ = (l ++ List.replicate m false).take m :=
+          List.take_append_of_le_length hlen
+
+theorem padBitsLE_cons (n : ℕ) (b : Bool) (bs : List Bool) :
+    padBitsLE (n + 1) (b :: bs) = b :: padBitsLE n bs := by
+  simp only [padBitsLE, List.cons_append]
+  change b :: (bs ++ List.replicate (n + 1) false).take n =
+    b :: (bs ++ List.replicate n false).take n
+  rw [take_append_replicate_false_succ]
+
+theorem padBitsLE_nil (n : ℕ) :
+    padBitsLE n ([] : List Bool) = List.replicate n false := by
+  simp [padBitsLE]
+
+theorem encodeNat_reverse (n : ℕ) :
+    (encodeNat n).reverse = false :: List.replicate n true := by
+  simp [encodeNat, List.reverse_append, List.reverse_replicate]
+
+/-- Pad loop: `fuel = true^n` writes `reverse (padBitsLE n inp)` onto work. -/
+noncomputable def padBits_evals_loop (n : ℕ) (inp work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .loop) none inp (List.replicate n true) [] work out)
+      (some (padBitsCfg (some .revOut) none (inp.drop n) [] []
+        ((padBitsLE n inp).reverse ++ work) out))
+      (2 * n + 1) := by
+  induction n generalizing inp work with
+  | zero =>
+      simpa [padBitsLE, List.drop] using padBits_evals_loop_nil inp [] work out
+  | succ n ih =>
+      have hfuel : List.replicate (n + 1) true = true :: List.replicate n true := by
+        simp [List.replicate_succ]
+      rw [hfuel]
+      have h1 := padBits_evals_loop_true (List.replicate n true) inp [] work out
+      cases inp with
+      | nil =>
+          have h2 := padBits_evals_takeBit_nil (List.replicate n true) [] work out
+          have h12 :=
+            EvalsToInTime.trans padBitsComputer.step 1 1 _ _ _ h1 h2
+          have h3 := ih [] (false :: work)
+          have h :=
+            EvalsToInTime.trans padBitsComputer.step 2 (2 * n + 1) _ _ _ h12 h3
+          have hpad :
+              (padBitsLE n []).reverse ++ false :: work =
+                (padBitsLE (n + 1) []).reverse ++ work := by
+            simp [padBitsLE_nil, List.reverse_replicate, List.replicate_succ]
+          refine ⟨⟨h.steps, ?_⟩, ?_⟩
+          · simpa [List.drop, hpad, Nat.mul_succ, Nat.add_comm, Nat.add_left_comm,
+              Nat.add_assoc] using h.evals_in_steps
+          · refine le_trans h.steps_le_m ?_
+            omega
+      | cons b bs =>
+          have h2 :=
+            padBits_evals_takeBit_cons b bs (List.replicate n true) [] work out
+          have h12 :=
+            EvalsToInTime.trans padBitsComputer.step 1 1 _ _ _ h1 h2
+          have h3 := ih bs (b :: work)
+          have h :=
+            EvalsToInTime.trans padBitsComputer.step 2 (2 * n + 1) _ _ _ h12 h3
+          have hpad :
+              (padBitsLE n bs).reverse ++ b :: work =
+                (padBitsLE (n + 1) (b :: bs)).reverse ++ work := by
+            simp [padBitsLE_cons, List.reverse_cons]
+          refine ⟨⟨h.steps, ?_⟩, ?_⟩
+          · simpa [List.drop_succ_cons, hpad, Nat.mul_succ, Nat.add_comm,
+              Nat.add_left_comm, Nat.add_assoc] using h.evals_in_steps
+          · refine le_trans h.steps_le_m ?_
+            omega
+
+def padBits_evals_revOut_one (b : Bool) (rest inp fuel bits out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .revOut) none inp fuel bits (b :: rest) out)
+      (some (padBitsCfg (some .revOut) none inp fuel bits rest (b :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .revOut) none inp fuel bits (b :: rest) out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .revOut) none inp fuel bits rest (b :: out))
+    simp only [FinTM2.step]
+    exact padBits_step_revOut_cons b inp fuel bits rest out
+
+def padBits_evals_revOut_nil (inp fuel bits out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .revOut) none inp fuel bits [] out)
+      (some (padBitsCfg (some .drainInp) none inp fuel bits [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .revOut) none inp fuel bits [] out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .drainInp) none inp fuel bits [] out)
+    simp only [FinTM2.step]
+    exact padBits_step_revOut_nil inp fuel bits out
+
+noncomputable def padBits_evals_revOut (work inp fuel bits out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .revOut) none inp fuel bits work out)
+      (some (padBitsCfg (some .drainInp) none inp fuel bits []
+        (work.reverse ++ out)))
+      (work.length + 1) := by
+  induction work generalizing out with
+  | nil =>
+      simpa using padBits_evals_revOut_nil inp fuel bits out
+  | cons b bs ih =>
+      have h1 := padBits_evals_revOut_one b bs inp fuel bits out
+      have h2 := ih (b :: out)
+      have h :=
+        EvalsToInTime.trans padBitsComputer.step 1 (bs.length + 1) _ _ _ h1 h2
+      refine ⟨⟨h.steps, ?_⟩, ?_⟩
+      · simpa [List.reverse_cons, List.append_assoc] using h.evals_in_steps
+      · refine le_trans h.steps_le_m ?_
+        simp [List.length_cons]
+
+def padBits_evals_drainInp_one (b : Bool) (rest fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .drainInp) none (b :: rest) fuel bits work out)
+      (some (padBitsCfg (some .drainInp) none rest fuel bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .drainInp) none (b :: rest) fuel bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .drainInp) none rest fuel bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_drainInp_cons b rest fuel bits work out
+
+def padBits_evals_drainInp_nil (fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .drainInp) none [] fuel bits work out)
+      (some (padBitsCfg none none [] fuel bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .drainInp) none [] fuel bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg none none [] fuel bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_drainInp_nil fuel bits work out
+
+noncomputable def padBits_evals_drainInp (inp fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .drainInp) none inp fuel bits work out)
+      (some (padBitsCfg none none [] fuel bits work out))
+      (inp.length + 1) := by
+  induction inp with
+  | nil =>
+      simpa using padBits_evals_drainInp_nil fuel bits work out
+  | cons b bs ih =>
+      have h1 := padBits_evals_drainInp_one b bs fuel bits work out
+      have h2 := ih
+      have h :=
+        EvalsToInTime.trans padBitsComputer.step 1 (bs.length + 1) _ _ _ h1 h2
+      refine ⟨⟨h.steps, h.evals_in_steps⟩, ?_⟩
+      refine le_trans h.steps_le_m ?_
+      simp [List.length_cons]
+
+/-- Full run: `encodePair (encodeNat n, bs)` yields `padBitsLE n bs`. -/
+noncomputable def padBits_evals (n : ℕ) (bs : List Bool) :
+    TM2OutputsInTime padBitsComputer (encodePair (encodeNat n, bs))
+      (some (padBitsLE n bs))
+      (5 * n + 3 * bs.length + 9) := by
+  have hencLen : (encodeNat n).length = n + 1 := by simp [encodeNat]
+  have hload0 := padBits_evals_load_encodePair (encodeNat n) bs
+  have hrev0 :=
+    padBits_evals_revBits bs.reverse [] (encodeNat n).reverse [] []
+  have hsync0 :=
+    padBits_evals_sync_false (List.replicate n true) bs [] [] []
+  have hloop0 := padBits_evals_loop n bs [] []
+  have hrevOut0 :=
+    padBits_evals_revOut ((padBitsLE n bs).reverse) (bs.drop n) [] [] []
+  have hdrain0 :=
+    padBits_evals_drainInp (bs.drop n) [] [] [] (padBitsLE n bs)
+  have hload : EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .parse) none (encodePair (encodeNat n, bs)) [] [] [] [])
+      (some (padBitsCfg (some .revBits) none [] (encodeNat n).reverse bs.reverse [] []))
+      (2 * (n + 1) + bs.length + 2) := by
+    simpa [hencLen] using hload0
+  have hrev : EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .revBits) none [] (encodeNat n).reverse bs.reverse [] [])
+      (some (padBitsCfg (some .sync) none bs (encodeNat n).reverse [] [] []))
+      (bs.length + 1) := by
+    simpa [List.length_reverse, List.reverse_reverse, List.append_nil] using hrev0
+  have h12 :=
+    EvalsToInTime.trans padBitsComputer.step
+      (2 * (n + 1) + bs.length + 2) (bs.length + 1) _ _ _ hload hrev
+  have hfuel : (encodeNat n).reverse = false :: List.replicate n true :=
+    encodeNat_reverse n
+  have hsync : EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .sync) none bs (encodeNat n).reverse [] [] [])
+      (some (padBitsCfg (some .loop) none bs (List.replicate n true) [] [] [])) 1 := by
+    simpa [hfuel] using hsync0
+  have h123 :=
+    EvalsToInTime.trans padBitsComputer.step
+      (2 * (n + 1) + bs.length + 2 + (bs.length + 1)) 1 _ _ _
+      (evalsToInTime_le_mono h12 (by omega)) hsync
+  have hloop : EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .loop) none bs (List.replicate n true) [] [] [])
+      (some (padBitsCfg (some .revOut) none (bs.drop n) [] []
+        (padBitsLE n bs).reverse []))
+      (2 * n + 1) := by
+    simpa [List.append_nil] using hloop0
+  have h1234 :=
+    EvalsToInTime.trans padBitsComputer.step
+      (2 * (n + 1) + bs.length + 2 + (bs.length + 1) + 1) (2 * n + 1) _ _ _
+      (evalsToInTime_le_mono h123 (by omega)) hloop
+  have hrevOut : EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .revOut) none (bs.drop n) [] [] (padBitsLE n bs).reverse [])
+      (some (padBitsCfg (some .drainInp) none (bs.drop n) [] [] [] (padBitsLE n bs)))
+      (n + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse,
+      length_padBitsLE] using hrevOut0
+  have h12345 :=
+    EvalsToInTime.trans padBitsComputer.step
+      (2 * (n + 1) + bs.length + 2 + (bs.length + 1) + 1 + (2 * n + 1)) (n + 1)
+      _ _ _ (evalsToInTime_le_mono h1234 (by omega)) hrevOut
+  have hAll :=
+    EvalsToInTime.trans padBitsComputer.step
+      (2 * (n + 1) + bs.length + 2 + (bs.length + 1) + 1 + (2 * n + 1) + (n + 1))
+      ((bs.drop n).length + 1) _ _ _
+      (evalsToInTime_le_mono h12345 (by omega)) hdrain0
+  have hInit : EvalsToInTime padBitsComputer.step
+      (initList padBitsComputer (encodePair (encodeNat n, bs)))
+      (some (haltList padBitsComputer (padBitsLE n bs)))
+      (2 * (n + 1) + bs.length + 2 + (bs.length + 1) + 1 + (2 * n + 1) + (n + 1) +
+        ((bs.drop n).length + 1)) := by
+    rw [padBits_initList, padBits_haltList]
+    exact evalsToInTime_le_mono hAll (by omega)
+  have hle : 2 * (n + 1) + bs.length + 2 + (bs.length + 1) + 1 + (2 * n + 1) +
+      (n + 1) + ((bs.drop n).length + 1) ≤ 5 * n + 3 * bs.length + 9 := by
+    simp [List.length_drop]
+    omega
+  exact evalsToInTime_le_mono hInit hle
+
+noncomputable def padBitsTime : Polynomial ℕ := 8 * Polynomial.X + 8
+
+theorem padBitsTime_eval (t : ℕ) :
+    padBitsTime.eval t = 8 * t + 8 := by
+  simp [padBitsTime, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+    Polynomial.eval_ofNat]
+
+/-- `padBitsLE` under `encodePair (encodeNat n, bs)` is poly time. -/
+noncomputable def padBitsComputableInPolyTime :
+    TM2ComputableInPolyTime
+      (fun p : ℕ × List Bool => encodePair (encodeNat p.1, p.2))
+      idBitEnc
+      (fun p => padBitsLE p.1 p.2) where
+  tm := padBitsComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := padBitsTime
+  outputsFun p := by
+    rcases p with ⟨n, bs⟩
+    change TM2OutputsInTime padBitsComputer
+      (List.map id (encodePair (encodeNat n, bs)))
+      (some (List.map id (idBitEnc (padBitsLE n bs))))
+      (padBitsTime.eval (encodePair (encodeNat n, bs)).length)
+    simp only [idBitEnc, List.map_id, id_eq, padBitsTime_eval]
+    have h := padBits_evals n bs
+    refine evalsToInTime_le_mono h ?_
+    have hlen : (encodePair (encodeNat n, bs)).length = 2 * (n + 1) + 1 + bs.length := by
+      simpa [encodeNat, List.length_append, List.length_replicate, List.length_singleton]
+        using length_encodePair (encodeNat n, bs)
+    omega
+
+theorem padBits_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime
+      (fun p : ℕ × List Bool => encodePair (encodeNat p.1, p.2))
+      idBitEnc
+      (fun p => padBitsLE p.1 p.2)) :=
+  ⟨padBitsComputableInPolyTime⟩
+
 /-- Index loop form with padded bits (FinTM2 assignment tape). -/
 theorem validatesTautology_by_index_pad (φ : PropFormula) (table : List Bool) :
     validatesTautology_by_index φ table ↔
@@ -5713,11 +6094,11 @@ FinTM2, `natBitsLE`/`lengthBitsEqPow2` compare, `countLengthBits` polyTime,
 leftover drain, encodePair load, unequal zipper Evals, and
 `bitsEqualPair` TM2ComputableInPolyTime under encodePair.
 Also certified: `assignmentAt n i = padBitsLE n (natBitsLE i)` when `i < 2^n`,
-`validatesTautology_by_index_pad`, and `padBitsComputer` FinTM2 Stmt (load,
-revBits, sync, pad loop, revOut) aimed at `padBitsLE` under
+`validatesTautology_by_index_pad`, and `padBitsComputer` FinTM2 Stmt plus
+EvalsToInTime / `padBitsComputableInPolyTime` for `padBitsLE` under
 `encodePair (encodeNat n, bs)`.
-Remaining: `padBitsComputer` EvalsToInTime plus polyTime witness, then
-formula `evalOn` FinTM2, then per index loop sequencer, then TT map glue. -/
+Remaining: formula `evalOn` FinTM2, then per index loop sequencer, then TT
+map glue. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by
