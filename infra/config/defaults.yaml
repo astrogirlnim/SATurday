@@ -213,8 +213,8 @@ saturday_loop:
     use_for_audit: false
     # Role-tuned OpenRouter models (override with OPENROUTER_FORMALIZE_MODEL / OPENROUTER_PROVE_MODEL)
     # deepseek/deepseek-prover-v2 has no live OpenRouter endpoints (404).
-    formalize_model: "qwen/qwen3-coder-plus"
-    formalize_fallback_model: "openai/gpt-6-astra"
+    formalize_model: "anthropic/claude-opus-4.5"
+    formalize_fallback_model: "qwen/qwen3-coder-plus"
     prove_model: "anthropic/claude-opus-4.5"
     prove_fallback_model: "google/gemini-2.5-pro"
     audit_model: "anthropic/claude-sonnet-4.5"

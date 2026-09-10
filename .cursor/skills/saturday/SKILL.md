@@ -34,7 +34,7 @@ pacing is per-request cooldown. Formalize auto-applies Frontier drafts into
 Optional OpenRouter (`OPENROUTER_API_KEY` in `.env`):
 
 - `satday auto --remote` uses role-tuned models:
-  - formalize: `qwen/qwen3-coder-plus` (fallback `openai/gpt-6-astra`)
+  - formalize: `anthropic/claude-opus-4.5` (fallback `qwen/qwen3-coder-plus`)
   - prove: `anthropic/claude-opus-4.5` (fallback `google/gemini-2.5-pro`)
   - Note: `deepseek/deepseek-prover-v2` 404s on OpenRouter (no endpoints).
 - Override with `OPENROUTER_FORMALIZE_MODEL` / `OPENROUTER_PROVE_MODEL`.
