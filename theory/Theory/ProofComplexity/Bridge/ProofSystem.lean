@@ -980,6 +980,150 @@ theorem bitsInc_natBitsLE (n : ℕ) :
             simp [Nat.bit_val]; omega
           rw [hbit, natBitsLE_bit false (n + 1) (fun h => (Nat.succ_ne_zero n h).elim)]
 
+/-! ## Cluster C2 index assignment = padded `natBitsLE`
+
+Index loop needs `assignmentAt n i` as a FinTM2 tape. When `i < 2^n`, that
+assignment is exactly the little endian bits of `i` padded with `false` to
+length `n`. The pad FinTM2 below realizes this from `encodePair (encodeNat n, bs)`. -/
+
+/-- Pad little endian bits to length `n` (truncate if longer). -/
+def padBitsLE (n : ℕ) (bs : List Bool) : List Bool :=
+  (bs ++ List.replicate n false).take n
+
+theorem length_padBitsLE (n : ℕ) (bs : List Bool) :
+    (padBitsLE n bs).length = n := by
+  simp [padBitsLE]
+
+theorem padBitsLE_of_length_le (n : ℕ) (bs : List Bool) (hle : bs.length ≤ n) :
+    padBitsLE n bs = bs ++ List.replicate (n - bs.length) false := by
+  simp only [padBitsLE]
+  rw [List.take_append, List.take_of_length_le hle, List.take_replicate,
+    min_eq_left (Nat.sub_le _ _)]
+
+/-- Canonical bit length of `i` is at most `n` whenever `i < 2^n`. -/
+theorem length_natBitsLE_of_lt_pow : ∀ {i n : ℕ}, i < 2 ^ n →
+    (natBitsLE i).length ≤ n := by
+  intro i n h
+  induction n generalizing i with
+  | zero =>
+      have : i = 0 := by simpa using h
+      subst this
+      simp [natBitsLE]
+  | succ n ih =>
+      by_cases hi : i = 0
+      · subst hi
+        simp [natBitsLE]
+      · have hdiv : i / 2 < 2 ^ n := by
+          have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by
+            rw [Nat.pow_succ, Nat.mul_comm]
+          have : i < 2 * 2 ^ n := by simpa [hpow] using h
+          omega
+        have hlen := ih hdiv
+        by_cases he : i % 2 = 0
+        · have hk0 : i / 2 ≠ 0 := by
+            intro hz
+            have : i = 0 := by omega
+            exact hi this
+          have hbits : natBitsLE i = false :: natBitsLE (i / 2) := by
+            calc
+              natBitsLE i = natBitsLE (2 * (i / 2)) := by congr 1; omega
+              _ = false :: natBitsLE (i / 2) := natBitsLE_mul_two hk0
+          rw [hbits, List.length_cons]
+          exact Nat.succ_le_succ hlen
+        · have hbits : natBitsLE i = true :: natBitsLE (i / 2) := by
+            calc
+              natBitsLE i = natBitsLE (2 * (i / 2) + 1) := by congr 1; omega
+              _ = true :: natBitsLE (i / 2) := natBitsLE_mul_two_add_one _
+          rw [hbits, List.length_cons]
+          exact Nat.succ_le_succ hlen
+
+/-- Index assignment is padded little endian bits of the index. -/
+theorem assignmentAt_eq_padBitsLE : ∀ {n i : ℕ}, i < 2 ^ n →
+    assignmentAt n i = padBitsLE n (natBitsLE i) := by
+  intro n i hi
+  induction n generalizing i with
+  | zero =>
+      have : i = 0 := by simpa using hi
+      subst this
+      simp [assignmentAt, padBitsLE, natBitsLE]
+  | succ n ih =>
+      by_cases hi0 : i = 0
+      · subst hi0
+        have ih0 := ih (Nat.pow_pos (by decide : 0 < (2 : ℕ)))
+        have happ : assignmentAt (n + 1) 0 = false :: assignmentAt n 0 := by
+          simp [assignmentAt]
+        have hpad : padBitsLE (n + 1) (natBitsLE 0) =
+            false :: padBitsLE n (natBitsLE 0) := by
+          simp [padBitsLE, natBitsLE, List.replicate_succ]
+        rw [happ, ih0, hpad]
+      · have hdiv : i / 2 < 2 ^ n := by
+          have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by
+            rw [Nat.pow_succ, Nat.mul_comm]
+          have : i < 2 * 2 ^ n := by simpa [hpow] using hi
+          omega
+        have ih' := ih hdiv
+        have hlen2 : (natBitsLE (i / 2)).length ≤ n :=
+          length_natBitsLE_of_lt_pow hdiv
+        by_cases he : i % 2 = 0
+        · have hk0 : i / 2 ≠ 0 := by
+            intro hz
+            have : i = 0 := by omega
+            exact hi0 this
+          have hbits : natBitsLE i = false :: natBitsLE (i / 2) := by
+            calc
+              natBitsLE i = natBitsLE (2 * (i / 2)) := by congr 1; omega
+              _ = false :: natBitsLE (i / 2) := natBitsLE_mul_two hk0
+          have happ : assignmentAt (n + 1) i =
+              false :: assignmentAt n (i / 2) := by
+            calc
+              assignmentAt (n + 1) i
+                  = assignmentAt (n + 1) (2 * (i / 2)) := by congr 2; omega
+              _ = false :: assignmentAt n (i / 2) :=
+                assignmentAt_succ_mul_two n (i / 2)
+          have hpad : padBitsLE (n + 1) (false :: natBitsLE (i / 2)) =
+              false :: padBitsLE n (natBitsLE (i / 2)) := by
+            have hlen_cons : (false :: natBitsLE (i / 2)).length ≤ n + 1 := by
+              simpa [List.length_cons] using Nat.succ_le_succ hlen2
+            rw [padBitsLE_of_length_le _ _ hlen_cons,
+              padBitsLE_of_length_le _ _ hlen2]
+            -- `n + 1 - (|bs|+1) = n - |bs|`
+            simp [List.length_cons, Nat.succ_sub_succ_eq_sub]
+          rw [happ, ih', hbits, hpad]
+        · have hbits : natBitsLE i = true :: natBitsLE (i / 2) := by
+            calc
+              natBitsLE i = natBitsLE (2 * (i / 2) + 1) := by congr 1; omega
+              _ = true :: natBitsLE (i / 2) := natBitsLE_mul_two_add_one _
+          have happ : assignmentAt (n + 1) i =
+              true :: assignmentAt n (i / 2) := by
+            calc
+              assignmentAt (n + 1) i
+                  = assignmentAt (n + 1) (2 * (i / 2) + 1) := by congr 2; omega
+              _ = true :: assignmentAt n (i / 2) :=
+                assignmentAt_succ_mul_two_add_one n (i / 2)
+          have hpad : padBitsLE (n + 1) (true :: natBitsLE (i / 2)) =
+              true :: padBitsLE n (natBitsLE (i / 2)) := by
+            have hlen_cons : (true :: natBitsLE (i / 2)).length ≤ n + 1 := by
+              simpa [List.length_cons] using Nat.succ_le_succ hlen2
+            rw [padBitsLE_of_length_le _ _ hlen_cons,
+              padBitsLE_of_length_le _ _ hlen2]
+            simp [List.length_cons, Nat.succ_sub_succ_eq_sub]
+          rw [happ, ih', hbits, hpad]
+
+/-- Semantic target of the pad FinTM2 on well formed pair tapes. -/
+def padBitsFromPair (p : List Bool × List Bool) : List Bool :=
+  match decodeNat p.1 with
+  | some (n, []) => padBitsLE n p.2
+  | _ => []
+
+theorem padBitsFromPair_encodeNat (n : ℕ) (bs : List Bool) :
+    padBitsFromPair (encodeNat n, bs) = padBitsLE n bs := by
+  simp [padBitsFromPair, decodeNat_encodeNat]
+
+/-- When `i < 2^n`, padded bits of `i` recover `assignmentAt`. -/
+theorem assignmentAt_eq_padBitsFromPair (n i : ℕ) (hi : i < 2 ^ n) :
+    assignmentAt n i = padBitsFromPair (encodeNat n, natBitsLE i) := by
+  rw [padBitsFromPair_encodeNat, assignmentAt_eq_padBitsLE hi]
+
 open StateTransition
 
 def countLen_evals_loop_cons (b : Bool) (xs bits aux : List Bool) :
@@ -2371,6 +2515,143 @@ noncomputable def bitsEqualPairComputableInPolyTime :
 theorem bitsEqualPair_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime encodePair bitEnc bitsEqualPair) :=
   ⟨bitsEqualPairComputableInPolyTime⟩
+
+/-! ## Cluster C2 FinTM2: pad bits to length `n`
+
+Input `encodePair (encodeNat n, bs)`. Load (as in `bitsEqualComputer`) yields
+`fuel = reverse (encodeNat n) = false :: true^n` and `bits = reverse bs`.
+`revBits` moves `bits` onto `inp`, producing forward `bs` on `inp`. Sync pops
+the fuel terminator; each `true` writes one bit into `work` from `inp` (or
+`false`). That leaves `work = reverse (padBitsLE n bs)`. Final `revOut` copies
+`work` onto `out`, restoring `padBitsLE n bs`. -/
+
+open TM2.Stmt
+
+inductive PadBitsStack where
+  | inp | fuel | bits | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype PadBitsStack where
+  elems := {.inp, .fuel, .bits, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive PadBitsLabel where
+  | parse | expectBit | loadBits | revBits | sync | loop | takeBit | revOut
+  deriving DecidableEq, Repr
+
+instance : Fintype PadBitsLabel where
+  elems :=
+    {.parse, .expectBit, .loadBits, .revBits, .sync, .loop, .takeBit, .revOut}
+  complete s := by cases s <;> simp
+
+/-- FinTM2 realizing `padBitsLE n bs` on `encodePair (encodeNat n, bs)`. -/
+def padBitsComputer : FinTM2 where
+  K := PadBitsStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := PadBitsLabel
+  main := .parse
+  σ := Option Bool
+  initialState := none
+  m
+    | .parse =>
+        pop PadBitsStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => PadBitsLabel.revOut)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => PadBitsLabel.loadBits)
+              (load (fun _ => none) <| goto fun _ => PadBitsLabel.expectBit))
+    | .expectBit =>
+        pop PadBitsStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => PadBitsLabel.revOut)
+            (push PadBitsStack.fuel (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => PadBitsLabel.parse)
+    | .loadBits =>
+        pop PadBitsStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => PadBitsLabel.revBits)
+            (push PadBitsStack.bits (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => PadBitsLabel.loadBits)
+    | .revBits =>
+        pop PadBitsStack.bits (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => PadBitsLabel.sync)
+            (push PadBitsStack.inp (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => PadBitsLabel.revBits)
+    | .sync =>
+        pop PadBitsStack.fuel (fun _ o => o) <|
+          branch (fun s => decide (s = some false))
+            (load (fun _ => none) <| goto fun _ => PadBitsLabel.loop)
+            (load (fun _ => none) <| goto fun _ => PadBitsLabel.revOut)
+    | .loop =>
+        pop PadBitsStack.fuel (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => PadBitsLabel.revOut)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <| goto fun _ => PadBitsLabel.takeBit)
+              (load (fun _ => none) <| goto fun _ => PadBitsLabel.revOut))
+    | .takeBit =>
+        pop PadBitsStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push PadBitsStack.work (fun _ => false) <|
+              load (fun _ => none) <| goto fun _ => PadBitsLabel.loop)
+            (push PadBitsStack.work (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => PadBitsLabel.loop)
+    | .revOut =>
+        pop PadBitsStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) halt)
+            (push PadBitsStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => PadBitsLabel.revOut)
+
+def padBitsStk (inp fuel bits work out : List Bool) : PadBitsStack → List Bool
+  | .inp => inp
+  | .fuel => fuel
+  | .bits => bits
+  | .work => work
+  | .out => out
+
+def padBitsCfg (l : Option PadBitsLabel) (v : Option Bool)
+    (inp fuel bits work out : List Bool) : padBitsComputer.Cfg :=
+  ⟨l, v, padBitsStk inp fuel bits work out⟩
+
+theorem padBits_initList (s : List Bool) :
+    initList padBitsComputer s =
+      padBitsCfg (some .parse) none s [] [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some PadBitsLabel.parse, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [padBitsComputer, padBitsStk]
+
+theorem padBits_haltList (out : List Bool) :
+    haltList padBitsComputer out =
+      padBitsCfg none none [] [] [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option PadBitsLabel), none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [padBitsComputer, padBitsStk]
+
+/-- Index loop form with padded bits (FinTM2 assignment tape). -/
+theorem validatesTautology_by_index_pad (φ : PropFormula) (table : List Bool) :
+    validatesTautology_by_index φ table ↔
+      table.length = 2 ^ (φ.maxVar + 1) ∧
+        ∀ (i : ℕ) (hi : i < table.length),
+          table[i] =
+              φ.evalOn (padBitsLE (φ.maxVar + 1) (natBitsLE i)) ∧
+            table[i] = true := by
+  constructor
+  · intro h
+    refine ⟨h.1, fun i hi => ?_⟩
+    have hpair := h.2 i hi
+    have hi' : i < 2 ^ (φ.maxVar + 1) := by
+      simpa [h.1] using hi
+    rwa [assignmentAt_eq_padBitsLE hi'] at hpair
+  · intro h
+    refine ⟨h.1, fun i hi => ?_⟩
+    have hpair := h.2 i hi
+    have hi' : i < 2 ^ (φ.maxVar + 1) := by
+      simpa [h.1] using hi
+    rwa [← assignmentAt_eq_padBitsLE hi'] at hpair
 
 /-! ## Truth table proof map (semantic Cook Reckhow witness) -/
 
@@ -5048,7 +5329,12 @@ FinTM2, `natBitsLE`/`lengthBitsEqPow2` compare, `countLengthBits` polyTime,
 `bitsEqual`/`bitsEqualZip` lengthGate rewrites, `bitsEqualComputer` Stmt,
 leftover drain, encodePair load, unequal zipper Evals, and
 `bitsEqualPair` TM2ComputableInPolyTime under encodePair.
-Remaining: per index eval loop then TT map sequencer. -/
+Also certified: `assignmentAt n i = padBitsLE n (natBitsLE i)` when `i < 2^n`,
+`validatesTautology_by_index_pad`, and `padBitsComputer` FinTM2 Stmt (load,
+revBits, sync, pad loop, revOut) aimed at `padBitsLE` under
+`encodePair (encodeNat n, bs)`.
+Remaining: `padBitsComputer` EvalsToInTime plus polyTime witness, then
+formula `evalOn` FinTM2, then per index loop sequencer, then TT map glue. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by
@@ -5267,6 +5553,355 @@ theorem validatesTautologyResult_batch_joint_scan_budget
               ((inputs.map List.length).sum + inputs.length))]
 
 end ProofSystemFrontier
+
+/- SATurday auto-apply 2026-09-10T01:22:51Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Packages the batch scan budget and linear overhead into a polynomial.
+This is resource accounting for the computability obligation, not a
+machine implementation or a bound on machine execution steps. -/
+theorem validatesTautologyResult_batch_scan_overhead_poly_bound
+    (inputs : List (List Bool)) :
+    (inputs.map (fun π =>
+      (π.length +
+        (validatesTautologyResult_on_pair π).length + 1) ^ 2)).sum +
+        (inputs.map List.length).sum + inputs.length
+      ≤ (Polynomial.C 5 * (Polynomial.X + Polynomial.C 1) ^ 2 :
+          Polynomial ℕ).eval
+            ((inputs.map List.length).sum + inputs.length) := by
+  have arithmetic_bound (charge n : ℕ)
+      (h : charge ≤ 4 * n ^ 2) :
+      charge + n ≤ 5 * (n + 1) ^ 2 := by
+    nlinarith only [h, Nat.zero_le (n ^ 2)]
+  have h := arithmetic_bound
+    ((inputs.map (fun π =>
+      (π.length +
+        (validatesTautologyResult_on_pair π).length + 1) ^ 2)).sum)
+    ((inputs.map List.length).sum + inputs.length)
+    (validatesTautologyResult_batch_joint_scan_budget inputs)
+  simpa only [Polynomial.eval_mul, Polynomial.eval_C,
+    Polynomial.eval_pow, Polynomial.eval_add, Polynomial.eval_X,
+    Nat.add_assoc] using h
+
+end ProofSystemFrontier
+
+/- SATurday auto-apply 2026-09-10T01:26:06Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Lifts a per input execution bound to a polynomial batch bound.
+The execution bound remains a premise: this lemma does not construct
+the machine required by the computability obligation. -/
+theorem validatesTautologyResult_batch_execution_bound
+    (steps : List Bool → ℕ) (c d : ℕ)
+    (inputs : List (List Bool))
+    (hsteps : ∀ π ∈ inputs,
+      steps π ≤
+        c * (π.length +
+          (validatesTautologyResult_on_pair π).length + 1) ^ 2 +
+        d * (π.length + 1)) :
+    (inputs.map steps).sum ≤
+      (Polynomial.C (4 * c + d) *
+        (Polynomial.X + Polynomial.C 1) ^ 2 :
+          Polynomial ℕ).eval
+        ((inputs.map List.length).sum + inputs.length) := by
+  have aggregate :
+      ∀ xs : List (List Bool),
+        (∀ π ∈ xs,
+          steps π ≤
+            c * (π.length +
+              (validatesTautologyResult_on_pair π).length + 1) ^ 2 +
+            d * (π.length + 1)) →
+        (xs.map steps).sum ≤
+          c * (xs.map (fun π =>
+            (π.length +
+              (validatesTautologyResult_on_pair π).length + 1) ^ 2)).sum +
+          d * ((xs.map List.length).sum + xs.length) := by
+    intro xs
+    induction xs with
+    | nil =>
+        intro _
+        simp
+    | cons π xs ih =>
+        intro hx
+        have hp := hx π (by simp)
+        have ht := ih (by
+          intro x hmem
+          exact hx x (List.mem_cons_of_mem π hmem))
+        simp only [List.map_cons, List.sum_cons, List.length_cons,
+          Nat.mul_add, Nat.mul_one] at hp ht ⊢
+        omega
+  let n := (inputs.map List.length).sum + inputs.length
+  let charge := (inputs.map (fun π =>
+    (π.length +
+      (validatesTautologyResult_on_pair π).length + 1) ^ 2)).sum
+  have haggregate :
+      (inputs.map steps).sum ≤ c * charge + d * n := by
+    exact aggregate inputs hsteps
+  have hcharge : charge ≤ 4 * n ^ 2 := by
+    exact validatesTautologyResult_batch_joint_scan_budget inputs
+  have hn : n ≤ (n + 1) ^ 2 := by
+    nlinarith
+  have hn₂ : n ^ 2 ≤ (n + 1) ^ 2 := by
+    nlinarith
+  have hscaled :=
+    Nat.mul_le_mul_left (4 * c) hn₂
+  calc
+    (inputs.map steps).sum ≤ c * charge + d * n := haggregate
+    _ ≤ c * (4 * n ^ 2) + d * ((n + 1) ^ 2) :=
+      Nat.add_le_add
+        (Nat.mul_le_mul_left c hcharge)
+        (Nat.mul_le_mul_left d hn)
+    _ ≤ (4 * c + d) * (n + 1) ^ 2 := by
+      nlinarith only [hscaled]
+    _ = (Polynomial.C (4 * c + d) *
+          (Polynomial.X + Polynomial.C 1) ^ 2 :
+            Polynomial ℕ).eval
+          ((inputs.map List.length).sum + inputs.length) := by
+      simp only [Polynomial.eval_mul, Polynomial.eval_C,
+        Polynomial.eval_pow, Polynomial.eval_add, Polynomial.eval_X]
+      rfl
+
+end ProofSystemFrontier
+
+/- SATurday auto-apply 2026-09-10T01:27:50Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Converts a uniform local execution estimate into a polynomial bound
+in the input length alone. This supplies a candidate time polynomial for
+the computability obligation, but still requires a machine realizing
+the assumed execution estimate. -/
+theorem validatesTautologyResult_uniform_polynomial_of_execution_bound
+    (steps : List Bool → ℕ) (c d : ℕ)
+    (hsteps : ∀ π : List Bool,
+      steps π ≤
+        c * (π.length +
+          (validatesTautologyResult_on_pair π).length + 1) ^ 2 +
+        d * (π.length + 1)) :
+    ∃ time : Polynomial ℕ,
+      ∀ π : List Bool, steps π ≤ time.eval π.length := by
+  refine ⟨Polynomial.C (4 * c + d) *
+    (Polynomial.X + Polynomial.C 2) ^ 2, ?_⟩
+  intro π
+  have hlocal :
+      ∀ ρ ∈ [π],
+        steps ρ ≤
+          c * (ρ.length +
+            (validatesTautologyResult_on_pair ρ).length + 1) ^ 2 +
+          d * (ρ.length + 1) := by
+    intro ρ _
+    exact hsteps ρ
+  have hbound :=
+    validatesTautologyResult_batch_execution_bound
+      steps c d [π] hlocal
+  simpa [Polynomial.eval_mul, Polynomial.eval_C,
+    Polynomial.eval_pow, Polynomial.eval_add, Polynomial.eval_X,
+    Nat.add_assoc] using hbound
+
+end ProofSystemFrontier
+
+/- SATurday auto-apply 2026-09-10T01:34:09Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Polynomial bounds on total input length and batch cardinality give a
+polynomial validation time bound, provided the local execution estimate. -/
+theorem validatesTautologyResult_batch_time_of_size_and_count
+    (steps : List Bool → ℕ)
+    (batch : List Bool → List (List Bool))
+    (c d : ℕ) (sizeBound countBound : Polynomial ℕ)
+    (hsteps : ∀ ρ : List Bool,
+      steps ρ ≤
+        c * (ρ.length +
+          (validatesTautologyResult_on_pair ρ).length + 1) ^ 2 +
+        d * (ρ.length + 1))
+    (hsize : ∀ π : List Bool,
+      ((batch π).map List.length).sum ≤ sizeBound.eval π.length)
+    (hcount : ∀ π : List Bool,
+      (batch π).length ≤ countBound.eval π.length) :
+    ∃ time : Polynomial ℕ,
+      ∀ π : List Bool,
+        ((batch π).map steps).sum ≤ time.eval π.length := by
+  refine ⟨Polynomial.C (4 * c + d) *
+    (sizeBound + countBound + Polynomial.C 1) ^ 2, ?_⟩
+  intro π
+  have hlocal :
+      ∀ ρ ∈ batch π,
+        steps ρ ≤
+          c * (ρ.length +
+            (validatesTautologyResult_on_pair ρ).length + 1) ^ 2 +
+          d * (ρ.length + 1) := by
+    intro ρ _
+    exact hsteps ρ
+  have hbatch :
+      ((batch π).map steps).sum ≤
+        (4 * c + d) *
+          (((batch π).map List.length).sum +
+            (batch π).length + 1) ^ 2 := by
+    simpa [Polynomial.eval_mul, Polynomial.eval_C,
+      Polynomial.eval_pow, Polynomial.eval_add, Polynomial.eval_X]
+      using validatesTautologyResult_batch_execution_bound
+        steps c d (batch π) hlocal
+  have hcharge :
+      ((batch π).map List.length).sum + (batch π).length + 1 ≤
+        sizeBound.eval π.length + countBound.eval π.length + 1 := by
+    exact Nat.add_le_add_right
+      (Nat.add_le_add (hsize π) (hcount π)) 1
+  have hsquare :
+      (((batch π).map List.length).sum + (batch π).length + 1) ^ 2 ≤
+        (sizeBound.eval π.length + countBound.eval π.length + 1) ^ 2 := by
+    simpa only [pow_two] using Nat.mul_le_mul hcharge hcharge
+  have htotal := hbatch.trans
+    (Nat.mul_le_mul_left (4 * c + d) hsquare)
+  simpa only [Polynomial.eval_mul, Polynomial.eval_pow,
+    Polynomial.eval_add, Polynomial.eval_C] using htotal
+
+end ProofSystemFrontier
+
+/- SATurday auto-apply 2026-09-10T01:35:00Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- For batches without empty records, total input length also bounds
+the number of validator calls. Thus a separate cardinality polynomial
+is unnecessary for the conditional validation time estimate. -/
+theorem validatesTautologyResult_batch_time_of_nonempty_records
+    (steps : List Bool → ℕ)
+    (batch : List Bool → List (List Bool))
+    (c d : ℕ) (sizeBound : Polynomial ℕ)
+    (hsteps : ∀ ρ : List Bool,
+      steps ρ ≤
+        c * (ρ.length +
+          (validatesTautologyResult_on_pair ρ).length + 1) ^ 2 +
+        d * (ρ.length + 1))
+    (hsize : ∀ π : List Bool,
+      ((batch π).map List.length).sum ≤ sizeBound.eval π.length)
+    (hnonempty : ∀ π : List Bool, ∀ ρ ∈ batch π, ρ ≠ []) :
+    ∃ time : Polynomial ℕ,
+      ∀ π : List Bool,
+        ((batch π).map steps).sum ≤ time.eval π.length := by
+  have count_le_size :
+      ∀ xs : List (List Bool),
+        (∀ ρ ∈ xs, ρ ≠ []) →
+          xs.length ≤ (xs.map List.length).sum := by
+    intro xs
+    induction xs with
+    | nil =>
+        intro _
+        simp
+    | cons ρ xs ih =>
+        intro h
+        have hρ : ρ ≠ [] := h ρ (by simp)
+        have hpos : 1 ≤ ρ.length := by
+          cases ρ with
+          | nil => exact False.elim (hρ rfl)
+          | cons b bs => simp
+        have htail : xs.length ≤ (xs.map List.length).sum := by
+          apply ih
+          intro σ hσ
+          exact h σ (List.mem_cons_of_mem ρ hσ)
+        simp only [List.length_cons, List.map_cons, List.sum_cons]
+        omega
+  have hcount : ∀ π : List Bool,
+      (batch π).length ≤ sizeBound.eval π.length := by
+    intro π
+    exact (count_le_size (batch π) (hnonempty π)).trans (hsize π)
+  exact validatesTautologyResult_batch_time_of_size_and_count
+    steps batch c d sizeBound sizeBound hsteps hsize hcount
+
+end ProofSystemFrontier
+
+/- SATurday auto-apply 2026-09-10T01:36:27Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Charging one bit of overhead per record bounds both total payload
+and the number of validator calls, even when some records are empty. -/
+theorem validatesTautologyResult_batch_time_of_padded_size
+    (steps : List Bool → ℕ)
+    (batch : List Bool → List (List Bool))
+    (c d : ℕ) (sizeBound : Polynomial ℕ)
+    (hsteps : ∀ ρ : List Bool,
+      steps ρ ≤
+        c * (ρ.length +
+          (validatesTautologyResult_on_pair ρ).length + 1) ^ 2 +
+        d * (ρ.length + 1))
+    (hpadded : ∀ π : List Bool,
+      ((batch π).map (fun ρ => ρ.length + 1)).sum ≤
+        sizeBound.eval π.length) :
+    ∃ time : Polynomial ℕ,
+      ∀ π : List Bool,
+        ((batch π).map steps).sum ≤ time.eval π.length := by
+  have padded_sum :
+      ∀ xs : List (List Bool),
+        (xs.map (fun ρ => ρ.length + 1)).sum =
+          (xs.map List.length).sum + xs.length := by
+    intro xs
+    induction xs with
+    | nil => simp
+    | cons ρ xs ih =>
+        simp only [List.map_cons, List.sum_cons, List.length_cons]
+        omega
+  have hsize : ∀ π : List Bool,
+      ((batch π).map List.length).sum ≤ sizeBound.eval π.length := by
+    intro π
+    have h := hpadded π
+    rw [padded_sum] at h
+    omega
+  have hcount : ∀ π : List Bool,
+      (batch π).length ≤ sizeBound.eval π.length := by
+    intro π
+    have h := hpadded π
+    rw [padded_sum] at h
+    omega
+  exact validatesTautologyResult_batch_time_of_size_and_count
+    steps batch c d sizeBound sizeBound hsteps hsize hcount
+
+end ProofSystemFrontier
+
+/- SATurday auto-apply 2026-09-10T01:51:18Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Linear per record scheduling overhead can be included in the
+polynomial clock for a padded batch of validator calls. -/
+theorem validatesTautologyResult_batch_time_with_record_overhead
+    (steps overhead : List Bool → ℕ)
+    (batch : List Bool → List (List Bool))
+    (c d k : ℕ) (sizeBound : Polynomial ℕ)
+    (hsteps : ∀ ρ : List Bool,
+      steps ρ ≤
+        c * (ρ.length +
+          (validatesTautologyResult_on_pair ρ).length + 1) ^ 2 +
+        d * (ρ.length + 1))
+    (hoverhead : ∀ ρ : List Bool,
+      overhead ρ ≤ k * (ρ.length + 1))
+    (hpadded : ∀ π : List Bool,
+      ((batch π).map (fun ρ => ρ.length + 1)).sum ≤
+        sizeBound.eval π.length) :
+    ∃ time : Polynomial ℕ,
+      ∀ π : List Bool,
+        ((batch π).map (fun ρ => steps ρ + overhead ρ)).sum ≤
+          time.eval π.length := by
+  apply validatesTautologyResult_batch_time_of_padded_size
+    (fun ρ => steps ρ + overhead ρ) batch c (d + k) sizeBound
+  · intro ρ
+    calc
+      steps ρ + overhead ρ ≤
+          (c * (ρ.length +
+              (validatesTautologyResult_on_pair ρ).length + 1) ^ 2 +
+            d * (ρ.length + 1)) +
+          k * (ρ.length + 1) :=
+        Nat.add_le_add (hsteps ρ) (hoverhead ρ)
+      _ = c * (ρ.length +
+              (validatesTautologyResult_on_pair ρ).length + 1) ^ 2 +
+            (d + k) * (ρ.length + 1) := by
+        ring
+  · exact hpadded
+
+end ProofSystemFrontier
+
+
+
+
+
+
+
 
 
 
