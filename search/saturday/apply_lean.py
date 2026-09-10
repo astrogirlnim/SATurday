@@ -30,6 +30,10 @@ LEAN3_PROOF_BLOCK_RE = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 LEAN3_RANGE_RE = re.compile(r"\[\s*[^\]]*\.\.[^\]]*\]")
+# Model often appends status JSON inside a Lean block comment
+TRAILING_STATUS_JSON_RE = re.compile(
+    r"(?ms)/\-\s*\{[^{}]*\"status\"[^{}]*\}\s*\-/\s*\Z"
+)
 AXIOM_RE = re.compile(r"(?m)^\s*axiom\s+")
 NAMESPACE_RE = re.compile(r"(?m)^\s*namespace\s+(\S+)")
 THEOREM_NAME_RE = re.compile(
@@ -109,20 +113,67 @@ def lake_build_locked(repo_root: Path) -> dict:
 
 
 def build_error_digest(output: str, limit: int = 2500) -> str:
-    """Prefer real Lean error lines over trailing mathlib dirty warnings."""
+    """
+    Prefer real Lean errors over noise.
+
+    Ignores unused-simp / style warnings and mathlib 'local changes' spam so
+    OpenRouter escalate prompts get actionable failures.
+    """
     lines = output.splitlines()
-    useful = [
+    noise_substrings = (
+        "this simp argument is unused",
+        "try 'simp' instead of 'simpa'",
+        "where `(tac1; tac2)` would suffice",
+        "'omega' tactic does nothing",
+        "has local changes",
+        "declaration uses `sorry`",
+    )
+
+    def is_noise(ln: str) -> bool:
+        low = ln.lower()
+        return any(s in low for s in noise_substrings)
+
+    errors = [
         ln
         for ln in lines
-        if ("error:" in ln.lower())
-        or ("unexpected token" in ln.lower())
-        or ("unknown identifier" in ln.lower())
-        or ("failed to synthesize" in ln.lower())
-        or ln.strip().startswith("warning: Theory/")
+        if (
+            ln.strip().lower().startswith("error:")
+            or "error:" in ln.lower()
+            or "unexpected token" in ln.lower()
+            or "unknown identifier" in ln.lower()
+            or "failed to synthesize" in ln.lower()
+            or "type mismatch" in ln.lower()
+            or "unsolved goals" in ln.lower()
+            or "invalid field" in ln.lower()
+            or "failed to compile" in ln.lower()
+            or "lean exited with code" in ln.lower()
+        )
+        and not is_noise(ln)
     ]
-    if useful:
-        digest = "\n".join(useful[:60])
+    if errors:
+        digest = "\n".join(errors[:80])
         return digest[-limit:]
+
+    # Fallback: Theory/ warnings that are not style noise, then raw tail
+    theory_warns = [
+        ln
+        for ln in lines
+        if ln.strip().startswith("warning: Theory/") and not is_noise(ln)
+    ]
+    if theory_warns:
+        digest = "\n".join(theory_warns[:40])
+        return digest[-limit:]
+
+    # Last non-empty lines excluding mathlib package dirty spam
+    tail = [
+        ln
+        for ln in lines
+        if ln.strip()
+        and "has local changes" not in ln.lower()
+        and not is_noise(ln)
+    ]
+    if tail:
+        return "\n".join(tail[-60:])[-limit:]
     return output[-limit:]
 
 
@@ -164,6 +215,10 @@ def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[st
         lines.append(line)
     text = "\n".join(lines).strip()
     text = rewrite_lean3_begin_end(text)
+    text, n_json = TRAILING_STATUS_JSON_RE.subn("", text)
+    if n_json:
+        print("[saturday.apply] stripped trailing model status JSON comment")
+        text = text.strip()
     if AXIOM_RE.search(text):
         return None, "draft declares axiom (forbidden)"
     if LEAN3_BEGIN_RE.search(text):
@@ -177,6 +232,16 @@ def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[st
                 "off-target R2 draft (width graft already certified). "
                 "Target CSExpansionFrontier.exists_cs_clause_expanding_3cnf "
                 "or exists_spreads_matchable_unsat_random3CNF"
+            )
+
+    if rung_id == "r5-cook-reckhow-bridge":
+        banned = ("validateIndex", "ttMapSequencer", "perIndexEvalLoop")
+        hit = [b for b in banned if b in text]
+        if hit:
+            return None, (
+                "off-target R5 draft invents unknown identifiers: "
+                + ", ".join(hit)
+                + ". Use only names from the ProofSystemFrontier excerpt."
             )
 
     namespaces = NAMESPACE_RE.findall(text)
@@ -206,9 +271,26 @@ def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[st
 
 
 def insert_fragment(original: str, fragment: str, rung_id: str) -> str:
-    """Insert fragment before the module outer end line when possible."""
+    """
+    Insert fragment after the last Frontier namespace close when possible.
+
+    Inserting only before the module `end` can land inside an open Frontier
+    block if a prior auto-apply left nesting ambiguous; prefer after
+    `end CSExpansionFrontier` / `end ProofSystemFrontier`.
+    """
+    frontier_end = {
+        "r2-width-machinery": "end CSExpansionFrontier",
+        "r5-cook-reckhow-bridge": "end ProofSystemFrontier",
+    }.get(rung_id)
     end_marker = OUTER_END_BY_RUNG.get(rung_id)
     block = "\n\n" + fragment.rstrip() + "\n"
+    if frontier_end and frontier_end in original:
+        idx = original.rfind(frontier_end)
+        insert_at = idx + len(frontier_end)
+        print(
+            f"[saturday.apply] insert after {frontier_end!r} at idx={insert_at}"
+        )
+        return original[:insert_at] + block + original[insert_at:]
     if end_marker and end_marker in original:
         idx = original.rfind(end_marker)
         print(f"[saturday.apply] insert before {end_marker!r} at idx={idx}")

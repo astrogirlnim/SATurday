@@ -377,7 +377,22 @@ def _run_formalize(
                 arts.append(str(err_draft.relative_to(ctx.repo_root)))
             if applied.applied and applied.build_ok:
                 applied_ok = True
-                if applied.has_sorry:
+                # sorry-free helper is progress, not rung certification
+                from search.saturday.apply_lean import extract_open_frontier_obligations
+
+                remaining = []
+                if lean_path.exists():
+                    remaining = extract_open_frontier_obligations(
+                        lean_path.read_text(encoding="utf-8")
+                    )
+                if remaining:
+                    status = "partial"
+                    gate = "none"
+                    announce(
+                        f"Apply stuck in theory/, but Frontier sorries remain: "
+                        + ", ".join(remaining[:6])
+                    )
+                elif applied.has_sorry:
                     status = "partial"
                     gate = "none"
                 else:
