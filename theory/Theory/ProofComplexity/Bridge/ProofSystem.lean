@@ -2528,7 +2528,8 @@ Input `encodePair (encodeNat n, bs)`. Load (as in `bitsEqualComputer`) yields
 `revBits` moves `bits` onto `inp`, producing forward `bs` on `inp`. Sync pops
 the fuel terminator; each `true` writes one bit into `work` from `inp` (or
 `false`). That leaves `work = reverse (padBitsLE n bs)`. Final `revOut` copies
-`work` onto `out`, restoring `padBitsLE n bs`. -/
+`work` onto `out`, then `drainInp` discards any leftover `inp` bits so the
+halt configuration matches `haltList` when `|bs| > n`. -/
 
 open TM2.Stmt
 
@@ -2542,11 +2543,13 @@ instance : Fintype PadBitsStack where
 
 inductive PadBitsLabel where
   | parse | expectBit | loadBits | revBits | sync | loop | takeBit | revOut
+  | drainInp
   deriving DecidableEq, Repr
 
 instance : Fintype PadBitsLabel where
   elems :=
-    {.parse, .expectBit, .loadBits, .revBits, .sync, .loop, .takeBit, .revOut}
+    {.parse, .expectBit, .loadBits, .revBits, .sync, .loop, .takeBit, .revOut,
+      .drainInp}
   complete s := by cases s <;> simp
 
 /-- FinTM2 realizing `padBitsLE n bs` on `encodePair (encodeNat n, bs)`. -/
@@ -2607,9 +2610,14 @@ def padBitsComputer : FinTM2 where
     | .revOut =>
         pop PadBitsStack.work (fun _ o => o) <|
           branch (fun s => decide (s = none))
-            (load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => PadBitsLabel.drainInp)
             (push PadBitsStack.out (fun s => s.getD false) <|
               load (fun _ => none) <| goto fun _ => PadBitsLabel.revOut)
+    | .drainInp =>
+        pop PadBitsStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => PadBitsLabel.drainInp)
 
 def padBitsStk (inp fuel bits work out : List Bool) : PadBitsStack → List Bool
   | .inp => inp
@@ -2635,6 +2643,376 @@ theorem padBits_haltList (out : List Bool) :
   refine congrArg (fun stk =>
       (⟨(none : Option PadBitsLabel), none, stk⟩ : padBitsComputer.Cfg)) ?_
   funext k; cases k <;> simp [padBitsComputer, padBitsStk]
+
+/-! ### padBitsComputer step lemmas -/
+
+open StateTransition
+
+theorem padBits_step_parse_false (rest fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .parse) none (false :: rest) fuel bits work out) =
+      some (padBitsCfg (some .loadBits) none rest fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.loadBits, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_parse_true (b : Bool) (rest fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .parse) none (true :: b :: rest) fuel bits work out) =
+      some (padBitsCfg (some .expectBit) none (b :: rest) fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.expectBit, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_parse_nil (fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .parse) none [] fuel bits work out) =
+      some (padBitsCfg (some .revOut) none [] fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.revOut, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_expectBit (b : Bool) (rest fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .expectBit) none (b :: rest) fuel bits work out) =
+      some (padBitsCfg (some .parse) none rest (b :: fuel) bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.parse, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_loadBits_cons (b : Bool) (rest fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .loadBits) none (b :: rest) fuel bits work out) =
+      some (padBitsCfg (some .loadBits) none rest fuel (b :: bits) work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.loadBits, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_loadBits_nil (fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .loadBits) none [] fuel bits work out) =
+      some (padBitsCfg (some .revBits) none [] fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.revBits, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_revBits_cons (b : Bool) (inp fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .revBits) none inp fuel (b :: bits) work out) =
+      some (padBitsCfg (some .revBits) none (b :: inp) fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.revBits, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_revBits_nil (inp fuel work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .revBits) none inp fuel [] work out) =
+      some (padBitsCfg (some .sync) none inp fuel [] work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.sync, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_sync_false (fuel bits work out : List Bool) (inp : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .sync) none inp (false :: fuel) bits work out) =
+      some (padBitsCfg (some .loop) none inp fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.loop, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_loop_nil (inp bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .loop) none inp [] bits work out) =
+      some (padBitsCfg (some .revOut) none inp [] bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.revOut, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_loop_true (inp fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .loop) none inp (true :: fuel) bits work out) =
+      some (padBitsCfg (some .takeBit) none inp fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.takeBit, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_takeBit_cons (b : Bool) (inp fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .takeBit) none (b :: inp) fuel bits work out) =
+      some (padBitsCfg (some .loop) none inp fuel bits (b :: work) out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.loop, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_takeBit_nil (fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .takeBit) none [] fuel bits work out) =
+      some (padBitsCfg (some .loop) none [] fuel bits (false :: work) out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.loop, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_revOut_cons (b : Bool) (inp fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .revOut) none inp fuel bits (b :: work) out) =
+      some (padBitsCfg (some .revOut) none inp fuel bits work (b :: out)) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.revOut, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_revOut_nil (inp fuel bits out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .revOut) none inp fuel bits [] out) =
+      some (padBitsCfg (some .drainInp) none inp fuel bits [] out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.drainInp, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_drainInp_cons (b : Bool) (rest fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .drainInp) none (b :: rest) fuel bits work out) =
+      some (padBitsCfg (some .drainInp) none rest fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.drainInp, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_drainInp_nil (fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .drainInp) none [] fuel bits work out) =
+      some (padBitsCfg none none [] fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option PadBitsLabel), none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_expectBit_nil (fuel bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .expectBit) none [] fuel bits work out) =
+      some (padBitsCfg (some .revOut) none [] fuel bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.revOut, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_sync_true (rest inp bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .sync) none inp (true :: rest) bits work out) =
+      some (padBitsCfg (some .revOut) none inp rest bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.revOut, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_sync_nil (inp bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .sync) none inp [] bits work out) =
+      some (padBitsCfg (some .revOut) none inp [] bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.revOut, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+theorem padBits_step_loop_false (rest inp bits work out : List Bool) :
+    TM2.step padBitsComputer.m
+      (padBitsCfg (some .loop) none inp (false :: rest) bits work out) =
+      some (padBitsCfg (some .revOut) none inp rest bits work out) := by
+  simp [padBitsComputer, padBitsCfg, padBitsStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some PadBitsLabel.revOut, none, stk⟩ : padBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, padBitsStk]
+
+/-! ### padBitsComputer EvalsToInTime (happy path pieces) -/
+
+def padBits_evals_parse_false (rest fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .parse) none (false :: rest) fuel bits work out)
+      (some (padBitsCfg (some .loadBits) none rest fuel bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .parse) none (false :: rest) fuel bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .loadBits) none rest fuel bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_parse_false rest fuel bits work out
+
+def padBits_evals_expectBit (b : Bool) (rest fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .expectBit) none (b :: rest) fuel bits work out)
+      (some (padBitsCfg (some .parse) none rest (b :: fuel) bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .expectBit) none (b :: rest) fuel bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .parse) none rest (b :: fuel) bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_expectBit b rest fuel bits work out
+
+def padBits_evals_parse_true (b : Bool) (rest fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .parse) none (true :: b :: rest) fuel bits work out)
+      (some (padBitsCfg (some .expectBit) none (b :: rest) fuel bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .parse) none (true :: b :: rest) fuel bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .expectBit) none (b :: rest) fuel bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_parse_true b rest fuel bits work out
+
+/-- Parse one self delimiting first-component bit (`true :: b`) into fuel. -/
+noncomputable def padBits_evals_parse_one (b : Bool) (rest fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .parse) none (true :: b :: rest) fuel bits work out)
+      (some (padBitsCfg (some .parse) none rest (b :: fuel) bits work out)) 2 := by
+  have h1 := padBits_evals_parse_true b rest fuel bits work out
+  have h2 := padBits_evals_expectBit b rest fuel bits work out
+  exact EvalsToInTime.trans padBitsComputer.step 1 1 _ _ _ h1 h2
+
+/-- Parse the full first component of `encodePair`, leaving separator on inp. -/
+noncomputable def padBits_evals_parse_first (xs : List Bool)
+    (rest fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .parse) none
+        (xs.flatMap (fun b => [true, b]) ++ rest) fuel bits work out)
+      (some (padBitsCfg (some .parse) none rest (xs.reverse ++ fuel) bits work out))
+      (2 * xs.length) := by
+  induction xs generalizing fuel with
+  | nil =>
+      simpa using
+        (EvalsToInTime.refl padBitsComputer.step
+          (padBitsCfg (some .parse) none rest fuel bits work out) :
+          EvalsToInTime padBitsComputer.step _ _ 0)
+  | cons b xs ih =>
+      have h1 :=
+        padBits_evals_parse_one b (xs.flatMap (fun b => [true, b]) ++ rest)
+          fuel bits work out
+      have h2 := ih (b :: fuel)
+      have h :=
+        EvalsToInTime.trans padBitsComputer.step 2 (2 * xs.length) _ _ _ h1 h2
+      simpa [List.flatMap_cons, List.reverse_cons, List.append_assoc,
+        Nat.mul_succ, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+def padBits_evals_loadBits_nil (fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .loadBits) none [] fuel bits work out)
+      (some (padBitsCfg (some .revBits) none [] fuel bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .loadBits) none [] fuel bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .revBits) none [] fuel bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_loadBits_nil fuel bits work out
+
+def padBits_evals_loadBits_cons (b : Bool) (ys fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .loadBits) none (b :: ys) fuel bits work out)
+      (some (padBitsCfg (some .loadBits) none ys fuel (b :: bits) work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .loadBits) none (b :: ys) fuel bits work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .loadBits) none ys fuel (b :: bits) work out)
+    simp only [FinTM2.step]
+    exact padBits_step_loadBits_cons b ys fuel bits work out
+
+noncomputable def padBits_evals_loadBits (ys fuel bits work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .loadBits) none ys fuel bits work out)
+      (some (padBitsCfg (some .revBits) none [] fuel (ys.reverse ++ bits) work out))
+      (ys.length + 1) := by
+  induction ys generalizing bits with
+  | nil =>
+      simpa using padBits_evals_loadBits_nil fuel bits work out
+  | cons b ys ih =>
+      have h :=
+        EvalsToInTime.trans padBitsComputer.step 1 (ys.length + 1) _ _ _
+          (padBits_evals_loadBits_cons b ys fuel bits work out) (ih (b :: bits))
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+def padBits_evals_revBits_nil (inp fuel work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .revBits) none inp fuel [] work out)
+      (some (padBitsCfg (some .sync) none inp fuel [] work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .revBits) none inp fuel [] work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .sync) none inp fuel [] work out)
+    simp only [FinTM2.step]
+    exact padBits_step_revBits_nil inp fuel work out
+
+def padBits_evals_revBits_cons (b : Bool) (bits inp fuel work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .revBits) none inp fuel (b :: bits) work out)
+      (some (padBitsCfg (some .revBits) none (b :: inp) fuel bits work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (padBitsCfg (some .revBits) none inp fuel (b :: bits) work out)).bind
+        padBitsComputer.step =
+      some (padBitsCfg (some .revBits) none (b :: inp) fuel bits work out)
+    simp only [FinTM2.step]
+    exact padBits_step_revBits_cons b inp fuel bits work out
+
+noncomputable def padBits_evals_revBits (bits inp fuel work out : List Bool) :
+    EvalsToInTime padBitsComputer.step
+      (padBitsCfg (some .revBits) none inp fuel bits work out)
+      (some (padBitsCfg (some .sync) none (bits.reverse ++ inp) fuel [] work out))
+      (bits.length + 1) := by
+  induction bits generalizing inp with
+  | nil =>
+      simpa using padBits_evals_revBits_nil inp fuel work out
+  | cons b bits ih =>
+      have h :=
+        EvalsToInTime.trans padBitsComputer.step 1 (bits.length + 1) _ _ _
+          (padBits_evals_revBits_cons b bits inp fuel work out) (ih (b :: inp))
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
 
 /-- Index loop form with padded bits (FinTM2 assignment tape). -/
 theorem validatesTautology_by_index_pad (φ : PropFormula) (table : List Bool) :
