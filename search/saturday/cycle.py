@@ -135,6 +135,42 @@ def _execute_choice(
 
     append_rung_memory(ctx.rungs[choice.rung], result.memory_entry)
 
+    # Reflection / plateau accounting (formalize and prove)
+    try:
+        from search.saturday.apply_lean import extract_open_frontier_obligations
+        from search.saturday.progress import LEAN_BY_RUNG
+        from search.saturday.reflect import extract_decl_names, record_wave_outcome
+
+        lean_rel = LEAN_BY_RUNG.get(choice.rung)
+        obligations: list[str] = []
+        if lean_rel:
+            lean_path = repo_root / lean_rel
+            if lean_path.exists():
+                obligations = extract_open_frontier_obligations(
+                    lean_path.read_text(encoding="utf-8")
+                )
+        decls = extract_decl_names(result.raw_model_text or "")
+        applied_ok = "auto-apply succeeded" in (result.notes or "")
+        reverted = "reverted" in (result.notes or "").lower()
+        decision = record_wave_outcome(
+            repo_root,
+            rung_id=choice.rung,
+            action=choice.action_type,
+            result=result.status,
+            obligations_now=obligations,
+            applied_decls=decls if applied_ok else [],
+            reverted=reverted or (not applied_ok and choice.action_type == "formalize"),
+            error_digest=result.notes or "",
+            cfg=getattr(loop_cfg, "reflect", None) or type("R", (), {})(),
+        )
+        if decision.reason:
+            announce(f"Reflect: {decision.reason}")
+            result.notes = (result.notes + " | reflect: " + decision.reason)[:2000]
+            if decision.action_override:
+                result.next_recommended_action = decision.action_override
+    except Exception as exc:
+        print(f"[saturday.cycle] reflect skipped: {exc}")
+
     session_id = str(int(time.time() * 1000))
     record: Dict[str, Any] = {
         "session_id": session_id,
@@ -154,6 +190,10 @@ def _execute_choice(
             "prove": loop_cfg.prove.model,
             "formalize": loop_cfg.formalize.model,
             "audit": loop_cfg.audit.model,
+            "remote_prove": getattr(getattr(loop_cfg, "remote", None), "prove_model", ""),
+            "remote_formalize": getattr(
+                getattr(loop_cfg, "remote", None), "formalize_model", ""
+            ),
         },
     }
     append_session_record(repo_root, record, loop_cfg.sessions_path)

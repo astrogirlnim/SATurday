@@ -135,9 +135,54 @@ def _run_prove(
     client: LocalLLMClient,
     loop_cfg: SaturdayLoopConfig,
 ) -> ActionResult:
+    from search.saturday.llm_factory import (
+        make_remote_client,
+        remote_config,
+        remote_model_for,
+        want_remote_prove,
+    )
+
     prompt = prompt_builders.build_prove_prompt(ctx, choice)
-    print(f"[saturday.actions] prove model={role.model}")
-    resp = client.generate(_role_request(loop_cfg, role, prompt, prompt_builders.SYSTEM_PROVE))
+    gen_client = client
+    model = role.model
+    api_style = loop_cfg.api_style
+    tag = "local"
+    if want_remote_prove(loop_cfg):
+        remote = remote_config(loop_cfg)
+        gen_client = make_remote_client(loop_cfg)
+        model = remote_model_for(loop_cfg, "prove")
+        api_style = remote.api_style
+        tag = "openrouter"
+        announce(f"Prove via OpenRouter model {model} (theorizing).")
+    print(f"[saturday.actions] prove tag={tag} model={model}")
+    try:
+        resp = gen_client.generate(
+            _role_request(
+                loop_cfg,
+                role,
+                prompt,
+                prompt_builders.SYSTEM_PROVE,
+                model_override=model,
+                api_style_override=api_style,
+            )
+        )
+    except Exception as exc:
+        remote = remote_config(loop_cfg)
+        fallback = getattr(remote, "prove_fallback_model", "") or ""
+        if want_remote_prove(loop_cfg) and fallback and fallback != model:
+            announce(f"Prove primary model failed ({exc}); trying fallback {fallback}")
+            resp = gen_client.generate(
+                _role_request(
+                    loop_cfg,
+                    role,
+                    prompt,
+                    prompt_builders.SYSTEM_PROVE,
+                    model_override=fallback,
+                    api_style_override=api_style,
+                )
+            )
+        else:
+            raise
     meta = _parse_trailing_json(resp.text)
     status = str(meta.get("status", "partial"))
     notes = str(meta.get("notes") or resp.text[-1200:])
@@ -156,7 +201,7 @@ def _run_prove(
     prose_path = _write_draft(
         ctx.repo_root,
         loop_cfg.draft_dir,
-        f"{choice.rung}_prove.md",
+        f"{choice.rung}_prove_{tag}.md",
         resp.text,
     )
     memory = _dated_entry(
@@ -165,7 +210,6 @@ def _run_prove(
         [artifact, str(prose_path.relative_to(ctx.repo_root))],
         notes[:500],
     )
-    # Also append the prose body into memory under the dated entry
     memory = memory + "\n\n" + truncate_for_prompt(resp.text, 8000)
     return ActionResult(
         status=status,
@@ -417,14 +461,35 @@ def _run_formalize(
         }
 
     if remote_only:
+        from search.saturday.llm_factory import remote_model_for
+
         rclient = make_remote_client(loop_cfg)
-        outcome = one_pass(
-            gen_client=rclient,
-            model=remote.formalize_model,
-            api_style=remote.api_style,
-            tag="openrouter",
-            err_ctx=prior_errors,
-        )
+        primary = remote_model_for(loop_cfg, "formalize")
+        announce(f"Formalize via OpenRouter model {primary} (Lean prover oriented).")
+        try:
+            outcome = one_pass(
+                gen_client=rclient,
+                model=primary,
+                api_style=remote.api_style,
+                tag="openrouter",
+                err_ctx=prior_errors,
+            )
+        except Exception as exc:
+            fallback = getattr(remote, "formalize_fallback_model", "") or ""
+            if fallback and fallback != primary:
+                announce(
+                    f"Formalize primary model failed ({exc}); "
+                    f"trying fallback {fallback}"
+                )
+                outcome = one_pass(
+                    gen_client=rclient,
+                    model=fallback,
+                    api_style=remote.api_style,
+                    tag="openrouter_fallback",
+                    err_ctx=prior_errors,
+                )
+            else:
+                raise
     else:
         outcome = one_pass(
             gen_client=client,

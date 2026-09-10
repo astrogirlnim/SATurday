@@ -19,18 +19,34 @@ program is climbing.
 
 ```bash
 pip install -e .
-satday auto
+satday auto --remote
+satday dashboard
 satday status
+satday kill --reason "operator stop"
+satday unkill
 ```
 
 `satday auto` runs all next disjoint workstreams in parallel each wake and
-loops until Ctrl-C. Formalize auto-applies Frontier drafts into `theory/` when
-lake build stays green (`saturday_loop.auto_apply`). Optional OpenRouter
-escalation: `satday auto --remote` (local first, then hosted model on apply
-failure) or `--remote-only` (needs `OPENROUTER_API_KEY`). Config:
-`saturday_loop` in `infra/config/defaults.yaml`. Shared client:
-`search/llm/client.py`. Ollama must be serving before prove, formalize, or audit
-unless `--remote-only`.
+continues immediately when a wake finishes (no arbitrary sleep). OpenRouter
+pacing is per-request cooldown. Formalize auto-applies Frontier drafts into
+`theory/` when lake build stays green (`saturday_loop.auto_apply`).
+
+Optional OpenRouter (`OPENROUTER_API_KEY` in `.env`):
+
+- `satday auto --remote` uses role-tuned models:
+  - formalize: `deepseek/deepseek-prover-v2` (fallback `openai/gpt-6-astra`)
+  - prove: `anthropic/claude-opus-4.5` (fallback `google/gemini-2.5-pro`)
+- Override with `OPENROUTER_FORMALIZE_MODEL` / `OPENROUTER_PROVE_MODEL`.
+
+**Dashboard + kill switch:** run `satday dashboard` and open
+`http://127.0.0.1:8765/`. It shows rung certification, critical Frontier pin
+progress, reflection plateau counters, and a kill button. Auto also stops if
+`search/logs/saturday_KILL` exists or reflect engages auto-kill after repeated
+no-progress / duplicate / same-error wakes. Config: `saturday_loop.reflect` in
+`infra/config/defaults.yaml`.
+
+Preferred research driver is `satday auto --remote`, not chat
+`AGENT_LOOP_WAKE_saturday` wakes. Shared client: `search/llm/client.py`.
 
 ## Session Contract
 

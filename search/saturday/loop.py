@@ -83,6 +83,14 @@ def run_saturday_loop(
                 "falsify/audit as selected."
             )
             print(f"[saturday.loop] wake={wake}")
+            from search.saturday.control import is_killed
+
+            killed, kill_reason = is_killed(repo_root)
+            if killed:
+                announce(f"Kill switch engaged; stopping auto. Reason: {kill_reason}")
+                print(f"[saturday.loop] kill switch stop reason={kill_reason!r}")
+                break
+
             if use_parallel:
                 records = run_saturday_parallel(
                     repo_root=repo_root,
@@ -107,6 +115,14 @@ def run_saturday_loop(
                 f"results={[r.get('result') for r in records]}"
             )
             summarize_wave(wake, records)
+
+            from search.saturday.control import is_killed
+
+            killed, kill_reason = is_killed(repo_root)
+            if killed:
+                announce(f"Kill switch engaged after wake; stopping. Reason: {kill_reason}")
+                print(f"[saturday.loop] post-wake kill reason={kill_reason!r}")
+                break
 
             if max_cycles > 0 and wake >= max_cycles:
                 announce(f"Reached configured max_cycles={max_cycles}. Stopping.")

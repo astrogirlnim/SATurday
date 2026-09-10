@@ -427,6 +427,33 @@ def apply_frontier_draft(
             has_sorry="sorry" in lean_code,
         )
 
+    # Plateau novelty gate: reject near-duplicate helper families
+    try:
+        from infra.config.loader import load_config
+        from search.saturday.reflect import draft_is_novel, load_reflect
+
+        loop_cfg = load_config(repo_root=repo_root).saturday_loop
+        reflect_cfg = getattr(loop_cfg, "reflect", None)
+        if reflect_cfg and getattr(reflect_cfg, "reject_near_duplicate_drafts", True):
+            state = load_reflect(repo_root)
+            row = state.rungs.get(rung_id)
+            recent = row.recent_decl_names if row else []
+            novel, why = draft_is_novel(fragment, recent)
+            print(f"[saturday.apply] novelty check novel={novel} why={why}")
+            if not novel:
+                announce(f"Rejected near-duplicate draft: {why}")
+                return ApplyResult(
+                    applied=False,
+                    reverted=False,
+                    build_ok=False,
+                    target=rel,
+                    notes=f"auto-apply rejected: {why}",
+                    has_sorry="sorry" in fragment,
+                    build_tail=why,
+                )
+    except Exception as exc:
+        print(f"[saturday.apply] novelty check skipped: {exc}")
+
     if not lean_path.exists():
         return ApplyResult(
             applied=False,

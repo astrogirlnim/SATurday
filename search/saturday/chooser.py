@@ -56,23 +56,30 @@ def choose_action_for_rung(
     if action_override:
         action = action_override
         rationale = f"CLI action override on rung with status {status}"
-    elif status == "prose_accepted":
-        action = "formalize"
-        rationale = "Prose accepted gate passed; formalize is next"
-    elif status == "blocked":
-        action = "prove"
-        rationale = "Rung blocked; change approach with a new prove cycle"
-    elif _needs_falsify(ctx, rung_id):
-        action = "falsify"
-        rationale = "No recent falsify calibration recorded for this rung"
-    elif status == "active":
-        action, rationale = _active_rung_action(ctx, rung_id)
-    elif status == "proposed":
-        action = "prove"
-        rationale = "Proposed rung needs an adopt decision path via prove content"
     else:
-        action = "audit"
-        rationale = "Default audit pass for hygiene and barriers"
+        from search.saturday.reflect import suggest_action_override
+
+        forced = suggest_action_override(ctx.repo_root, rung_id)
+        if forced in VALID_ACTIONS:
+            action = forced
+            rationale = f"Reflect/control force_action={forced} (status={status})"
+        elif status == "prose_accepted":
+            action = "formalize"
+            rationale = "Prose accepted gate passed; formalize is next"
+        elif status == "blocked":
+            action = "prove"
+            rationale = "Rung blocked; change approach with a new prove cycle"
+        elif _needs_falsify(ctx, rung_id):
+            action = "falsify"
+            rationale = "No recent falsify calibration recorded for this rung"
+        elif status == "active":
+            action, rationale = _active_rung_action(ctx, rung_id)
+        elif status == "proposed":
+            action = "prove"
+            rationale = "Proposed rung needs an adopt decision path via prove content"
+        else:
+            action = "audit"
+            rationale = "Default audit pass for hygiene and barriers"
 
     target = target_override or _default_target(ctx, rung_id, action)
     choice = ActionChoice(
@@ -120,13 +127,22 @@ def _active_rung_action(ctx: CycleContext, rung_id: str) -> tuple:
             "formalize",
             "Prior prove cycle produced prose; formalize is next",
         )
-    if next_action == "formalize":
-        return "formalize", "Last session recommended formalize"
     if last_action == "formalize" and last_result in {"partial", "success"}:
+        formalize_partials = [
+            s for s in history[-6:]
+            if s.get("action_type") == "formalize" and s.get("result") == "partial"
+        ]
+        if len(formalize_partials) >= 4:
+            return (
+                "prove",
+                "Repeated formalize partials without certification; switch to prove",
+            )
         return (
             "formalize",
             "Continue formalize on existing prose and drafts",
         )
+    if next_action == "formalize":
+        return "formalize", "Last session recommended formalize"
     if last_action == "formalize" and last_result == "blocked":
         return "prove", "Formalize blocked; new prove approach"
 

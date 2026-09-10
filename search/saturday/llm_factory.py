@@ -39,11 +39,15 @@ def make_remote_client(loop_cfg: SaturdayLoopConfig) -> LocalLLMClient:
     load_dotenv()
 
     remote = remote_config(loop_cfg)
-    # Allow .env / shell override of model without editing YAML
-    model_override = os.environ.get("OPENROUTER_FORMALIZE_MODEL", "").strip()
-    if model_override:
-        remote.formalize_model = model_override
-        print(f"[saturday.llm] OPENROUTER_FORMALIZE_MODEL={model_override}")
+    # Allow .env / shell override of models without editing YAML
+    formalize_override = os.environ.get("OPENROUTER_FORMALIZE_MODEL", "").strip()
+    if formalize_override:
+        remote.formalize_model = formalize_override
+        print(f"[saturday.llm] OPENROUTER_FORMALIZE_MODEL={formalize_override}")
+    prove_override = os.environ.get("OPENROUTER_PROVE_MODEL", "").strip()
+    if prove_override:
+        remote.prove_model = prove_override
+        print(f"[saturday.llm] OPENROUTER_PROVE_MODEL={prove_override}")
     env_name = remote.api_key_env
     api_key = os.environ.get(env_name, "").strip()
     if not api_key:
@@ -53,7 +57,8 @@ def make_remote_client(loop_cfg: SaturdayLoopConfig) -> LocalLLMClient:
         )
     announce(
         f"Remote LLM client ready ({remote.endpoint}, "
-        f"formalize_model={remote.formalize_model}). "
+        f"formalize_model={remote.formalize_model}, "
+        f"prove_model={remote.prove_model}). "
         "This spends OpenRouter credits."
     )
     headers = {
@@ -93,3 +98,26 @@ def enable_remote_on_config(loop_cfg: SaturdayLoopConfig, mode: Optional[str] = 
 def want_remote_formalize(loop_cfg: SaturdayLoopConfig) -> bool:
     remote = remote_config(loop_cfg)
     return bool(remote.enabled and remote.use_for_formalize)
+
+
+def want_remote_prove(loop_cfg: SaturdayLoopConfig) -> bool:
+    remote = remote_config(loop_cfg)
+    return bool(remote.enabled and remote.use_for_prove)
+
+
+def want_remote_audit(loop_cfg: SaturdayLoopConfig) -> bool:
+    remote = remote_config(loop_cfg)
+    return bool(remote.enabled and remote.use_for_audit)
+
+
+def remote_model_for(loop_cfg: SaturdayLoopConfig, role: str) -> str:
+    """Pick OpenRouter model slug for prove|formalize|audit."""
+    remote = remote_config(loop_cfg)
+    if role == "formalize":
+        return remote.formalize_model
+    if role == "prove":
+        return remote.prove_model
+    if role == "audit":
+        return remote.audit_model
+    raise ValueError(f"Unknown remote role: {role}")
+

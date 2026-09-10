@@ -76,6 +76,17 @@ class SaturdayRoleLLMConfig(BaseModel):
     temperature: float = Field(0.1, ge=0.0)
 
 
+class SaturdayReflectConfig(BaseModel):
+    """Plateau detection and auto kill (no LLM)."""
+    enabled: bool = True
+    max_wakes_without_obligation_progress: int = Field(5, ge=1)
+    max_consecutive_near_duplicates: int = Field(3, ge=1)
+    max_consecutive_same_error: int = Field(3, ge=1)
+    plateau_switch_action: str = Field("prove", pattern="^(prove|falsify|audit)$")
+    auto_kill_on_plateau: bool = True
+    reject_near_duplicate_drafts: bool = True
+
+
 class SaturdayRemoteConfig(BaseModel):
     """
     Optional hosted LLM escalation (OpenRouter).
@@ -92,11 +103,15 @@ class SaturdayRemoteConfig(BaseModel):
     api_key_env: str = "OPENROUTER_API_KEY"
     timeout_seconds: int = Field(600, gt=0)
     use_for_formalize: bool = True
-    use_for_prove: bool = False
+    use_for_prove: bool = True
     use_for_audit: bool = False
-    formalize_model: str = "openai/gpt-6-astra"
-    prove_model: str = "openai/gpt-6-astra"
-    audit_model: str = "openai/gpt-6-astra"
+    # Role-tuned OpenRouter defaults (override via env or YAML)
+    # formalize: Lean/prover-oriented; prove: general theorizing
+    formalize_model: str = "deepseek/deepseek-prover-v2"
+    formalize_fallback_model: str = "openai/gpt-6-astra"
+    prove_model: str = "anthropic/claude-opus-4.5"
+    prove_fallback_model: str = "google/gemini-2.5-pro"
+    audit_model: str = "anthropic/claude-sonnet-4.5"
     # Optional OpenRouter ranking headers (no secrets)
     http_referer: str = "https://github.com/astrogirlnim/SATurday"
     app_title: str = "SATurday"
@@ -138,6 +153,7 @@ class SaturdayLoopConfig(BaseModel):
         temperature=0.1,
     )
     remote: SaturdayRemoteConfig = SaturdayRemoteConfig()
+    reflect: SaturdayReflectConfig = SaturdayReflectConfig()
     falsify_family: str = "php"
     falsify_n_min: int = Field(4, gt=0)
     falsify_n_max: int = Field(10, gt=0)

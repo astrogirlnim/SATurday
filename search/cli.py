@@ -311,6 +311,58 @@ def loop_cmd(
         raise typer.Exit(code=1)
 
 
+@app.command("dashboard")
+def dashboard_cmd(
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address"),
+    port: int = typer.Option(8765, "--port", "-p", help="HTTP port"),
+):
+    """
+    Local progress dashboard with kill switch (no external deps).
+
+    Open http://127.0.0.1:8765/ while satday auto runs. Preferred monitor for
+    the saturday skill.
+
+    Examples:
+        satday dashboard
+        satday dashboard --port 8765
+    """
+    console.print("[bold blue]SATurday dashboard[/bold blue]")
+    console.print(f"Open http://{host}:{port}/  (Ctrl-C to stop dashboard)")
+    try:
+        from search.saturday.dashboard_server import run_dashboard
+
+        run_dashboard(repo_root=repo_root, host=host, port=port)
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
+        raise typer.Exit(code=1)
+
+
+@app.command("kill")
+def kill_cmd(
+    reason: str = typer.Option(
+        "operator kill",
+        "--reason",
+        "-r",
+        help="Why auto should stop",
+    ),
+):
+    """Engage the satday auto kill switch (checked each wake)."""
+    from search.saturday.control import engage_kill
+
+    state = engage_kill(repo_root, reason, source="cli")
+    console.print(f"[bold red]Kill engaged[/bold red]: {state.reason}")
+    console.print("Auto will stop at the next wake boundary.")
+
+
+@app.command("unkill")
+def unkill_cmd():
+    """Clear the satday auto kill switch so auto can run again."""
+    from search.saturday.control import clear_kill
+
+    clear_kill(repo_root)
+    console.print("[bold green]Kill cleared[/bold green]. You can run satday auto again.")
+
+
 @app.command("status")
 def status_cmd(
     json_out: bool = typer.Option(
@@ -328,15 +380,17 @@ def status_cmd(
     Examples:
         satday status
         satday status --json
+        satday dashboard
     """
     console.print("[bold blue]SATurday ladder status[/bold blue]")
     try:
         from search.saturday.status import build_saturday_status, status_to_dict
+        from search.saturday.progress import build_progress_snapshot
 
         status = build_saturday_status(repo_root)
         payload = status_to_dict(status)
         if json_out:
-            console.print_json(data=payload)
+            console.print_json(data=build_progress_snapshot(repo_root))
             return
 
         table = Table(title="Ladder rungs")
