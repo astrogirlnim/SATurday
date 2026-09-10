@@ -4996,4 +4996,134 @@ theorem exists_spreads_matchable_unsat_random3CNF :
 
 end CSExpansionFrontier
 
+
+
+/- SATurday auto-apply 2026-09-09T23:31:48Z (rung r2-width-machinery). -/
+namespace CSExpansionFrontier
+
+/-- A finite bad event count suffices for the random existence obligation.
+The first exceptional set covers structural failures, and the second covers
+satisfiable samples. No independence assumption is needed. -/
+theorem random3CNF_witness_of_exceptional_counts
+    (N n : ℕ)
+    (Ω A B : Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (hsize : max N 128 ≤ n)
+    (hstruct : ∀ ω ∈ Ω,
+      ¬ ((cnfVars (random3CNF n (random3CNFClauseCount n) ω)).card = n ∧
+        cnfWidth (random3CNF n (random3CNFClauseCount n) ω) ≤ 3 ∧
+        Spreads (random3CNF n (random3CNFClauseCount n) ω)
+          (random3CNFMatchScale n) 2 ∧
+        IsCSMatchable (random3CNF n (random3CNFClauseCount n) ω)
+          (random3CNFMatchScale n) ∧
+        cnfWidth (random3CNF n (random3CNFClauseCount n) ω) <
+          csClauseWidthFloor (random3CNFMatchScale n) 1) →
+      ω ∈ A)
+    (hsat : ∀ ω ∈ Ω,
+      Satisfiable (random3CNF n (random3CNFClauseCount n) ω) →
+      ω ∈ B)
+    (hcount : A.card + B.card < Ω.card) :
+    ∃ ω : EnsembleIndex n (random3CNFClauseCount n),
+      let F := random3CNF n (random3CNFClauseCount n) ω
+      let r := random3CNFMatchScale n
+      max N 128 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        Spreads F r 2 ∧ IsCSMatchable F r ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor r 1 := by
+  classical
+  have houtside : ∃ ω ∈ Ω, ω ∉ A ∪ B := by
+    by_contra h
+    have hcover : Ω ⊆ A ∪ B := by
+      intro ω hω
+      by_contra hωbad
+      exact h ⟨ω, hω, hωbad⟩
+    have hle : Ω.card ≤ A.card + B.card :=
+      (Finset.card_le_card hcover).trans (Finset.card_union_le A B)
+    exact (Nat.not_lt_of_ge hle) hcount
+  obtain ⟨ω, hω, hout⟩ := houtside
+  have hnotA : ω ∉ A := by
+    intro h
+    exact hout (Finset.mem_union.mpr (Or.inl h))
+  have hnotB : ω ∉ B := by
+    intro h
+    exact hout (Finset.mem_union.mpr (Or.inr h))
+  have hgood :
+      (cnfVars (random3CNF n (random3CNFClauseCount n) ω)).card = n ∧
+      cnfWidth (random3CNF n (random3CNFClauseCount n) ω) ≤ 3 ∧
+      Spreads (random3CNF n (random3CNFClauseCount n) ω)
+        (random3CNFMatchScale n) 2 ∧
+      IsCSMatchable (random3CNF n (random3CNFClauseCount n) ω)
+        (random3CNFMatchScale n) ∧
+      cnfWidth (random3CNF n (random3CNFClauseCount n) ω) <
+        csClauseWidthFloor (random3CNFMatchScale n) 1 := by
+    by_contra h
+    exact hnotA (hstruct ω hω h)
+  obtain ⟨hvars, hwidth, hspreads, hmatch, hfloor⟩ := hgood
+  have hunsat :
+      ¬ Satisfiable (random3CNF n (random3CNFClauseCount n) ω) := by
+    intro h
+    exact hnotB (hsat ω hω h)
+  exact ⟨ω, hsize, hvars, hwidth, hspreads, hmatch, hunsat, hfloor⟩
+
+end CSExpansionFrontier
+
+/-
+{"status":"partial","notes":"Added a finite union bound witness extraction helper. Exceptional set constructions and quantitative bounds remain open. Not build checked.","next_recommended_action":"formalize","gate_pending":true}
+-/
+
+
+
+/- SATurday auto-apply 2026-09-09T23:38:26Z (rung r2-width-machinery). -/
+namespace CSExpansionFrontier
+
+/-- Counting structural failures and satisfiable samples separately suffices
+to construct an informative random witness. The exceptional sets are canonical
+filters of the sample set, so no separate covering proofs are required. -/
+theorem random3CNF_witness_of_filter_budgets
+    (N n a b : ℕ)
+    (Ω : Finset (EnsembleIndex n (random3CNFClauseCount n)))
+    (hsize : max N 128 ≤ n)
+    (hstruct :
+      (Ω.filter (fun ω =>
+        ¬ ((cnfVars (random3CNF n (random3CNFClauseCount n) ω)).card = n ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) ≤ 3 ∧
+          Spreads (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) 2 ∧
+          IsCSMatchable (random3CNF n (random3CNFClauseCount n) ω)
+            (random3CNFMatchScale n) ∧
+          cnfWidth (random3CNF n (random3CNFClauseCount n) ω) <
+            csClauseWidthFloor (random3CNFMatchScale n) 1))).card ≤ a)
+    (hsat :
+      (Ω.filter (fun ω =>
+        Satisfiable (random3CNF n (random3CNFClauseCount n) ω))).card ≤ b)
+    (hbudget : a + b < Ω.card) :
+    ∃ ω : EnsembleIndex n (random3CNFClauseCount n),
+      let F := random3CNF n (random3CNFClauseCount n) ω
+      let r := random3CNFMatchScale n
+      max N 128 ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
+        Spreads F r 2 ∧ IsCSMatchable F r ∧ ¬ Satisfiable F ∧
+          cnfWidth F < csClauseWidthFloor r 1 := by
+  classical
+  let A := Ω.filter (fun ω =>
+    ¬ ((cnfVars (random3CNF n (random3CNFClauseCount n) ω)).card = n ∧
+      cnfWidth (random3CNF n (random3CNFClauseCount n) ω) ≤ 3 ∧
+      Spreads (random3CNF n (random3CNFClauseCount n) ω)
+        (random3CNFMatchScale n) 2 ∧
+      IsCSMatchable (random3CNF n (random3CNFClauseCount n) ω)
+        (random3CNFMatchScale n) ∧
+      cnfWidth (random3CNF n (random3CNFClauseCount n) ω) <
+        csClauseWidthFloor (random3CNFMatchScale n) 1))
+  let B := Ω.filter (fun ω =>
+    Satisfiable (random3CNF n (random3CNFClauseCount n) ω))
+  have hA : A.card ≤ a := by
+    exact hstruct
+  have hB : B.card ≤ b := by
+    exact hsat
+  apply random3CNF_witness_of_exceptional_counts N n Ω A B hsize
+  · intro ω hω hbad
+    exact Finset.mem_filter.mpr ⟨hω, hbad⟩
+  · intro ω hω hmodel
+    exact Finset.mem_filter.mpr ⟨hω, hmodel⟩
+  · exact lt_of_le_of_lt (Nat.add_le_add hA hB) hbudget
+
+end CSExpansionFrontier
+
 end SATurday.ProofComplexity

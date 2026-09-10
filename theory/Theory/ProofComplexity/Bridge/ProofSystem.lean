@@ -5068,4 +5068,64 @@ theorem validatesTautologyResult_on_pair_length_frontier (π : List Bool) :
 
 end ProofSystemFrontier
 
+
+
+/- SATurday auto-apply 2026-09-09T23:38:37Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- A polynomial output size bound. A machine running time bound is still required. -/
+theorem validatesTautologyResult_on_pair_exists_polynomial_output_bound :
+    ∃ p : Polynomial ℕ, ∀ π : List Bool,
+      (validatesTautologyResult_on_pair π).length ≤ p.eval π.length := by
+  refine ⟨Polynomial.X + 1, ?_⟩
+  intro π
+  simpa only [Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one] using
+    validatesTautologyResult_on_pair_length_frontier π
+
+end ProofSystemFrontier
+
+/-
+{"status":"partial","notes":"Packages the certified length bound as a polynomial output size bound. Polynomial machine running time remains open.","next_recommended_action":"formalize","gate_pending":true}
+-/
+
+
+
+/- SATurday auto-apply 2026-09-10T00:20:08Z (rung r5-cook-reckhow-bridge). -/
+namespace ProofSystemFrontier
+
+/-- Batched validation has quadratic total output size when both the number
+of inputs and each input length are bounded by `n`. This bounds stored results,
+not machine running time. -/
+theorem validatesTautologyResult_batch_output_bound
+    (inputs : List (List Bool)) (n : ℕ)
+    (hcount : inputs.length ≤ n)
+    (hsize : ∀ π ∈ inputs, π.length ≤ n) :
+    (inputs.map (fun π => (validatesTautologyResult_on_pair π).length)).sum
+      ≤ n * (n + 1) := by
+  have batch_bound :
+      ∀ xs : List (List Bool),
+        (∀ π ∈ xs, π.length ≤ n) →
+        (xs.map (fun π =>
+          (validatesTautologyResult_on_pair π).length)).sum
+          ≤ xs.length * (n + 1) := by
+    intro xs
+    induction xs with
+    | nil =>
+        intro _
+        simp
+    | cons π xs ih =>
+        intro hs
+        have hπ := validatesTautologyResult_on_pair_length_frontier π
+        have hπsize : π.length ≤ n := hs π (by simp)
+        have htail := ih (by
+          intro ψ hψ
+          exact hs ψ (by simp only [List.mem_cons]; exact Or.inr hψ))
+        simp only [List.map_cons, List.sum_cons, List.length_cons,
+          Nat.succ_mul]
+        omega
+  exact (batch_bound inputs hsize).trans
+    (Nat.mul_le_mul_right (n + 1) hcount)
+
+end ProofSystemFrontier
+
 end SATurday.Bridge
