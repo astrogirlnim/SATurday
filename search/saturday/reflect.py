@@ -10,12 +10,14 @@ rather than flipping to prose. Operator force_actions are never overwritten.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import re
 import time
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, Iterator, List, Optional, Sequence
 
 from search.saturday.control import (
     engage_kill,
@@ -73,30 +75,67 @@ class ReflectDecision:
     notes: List[str] = field(default_factory=list)
 
 
+def _parse_reflect_text(text: str) -> Dict[str, Any]:
+    """Parse reflect JSON; tolerate trailing junk from a prior unlocked race."""
+    decoder = json.JSONDecoder()
+    obj, _end = decoder.raw_decode(text.lstrip())
+    if not isinstance(obj, dict):
+        raise ValueError("reflect root must be an object")
+    return obj
+
+
+def _state_from_raw(raw: Dict[str, Any]) -> ReflectState:
+    state = ReflectState()
+    state.updated_at = str(raw.get("updated_at") or "")
+    for rid, blob in (raw.get("rungs") or {}).items():
+        state.rungs[rid] = RungReflect(
+            last_obligations=list(blob.get("last_obligations") or []),
+            wakes_without_obligation_progress=int(
+                blob.get("wakes_without_obligation_progress") or 0
+            ),
+            recent_decl_names=list(blob.get("recent_decl_names") or []),
+            recent_decl_prefixes=list(blob.get("recent_decl_prefixes") or []),
+            recent_error_classes=list(blob.get("recent_error_classes") or []),
+            consecutive_near_duplicates=int(
+                blob.get("consecutive_near_duplicates") or 0
+            ),
+            consecutive_same_error=int(blob.get("consecutive_same_error") or 0),
+            last_action=str(blob.get("last_action") or ""),
+            last_result=str(blob.get("last_result") or ""),
+        )
+    return state
+
+
+@contextmanager
+def _reflect_file_lock(repo_root: Path) -> Iterator[Path]:
+    """
+    Exclusive lock around reflect load or modify or save.
+
+    Parallel R2 and R5 workers both update this file; without a lock they
+    corrupt JSON and lose each other's counters.
+    """
+    path = reflect_path(repo_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    print(f"[saturday.reflect] acquiring lock path={lock_path}")
+    with lock_path.open("a+", encoding="utf-8") as lock_fh:
+        fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+        print(f"[saturday.reflect] lock acquired path={lock_path}")
+        try:
+            yield path
+        finally:
+            fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+            print(f"[saturday.reflect] lock released path={lock_path}")
+
+
 def load_reflect(repo_root: Path) -> ReflectState:
     path = reflect_path(repo_root)
     state = ReflectState()
     if not path.exists():
         return state
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        state.updated_at = str(raw.get("updated_at") or "")
-        for rid, blob in (raw.get("rungs") or {}).items():
-            state.rungs[rid] = RungReflect(
-                last_obligations=list(blob.get("last_obligations") or []),
-                wakes_without_obligation_progress=int(
-                    blob.get("wakes_without_obligation_progress") or 0
-                ),
-                recent_decl_names=list(blob.get("recent_decl_names") or []),
-                recent_decl_prefixes=list(blob.get("recent_decl_prefixes") or []),
-                recent_error_classes=list(blob.get("recent_error_classes") or []),
-                consecutive_near_duplicates=int(
-                    blob.get("consecutive_near_duplicates") or 0
-                ),
-                consecutive_same_error=int(blob.get("consecutive_same_error") or 0),
-                last_action=str(blob.get("last_action") or ""),
-                last_result=str(blob.get("last_result") or ""),
-            )
+        raw = _parse_reflect_text(path.read_text(encoding="utf-8"))
+        state = _state_from_raw(raw)
         print(f"[saturday.reflect] loaded rungs={list(state.rungs)}")
     except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
         print(f"[saturday.reflect] bad reflect file: {exc}")
@@ -225,9 +264,9 @@ def record_wave_outcome(
     Update reflect state after one workstream finishes a wake.
 
     cfg is SaturdayReflectConfig-like (attributes accessed dynamically).
+    Load/modify/save runs under an exclusive file lock so parallel workstreams
+    cannot corrupt saturday_reflect.json or drop each other's counters.
     """
-    state = load_reflect(repo_root)
-    row = state.rungs.get(rung_id) or RungReflect()
     decision = ReflectDecision()
     notes: List[str] = []
 
@@ -237,54 +276,64 @@ def record_wave_outcome(
     auto_kill = bool(getattr(cfg, "auto_kill_on_plateau", True))
     prefer_switch = str(getattr(cfg, "plateau_switch_action", "formalize"))
 
-    prev = list(row.last_obligations)
-    now = list(obligations_now)
-    progressed, prog_note = frontier_progressed(prev, now)
-    if progressed:
-        notes.append(prog_note)
+    with _reflect_file_lock(repo_root):
+        state = load_reflect(repo_root)
+        row = state.rungs.get(rung_id) or RungReflect()
 
-    # Ambient lake red is infrastructure, not a formalize strategy failure.
-    if not ambient_ok:
-        notes.append("ambient lake red; skip no-progress increment")
-        print(f"[saturday.reflect] ambient red on {rung_id}; not counting plateau")
-    elif action == "formalize" and not progressed:
-        row.wakes_without_obligation_progress += 1
-    elif progressed:
-        row.wakes_without_obligation_progress = 0
+        prev = list(row.last_obligations)
+        now = list(obligations_now)
+        progressed, prog_note = frontier_progressed(prev, now)
+        if progressed:
+            notes.append(prog_note)
 
-    for name in applied_decls:
-        row.recent_decl_names = (row.recent_decl_names + [name])[-40:]
-        pref = decl_prefix(name)
-        row.recent_decl_prefixes = (row.recent_decl_prefixes + [pref])[-40:]
-
-    ec = error_class(error_digest)
-    if (reverted or result == "partial") and ambient_ok and ec not in {"empty", "ambient_red"}:
-        if row.recent_error_classes and row.recent_error_classes[-1] == ec:
-            row.consecutive_same_error += 1
-        else:
-            row.consecutive_same_error = 1
-        row.recent_error_classes = (row.recent_error_classes + [ec])[-20:]
-        notes.append(f"error_class={ec} streak={row.consecutive_same_error}")
-    elif progressed or not ambient_ok:
+        # Ambient lake red is infrastructure, not a formalize strategy failure.
         if not ambient_ok:
-            row.consecutive_same_error = 0
+            notes.append("ambient lake red; skip no-progress increment")
+            print(f"[saturday.reflect] ambient red on {rung_id}; not counting plateau")
+        elif action == "formalize" and not progressed:
+            row.wakes_without_obligation_progress += 1
+        elif progressed:
+            row.wakes_without_obligation_progress = 0
 
-    if applied_decls and not progressed:
-        if any(is_near_duplicate_name(n, row.recent_decl_names[:-1]) for n in applied_decls):
-            row.consecutive_near_duplicates += 1
-            notes.append(
-                f"near-duplicate helper streak={row.consecutive_near_duplicates}"
-            )
-        else:
+        for name in applied_decls:
+            row.recent_decl_names = (row.recent_decl_names + [name])[-40:]
+            pref = decl_prefix(name)
+            row.recent_decl_prefixes = (row.recent_decl_prefixes + [pref])[-40:]
+
+        ec = error_class(error_digest)
+        if (reverted or result == "partial") and ambient_ok and ec not in {
+            "empty",
+            "ambient_red",
+        }:
+            if row.recent_error_classes and row.recent_error_classes[-1] == ec:
+                row.consecutive_same_error += 1
+            else:
+                row.consecutive_same_error = 1
+            row.recent_error_classes = (row.recent_error_classes + [ec])[-20:]
+            notes.append(f"error_class={ec} streak={row.consecutive_same_error}")
+        elif progressed or not ambient_ok:
+            if not ambient_ok:
+                row.consecutive_same_error = 0
+
+        if applied_decls and not progressed:
+            if any(
+                is_near_duplicate_name(n, row.recent_decl_names[:-1])
+                for n in applied_decls
+            ):
+                row.consecutive_near_duplicates += 1
+                notes.append(
+                    f"near-duplicate helper streak={row.consecutive_near_duplicates}"
+                )
+            else:
+                row.consecutive_near_duplicates = 0
+        elif progressed:
             row.consecutive_near_duplicates = 0
-    elif progressed:
-        row.consecutive_near_duplicates = 0
 
-    row.last_obligations = now
-    row.last_action = action
-    row.last_result = result
-    state.rungs[rung_id] = row
-    save_reflect(repo_root, state)
+        row.last_obligations = now
+        row.last_action = action
+        row.last_result = result
+        state.rungs[rung_id] = row
+        save_reflect(repo_root, state)
 
     if row.wakes_without_obligation_progress >= max_no_progress:
         override = _apply_plateau_recovery(
