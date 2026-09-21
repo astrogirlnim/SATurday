@@ -667,6 +667,58 @@ def _run_formalize(
         )
         apply_notes = applied.notes
         build_tail = applied.build_tail or ""
+        # Import micro already in theory/ but plan still pending: treat as landed.
+        already_defined = (
+            not applied.applied
+            and "already defined" in (applied.notes or "").lower()
+            and import_step
+            and str(import_step.get("lean_name") or "").rsplit(".", 1)[-1]
+            in (applied.notes or "")
+        )
+        if already_defined:
+            announce(
+                "Import micro already certified in theory/; advancing plan step "
+                f"{import_step.get('id')} without re-apply."
+            )
+            try:
+                from search.saturday.proof_source import (
+                    entry_by_id,
+                    load_proof_import_config,
+                    mark_plan_step_done,
+                    parse_import_cluster_target,
+                )
+
+                pi_cfg = load_proof_import_config(ctx.repo_root)
+                source_id, _ = parse_import_cluster_target(choice.target)
+                if not source_id:
+                    source_id = str(
+                        import_step.get("source_id")
+                        or (pi_cfg.catalog[0].id if pi_cfg.catalog else "")
+                    )
+                if source_id:
+                    entry = entry_by_id(pi_cfg, source_id)
+                    mark_plan_step_done(
+                        ctx.repo_root,
+                        pi_cfg,
+                        entry,
+                        str(import_step.get("id")),
+                        reason="already_certified",
+                    )
+            except Exception as exc:
+                print(
+                    f"[saturday.actions] already_defined mark done skipped: {exc}"
+                )
+            return {
+                "status": "partial",
+                "gate": "none",
+                "notes": (
+                    f" {apply_notes} plan advanced (already_certified "
+                    f"{import_step.get('lean_name')})"
+                ),
+                "arts": arts,
+                "applied_ok": True,
+                "build_tail": "",
+            }
         explain_apply_outcome(
             applied=applied.applied,
             reverted=applied.reverted,

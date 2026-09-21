@@ -567,9 +567,10 @@ def lean_name_is_certified(
     module_text: str, lean_name: str, *, quiet: bool = False
 ) -> bool:
     """
-    True when lean_name appears as theorem/lemma with a non-sorry proof body.
+    True when lean_name appears as theorem/lemma/def/abbrev with a non-sorry body.
 
     Used to auto-advance micro-steps that were already landed by prior clusters.
+    Import ladder helpers are often `def` (not theorem); those must count.
     """
     if not lean_name:
         return False
@@ -577,7 +578,7 @@ def lean_name_is_certified(
         return False
     short = lean_name.rsplit(".", 1)[-1]
     pat = re.compile(
-        rf"(?m)^\s*(?:theorem|lemma)\s+{re.escape(short)}\b"
+        rf"(?m)^\s*(?:theorem|lemma|def|abbrev)\s+{re.escape(short)}\b"
     )
     hit = bool(pat.search(module_text))
     if not quiet:
@@ -884,6 +885,13 @@ def resolve_import_step(
     step: Optional[Dict[str, Any]] = None
     if step_id:
         step = plan_step_by_id(plan, step_id)
+        # Chooser may still name a step that auto_advance just closed.
+        if step is not None and str(step.get("status", "pending")) == "done":
+            print(
+                f"[saturday.proof_source] resolve_import_step step={step_id} "
+                "already done; advancing to next pending"
+            )
+            step = None
     if step is None:
         step = next_plan_step(plan)
     if step is None:

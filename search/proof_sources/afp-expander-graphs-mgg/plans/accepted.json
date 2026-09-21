@@ -66,7 +66,7 @@
     },
     {
       "id": "thy-expander-graphs-mgg-mgg-graph-step",
-      "status": "pending",
+      "status": "done",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -91,7 +91,9 @@
       "foreign_line": 21,
       "lean_name": "mggImport_mgg_graph_step",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle fun `mgg_graph_step` from Expander_Graphs_MGG as Lean helper `mggImport_mgg_graph_step` (no Frontier sorry; no axiom)."
+      "goal": "Port Isabelle fun `mgg_graph_step` from Expander_Graphs_MGG as Lean helper `mggImport_mgg_graph_step` (no Frontier sorry; no axiom).",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T14:37:21Z"
     },
     {
       "id": "thy-expander-graphs-mgg-mgg-graph",
