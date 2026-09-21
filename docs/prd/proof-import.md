@@ -287,14 +287,22 @@ failure. Import does not invent a third endpoint.
 
 ### M0 — Spec landed (this PRD)
 
-- PRD merged under `docs/prd/proof-import.md`.
-- Catalog stub for AFP MGG in config (can be disabled).
+- [x] PRD merged under `docs/prd/proof-import.md`.
+- [x] Catalog stub for AFP MGG in config (can be disabled).
 
 ### M1 — Cache + CLI
 
-- `search/proof_sources/` layout + `satday proof-source status|fetch`.
-- Vendor script or documented manual vendor steps for AFP Expander Graphs.
-- No LLM changes required to pass M1.
+- [x] `search/proof_sources/` layout + `satday proof-source status|fetch`.
+- [x] Vendor script or documented manual vendor steps for AFP Expander Graphs.
+- [x] No LLM changes required to pass M1.
+
+Populate theories (offline):
+
+```bash
+satday proof-source fetch afp-expander-graphs-mgg \
+  --from-dir /path/to/afp/thys/Expander_Graphs
+satday proof-source status
+```
 
 ### M2 — Prove import plan in loop
 

@@ -22,6 +22,8 @@ pip install -e .
 satday auto --remote
 satday dashboard
 satday status
+satday proof-source status
+satday proof-source fetch afp-expander-graphs-mgg --from-dir /path/to/afp/thys/Expander_Graphs
 satday kill --reason "operator stop"
 satday unkill
 ```
@@ -30,6 +32,10 @@ satday unkill
 continues immediately when a wake finishes (no arbitrary sleep). OpenRouter
 pacing is per-request cooldown. Formalize auto-applies Frontier drafts into
 `theory/` when lake build stays green (`saturday_loop.auto_apply`).
+
+Proof import cache (M1, see `docs/prd/proof-import.md`): foreign ITP sources
+live under `search/proof_sources/`. Auto only reads the cache; populate with
+`satday proof-source fetch` (offline `--from-dir` preferred).
 
 Optional OpenRouter (`OPENROUTER_API_KEY` in `.env`):
 

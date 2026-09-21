@@ -127,6 +127,38 @@ class SaturdayRemoteConfig(BaseModel):
     rate_limit_retries: int = Field(3, ge=0)
 
 
+class ProofImportCatalogEntry(BaseModel):
+    """One foreign ITP development the loop may import from (docs/prd/proof-import.md)."""
+
+    id: str
+    itps: List[str] = Field(default_factory=lambda: ["isabelle"])
+    title: str = ""
+    # Directory name under saturday_loop.proof_import.cache_dir
+    root: str
+    license: str = "BSD"
+    maps_to_rungs: List[str] = Field(default_factory=list)
+    maps_to_frontier: List[str] = Field(default_factory=list)
+    primary_theories: List[str] = Field(default_factory=list)
+    # Optional archive URL used only by `satday proof-source fetch --network`
+    fetch_url: str = ""
+    # Subpath inside the archive (POSIX) whose contents are copied into thys/
+    archive_member: str = ""
+    notes: str = ""
+
+
+class ProofImportConfig(BaseModel):
+    """
+    Cache and catalog for loop native proof import (M1+).
+
+    Auto wakes only read the cache. Network fetch is opt in via config and CLI.
+    """
+
+    enabled: bool = True
+    cache_dir: str = "search/proof_sources"
+    allow_network_fetch: bool = False
+    catalog: List[ProofImportCatalogEntry] = Field(default_factory=list)
+
+
 class SaturdayLoopConfig(BaseModel):
     """
     Local saturday research loop (option A: CLI + localhost models).
@@ -159,6 +191,7 @@ class SaturdayLoopConfig(BaseModel):
     )
     remote: SaturdayRemoteConfig = SaturdayRemoteConfig()
     reflect: SaturdayReflectConfig = SaturdayReflectConfig()
+    proof_import: ProofImportConfig = ProofImportConfig()
     falsify_family: str = "php"
     falsify_n_min: int = Field(4, gt=0)
     falsify_n_max: int = Field(10, gt=0)

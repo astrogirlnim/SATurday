@@ -232,6 +232,29 @@ saturday_loop:
     plateau_switch_action: "formalize"
     auto_kill_on_plateau: true
     reject_near_duplicate_drafts: true
+  # Loop native proof import (docs/prd/proof-import.md). Auto only reads cache.
+  proof_import:
+    enabled: true
+    cache_dir: "search/proof_sources"
+    allow_network_fetch: false
+    catalog:
+      - id: "afp-expander-graphs-mgg"
+        itps: ["isabelle"]
+        title: "AFP Expander Graphs MGG"
+        root: "afp-expander-graphs-mgg"
+        license: "BSD"
+        maps_to_rungs: ["r2-width-machinery"]
+        maps_to_frontier:
+          - "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil"
+          - "MGGFrontier.mggGraph_hasExpansionInv"
+        primary_theories:
+          - "Expander_Graphs_MGG"
+          - "Expander_Graphs_Definition"
+          - "Expander_Graphs_Eigenvalues"
+          - "Expander_Graphs_Strongly_Explicit"
+        fetch_url: "https://www.isa-afp.org/release/afp-current.tar.gz"
+        archive_member: "thys/Expander_Graphs"
+        notes: "Hoory style Fourier proof; spectral bound 5/8 sqrt 2; vendor via satday proof-source"
   falsify_family: "php"
   falsify_n_min: 4
   falsify_n_max: 10

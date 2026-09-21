@@ -86,3 +86,10 @@ archive/research/**/.deps/
 .env
 .env.*
 !.env.example
+
+# Proof import cache: keep metadata; ignore bulk Isabelle trees and downloads
+search/proof_sources/**/thys/**
+!search/proof_sources/**/thys/.gitkeep
+search/proof_sources/**/downloads/
+search/proof_sources/**/*.tar.gz
+search/proof_sources/**/*.tgz

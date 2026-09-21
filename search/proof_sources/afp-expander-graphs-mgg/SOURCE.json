@@ -1,0 +1,26 @@
+{
+  "id": "afp-expander-graphs-mgg",
+  "title": "AFP Expander Graphs MGG",
+  "itps": [
+    "isabelle"
+  ],
+  "license": "BSD",
+  "vendored_at": null,
+  "method": "stub",
+  "revision": null,
+  "primary_theories": [
+    "Expander_Graphs_MGG",
+    "Expander_Graphs_Definition",
+    "Expander_Graphs_Eigenvalues",
+    "Expander_Graphs_Strongly_Explicit"
+  ],
+  "maps_to_rungs": [
+    "r2-width-machinery"
+  ],
+  "maps_to_frontier": [
+    "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
+    "MGGFrontier.mggGraph_hasExpansionInv"
+  ],
+  "notes": "Stub metadata only. Run satday proof-source fetch --from-dir to vendor .thy files.",
+  "afp_entry_url": "https://isa-afp.org/entries/Expander_Graphs.html"
+}

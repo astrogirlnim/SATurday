@@ -1,0 +1,7 @@
+Foreign proof source: AFP Expander Graphs MGG
+Declared license class: BSD
+
+This directory holds a vendored copy of Isabelle AFP theories for use as
+a human readable import blueprint by the SATurday loop. See ATTRIBUTION.md
+and https://isa-afp.org/entries/Expander_Graphs.html for upstream terms.
+Do not treat these files as Lean axioms.

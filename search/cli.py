@@ -363,6 +363,134 @@ def unkill_cmd():
     console.print("[bold green]Kill cleared[/bold green]. You can run satday auto again.")
 
 
+proof_source_app = typer.Typer(
+    name="proof-source",
+    help="Vendor and inspect foreign ITP proof sources for loop native import",
+    no_args_is_help=True,
+)
+app.add_typer(proof_source_app, name="proof-source")
+
+
+@proof_source_app.command("status")
+def proof_source_status_cmd(
+    source_id: Optional[str] = typer.Argument(
+        None,
+        help="Catalog id (default: show all entries)",
+    ),
+    json_out: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit machine readable JSON",
+    ),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
+):
+    """
+    Show readiness of cached proof sources (LICENSE, SOURCE.json, .thy files).
+
+    Examples:
+        satday proof-source status
+        satday proof-source status afp-expander-graphs-mgg
+        satday proof-source status --json
+    """
+    from search.saturday import proof_source as ps
+
+    console.print("[bold blue]SATurday proof-source status[/bold blue]")
+    try:
+        cfg = ps.load_proof_import_config(repo_root)
+        if not cfg.enabled:
+            console.print("[yellow]proof_import.enabled=false in config[/yellow]")
+        if source_id:
+            entry = ps.entry_by_id(cfg, source_id)
+            rows = [ps.status_for_entry(repo_root, cfg, entry)]
+        else:
+            rows = ps.status_all(repo_root, cfg)
+        if json_out:
+            console.print_json(data=[r.to_dict() for r in rows])
+            return
+        table = Table(title="Proof sources")
+        table.add_column("id")
+        table.add_column("ready")
+        table.add_column("thy")
+        table.add_column("license")
+        table.add_column("blockers")
+        for r in rows:
+            table.add_row(
+                r.id,
+                "yes" if r.ready else "no",
+                str(r.thy_count),
+                "ok" if r.license_ok else "missing",
+                "; ".join(r.blockers) if r.blockers else "-",
+            )
+        console.print(table)
+        for r in rows:
+            if not r.ready and r.id:
+                entry = ps.entry_by_id(cfg, r.id)
+                console.print(ps.vendor_instructions(entry))
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
+@proof_source_app.command("fetch")
+def proof_source_fetch_cmd(
+    source_id: str = typer.Argument(..., help="Catalog id to vendor"),
+    from_dir: Optional[Path] = typer.Option(
+        None,
+        "--from-dir",
+        help="Offline: copy Isabelle session dir (recommended)",
+    ),
+    network: bool = typer.Option(
+        False,
+        "--network",
+        help="Download catalog fetch_url (requires allow_network_fetch or --force)",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="With --network: allow fetch even if allow_network_fetch is false",
+    ),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
+):
+    """
+    Populate search/proof_sources/<root>/ from a local AFP path or network archive.
+
+    Offline (preferred):
+        satday proof-source fetch afp-expander-graphs-mgg \\
+          --from-dir /path/to/afp/thys/Expander_Graphs
+
+    Network (opt in):
+        satday proof-source fetch afp-expander-graphs-mgg --network
+    """
+    from search.saturday import proof_source as ps
+
+    console.print(f"[bold blue]SATurday proof-source fetch[/bold blue] id={source_id}")
+    try:
+        cfg = ps.load_proof_import_config(repo_root)
+        if from_dir is not None:
+            st = ps.fetch_from_dir(repo_root, source_id, from_dir, cfg)
+        elif network:
+            st = ps.fetch_network(repo_root, source_id, cfg, force=force)
+        else:
+            entry = ps.entry_by_id(cfg, source_id)
+            console.print(
+                "[yellow]Provide --from-dir PATH or --network. Offline vendor steps:[/yellow]"
+            )
+            console.print(ps.vendor_instructions(entry))
+            raise typer.Exit(code=2)
+        console.print(
+            f"ready={st.ready} thy_count={st.thy_count} root={st.root}"
+        )
+        if st.blockers:
+            console.print(f"[yellow]blockers:[/yellow] {'; '.join(st.blockers)}")
+            raise typer.Exit(code=1)
+        console.print("[bold green]Proof source ready[/bold green]")
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
 @app.command("status")
 def status_cmd(
     json_out: bool = typer.Option(
