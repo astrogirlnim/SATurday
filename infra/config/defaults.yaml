@@ -232,6 +232,14 @@ saturday_loop:
     plateau_switch_action: "formalize"
     auto_kill_on_plateau: true
     reject_near_duplicate_drafts: true
+  # Stuck formalize: accepted reuse check, then LLM micro split (plan JSON only)
+  decompose:
+    enabled: true
+    trigger_after_wakes: 3
+    max_micro_steps: 8
+    min_accepted_reuse_score: 4.0
+    plans_dir: "search/logs/decompose_plans"
+    hold_kill_while_pending: true
   # Loop native proof import (docs/prd/proof-import.md). Auto only reads cache.
   proof_import:
     enabled: true

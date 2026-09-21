@@ -47,6 +47,8 @@ class RungReflect:
     consecutive_same_error: int = 0
     last_action: str = ""
     last_result: str = ""
+    decompose_pending: bool = False
+    last_decompose_at: str = ""
 
 
 @dataclass
@@ -73,6 +75,8 @@ class ReflectDecision:
     reject_draft: bool = False
     reason: str = ""
     notes: List[str] = field(default_factory=list)
+    decompose_triggered: bool = False
+    wakes_without_obligation_progress: int = 0
 
 
 def _parse_reflect_text(text: str) -> Dict[str, Any]:
@@ -102,6 +106,8 @@ def _state_from_raw(raw: Dict[str, Any]) -> ReflectState:
             consecutive_same_error=int(blob.get("consecutive_same_error") or 0),
             last_action=str(blob.get("last_action") or ""),
             last_result=str(blob.get("last_result") or ""),
+            decompose_pending=bool(blob.get("decompose_pending") or False),
+            last_decompose_at=str(blob.get("last_decompose_at") or ""),
         )
     return state
 
@@ -259,11 +265,14 @@ def record_wave_outcome(
     error_digest: str,
     cfg: Any,
     ambient_ok: bool = True,
+    decompose_cfg: Any = None,
 ) -> ReflectDecision:
     """
     Update reflect state after one workstream finishes a wake.
 
     cfg is SaturdayReflectConfig-like (attributes accessed dynamically).
+    decompose_cfg is SaturdayDecomposeConfig-like (optional); when present,
+    marks decompose_pending after trigger_after_wakes and can hold auto-kill.
     Load/modify/save runs under an exclusive file lock so parallel workstreams
     cannot corrupt saturday_reflect.json or drop each other's counters.
     """
@@ -275,6 +284,9 @@ def record_wave_outcome(
     max_same_err = int(getattr(cfg, "max_consecutive_same_error", 3))
     auto_kill = bool(getattr(cfg, "auto_kill_on_plateau", True))
     prefer_switch = str(getattr(cfg, "plateau_switch_action", "formalize"))
+    decomp_enabled = bool(getattr(decompose_cfg, "enabled", False)) if decompose_cfg else False
+    decomp_trigger = int(getattr(decompose_cfg, "trigger_after_wakes", 3)) if decompose_cfg else 3
+    hold_kill = bool(getattr(decompose_cfg, "hold_kill_while_pending", True)) if decompose_cfg else True
 
     with _reflect_file_lock(repo_root):
         state = load_reflect(repo_root)
@@ -294,6 +306,7 @@ def record_wave_outcome(
             row.wakes_without_obligation_progress += 1
         elif progressed:
             row.wakes_without_obligation_progress = 0
+            row.decompose_pending = False
 
         for name in applied_decls:
             row.recent_decl_names = (row.recent_decl_names + [name])[-40:]
@@ -329,11 +342,48 @@ def record_wave_outcome(
         elif progressed:
             row.consecutive_near_duplicates = 0
 
+        if (
+            decomp_enabled
+            and action == "formalize"
+            and not progressed
+            and ambient_ok
+            and row.wakes_without_obligation_progress >= decomp_trigger
+            and now
+        ):
+            row.decompose_pending = True
+            decision.decompose_triggered = True
+            notes.append(
+                f"decompose_pending after {row.wakes_without_obligation_progress} "
+                f"no-progress wakes (trigger={decomp_trigger})"
+            )
+            print(
+                f"[saturday.reflect] decompose_pending rung={rung_id} "
+                f"wakes={row.wakes_without_obligation_progress}"
+            )
+
         row.last_obligations = now
         row.last_action = action
         row.last_result = result
+        decision.wakes_without_obligation_progress = (
+            row.wakes_without_obligation_progress
+        )
         state.rungs[rung_id] = row
         save_reflect(repo_root, state)
+
+    # Hold auto-kill while decompose still has work (plan pending or flag set)
+    pending_decompose = False
+    if hold_kill and decomp_enabled:
+        try:
+            from search.saturday.decompose import has_pending_decompose
+            from infra.config.schemas import SaturdayDecomposeConfig
+
+            dcfg = decompose_cfg or SaturdayDecomposeConfig()
+            pending_decompose = bool(row.decompose_pending) or has_pending_decompose(
+                repo_root, rung_id, dcfg
+            )
+        except Exception as exc:
+            print(f"[saturday.reflect] decompose pending check skipped: {exc}")
+            pending_decompose = bool(row.decompose_pending)
 
     if row.wakes_without_obligation_progress >= max_no_progress:
         override = _apply_plateau_recovery(
@@ -373,10 +423,16 @@ def record_wave_outcome(
         pause_rung(repo_root, rung_id, decision.reason)
         set_force_action(repo_root, rung_id, "audit", source="reflect")
         notes.append(decision.reason)
-        if auto_kill and row.wakes_without_obligation_progress >= max_no_progress:
+        if (
+            auto_kill
+            and row.wakes_without_obligation_progress >= max_no_progress
+            and not pending_decompose
+        ):
             decision.kill = True
             engage_kill(repo_root, decision.reason, source="reflect")
             notes.append("auto kill engaged")
+        elif pending_decompose:
+            notes.append("auto kill held: decompose pending")
 
     # Hard kill only when recovery is not "keep formalizing".
     kill_on_formalize_hold = prefer_switch not in {
@@ -390,6 +446,7 @@ def record_wave_outcome(
         auto_kill
         and kill_on_formalize_hold
         and row.wakes_without_obligation_progress >= max_no_progress + 2
+        and not pending_decompose
     ):
         decision.kill = True
         decision.reason = (
@@ -397,13 +454,31 @@ def record_wave_outcome(
         )
         engage_kill(repo_root, decision.reason, source="reflect")
         notes.append(decision.reason)
+    elif pending_decompose and row.wakes_without_obligation_progress >= max_no_progress:
+        notes.append("plateau kill held while decompose plan pending")
+        print("[saturday.reflect] kill held: decompose pending")
 
     decision.notes = notes
     print(
         f"[saturday.reflect] rung={rung_id} decision kill={decision.kill} "
-        f"override={decision.action_override} reason={decision.reason!r}"
+        f"override={decision.action_override} decompose={decision.decompose_triggered} "
+        f"reason={decision.reason!r}"
     )
     return decision
+
+
+def clear_decompose_pending(repo_root: Path, rung_id: str) -> None:
+    """Clear decompose_pending after a plan was written."""
+    with _reflect_file_lock(repo_root):
+        state = load_reflect(repo_root)
+        row = state.rungs.get(rung_id)
+        if row is None:
+            return
+        row.decompose_pending = False
+        row.last_decompose_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        state.rungs[rung_id] = row
+        save_reflect(repo_root, state)
+        print(f"[saturday.reflect] cleared decompose_pending rung={rung_id}")
 
 
 def suggest_action_override(repo_root: Path, rung_id: str) -> Optional[str]:

@@ -389,25 +389,51 @@ def _run_formalize(
     import_step: Optional[dict] = None
     frontier_ns: Optional[str] = None
     try:
+        from search.saturday.decompose import (
+            is_decompose_target,
+            resolve_decompose_step,
+        )
+        from infra.config.schemas import SaturdayDecomposeConfig
+
+        if is_decompose_target(choice.target):
+            dcfg = getattr(loop_cfg, "decompose", None) or SaturdayDecomposeConfig()
+            dstep = resolve_decompose_step(
+                ctx.repo_root, choice.rung, choice.target, dcfg
+            )
+            if dstep:
+                import_step = dstep
+                print(
+                    f"[saturday.actions] formalize decompose_step="
+                    f"{dstep.get('id')} lean_name={dstep.get('lean_name')}"
+                )
+                announce(
+                    f"Decompose micro: {dstep.get('id')} "
+                    f"({dstep.get('lean_name')})"
+                )
+    except Exception as exc:
+        print(f"[saturday.actions] decompose_step resolve skipped: {exc}")
+
+    try:
         from search.saturday.proof_source import (
             frontier_ns_for_module,
             load_proof_import_config,
             resolve_import_step,
         )
 
-        pi_cfg = load_proof_import_config(ctx.repo_root)
-        resolved = resolve_import_step(
-            ctx.repo_root, choice.rung, choice.target, pi_cfg
-        )
-        if resolved:
-            _entry, _plan, import_step = resolved
-            mod = str((import_step or {}).get("module") or "")
-            if mod:
-                frontier_ns = frontier_ns_for_module(mod)
-            print(
-                f"[saturday.actions] formalize import_step="
-                f"{(import_step or {}).get('id')} frontier_ns={frontier_ns}"
+        if import_step is None:
+            pi_cfg = load_proof_import_config(ctx.repo_root)
+            resolved = resolve_import_step(
+                ctx.repo_root, choice.rung, choice.target, pi_cfg
             )
+            if resolved:
+                _entry, _plan, import_step = resolved
+                mod = str((import_step or {}).get("module") or "")
+                if mod:
+                    frontier_ns = frontier_ns_for_module(mod)
+                print(
+                    f"[saturday.actions] formalize import_step="
+                    f"{(import_step or {}).get('id')} frontier_ns={frontier_ns}"
+                )
     except Exception as exc:
         print(f"[saturday.actions] import_step resolve skipped: {exc}")
 

@@ -64,39 +64,43 @@ def choose_action_for_rung(
         if forced in VALID_ACTIONS:
             action = forced
             rationale = f"Reflect/control force_action={forced} (status={status})"
-            # Still prefer an import target when the catalog is ready
+            # Prefer decompose micros when stuck; else import; else default
             target = target_override or _import_or_default_target(
                 ctx, rung_id, action
             )
         else:
-            import_choice = _suggest_import(ctx, rung_id)
-            if import_choice is not None:
-                action, target, rationale = import_choice
-            elif status == "prose_accepted":
-                action = "formalize"
-                rationale = "Prose accepted gate passed; formalize is next"
-                target = target_override or _default_target(ctx, rung_id, action)
-            elif status == "blocked":
-                action = "prove"
-                rationale = "Rung blocked; change approach with a new prove cycle"
-                target = target_override or _default_target(ctx, rung_id, action)
-            elif _needs_falsify(ctx, rung_id):
-                action = "falsify"
-                rationale = "No recent falsify calibration recorded for this rung"
-                target = target_override or _default_target(ctx, rung_id, action)
-            elif status == "active":
-                action, rationale = _active_rung_action(ctx, rung_id)
-                target = target_override or _import_or_default_target(
-                    ctx, rung_id, action
-                )
-            elif status == "proposed":
-                action = "prove"
-                rationale = "Proposed rung needs an adopt decision path via prove content"
-                target = target_override or _default_target(ctx, rung_id, action)
+            decomp_choice = _suggest_decompose(ctx, rung_id)
+            if decomp_choice is not None:
+                action, target, rationale = decomp_choice
             else:
-                action = "audit"
-                rationale = "Default audit pass for hygiene and barriers"
-                target = target_override or _default_target(ctx, rung_id, action)
+                import_choice = _suggest_import(ctx, rung_id)
+                if import_choice is not None:
+                    action, target, rationale = import_choice
+                elif status == "prose_accepted":
+                    action = "formalize"
+                    rationale = "Prose accepted gate passed; formalize is next"
+                    target = target_override or _default_target(ctx, rung_id, action)
+                elif status == "blocked":
+                    action = "prove"
+                    rationale = "Rung blocked; change approach with a new prove cycle"
+                    target = target_override or _default_target(ctx, rung_id, action)
+                elif _needs_falsify(ctx, rung_id):
+                    action = "falsify"
+                    rationale = "No recent falsify calibration recorded for this rung"
+                    target = target_override or _default_target(ctx, rung_id, action)
+                elif status == "active":
+                    action, rationale = _active_rung_action(ctx, rung_id)
+                    target = target_override or _import_or_default_target(
+                        ctx, rung_id, action
+                    )
+                elif status == "proposed":
+                    action = "prove"
+                    rationale = "Proposed rung needs an adopt decision path via prove content"
+                    target = target_override or _default_target(ctx, rung_id, action)
+                else:
+                    action = "audit"
+                    rationale = "Default audit pass for hygiene and barriers"
+                    target = target_override or _default_target(ctx, rung_id, action)
 
     if target_override and action_override:
         target = target_override
@@ -112,6 +116,25 @@ def choose_action_for_rung(
     return choice
 
 
+def _suggest_decompose(ctx: CycleContext, rung_id: str):
+    """Return (action, target, rationale) when a stuck-decompose plan is pending."""
+    try:
+        from search.saturday.decompose import suggest_decompose_action
+
+        cfg = None
+        try:
+            from infra.config.loader import load_config
+
+            full = load_config(repo_root=ctx.repo_root)
+            cfg = getattr(getattr(full, "saturday_loop", None), "decompose", None)
+        except Exception as exc:
+            print(f"[saturday.chooser] decompose cfg load skipped: {exc}")
+        return suggest_decompose_action(ctx.repo_root, rung_id, cfg)
+    except Exception as exc:
+        print(f"[saturday.chooser] decompose suggest skipped: {exc}")
+        return None
+
+
 def _suggest_import(ctx: CycleContext, rung_id: str):
     """Return (action, target, rationale) when proof import applies."""
     try:
@@ -124,6 +147,9 @@ def _suggest_import(ctx: CycleContext, rung_id: str):
 
 
 def _import_or_default_target(ctx: CycleContext, rung_id: str, action: str) -> str:
+    decomp = _suggest_decompose(ctx, rung_id)
+    if decomp is not None and decomp[0] == action:
+        return decomp[1]
     hint = _suggest_import(ctx, rung_id)
     if hint is not None and hint[0] == action:
         return hint[1]

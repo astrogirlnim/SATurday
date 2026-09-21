@@ -53,6 +53,11 @@ WORKSPACE=$(git rev-parse --show-toplevel)
    ranked by rung hints and token overlap with open Frontier obligations.
    Prefer `exact`/`apply` of those names; do not re prove them.
 
+   When the loop is stuck, `saturday_loop.decompose` may inject a micro lemma
+   plan target (`decompose cluster: …`). Treat that like an import micro step:
+   discharge exactly the named lemma with the allowed tactics; do not enlarge
+   the goal back to the parent spectral pin in one wake.
+
 5. On success: add the new accepted declarations to
    scripts/accepted_declarations.txt, rerun the gate, and record the module path
    and declaration names in the rung memory.

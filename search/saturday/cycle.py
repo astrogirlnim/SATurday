@@ -154,12 +154,14 @@ def _execute_choice(
 
         lean_rel = LEAN_BY_RUNG.get(choice.rung)
         obligations: list[str] = []
+        lean_path = None
+        module_excerpt = ""
         if lean_rel:
             lean_path = repo_root / lean_rel
             if lean_path.exists():
-                obligations = extract_open_frontier_obligations(
-                    lean_path.read_text(encoding="utf-8")
-                )
+                lean_text = lean_path.read_text(encoding="utf-8")
+                obligations = extract_open_frontier_obligations(lean_text)
+                module_excerpt = lean_text[-12000:]
         decls = extract_decl_names(result.raw_model_text or "")
         applied_ok = "auto-apply succeeded" in (result.notes or "")
         reverted = "reverted" in (result.notes or "").lower()
@@ -176,12 +178,53 @@ def _execute_choice(
             error_digest=result.notes or "",
             cfg=getattr(loop_cfg, "reflect", None) or type("R", (), {})(),
             ambient_ok=ambient_ok,
+            decompose_cfg=getattr(loop_cfg, "decompose", None),
         )
         if decision.reason:
             announce(f"Reflect: {decision.reason}")
             result.notes = (result.notes + " | reflect: " + decision.reason)[:2000]
             if decision.action_override:
                 result.next_recommended_action = decision.action_override
+
+        # Stuck decompose: accepted reuse first, then LLM micro plan (no Lean)
+        if decision.decompose_triggered or getattr(decision, "decompose_triggered", False):
+            try:
+                from search.saturday.decompose import maybe_decompose_after_reflect
+                from search.saturday.llm_factory import (
+                    make_remote_client,
+                    want_remote_formalize,
+                )
+
+                decomp_client = client
+                if want_remote_formalize(loop_cfg):
+                    try:
+                        decomp_client = make_remote_client(loop_cfg)
+                    except Exception as rem_exc:
+                        print(
+                            f"[saturday.cycle] decompose remote client skipped: {rem_exc}"
+                        )
+                decomp = maybe_decompose_after_reflect(
+                    repo_root,
+                    rung_id=choice.rung,
+                    wakes_without_progress=decision.wakes_without_obligation_progress,
+                    obligations=obligations,
+                    module_path=lean_rel or "",
+                    module_excerpt=module_excerpt,
+                    loop_cfg=loop_cfg,
+                    client=decomp_client,
+                )
+                if decomp is not None and decomp.notes:
+                    announce(f"Decompose: {decomp.notes}")
+                    result.notes = (result.notes + " | " + decomp.notes)[:2000]
+                    if decomp.plan_path:
+                        result.artifact_refs = list(result.artifact_refs or []) + [
+                            decomp.plan_path
+                        ]
+                    from search.saturday.reflect import clear_decompose_pending
+
+                    clear_decompose_pending(repo_root, choice.rung)
+            except Exception as dexc:
+                print(f"[saturday.cycle] decompose skipped: {dexc}")
     except Exception as exc:
         print(f"[saturday.cycle] reflect skipped: {exc}")
 

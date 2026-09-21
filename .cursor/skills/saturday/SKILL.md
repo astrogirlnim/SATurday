@@ -43,6 +43,12 @@ Accepted smart select (`saturday_loop.accepted_select`): before each formalize
 Frontier obligations (`search/saturday/accepted_select.py`) and injects it into
 the prompt so models reuse certified lemmas instead of re proving them.
 
+Stuck decompose (`saturday_loop.decompose`): after N formalize wakes with no
+Frontier sorry progress, the loop ranks accepted decls for the stuck pin, then
+asks the LLM for a micro lemma plan (JSON only, no Lean). Chooser prefers
+`decompose cluster: <rung> step=<id>` until the plan is drained. Auto-kill is
+held while a decompose plan still has pending micros.
+
 Optional OpenRouter (`OPENROUTER_API_KEY` in `.env`):
 
 - `satday auto --remote` uses role-tuned models:

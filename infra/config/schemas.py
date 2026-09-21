@@ -91,6 +91,24 @@ class SaturdayReflectConfig(BaseModel):
     reject_near_duplicate_drafts: bool = True
 
 
+class SaturdayDecomposeConfig(BaseModel):
+    """
+    When formalize is stuck on a large Frontier obligation, break it into
+    micro steps. Always consult accepted_declarations first; never re-propose
+    lemmas that are already certified. Writes a plan JSON only (no Lean).
+    """
+
+    enabled: bool = True
+    # Fire after this many no-progress formalize wakes (before or at plateau)
+    trigger_after_wakes: int = Field(3, ge=1)
+    max_micro_steps: int = Field(8, ge=1, le=40)
+    # Accepted-select score floor to treat a decl as a reusable subcomponent
+    min_accepted_reuse_score: float = Field(4.0, ge=0.0)
+    plans_dir: str = "search/logs/decompose_plans"
+    # Hold auto-kill while a decompose plan still has pending micros
+    hold_kill_while_pending: bool = True
+
+
 class SaturdayRemoteConfig(BaseModel):
     """
     Optional hosted LLM escalation (OpenRouter).
@@ -248,6 +266,7 @@ class SaturdayLoopConfig(BaseModel):
     )
     remote: SaturdayRemoteConfig = SaturdayRemoteConfig()
     reflect: SaturdayReflectConfig = SaturdayReflectConfig()
+    decompose: SaturdayDecomposeConfig = SaturdayDecomposeConfig()
     proof_import: ProofImportConfig = ProofImportConfig()
     accepted_select: AcceptedSelectConfig = AcceptedSelectConfig()
     falsify_family: str = "php"
