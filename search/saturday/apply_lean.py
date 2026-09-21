@@ -261,6 +261,9 @@ def prepare_frontier_fragment(
     # Also strip target-ns self qualification (model often writes MGGFrontier.foo
     # while already inside MGGFrontier).
     text = re.sub(rf"\b{re.escape(expected_ns)}\.", "", text)
+    # Sibling Frontier quals are wrong for MGG helpers remapped out of CSExpansion.
+    if expected_ns == "MGGFrontier":
+        text = re.sub(r"\bCSExpansionFrontier\.", "", text)
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     header = f"/- SATurday auto-apply {stamp} (rung {rung_id}). -/\n"
