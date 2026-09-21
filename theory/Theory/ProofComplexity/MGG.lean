@@ -2529,15 +2529,9 @@ theorem not_twelfth_compatible_with_inv15 {s g : ℕ}
 
 namespace MGGFrontier
 
-/-- Gabber Galil spectral input: labeled 8-regular multi Cayley graph has
-multi Cheeger rate `2/5` (external; analysis not formalized). -/
-theorem mgg_has_multi_cheeger_of_gabber_galil (m : ℕ) (hm0 : 0 < m)
-    (_hm : mggInformativeFloor ≤ m) :
-    MggHasMultiCheeger m hm0 := by
+theorem mgg_has_multi_cheeger_of_gabber_galil (m : ℕ) (hm0 : 0 < m) (_hm : mggInformativeFloor ≤ m) : MggHasMultiCheeger m hm0 := by
   sorry
 
-/-- Locked Inv-4 on informative simple MGG. Needs spectral `MggHasMultiCheeger`
-plus a reverseLoss stricter than both `2|S|+12m` and `4|∂_G|`. -/
 theorem mggGraph_hasExpansionInv (m : ℕ) (hm0 : 0 < m)
     (hm : mggInformativeFloor ≤ m) :
     HasExpansionInv (mggGraph m hm0) mggInvK := by
