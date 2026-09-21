@@ -58,6 +58,18 @@ DEFAULT_FRONTIER_NS = {
 }
 
 
+def frontier_ns_for_lean_path(lean_path: Path | str, rung_id: str) -> str:
+    """Pick Frontier namespace from module path; fall back to rung default."""
+    path = str(lean_path).replace("\\", "/")
+    if path.endswith("MGG.lean") or "/MGG.lean" in path:
+        return "MGGFrontier"
+    if "Bridge/ProofSystem.lean" in path or path.endswith("ProofSystem.lean"):
+        return "ProofSystemFrontier"
+    if path.endswith("CSExpansion.lean") or "/CSExpansion.lean" in path:
+        return "CSExpansionFrontier"
+    return DEFAULT_FRONTIER_NS.get(rung_id, "LocalDraftFrontier")
+
+
 @dataclass
 class ApplyResult:
     """Outcome of attempting to auto-apply a Lean draft."""
@@ -191,7 +203,12 @@ def rewrite_lean3_begin_end(text: str) -> str:
     return rewritten
 
 
-def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[str], str]:
+def prepare_frontier_fragment(
+    lean_code: str,
+    rung_id: str,
+    *,
+    frontier_ns: Optional[str] = None,
+) -> tuple[Optional[str], str]:
     """
     Validate and normalize a draft into a Frontier-only fragment.
 
@@ -219,26 +236,31 @@ def prepare_frontier_fragment(lean_code: str, rung_id: str) -> tuple[Optional[st
     if LEAN3_RANGE_RE.search(text):
         return None, "draft uses Lean 3 range syntax [a..b]; use List.range or Finset.range"
 
+    expected_ns = frontier_ns or DEFAULT_FRONTIER_NS.get(rung_id, "LocalDraftFrontier")
     namespaces = NAMESPACE_RE.findall(text)
     if namespaces:
         if not any("Frontier" in ns for ns in namespaces):
             return None, f"namespace lacks Frontier marker: {namespaces}"
     else:
-        ns = DEFAULT_FRONTIER_NS.get(rung_id, "LocalDraftFrontier")
-        print(f"[saturday.apply] wrapping draft in namespace {ns}")
-        text = f"namespace {ns}\n\n{text}\n\nend {ns}"
+        print(f"[saturday.apply] wrapping draft in namespace {expected_ns}")
+        text = f"namespace {expected_ns}\n\n{text}\n\nend {expected_ns}"
 
-    expected_ns = DEFAULT_FRONTIER_NS.get(rung_id)
-    if expected_ns:
-        for ns in NAMESPACE_RE.findall(text):
-            if "Frontier" in ns and ns != expected_ns:
-                print(f"[saturday.apply] remap namespace {ns} -> {expected_ns}")
-                text = text.replace(f"namespace {ns}", f"namespace {expected_ns}")
-                text = text.replace(f"end {ns}", f"end {expected_ns}")
+    for ns in NAMESPACE_RE.findall(text):
+        if "Frontier" in ns and ns != expected_ns:
+            print(f"[saturday.apply] remap namespace {ns} -> {expected_ns}")
+            text = text.replace(f"namespace {ns}", f"namespace {expected_ns}")
+            text = text.replace(f"end {ns}", f"end {expected_ns}")
+            # Self-qualified refs like CSExpansionFrontier.foo inside that NS fail;
+            # rewrite to bare name when remapping into the target Frontier NS.
+            text = re.sub(rf"\b{re.escape(ns)}\.", "", text)
 
     namespaces = NAMESPACE_RE.findall(text)
     if not any("Frontier" in ns for ns in namespaces):
         return None, "failed to establish Frontier namespace"
+
+    # Also strip target-ns self qualification (model often writes MGGFrontier.foo
+    # while already inside MGGFrontier).
+    text = re.sub(rf"\b{re.escape(expected_ns)}\.", "", text)
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     header = f"/- SATurday auto-apply {stamp} (rung {rung_id}). -/\n"
@@ -378,6 +400,7 @@ def merge_frontier_fragment(
     rung_id: str,
     *,
     allow_helper_only: bool = False,
+    frontier_ns: Optional[str] = None,
 ) -> tuple[str, str]:
     """
     Merge fragment into original.
@@ -441,7 +464,7 @@ def merge_frontier_fragment(
             incoming_blocks[n] for n in helpers if n in incoming_blocks
         ]
         helper_body = "\n\n".join(helper_blocks)
-        ns = DEFAULT_FRONTIER_NS.get(rung_id, "LocalDraftFrontier")
+        ns = frontier_ns or DEFAULT_FRONTIER_NS.get(rung_id, "LocalDraftFrontier")
         helper_frag = (
             f"namespace {ns}\n\n{helper_body}\n\nend {ns}\n"
         )
@@ -481,7 +504,12 @@ def apply_frontier_draft(
     )
     announce(f"Applying Frontier draft into {rel}")
 
-    fragment, reason = prepare_frontier_fragment(lean_code, rung_id)
+    target_ns = frontier_ns_for_lean_path(lean_path, rung_id)
+    print(f"[saturday.apply] frontier_ns={target_ns} path={rel}")
+
+    fragment, reason = prepare_frontier_fragment(
+        lean_code, rung_id, frontier_ns=target_ns
+    )
     if fragment is None:
         print(f"[saturday.apply] reject: {reason}")
         announce(f"Rejected draft before build: {reason}")
@@ -565,6 +593,7 @@ def apply_frontier_draft(
                 fragment,
                 rung_id,
                 allow_helper_only=allow_helper_only,
+                frontier_ns=target_ns,
             )
         except ValueError as exc:
             print(f"[saturday.apply] reject merge: {exc}")
