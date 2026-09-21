@@ -512,6 +512,23 @@ _UNPORTED_FOREIGN_SURFACE = frozenset(
         "see_mgg",
         "graph_of",
         "unfold_locales",
+        # Fourier / complex analysis cluster (needs Complex + noncomputable)
+        "omega_f",
+        "ft",
+        "periodic",
+        "t_1",
+        "s_1",
+        "t_2",
+        "s_2",
+        "gamma_aux",
+        "gamma",
+        "compare",
+        "alpha",
+        "parseval",
+        "plancharel",
+        "complex.cis",
+        "complex.exp",
+        "fourier",
     }
 )
 

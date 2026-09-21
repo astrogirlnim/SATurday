@@ -98,6 +98,11 @@ _UNPORTED_SURFACE_TOKENS = frozenset(
         "arcs_pos",
         "arcs_neg",
         "unfold_locales",
+        "complex",
+        "omega_f",
+        "fourier",
+        "parseval",
+        "plancharel",
     }
 )
 
