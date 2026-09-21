@@ -9,6 +9,7 @@ Auto wakes only read the cache. Operators populate it with:
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import tarfile
 import urllib.request
@@ -491,6 +492,167 @@ def next_plan_step(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
+def parse_import_cluster_target(target: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Parse `import cluster: <source_id> step=<step_id>` into (source_id, step_id).
+
+    Also accepts `import plan: <source_id> -> ...` (step_id None).
+    """
+    t = (target or "").strip()
+    lower = t.lower()
+    source_id: Optional[str] = None
+    step_id: Optional[str] = None
+    if lower.startswith("import cluster:"):
+        rest = t[len("import cluster:") :].strip()
+        parts = rest.split()
+        if parts:
+            source_id = parts[0].strip()
+        for p in parts[1:]:
+            if p.lower().startswith("step="):
+                step_id = p.split("=", 1)[1].strip()
+                break
+    elif lower.startswith("import plan:"):
+        rest = t[len("import plan:") :].strip()
+        source_id = rest.split()[0].strip() if rest else None
+    print(
+        f"[saturday.proof_source] parse_import_cluster_target "
+        f"source_id={source_id!r} step_id={step_id!r}"
+    )
+    return source_id, step_id
+
+
+def plan_step_by_id(plan: Dict[str, Any], step_id: str) -> Optional[Dict[str, Any]]:
+    """Lookup one plan step by id."""
+    for step in plan.get("steps") or []:
+        if str(step.get("id") or "") == step_id:
+            return step
+    print(f"[saturday.proof_source] plan_step_by_id miss id={step_id!r}")
+    return None
+
+
+def frontier_ns_for_module(module: str) -> str:
+    """Map Lean module path to the Frontier namespace that owns import pins."""
+    mod = (module or "").replace("\\", "/")
+    if mod.endswith("MGG.lean") or "/MGG.lean" in mod:
+        return "MGGFrontier"
+    if "Bridge/ProofSystem.lean" in mod or mod.endswith("ProofSystem.lean"):
+        return "ProofSystemFrontier"
+    if mod.endswith("CSExpansion.lean") or "/CSExpansion.lean" in mod:
+        return "CSExpansionFrontier"
+    print(
+        f"[saturday.proof_source] frontier_ns_for_module default "
+        f"CSExpansionFrontier module={module!r}"
+    )
+    return "CSExpansionFrontier"
+
+
+def lean_name_is_open_sorry(module_text: str, lean_name: str) -> bool:
+    """True when lean_name is an open `:= by sorry` theorem/lemma in module_text."""
+    from search.saturday.apply_lean import extract_open_frontier_obligations
+
+    open_names = set(extract_open_frontier_obligations(module_text))
+    short = (lean_name or "").rsplit(".", 1)[-1]
+    hit = lean_name in open_names or short in open_names
+    print(
+        f"[saturday.proof_source] lean_name_is_open_sorry name={lean_name} "
+        f"short={short} hit={hit} open_n={len(open_names)}"
+    )
+    return hit
+
+
+def lean_name_is_certified(module_text: str, lean_name: str) -> bool:
+    """
+    True when lean_name appears as theorem/lemma with a non-sorry proof body.
+
+    Used to auto-advance micro-steps that were already landed by prior clusters.
+    """
+    if not lean_name:
+        return False
+    if lean_name_is_open_sorry(module_text, lean_name):
+        return False
+    # Decl present and not an open sorry
+    pat = re.compile(
+        rf"(?m)^\s*(?:theorem|lemma)\s+{re.escape(lean_name)}\b"
+    )
+    hit = bool(pat.search(module_text))
+    print(
+        f"[saturday.proof_source] lean_name_is_certified name={lean_name} hit={hit}"
+    )
+    return hit
+
+
+def mark_plan_step_done(
+    repo_root: Path,
+    cfg: ProofImportConfig,
+    entry: ProofImportCatalogEntry,
+    step_id: str,
+    *,
+    reason: str = "formalize_applied",
+) -> Optional[Dict[str, Any]]:
+    """Flip one step to done and rewrite accepted.json (plus stamped copy)."""
+    plan = load_accepted_plan(repo_root, cfg, entry)
+    if plan is None:
+        return None
+    found = False
+    for step in plan.get("steps") or []:
+        if str(step.get("id") or "") == step_id:
+            prev = step.get("status")
+            step["status"] = "done"
+            step["done_reason"] = reason
+            step["done_at"] = _now_iso()
+            found = True
+            print(
+                f"[saturday.proof_source] mark_plan_step_done id={step_id} "
+                f"prev={prev!r} reason={reason}"
+            )
+            break
+    if not found:
+        print(f"[saturday.proof_source] mark_plan_step_done miss id={step_id}")
+        return None
+    save_accepted_plan(repo_root, cfg, entry, plan)
+    return plan
+
+
+def auto_advance_certified_steps(
+    repo_root: Path,
+    cfg: ProofImportConfig,
+    entry: ProofImportCatalogEntry,
+    plan: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Mark pending micro-steps done when their lean_name is already certified
+    in the step module (no open sorry).
+    """
+    changed = False
+    for step in plan.get("steps") or []:
+        if str(step.get("status", "pending")) == "done":
+            continue
+        lean_name = str(step.get("lean_name") or "")
+        module = str(step.get("module") or "")
+        if not lean_name or not module:
+            continue
+        path = repo_root / module
+        if not path.is_file():
+            print(
+                f"[saturday.proof_source] auto_advance skip missing module={module}"
+            )
+            continue
+        text = path.read_text(encoding="utf-8")
+        # Only auto-skip when certified outside open-sorry (or closed already)
+        if lean_name_is_certified(text, lean_name):
+            step["status"] = "done"
+            step["done_reason"] = "already_certified"
+            step["done_at"] = _now_iso()
+            changed = True
+            print(
+                f"[saturday.proof_source] auto_advance certified "
+                f"step={step.get('id')} lean_name={lean_name}"
+            )
+    if changed:
+        save_accepted_plan(repo_root, cfg, entry, plan)
+    return plan
+
+
 def theory_excerpt(
     repo_root: Path,
     cfg: ProofImportConfig,
@@ -527,20 +689,43 @@ def build_import_prompt_context(
     *,
     theory_stems: Optional[List[str]] = None,
     max_chars_per_theory: int = 8000,
+    step: Optional[Dict[str, Any]] = None,
+    budget: Optional[int] = None,
 ) -> str:
-    """Concatenate primary theory excerpts for import prove or formalize."""
-    stems = theory_stems or list(entry.primary_theories) or []
-    # Prefer Cheeger + MGG when present in cache
-    preferred = [
-        "Expander_Graphs_MGG",
-        "Expander_Graphs_Cheeger_Inequality",
-        "Expander_Graphs_Eigenvalues",
-        "Expander_Graphs_Definition",
-    ]
+    """Concatenate theory excerpts for import prove or formalize.
+
+    When ``step`` is set (formalize micro-cluster), prefer that step's
+    ``foreign_theories`` / ``max_chars`` so Qwen sized wakes do not ingest a
+    full AFP dump.
+    """
+    step = step or {}
+    step_stems = list(step.get("foreign_theories") or [])
+    stems = theory_stems or step_stems or list(entry.primary_theories) or []
+    # Prefer Cheeger + MGG when present in cache (full plan prove only)
+    preferred: List[str] = []
+    if not step_stems:
+        preferred = [
+            "Expander_Graphs_MGG",
+            "Expander_Graphs_Cheeger_Inequality",
+            "Expander_Graphs_Eigenvalues",
+            "Expander_Graphs_Definition",
+        ]
     ordered: List[str] = []
     for s in preferred + stems:
-        if s not in ordered:
+        if s and s not in ordered:
             ordered.append(s)
+    # Micro-steps: tight budget (default 4k total); megasteps keep 24k.
+    step_max = step.get("max_chars")
+    if budget is None:
+        if step_max is not None:
+            budget = int(step_max)
+        elif step_stems:
+            budget = 4000
+        else:
+            budget = 24000
+    per_theory = int(step.get("max_chars_per_theory") or max_chars_per_theory)
+    if step_stems:
+        per_theory = min(per_theory, max(800, budget))
     parts = [
         f"Import source id: {entry.id}",
         f"Title: {entry.title}",
@@ -550,12 +735,18 @@ def build_import_prompt_context(
         "Never treat the foreign proof as a Lean axiom. "
         "Critical path close requires zero sorry.",
     ]
-    budget = 24000
+    if step:
+        parts.append(
+            "Current micro step id: "
+            + str(step.get("id") or "")
+            + "\nForeign lemmas (focus): "
+            + ", ".join(str(x) for x in (step.get("foreign_lemmas") or []))
+        )
     used = 0
     for stem in ordered:
         if used >= budget:
             break
-        room = min(max_chars_per_theory, budget - used)
+        room = min(per_theory, budget - used)
         excerpt = theory_excerpt(
             repo_root, cfg, entry, stem, max_chars=room
         )
@@ -564,7 +755,7 @@ def build_import_prompt_context(
         used += len(block)
     print(
         f"[saturday.proof_source] import_prompt_context theories={ordered} "
-        f"chars={used}"
+        f"chars={used} budget={budget} step={step.get('id')}"
     )
     return "\n".join(parts)
 
@@ -602,13 +793,18 @@ def suggest_import_action(
         )
         print(f"[saturday.proof_source] suggest prove target={target!r}")
         return "prove", target, rationale
+    plan = auto_advance_certified_steps(repo_root, cfg, entry, plan)
     step = next_plan_step(plan)
     if step is None:
         print("[saturday.proof_source] accepted plan has no open steps")
         return None
     step_id = str(step.get("id") or step.get("lean_name") or "next")
+    unit = str(step.get("unit") or "cluster")
     target = f"import cluster: {entry.id} step={step_id}"
-    rationale = f"Accepted import plan for {entry.id}; formalize next cluster"
+    rationale = (
+        f"Accepted import plan for {entry.id}; formalize next {unit} "
+        f"lean_name={step.get('lean_name')}"
+    )
     print(f"[saturday.proof_source] suggest formalize target={target!r}")
     return "formalize", target, rationale
 
@@ -616,3 +812,51 @@ def suggest_import_action(
 def is_import_target(target: str) -> bool:
     t = (target or "").strip().lower()
     return t.startswith("import plan:") or t.startswith("import cluster:")
+
+
+def resolve_import_step(
+    repo_root: Path,
+    rung_id: str,
+    target: str,
+    cfg: Optional[ProofImportConfig] = None,
+) -> Optional[Tuple[ProofImportCatalogEntry, Dict[str, Any], Dict[str, Any]]]:
+    """
+    Resolve (entry, plan, step) for an import cluster target.
+
+    Returns None when the target is not an import cluster or the plan/step
+    cannot be loaded.
+    """
+    cfg = cfg or load_proof_import_config(repo_root)
+    if not is_import_target(target):
+        return None
+    source_id, step_id = parse_import_cluster_target(target)
+    entry: Optional[ProofImportCatalogEntry] = None
+    if source_id:
+        try:
+            entry = entry_by_id(cfg, source_id)
+        except Exception as exc:
+            print(f"[saturday.proof_source] resolve entry_by_id failed: {exc}")
+            entry = None
+    if entry is None:
+        entries = catalog_entries_for_rung(cfg, rung_id)
+        entry = entries[0] if entries else None
+    if entry is None:
+        print("[saturday.proof_source] resolve_import_step: no catalog entry")
+        return None
+    plan = load_accepted_plan(repo_root, cfg, entry)
+    if plan is None:
+        return None
+    plan = auto_advance_certified_steps(repo_root, cfg, entry, plan)
+    step: Optional[Dict[str, Any]] = None
+    if step_id:
+        step = plan_step_by_id(plan, step_id)
+    if step is None:
+        step = next_plan_step(plan)
+    if step is None:
+        print("[saturday.proof_source] resolve_import_step: no open step")
+        return None
+    print(
+        f"[saturday.proof_source] resolve_import_step entry={entry.id} "
+        f"step={step.get('id')} module={step.get('module')}"
+    )
+    return entry, plan, step

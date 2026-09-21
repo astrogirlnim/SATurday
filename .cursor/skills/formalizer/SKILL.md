@@ -48,6 +48,11 @@ WORKSPACE=$(git rev-parse --show-toplevel)
    rejects any axiom outside propext, Classical.choice, Quot.sound for the
    declarations listed in scripts/accepted_declarations.txt.
 
+   Formalize prompts receive a **smart selected** subset of that list
+   (`saturday_loop.accepted_select` via `search/saturday/accepted_select.py`):
+   ranked by rung hints and token overlap with open Frontier obligations.
+   Prefer `exact`/`apply` of those names; do not re prove them.
+
 5. On success: add the new accepted declarations to
    scripts/accepted_declarations.txt, rerun the gate, and record the module path
    and declaration names in the rung memory.

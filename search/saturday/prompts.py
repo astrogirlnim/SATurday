@@ -24,8 +24,9 @@ SYSTEM_FORMALIZE = (
     "You are the SATurday formalizer. Emit Lean 4 only inside a fenced lean code block. "
     "No new axioms. Prefer mathlib idioms. Work in progress MUST live in a namespace whose "
     "name contains Frontier and may use sorry. Do not emit import lines. Do not use Lean 3 "
-    "begin/end. Use Lean 4 by tactics only. Avoid hyphens as punctuation in comments; "
-    "spell connections in words."
+    "begin/end. Use Lean 4 by tactics only. Prefer calling accepted declarations listed in "
+    "the prompt; do not re prove theorems that are already accepted. Avoid hyphens as "
+    "punctuation in comments; spell connections in words."
 )
 
 SYSTEM_AUDIT = (
@@ -36,10 +37,20 @@ SYSTEM_AUDIT = (
 )
 
 
-def build_prove_prompt(ctx: CycleContext, choice: ActionChoice) -> str:
+def build_prove_prompt(
+    ctx: CycleContext,
+    choice: ActionChoice,
+    accepted_block: str = "",
+) -> str:
     """Prover skill prompt (ordinary or import plan)."""
     rung = ctx.rungs[choice.rung]
     import_block = _import_source_block(ctx, choice)
+    accepted_section = ""
+    if accepted_block.strip():
+        accepted_section = f"""
+Known accepted lemmas (smart select; cite when useful; do not re prove):
+{accepted_block}
+"""
     if import_block:
         task = f"""Task (PROOF IMPORT PLAN):
 You are porting a machine checked foreign proof into a Lean plan. Do not write Lean.
@@ -47,10 +58,11 @@ You are porting a machine checked foreign proof into a Lean plan. Do not write L
 2. Name a non vacuity witness in our Lean types (mggGraph, HasExpansionInv, etc.).
 3. Using ONLY the foreign source excerpts below, develop one ordered import plan:
    numbered steps, each with foreign lemma names, target Lean names, and module.
-4. Number every gap as routine, hard, or unknown. Critical path close must have
+4. Prefer mapping onto the accepted lemmas listed above when they already exist.
+5. Number every gap as routine, hard, or unknown. Critical path close must have
    zero sorry; never propose a Lean axiom that cites the foreign ITP.
-5. Self adversarial pass.
-6. End with a JSON object after the prose, keys:
+6. Self adversarial pass.
+7. End with a JSON object after the prose, keys:
    status (success|partial|blocked), notes, next_recommended_action
    (prove|formalize|falsify|audit), gate_pending
    (none|accept_prose|adopt_rung|kill_rung|merge_certified),
@@ -65,9 +77,10 @@ Foreign source excerpts:
 1. Restate the target with explicit quantifiers.
 2. Name a non vacuity witness.
 3. Develop exactly one argument in full prose.
-4. Number every gap as routine, hard, or unknown.
-5. Self adversarial pass.
-6. End with a JSON object on its own after the prose, keys:
+4. Prefer citing accepted lemmas from the smart select list when they apply.
+5. Number every gap as routine, hard, or unknown.
+6. Self adversarial pass.
+7. End with a JSON object on its own after the prose, keys:
    status (success|partial|blocked), notes, next_recommended_action
    (prove|formalize|falsify|audit), gate_pending
    (none|accept_prose|adopt_rung|kill_rung|merge_certified).
@@ -88,7 +101,7 @@ Rung memory (truncated):
 
 Ladder excerpt (truncated):
 {truncate_for_prompt(ctx.ladder_text, 4000)}
-
+{accepted_section}
 {task}
 """
 
@@ -99,24 +112,52 @@ def build_formalize_prompt(
     module_excerpt: str,
     prior_errors: str = "",
     open_obligations: str = "",
+    import_step: dict | None = None,
+    frontier_ns: str | None = None,
+    accepted_block: str = "",
 ) -> str:
-    """Formalizer skill prompt (ordinary or import cluster)."""
+    """Formalizer skill prompt (ordinary or import cluster / micro-lemma)."""
     rung = ctx.rungs[choice.rung]
     err_block = prior_errors.strip() or "(none yet)"
     obligations = open_obligations.strip() or "(none detected)"
-    frontier_ns = DEFAULT_FRONTIER_NS.get(choice.rung, "LocalDraftFrontier")
-    import_block = _import_source_block(ctx, choice)
+    ns = frontier_ns or DEFAULT_FRONTIER_NS.get(choice.rung, "LocalDraftFrontier")
+    import_block = _import_source_block(ctx, choice, import_step=import_step)
+    accepted_section = ""
+    if accepted_block.strip():
+        accepted_section = f"""
+{accepted_block}
+"""
     import_rules = ""
-    if import_block:
+    if import_block or import_step:
+        step = import_step or {}
+        lean_name = str(step.get("lean_name") or "")
+        lean_sig = str(step.get("lean_sig") or "")
+        fill_mode = str(step.get("fill_mode") or "sorry_replace")
+        tactics = step.get("allowed_tactics") or ["decide", "omega", "simp", "rfl"]
+        unit = str(step.get("unit") or "cluster")
+        tactics_s = ", ".join(str(t) for t in tactics)
+        micro = ""
+        if step:
+            micro = f"""
+Micro lemma contract (Qwen sized unit={unit}):
+- Discharge exactly this name: {lean_name}
+- Signature / intent: {lean_sig or step.get('goal') or '(see Lean excerpt)'}
+- Fill mode: {fill_mode} (restate the open sorry decl; replace only the proof)
+- Allowed tactics ONLY: {tactics_s}
+- Emit the theorem/lemma with `:= by ...` using those tactics; do not invent
+  alternate identifiers; do not port whole AFP theories in one wake.
+- Optional tiny helpers are allowed only if needed to close that one name.
+- Prefer `exact` / `apply` of smart selected accepted decls over new proofs.
+"""
         import_rules = f"""
 Import cluster rules:
 8. Follow the accepted import plan step named in the target.
 9. Prefer translating the foreign excerpt below; do not invent alternate
    identifiers that ignore our existing mggGraph surface.
 10. Do not add axioms. Do not leave sorry on a declaration you claim to close.
-
-Foreign source excerpts for this cluster:
-{truncate_for_prompt(import_block, 14000)}
+{micro}
+Foreign source excerpts for this cluster (truncated for micro steps):
+{truncate_for_prompt(import_block, 6000 if step else 14000)}
 """
     return f"""Rung id: {choice.rung}
 Status: {rung.status}
@@ -130,14 +171,14 @@ Rung memory (truncated):
 
 Existing Lean Frontier excerpt (truncated):
 {truncate_for_prompt(module_excerpt, 10000)}
-
+{accepted_section}
 Prior lake build or gate errors:
 {truncate_for_prompt(err_block, 6000)}
 
 Task:
 Emit one Lean 4 fragment that DISCHARGES at least one open obligation above.
 Requirements:
-1. Namespace {frontier_ns} only.
+1. Namespace {ns} only.
 2. No imports. No axioms.
 3. Lean 4 ONLY: `:= by`. NEVER `begin`. NEVER Lean 3 ranges like [0..n].
 4. REQUIRED: restate ONE open obligation name from the list with a real proof
@@ -145,15 +186,21 @@ Requirements:
 5. Optional: include NEW helper lemmas in the same fragment if they are needed
    to support that discharge. Helpers alone without discharging an open name
    will be rejected.
-6. Prefer identifiers that already appear in the excerpt; do not invent
-   machines or sequencers that are not present.
+6. Prefer smart selected accepted declarations above; call them with exact/apply.
+   Do not re prove theorems that already appear on that list. Prefer identifiers
+   that already appear in the excerpt; do not invent machines or sequencers that
+   are not present.
 7. After the code fence, JSON with status, notes, next_recommended_action=formalize,
    gate_pending.
 {import_rules}
 """
 
 
-def _import_source_block(ctx: CycleContext, choice: ActionChoice) -> str:
+def _import_source_block(
+    ctx: CycleContext,
+    choice: ActionChoice,
+    import_step: dict | None = None,
+) -> str:
     """Foreign theory excerpts when the target is an import plan or cluster."""
     from search.saturday.proof_source import (
         build_import_prompt_context,
@@ -161,6 +208,8 @@ def _import_source_block(ctx: CycleContext, choice: ActionChoice) -> str:
         entry_by_id,
         is_import_target,
         load_proof_import_config,
+        parse_import_cluster_target,
+        resolve_import_step,
     )
 
     if not is_import_target(choice.target):
@@ -169,20 +218,25 @@ def _import_source_block(ctx: CycleContext, choice: ActionChoice) -> str:
             return ""
     try:
         cfg = load_proof_import_config(ctx.repo_root)
+        resolved = resolve_import_step(
+            ctx.repo_root, choice.rung, choice.target, cfg
+        )
+        if resolved:
+            entry, _plan, step = resolved
+            step = import_step or step
+            return build_import_prompt_context(
+                ctx.repo_root, cfg, entry, step=step
+            )
         entries = catalog_entries_for_rung(cfg, choice.rung)
         if not entries:
-            # Parse id from target: "import plan: ID -> ..."
-            tid = ""
-            for prefix in ("import plan:", "import cluster:"):
-                if choice.target.lower().startswith(prefix):
-                    rest = choice.target[len(prefix) :].strip()
-                    tid = rest.split()[0].strip()
-                    break
-            if tid:
-                entries = [entry_by_id(cfg, tid)]
+            source_id, _ = parse_import_cluster_target(choice.target)
+            if source_id:
+                entries = [entry_by_id(cfg, source_id)]
         if not entries:
             return ""
-        return build_import_prompt_context(ctx.repo_root, cfg, entries[0])
+        return build_import_prompt_context(
+            ctx.repo_root, cfg, entries[0], step=import_step
+        )
     except Exception as exc:
         print(f"[saturday.prompts] import block skipped: {exc}")
         return ""

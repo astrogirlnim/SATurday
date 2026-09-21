@@ -257,15 +257,25 @@ def insert_fragment(original: str, fragment: str, rung_id: str) -> str:
         "r2-width-machinery": "end CSExpansionFrontier",
         "r5-cook-reckhow-bridge": "end ProofSystemFrontier",
     }.get(rung_id)
+    # R2 also owns MGGFrontier in MGG.lean; prefer the Frontier end that
+    # actually appears in this file (and matches the draft namespace).
+    candidates = []
+    if "MGGFrontier" in fragment or "end MGGFrontier" in original:
+        candidates.append("end MGGFrontier")
+    if frontier_end:
+        candidates.append(frontier_end)
+    if "end ProofSystemFrontier" in original:
+        candidates.append("end ProofSystemFrontier")
     end_marker = OUTER_END_BY_RUNG.get(rung_id)
     block = "\n\n" + fragment.rstrip() + "\n"
-    if frontier_end and frontier_end in original:
-        idx = original.rfind(frontier_end)
-        insert_at = idx + len(frontier_end)
-        print(
-            f"[saturday.apply] insert after {frontier_end!r} at idx={insert_at}"
-        )
-        return original[:insert_at] + block + original[insert_at:]
+    for fe in candidates:
+        if fe and fe in original:
+            idx = original.rfind(fe)
+            insert_at = idx + len(fe)
+            print(
+                f"[saturday.apply] insert after {fe!r} at idx={insert_at}"
+            )
+            return original[:insert_at] + block + original[insert_at:]
     if end_marker and end_marker in original:
         idx = original.rfind(end_marker)
         print(f"[saturday.apply] insert before {end_marker!r} at idx={idx}")

@@ -159,6 +159,63 @@ class ProofImportConfig(BaseModel):
     catalog: List[ProofImportCatalogEntry] = Field(default_factory=list)
 
 
+class AcceptedSelectConfig(BaseModel):
+    """
+    Smart select of scripts/accepted_declarations.txt for formalize/prove prompts.
+
+    Deterministic ranking (rung hints + token overlap with open obligations).
+    Not an LLM call; keeps small local models from drowning in ~1700 names.
+    """
+
+    enabled: bool = True
+    decls_path: str = "scripts/accepted_declarations.txt"
+    max_names: int = Field(60, ge=1, le=400)
+    min_score: float = Field(1.0, ge=0.0)
+    # Substrings / stems that keep a decl in the candidate pool for a rung
+    rung_token_hints: Dict[str, List[str]] = Field(
+        default_factory=lambda: {
+            "r0-resolution-foundations": [
+                "resolution",
+                "derivation",
+                "refutable",
+            ],
+            "r1-php-haken": [
+                "php",
+                "pigeon",
+                "critical",
+                "monotone",
+                "matching",
+                "complexity",
+            ],
+            "r2-width-machinery": [
+                "mgg",
+                "HasExpansion",
+                "ExpansionInv",
+                "Cheeger",
+                "Tseitin",
+                "CSExpansion",
+                "Width",
+                "Spreads",
+                "Petersen",
+                "Heawood",
+                "bsw",
+                "fat",
+                "clause",
+            ],
+            "r5-cook-reckhow-bridge": [
+                "Bridge",
+                "validates",
+                "decode",
+                "FinTM",
+                "truthTable",
+                "PropFormula",
+                "lengthGate",
+                "Cost",
+            ],
+        }
+    )
+
+
 class SaturdayLoopConfig(BaseModel):
     """
     Local saturday research loop (option A: CLI + localhost models).
@@ -192,6 +249,7 @@ class SaturdayLoopConfig(BaseModel):
     remote: SaturdayRemoteConfig = SaturdayRemoteConfig()
     reflect: SaturdayReflectConfig = SaturdayReflectConfig()
     proof_import: ProofImportConfig = ProofImportConfig()
+    accepted_select: AcceptedSelectConfig = AcceptedSelectConfig()
     falsify_family: str = "php"
     falsify_n_min: int = Field(4, gt=0)
     falsify_n_max: int = Field(10, gt=0)

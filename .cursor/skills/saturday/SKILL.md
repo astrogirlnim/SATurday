@@ -37,6 +37,12 @@ Proof import cache (M1, see `docs/prd/proof-import.md`): foreign ITP sources
 live under `search/proof_sources/`. Auto only reads the cache; populate with
 `satday proof-source fetch` (offline `--from-dir` preferred).
 
+Accepted smart select (`saturday_loop.accepted_select`): before each formalize
+(and lightly on prove), the loop ranks a small subset of
+`scripts/accepted_declarations.txt` by rung hints and overlap with open
+Frontier obligations (`search/saturday/accepted_select.py`) and injects it into
+the prompt so models reuse certified lemmas instead of re proving them.
+
 Optional OpenRouter (`OPENROUTER_API_KEY` in `.env`):
 
 - `satday auto --remote` uses role-tuned models:

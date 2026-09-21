@@ -256,6 +256,47 @@ saturday_loop:
         fetch_url: "https://www.isa-afp.org/release/afp-current.tar.gz"
         archive_member: "thys/Expander_Graphs"
         notes: "Hoory style Fourier proof; spectral bound 5/8 sqrt 2; vendor via satday proof-source"
+  # Rank a small subset of accepted_declarations.txt into formalize/prove prompts
+  accepted_select:
+    enabled: true
+    decls_path: "scripts/accepted_declarations.txt"
+    max_names: 60
+    min_score: 1.0
+    rung_token_hints:
+      r0-resolution-foundations:
+        - resolution
+        - derivation
+        - refutable
+      r1-php-haken:
+        - php
+        - pigeon
+        - critical
+        - monotone
+        - matching
+        - complexity
+      r2-width-machinery:
+        - mgg
+        - HasExpansion
+        - ExpansionInv
+        - Cheeger
+        - Tseitin
+        - CSExpansion
+        - Width
+        - Spreads
+        - Petersen
+        - Heawood
+        - bsw
+        - fat
+        - clause
+      r5-cook-reckhow-bridge:
+        - Bridge
+        - validates
+        - decode
+        - FinTM
+        - truthTable
+        - PropFormula
+        - lengthGate
+        - Cost
   falsify_family: "php"
   falsify_n_min: 4
   falsify_n_max: 10

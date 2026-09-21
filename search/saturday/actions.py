@@ -142,7 +142,26 @@ def _run_prove(
         want_remote_prove,
     )
 
-    prompt = prompt_builders.build_prove_prompt(ctx, choice)
+    from search.saturday.accepted_select import select_from_loop_config
+
+    prove_sel = select_from_loop_config(
+        ctx.repo_root,
+        loop_cfg,
+        rung_id=choice.rung,
+        target=choice.target,
+        open_obligations=[],
+        module_excerpt="",
+        prior_errors="",
+        extra_text=ctx.rungs[choice.rung].text[:2000],
+    )
+    accepted_block = prove_sel.format_block(max_chars=2500)
+    print(
+        f"[saturday.actions] prove accepted_select n={len(prove_sel.names)} "
+        f"of {prove_sel.pool_size}"
+    )
+    prompt = prompt_builders.build_prove_prompt(
+        ctx, choice, accepted_block=accepted_block
+    )
     gen_client = client
     model = role.model
     api_style = loop_cfg.api_style
@@ -299,11 +318,47 @@ def _run_audit(
 
 
 def _guess_lean_target(ctx: CycleContext, choice: ActionChoice) -> Path:
-    """Map rung id to a primary Lean file under theory/."""
+    """Map rung id to a primary Lean file under theory/.
+
+    Import plan steps may pin a different module (e.g. MGG.lean for R2 Block A).
+    """
+    try:
+        from search.saturday.proof_source import (
+            load_proof_import_config,
+            resolve_import_step,
+        )
+
+        pi_cfg = load_proof_import_config(ctx.repo_root)
+        resolved = resolve_import_step(
+            ctx.repo_root, choice.rung, choice.target, pi_cfg
+        )
+        if resolved:
+            _entry, _plan, step = resolved
+            mod = str(step.get("module") or "").strip()
+            if mod:
+                path = ctx.repo_root / mod
+                print(
+                    f"[saturday.actions] lean target from import step "
+                    f"module={mod} exists={path.exists()}"
+                )
+                if path.exists():
+                    return path
+    except Exception as exc:
+        print(f"[saturday.actions] import lean target resolve skipped: {exc}")
+
+    blob = f"{choice.target} {choice.rationale}".lower()
+    if choice.rung == "r2-width-machinery" and (
+        "mgg" in blob or "gabber" in blob or "cheeger" in blob
+    ):
+        mgg = ctx.repo_root / "theory/Theory/ProofComplexity/MGG.lean"
+        if mgg.exists():
+            print(f"[saturday.actions] lean target MGG hint path={mgg}")
+            return mgg
+
     mapping = {
         "r0-resolution-foundations": "theory/Theory/ProofComplexity/Resolution.lean",
         "r1-php-haken": "theory/Theory/ProofComplexity/PHP.lean",
-        # R2 critical path lives in CSExpansionFrontier, not Width.lean
+        # Default R2 home is CSExpansionFrontier; MGG override above when hinted
         "r2-width-machinery": "theory/Theory/ProofComplexity/CSExpansion.lean",
         "r3-stronger-systems": "theory/Theory/ProofComplexity/Resolution.lean",
         "r4-frontier": "theory/Theory/ProofComplexity/CSExpansion.lean",
@@ -322,6 +377,7 @@ def _run_formalize(
     client: LocalLLMClient,
 ) -> ActionResult:
     from search.saturday.apply_lean import apply_frontier_draft, lake_build_locked
+    from search.saturday.accepted_select import select_from_loop_config
     from search.saturday.llm_factory import (
         make_remote_client,
         remote_config,
@@ -330,21 +386,58 @@ def _run_formalize(
 
     role = loop_cfg.formalize
     lean_path = _guess_lean_target(ctx, choice)
+    import_step: Optional[dict] = None
+    frontier_ns: Optional[str] = None
+    try:
+        from search.saturday.proof_source import (
+            frontier_ns_for_module,
+            load_proof_import_config,
+            resolve_import_step,
+        )
+
+        pi_cfg = load_proof_import_config(ctx.repo_root)
+        resolved = resolve_import_step(
+            ctx.repo_root, choice.rung, choice.target, pi_cfg
+        )
+        if resolved:
+            _entry, _plan, import_step = resolved
+            mod = str((import_step or {}).get("module") or "")
+            if mod:
+                frontier_ns = frontier_ns_for_module(mod)
+            print(
+                f"[saturday.actions] formalize import_step="
+                f"{(import_step or {}).get('id')} frontier_ns={frontier_ns}"
+            )
+    except Exception as exc:
+        print(f"[saturday.actions] import_step resolve skipped: {exc}")
+
+    if frontier_ns is None:
+        try:
+            from search.saturday.proof_source import frontier_ns_for_module
+
+            frontier_ns = frontier_ns_for_module(
+                str(lean_path.relative_to(ctx.repo_root))
+            )
+        except Exception:
+            frontier_ns = None
+
     module_excerpt = ""
     open_obs = ""
+    open_names: List[str] = []
     if lean_path.exists():
         from search.saturday.apply_lean import extract_open_frontier_obligations
 
         full = lean_path.read_text(encoding="utf-8")
         module_excerpt = _frontier_focus_excerpt(full)
-        names = extract_open_frontier_obligations(module_excerpt)
-        if not names:
-            names = extract_open_frontier_obligations(full)
-        open_obs = "\n".join(f"- {n}" for n in names) if names else ""
-        print(f"[saturday.actions] open Frontier obligations={names}")
-        if names:
+        open_names = extract_open_frontier_obligations(module_excerpt)
+        if not open_names:
+            open_names = extract_open_frontier_obligations(full)
+        open_obs = "\n".join(f"- {n}" for n in open_names) if open_names else ""
+        print(f"[saturday.actions] open Frontier obligations={open_names}")
+        if open_names:
             announce(
-                f"Open Frontier obligations for {choice.rung}: " + ", ".join(names)
+                f"Open Frontier obligations for {choice.rung}: "
+                + ", ".join(open_names)
             )
         else:
             announce(
@@ -371,6 +464,35 @@ def _run_formalize(
         )
     print(f"[saturday.actions] formalize ambient_build_ok={build['ok']}")
 
+    extra = ""
+    if import_step:
+        extra = " ".join(
+            str(x)
+            for x in [
+                import_step.get("lean_name"),
+                import_step.get("goal"),
+                " ".join(
+                    str(t) for t in (import_step.get("foreign_lemmas") or [])
+                ),
+            ]
+            if x
+        )
+    sel = select_from_loop_config(
+        ctx.repo_root,
+        loop_cfg,
+        rung_id=choice.rung,
+        target=choice.target,
+        open_obligations=open_names,
+        module_excerpt=module_excerpt,
+        prior_errors=prior_errors,
+        extra_text=extra,
+    )
+    accepted_block = sel.format_block(max_chars=4000)
+    announce(
+        f"Accepted smart select: {len(sel.names)} of {sel.pool_size} decls "
+        f"for {choice.rung}"
+    )
+
     remote = remote_config(loop_cfg)
     use_remote = want_remote_formalize(loop_cfg)
     remote_only = use_remote and remote.mode == "remote"
@@ -393,6 +515,14 @@ def _run_formalize(
             module_excerpt,
             prior_errors=err_ctx,
             open_obligations=open_obs,
+            import_step=import_step,
+            frontier_ns=frontier_ns,
+            accepted_block=accepted_block,
+        )
+        print(
+            f"[saturday.actions] formalize prompt_chars={len(prompt)} "
+            f"accepted_block_chars={len(accepted_block)} "
+            f"frontier_ns={frontier_ns}"
         )
         resp = gen_client.generate(
             _role_request(
@@ -422,6 +552,7 @@ def _run_formalize(
             meta.get("notes")
             or f"Lean draft ({tag}) at {draft_path.relative_to(ctx.repo_root)}"
         )
+        notes = f"{notes} | accepted_select={len(sel.names)}/{sel.pool_size}"
         apply_notes = "auto_apply disabled"
         status = "partial"
         gate = "none"
