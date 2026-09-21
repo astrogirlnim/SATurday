@@ -1,0 +1,58 @@
+{
+  "source_id": "afp-expander-graphs-mgg",
+  "title": "AFP Expander Graphs MGG to R2 Inv",
+  "accepted_at": "2026-09-21T11:12:00Z",
+  "method": "operator_seed",
+  "notes": "Seeded after local prove omitted machine JSON. Maps Isabelle AFP theories onto existing Lean MGG surface. Zero sorry required on critical path close. Never encode AFP as a Lean axiom.",
+  "maps_to_frontier": [
+    "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
+    "MGGFrontier.mggGraph_hasExpansionInv"
+  ],
+  "steps": [
+    {
+      "id": "mgg-fourier-surface",
+      "status": "pending",
+      "foreign_theories": ["Expander_Graphs_MGG", "Expander_Graphs_Definition"],
+      "foreign_lemmas": ["periodic", "g_inner", "Fourier style torus characters on Z_n x Z_n"],
+      "lean_name": "mggFourierSurface",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Align (Z/mZ)^2 Fourier or character packaging with mggDecode mggEncode and labeled mggNeighbor star."
+    },
+    {
+      "id": "mgg-rayleigh-adjacency",
+      "status": "pending",
+      "foreign_theories": ["Expander_Graphs_Eigenvalues", "Expander_Graphs_MGG"],
+      "foreign_lemmas": ["Rayleigh bound", "ExpansionD2", "g_step"],
+      "lean_name": "mggMultiAdjacencyForm",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Express multi cut Rayleigh form for the labeled 8 regular star matching mggMultiCutCard."
+    },
+    {
+      "id": "mgg-cheeger-multi",
+      "status": "pending",
+      "foreign_theories": ["Expander_Graphs_Cheeger_Inequality", "Expander_Graphs_MGG"],
+      "foreign_lemmas": ["Cheeger inequality", "see_mgg spectral bound 5 sqrt 2 / 8"],
+      "lean_name": "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Discharge MggHasMultiCheeger for informative m with zero sorry."
+    },
+    {
+      "id": "mgg-inv-glue",
+      "status": "pending",
+      "foreign_theories": ["Expander_Graphs_MGG"],
+      "foreign_lemmas": ["see_mgg is_expander"],
+      "lean_name": "MGGFrontier.mggGraph_hasExpansionInv",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Glue multi Cheeger to HasExpansionInv via certified Inv-15 packaging or Inv-4 with twelfth loss; remove Frontier sorry."
+    },
+    {
+      "id": "mgg-family-packaging",
+      "status": "pending",
+      "foreign_theories": ["Expander_Graphs_Strongly_Explicit"],
+      "foreign_lemmas": ["see_mgg", "strongly explicit packaging"],
+      "lean_name": "exists_mgg_simple_hasExpansionInv_family",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Confirm family packaging of_inv closes once mggGraph_hasExpansionInv is accepted."
+    }
+  ]
+}
