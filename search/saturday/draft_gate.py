@@ -436,6 +436,18 @@ def validate_lean_draft(
         reasons.append("helper_insert forbids sorry")
     if not allow_sorry and fill == "helper_insert" and "sorry" in cleaned:
         reasons.append("sorry present on helper_insert draft")
+    # Frontier discharge must not re-insert sorry or ship WIP stubs.
+    if fill == "sorry_replace" or fill == "":
+        if _SORRY.search(cleaned) or ":= by sorry" in cleaned.replace("\n", " "):
+            reasons.append(
+                "sorry_replace discharge forbids sorry in the draft body; "
+                "use status=blocked with empty lean if the pin is not closable"
+            )
+        if envelope["status"] in {"work_in_progress", "partial", "wip"}:
+            reasons.append(
+                f"status={envelope['status']!r} is not applyable; "
+                "emit status=blocked or a complete discharge"
+            )
     if _LEAN3_BEGIN.search(cleaned):
         reasons.append("Lean 3 begin/end is forbidden; use := by")
     if _LEAN3_DOTDOT.search(cleaned):
