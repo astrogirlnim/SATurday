@@ -2554,4 +2554,20 @@ theorem exists_mgg_simple_hasExpansionInv_family :
 
 end MGGFrontier
 
+namespace CSExpansionFrontier
+
+/-- Port of Isabelle `mgg_graph_step`: given dimension `n`, vertex `(i,j)`, and
+label `(l,σ)`, returns the neighbor vertex according to the MGG step rule.
+The four neighbors (l=0,1,2,3) are computed via modular arithmetic shifts.
+Pattern matching on `l` avoids list indexing issues. -/
+def mggImport_mgg_graph_step (n : ℕ) (i j : ℤ) (l : ℕ) (σ : ℤ) : ℤ × ℤ :=
+  match l with
+  | 0 => ((i + σ * (2 * j + 0)) % (n : ℤ), j)
+  | 1 => (i, (j + σ * (2 * i + 0)) % (n : ℤ))
+  | 2 => ((i + σ * (2 * j + 1)) % (n : ℤ), j)
+  | _ => (i, (j + σ * (2 * i + 1)) % (n : ℤ))
+
+end CSExpansionFrontier
+
+
 end SATurday.ProofComplexity
