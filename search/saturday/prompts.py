@@ -25,7 +25,10 @@ SYSTEM_FORMALIZE = (
     "No new axioms. Prefer mathlib idioms. Work in progress MUST live in a namespace whose "
     "name contains Frontier and may use sorry. Do not emit import lines. Do not use Lean 3 "
     "begin/end. Use Lean 4 by tactics only. Prefer calling accepted declarations listed in "
-    "the prompt; do not re prove theorems that are already accepted. Avoid hyphens as "
+    "the prompt; do not re prove theorems that are already accepted. Only cite identifiers "
+    "that appear in the Lean excerpt or accepted list; never invent lemma or type names. "
+    "After the fence, emit JSON with keys status, notes, decl_name, uses (array of "
+    "identifiers you called), next_recommended_action, gate_pending. Avoid hyphens as "
     "punctuation in comments; spell connections in words."
 )
 
@@ -186,8 +189,10 @@ Requirements:
 4. The theorem/lemma name MUST be exactly `{lean_name}` (new decl; not a Frontier pin).
 5. Do not restate open Frontier sorry names in this wake.
 6. Prefer smart selected accepted declarations above; call them with exact/apply.
-7. After the code fence, JSON with status, notes, next_recommended_action=formalize,
-   gate_pending.
+7. After the code fence, JSON with:
+   status, notes, decl_name (exact Lean name), uses (array of identifiers you
+   called via exact/apply/rw), next_recommended_action=formalize, gate_pending.
+   Every entry in uses must appear in the excerpt or accepted list.
 {import_rules}
 """
     else:
@@ -206,8 +211,10 @@ Requirements:
    Do not re prove theorems that already appear on that list. Prefer identifiers
    that already appear in the excerpt; do not invent machines or sequencers that
    are not present.
-7. After the code fence, JSON with status, notes, next_recommended_action=formalize,
-   gate_pending.
+7. After the code fence, JSON with:
+   status, notes, decl_name (exact Lean name discharged), uses (array of
+   identifiers you called), next_recommended_action=formalize, gate_pending.
+   Every entry in uses must appear in the excerpt or accepted list.
 {import_rules}
 """
     return f"""Rung id: {choice.rung}

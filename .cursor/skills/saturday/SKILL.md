@@ -35,6 +35,12 @@ Continues immediately when a wake finishes (no arbitrary sleep). OpenRouter
 pacing is per-request cooldown. Formalize auto-applies Frontier drafts into
 `theory/` when lake build stays green (`saturday_loop.auto_apply`).
 
+Formalize reflection (same wake): sanitize Lean 4 footguns, validate structure
+plus known-identifier hygiene (`search/saturday/draft_gate.py`), require trailing
+JSON `decl_name`/`uses`, then lake apply. Close failures resend up to
+`formalize_repair_attempts` with the digest. Ambient red lake refuses the model
+call when `formalize_require_green_lake` is true.
+
 Proof import cache (M1, see `docs/prd/proof-import.md`): foreign ITP sources
 live under `search/proof_sources/`. Auto only reads the cache; populate with
 `satday proof-source fetch` (offline `--from-dir` preferred). Build a discrete

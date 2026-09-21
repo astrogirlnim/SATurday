@@ -279,6 +279,12 @@ class SaturdayLoopConfig(BaseModel):
     sessions_path: str = "search/logs/saturday_sessions.jsonl"
     # When true, formalize auto-applies Frontier drafts into theory/ if lake build stays green
     auto_apply: bool = True
+    # After a close lake/apply failure, re-ask the model in the same wake with
+    # the digest + failed draft (saves tokens vs a full new wake).
+    formalize_repair_attempts: int = Field(2, ge=0, le=5)
+    # Refuse to call the model when ambient lake is already red (other rung
+    # pollution). Operator should pause the other workstream or fix theory/.
+    formalize_require_green_lake: bool = True
     # Local CLI loop defaults. 0 sleep = start next wake immediately when prior
     # wave finishes (OpenRouter pacing lives on remote.min_request_interval_seconds).
     # 0 cycles means run until interrupted.

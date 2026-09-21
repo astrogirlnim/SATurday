@@ -313,6 +313,8 @@ saturday_loop:
   draft_dir: "search/logs/saturday_drafts"
   sessions_path: "search/logs/saturday_sessions.jsonl"
   auto_apply: true
+  formalize_repair_attempts: 2
+  formalize_require_green_lake: true
   # 0: next wake starts as soon as the prior wave finishes
   loop_sleep_seconds: 0
   loop_max_cycles: 1

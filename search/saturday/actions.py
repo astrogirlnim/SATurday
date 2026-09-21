@@ -84,39 +84,41 @@ def _role_request(
 def _parse_trailing_json(text: str) -> Dict[str, Any]:
     """Best effort extract of the status JSON object from model output."""
     print(f"[saturday.actions] parse JSON from model text chars={len(text)}")
-    candidates = list(JSON_RE.finditer(text))
-    if not candidates:
-        # Try last brace block
-        start = text.rfind("{")
-        end = text.rfind("}")
-        if start >= 0 and end > start:
-            blob = text[start : end + 1]
-            try:
-                data = json.loads(blob)
+    # Prefer last object that json-decodes (supports uses: [...] arrays).
+    start = text.rfind("{")
+    while start >= 0:
+        try:
+            data, _end = json.JSONDecoder().raw_decode(text[start:])
+            if isinstance(data, dict) and (
+                "status" in data or "decl_name" in data or "uses" in data
+            ):
                 print(f"[saturday.actions] parsed JSON keys={list(data)}")
                 return data
-            except json.JSONDecodeError:
-                pass
-        print("[saturday.actions] no JSON found; defaulting status=partial")
-        return {
-            "status": "partial",
-            "notes": "Model omitted machine JSON; see prose in notes",
-            "next_recommended_action": "prove",
-            "gate_pending": "none",
-        }
-    blob = candidates[-1].group(0)
-    try:
-        data = json.loads(blob)
-        print(f"[saturday.actions] parsed JSON keys={list(data)}")
-        return data
-    except json.JSONDecodeError as exc:
-        print(f"[saturday.actions] JSON parse failed: {exc}")
-        return {
-            "status": "partial",
-            "notes": f"JSON parse failed: {exc}",
-            "next_recommended_action": "prove",
-            "gate_pending": "none",
-        }
+        except json.JSONDecodeError:
+            pass
+        start = text.rfind("{", 0, start)
+    candidates = list(JSON_RE.finditer(text))
+    if candidates:
+        blob = candidates[-1].group(0)
+        try:
+            data = json.loads(blob)
+            print(f"[saturday.actions] parsed JSON keys={list(data)}")
+            return data
+        except json.JSONDecodeError as exc:
+            print(f"[saturday.actions] JSON parse failed: {exc}")
+            return {
+                "status": "partial",
+                "notes": f"JSON parse failed: {exc}",
+                "next_recommended_action": "prove",
+                "gate_pending": "none",
+            }
+    print("[saturday.actions] no JSON found; defaulting status=partial")
+    return {
+        "status": "partial",
+        "notes": "Model omitted machine JSON; see prose in notes",
+        "next_recommended_action": "prove",
+        "gate_pending": "none",
+    }
 
 
 def _dated_entry(action: str, result: str, artifacts: List[str], learned: str) -> str:
@@ -490,6 +492,27 @@ def _run_formalize(
         )
     print(f"[saturday.actions] formalize ambient_build_ok={build['ok']}")
 
+    # Refuse model spend when theory tree is already red (shared lake pollution).
+    if getattr(loop_cfg, "formalize_require_green_lake", True) and not build["ok"]:
+        announce(
+            "Ambient lake is red; skipping formalize model call "
+            "(formalize_require_green_lake). Fix theory/ or pause the other rung."
+        )
+        notes = (
+            "Blocked: ambient lake red before formalize. "
+            + (prior_errors[-1200:] if prior_errors else "")
+        )
+        memory = _dated_entry("formalize", "blocked", [], notes[:500])
+        return ActionResult(
+            status="blocked",
+            artifact_refs=[],
+            notes=notes[:2000],
+            next_recommended_action="formalize",
+            gate_pending="none",
+            memory_entry=memory,
+            raw_model_text=prior_errors[-4000:],
+        )
+
     extra = ""
     if import_step:
         extra = " ".join(
@@ -519,21 +542,41 @@ def _run_formalize(
         f"for {choice.rung}"
     )
 
+    from search.saturday.draft_gate import (
+        build_known_ident_set,
+        build_repair_context,
+        is_worth_repairing,
+        validate_lean_draft,
+    )
+
+    known_idents = build_known_ident_set(
+        module_excerpt=module_excerpt,
+        accepted_names=sel.names,
+        open_obligations=open_names,
+        import_step=import_step,
+    )
+    repair_budget = int(getattr(loop_cfg, "formalize_repair_attempts", 2) or 0)
+    print(
+        f"[saturday.actions] formalize repair_budget={repair_budget} "
+        f"known_idents={len(known_idents)}"
+    )
+
     remote = remote_config(loop_cfg)
     use_remote = want_remote_formalize(loop_cfg)
     remote_only = use_remote and remote.mode == "remote"
 
-    def one_pass(
+    def generate_once(
         *,
         gen_client: LocalLLMClient,
         model: str,
         api_style: str,
         tag: str,
         err_ctx: str,
+        attempt: int,
     ) -> dict:
         announce(
             f"Asking {tag} model {model} for a Lean 4 Frontier draft "
-            f"(error context: {len(err_ctx)} chars)."
+            f"(attempt {attempt}, error context: {len(err_ctx)} chars)."
         )
         prompt = prompt_builders.build_formalize_prompt(
             ctx,
@@ -548,7 +591,7 @@ def _run_formalize(
         print(
             f"[saturday.actions] formalize prompt_chars={len(prompt)} "
             f"accepted_block_chars={len(accepted_block)} "
-            f"frontier_ns={frontier_ns}"
+            f"frontier_ns={frontier_ns} attempt={attempt}"
         )
         resp = gen_client.generate(
             _role_request(
@@ -562,13 +605,14 @@ def _run_formalize(
         )
         fence = LEAN_FENCE_RE.search(resp.text)
         lean_code = fence.group(1).strip() if fence else resp.text
+        meta = _parse_trailing_json(resp.text)
+        suffix = tag if attempt <= 1 else f"{tag}_repair{attempt}"
         draft_path = _write_draft(
             ctx.repo_root,
             loop_cfg.draft_dir,
-            f"{choice.rung}_formalize_{tag}.lean",
+            f"{choice.rung}_formalize_{suffix}.lean",
             lean_code + "\n",
         )
-        meta = _parse_trailing_json(resp.text)
         arts = [
             str(draft_path.relative_to(ctx.repo_root)),
             str(lean_path.relative_to(ctx.repo_root)) if lean_path.exists() else "",
@@ -579,135 +623,270 @@ def _run_formalize(
             or f"Lean draft ({tag}) at {draft_path.relative_to(ctx.repo_root)}"
         )
         notes = f"{notes} | accepted_select={len(sel.names)}/{sel.pool_size}"
-        apply_notes = "auto_apply disabled"
-        status = "partial"
-        gate = "none"
-        applied_ok = False
-        build_tail = ""
-        if getattr(loop_cfg, "auto_apply", True):
-            announce(
-                f"Auto-apply ({tag}): merge into {lean_path.name}, lake build, "
-                "revert if red."
-            )
-            applied = apply_frontier_draft(
-                repo_root=ctx.repo_root,
-                lean_path=lean_path,
-                lean_code=lean_code,
-                rung_id=choice.rung,
-                allow_helper_only=(
-                    bool(import_step)
-                    and str(import_step.get("fill_mode") or "")
-                    == "helper_insert"
-                ),
-            )
-            apply_notes = applied.notes
-            build_tail = applied.build_tail or ""
-            explain_apply_outcome(
-                applied=applied.applied,
-                reverted=applied.reverted,
-                build_ok=applied.build_ok,
-                notes=applied.notes,
-                build_tail=applied.build_tail,
-            )
-            if applied.build_tail:
-                err_draft = _write_draft(
-                    ctx.repo_root,
-                    loop_cfg.draft_dir,
-                    f"{choice.rung}_apply_error.txt",
-                    applied.build_tail,
-                )
-                arts.append(str(err_draft.relative_to(ctx.repo_root)))
-            if applied.applied and applied.build_ok:
-                applied_ok = True
-                # sorry-free helper is progress, not rung certification
-                from search.saturday.apply_lean import extract_open_frontier_obligations
-
-                remaining = []
-                if lean_path.exists():
-                    remaining = extract_open_frontier_obligations(
-                        lean_path.read_text(encoding="utf-8")
-                    )
-                fill_mode = (
-                    str(import_step.get("fill_mode") or "")
-                    if import_step
-                    else ""
-                )
-                if remaining and fill_mode != "helper_insert":
-                    status = "partial"
-                    gate = "none"
-                    announce(
-                        f"Apply stuck in theory/, but Frontier sorries remain: "
-                        + ", ".join(remaining[:6])
-                    )
-                elif remaining and fill_mode == "helper_insert":
-                    status = "partial"
-                    gate = "none"
-                    announce(
-                        "Import micro helper landed; Frontier sorries remain "
-                        f"({len(remaining)} open)."
-                    )
-                elif applied.has_sorry:
-                    status = "partial"
-                    gate = "none"
-                else:
-                    status = "success"
-                    gate = "merge_certified"
-                arts.append(applied.target)
-                # Advance accepted import plan when this step's decl stuck.
-                if import_step and import_step.get("id"):
-                    try:
-                        from search.saturday.proof_source import (
-                            entry_by_id,
-                            load_proof_import_config,
-                            mark_plan_step_done,
-                            parse_import_cluster_target,
-                        )
-
-                        pi_cfg = load_proof_import_config(ctx.repo_root)
-                        source_id, _ = parse_import_cluster_target(choice.target)
-                        if not source_id:
-                            source_id = str(
-                                import_step.get("source_id")
-                                or (pi_cfg.catalog[0].id if pi_cfg.catalog else "")
-                            )
-                        if source_id:
-                            entry = entry_by_id(pi_cfg, source_id)
-                            reason = (
-                                "helper_insert_applied"
-                                if fill_mode == "helper_insert"
-                                else "formalize_applied"
-                            )
-                            mark_plan_step_done(
-                                ctx.repo_root,
-                                pi_cfg,
-                                entry,
-                                str(import_step.get("id")),
-                                reason=reason,
-                            )
-                            print(
-                                "[saturday.actions] import plan step marked done "
-                                f"id={import_step.get('id')} reason={reason}"
-                            )
-                    except Exception as exc:
-                        print(
-                            f"[saturday.actions] mark_plan_step_done skipped: {exc}"
-                        )
-            else:
-                status = "partial"
-        else:
-            notes = notes + " Local CLI writes drafts only; auto_apply is false."
         return {
-            "status": status,
-            "gate": gate,
-            "notes": f"{notes} {apply_notes}",
-            "arts": arts,
             "lean_code": lean_code,
             "raw": resp.text,
+            "meta": meta,
+            "arts": arts,
+            "notes": notes,
+            "tag": tag,
+            "model": model,
+            "draft_path": draft_path,
+        }
+
+    def apply_draft(lean_code: str, arts: List[str], tag: str) -> dict:
+        """Merge + lake; returns status fields (does not raise)."""
+        apply_notes = "auto_apply disabled"
+        status = "partial"
+        gate_pending = "none"
+        applied_ok = False
+        build_tail = ""
+        if not getattr(loop_cfg, "auto_apply", True):
+            return {
+                "status": status,
+                "gate": gate_pending,
+                "notes": " Local CLI writes drafts only; auto_apply is false.",
+                "arts": arts,
+                "applied_ok": False,
+                "build_tail": "",
+            }
+        announce(
+            f"Auto-apply ({tag}): merge into {lean_path.name}, lake build, "
+            "revert if red."
+        )
+        applied = apply_frontier_draft(
+            repo_root=ctx.repo_root,
+            lean_path=lean_path,
+            lean_code=lean_code,
+            rung_id=choice.rung,
+            allow_helper_only=(
+                bool(import_step)
+                and str(import_step.get("fill_mode") or "")
+                == "helper_insert"
+            ),
+        )
+        apply_notes = applied.notes
+        build_tail = applied.build_tail or ""
+        explain_apply_outcome(
+            applied=applied.applied,
+            reverted=applied.reverted,
+            build_ok=applied.build_ok,
+            notes=applied.notes,
+            build_tail=applied.build_tail,
+        )
+        if applied.build_tail:
+            err_draft = _write_draft(
+                ctx.repo_root,
+                loop_cfg.draft_dir,
+                f"{choice.rung}_apply_error.txt",
+                applied.build_tail,
+            )
+            arts.append(str(err_draft.relative_to(ctx.repo_root)))
+        if applied.applied and applied.build_ok:
+            applied_ok = True
+            from search.saturday.apply_lean import extract_open_frontier_obligations
+
+            remaining = []
+            if lean_path.exists():
+                remaining = extract_open_frontier_obligations(
+                    lean_path.read_text(encoding="utf-8")
+                )
+            fill_mode = (
+                str(import_step.get("fill_mode") or "") if import_step else ""
+            )
+            if remaining and fill_mode != "helper_insert":
+                status = "partial"
+                gate_pending = "none"
+                announce(
+                    "Apply stuck in theory/, but Frontier sorries remain: "
+                    + ", ".join(remaining[:6])
+                )
+            elif remaining and fill_mode == "helper_insert":
+                status = "partial"
+                gate_pending = "none"
+                announce(
+                    "Import micro helper landed; Frontier sorries remain "
+                    f"({len(remaining)} open)."
+                )
+            elif applied.has_sorry:
+                status = "partial"
+                gate_pending = "none"
+            else:
+                status = "success"
+                gate_pending = "merge_certified"
+            arts.append(applied.target)
+            if import_step and import_step.get("id"):
+                try:
+                    from search.saturday.proof_source import (
+                        entry_by_id,
+                        load_proof_import_config,
+                        mark_plan_step_done,
+                        parse_import_cluster_target,
+                    )
+
+                    pi_cfg = load_proof_import_config(ctx.repo_root)
+                    source_id, _ = parse_import_cluster_target(choice.target)
+                    if not source_id:
+                        source_id = str(
+                            import_step.get("source_id")
+                            or (pi_cfg.catalog[0].id if pi_cfg.catalog else "")
+                        )
+                    if source_id:
+                        entry = entry_by_id(pi_cfg, source_id)
+                        reason = (
+                            "helper_insert_applied"
+                            if fill_mode == "helper_insert"
+                            else "formalize_applied"
+                        )
+                        mark_plan_step_done(
+                            ctx.repo_root,
+                            pi_cfg,
+                            entry,
+                            str(import_step.get("id")),
+                            reason=reason,
+                        )
+                        print(
+                            "[saturday.actions] import plan step marked done "
+                            f"id={import_step.get('id')} reason={reason}"
+                        )
+                except Exception as exc:
+                    print(
+                        f"[saturday.actions] mark_plan_step_done skipped: {exc}"
+                    )
+        else:
+            status = "partial"
+        return {
+            "status": status,
+            "gate": gate_pending,
+            "notes": f" {apply_notes}",
+            "arts": arts,
             "applied_ok": applied_ok,
             "build_tail": build_tail,
+        }
+
+    def one_pass(
+        *,
+        gen_client: LocalLLMClient,
+        model: str,
+        api_style: str,
+        tag: str,
+        err_ctx: str,
+    ) -> dict:
+        """
+        Generate -> draft_gate -> (optional) apply, with same-wake repairs.
+
+        Pre-lake gate failures resend without lake. Close lake failures
+        resend with digest when is_worth_repairing.
+        """
+        max_tries = 1 + max(0, repair_budget)
+        cur_err = err_ctx
+        last_gate = None
+        outcome: Dict[str, Any] = {
+            "status": "partial",
+            "gate": "none",
+            "notes": "no formalize attempt",
+            "arts": [],
+            "lean_code": "",
+            "raw": "",
+            "applied_ok": False,
+            "build_tail": "",
             "tag": tag,
             "model": model,
         }
+        all_arts: List[str] = []
+        for attempt in range(1, max_tries + 1):
+            print(
+                f"[saturday.actions] formalize reflection attempt="
+                f"{attempt}/{max_tries} tag={tag}"
+            )
+            gen = generate_once(
+                gen_client=gen_client,
+                model=model,
+                api_style=api_style,
+                tag=tag,
+                err_ctx=cur_err,
+                attempt=attempt,
+            )
+            all_arts = list(dict.fromkeys(all_arts + gen["arts"]))
+            gate_res = validate_lean_draft(
+                gen["lean_code"],
+                import_step=import_step,
+                known_idents=known_idents,
+                meta=gen.get("meta"),
+                require_known_call_sites=True,
+            )
+            last_gate = gate_res
+            lean_code = gate_res.code
+            # Persist sanitized draft for operator inspection
+            if lean_code != gen["lean_code"]:
+                _write_draft(
+                    ctx.repo_root,
+                    loop_cfg.draft_dir,
+                    f"{choice.rung}_formalize_{tag}_sanitized.lean",
+                    lean_code + "\n",
+                )
+            if not gate_res.ok:
+                announce(
+                    f"Draft gate rejected attempt {attempt}: "
+                    + "; ".join(gate_res.reasons[:4])
+                )
+                outcome = {
+                    "status": "partial",
+                    "gate": "none",
+                    "notes": (
+                        f"{gen['notes']} draft_gate reject: "
+                        + "; ".join(gate_res.reasons[:6])
+                    ),
+                    "arts": all_arts,
+                    "lean_code": lean_code,
+                    "raw": gen["raw"],
+                    "applied_ok": False,
+                    "build_tail": "",
+                    "tag": tag,
+                    "model": model,
+                }
+                if attempt < max_tries and is_worth_repairing("", gate_res):
+                    cur_err = build_repair_context(
+                        failed_lean=lean_code, gate=gate_res
+                    )
+                    announce(
+                        f"Repair pass {attempt + 1}/{max_tries} "
+                        "(pre-lake gate; no lake spend yet)."
+                    )
+                    continue
+                return outcome
+
+            applied = apply_draft(lean_code, list(all_arts), tag)
+            all_arts = list(dict.fromkeys(applied["arts"]))
+            outcome = {
+                "status": applied["status"],
+                "gate": applied["gate"],
+                "notes": f"{gen['notes']}{applied['notes']}",
+                "arts": all_arts,
+                "lean_code": lean_code,
+                "raw": gen["raw"],
+                "applied_ok": applied["applied_ok"],
+                "build_tail": applied["build_tail"],
+                "tag": tag,
+                "model": model,
+            }
+            if applied["applied_ok"]:
+                return outcome
+            if attempt < max_tries and is_worth_repairing(
+                applied["build_tail"], last_gate
+            ):
+                cur_err = build_repair_context(
+                    failed_lean=lean_code,
+                    build_tail=applied["build_tail"],
+                    gate=last_gate,
+                )
+                announce(
+                    f"Repair pass {attempt + 1}/{max_tries} "
+                    "(lake digest fed back)."
+                )
+                continue
+            return outcome
+        return outcome
 
     if remote_only:
         from search.saturday.llm_factory import remote_model_for
@@ -766,7 +945,9 @@ def _run_formalize(
                 )
             local_notes = (outcome.get("notes") or "").strip()
             if local_notes:
-                pieces.append("Local attempt outcome (reject or revert):\n" + local_notes[:2000])
+                pieces.append(
+                    "Local attempt outcome (reject or revert):\n" + local_notes[:2000]
+                )
             local_lean = (outcome.get("lean_code") or "").strip()
             if local_lean:
                 pieces.append(
@@ -775,8 +956,7 @@ def _run_formalize(
                 )
             pieces.append(
                 "Target only open Frontier obligations for this rung. "
-                "For R2 prefer exists_spreads_matchable_unsat_random3CNF or "
-                "exists_cs_clause_expanding_3cnf helpers; never reinvent width graft."
+                "Cite only identifiers from the excerpt or accepted list."
             )
             escalated_err = "\n\n".join(pieces)
             announce(
@@ -792,7 +972,6 @@ def _run_formalize(
                     tag="openrouter",
                     err_ctx=escalated_err,
                 )
-                # Prefer remote outcome; keep local draft refs
                 remote_out["arts"] = list(
                     dict.fromkeys(outcome["arts"] + remote_out["arts"])
                 )
@@ -802,7 +981,9 @@ def _run_formalize(
                 outcome = remote_out
             except Exception as exc:
                 announce(f"OpenRouter escalation failed: {exc}")
-                outcome["notes"] = outcome["notes"] + f" OpenRouter escalate failed: {exc}"
+                outcome["notes"] = (
+                    outcome["notes"] + f" OpenRouter escalate failed: {exc}"
+                )
 
     next_action = "formalize"
     notes = outcome["notes"]
