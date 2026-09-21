@@ -423,3 +423,196 @@ def vendor_instructions(entry: ProofImportCatalogEntry) -> str:
         "5. Confirm ready=true before enabling import prove in the loop (M2).\n"
         "Do not copy Isabelle sources into theory/. Cache only under search/proof_sources/.\n"
     )
+
+
+def catalog_entries_for_rung(
+    cfg: ProofImportConfig, rung_id: str
+) -> List[ProofImportCatalogEntry]:
+    """Catalog rows that map to this ladder rung."""
+    rows = [e for e in cfg.catalog if rung_id in e.maps_to_rungs]
+    print(
+        f"[saturday.proof_source] catalog_entries_for_rung rung={rung_id} "
+        f"hits={[e.id for e in rows]}"
+    )
+    return rows
+
+
+def plans_dir(repo_root: Path, cfg: ProofImportConfig, entry: ProofImportCatalogEntry) -> Path:
+    return source_dir(repo_root, cfg, entry) / "plans"
+
+
+def accepted_plan_path(
+    repo_root: Path, cfg: ProofImportConfig, entry: ProofImportCatalogEntry
+) -> Path:
+    return plans_dir(repo_root, cfg, entry) / "accepted.json"
+
+
+def load_accepted_plan(
+    repo_root: Path, cfg: ProofImportConfig, entry: ProofImportCatalogEntry
+) -> Optional[Dict[str, Any]]:
+    path = accepted_plan_path(repo_root, cfg, entry)
+    if not path.is_file():
+        print(f"[saturday.proof_source] no accepted plan at {path}")
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    print(
+        f"[saturday.proof_source] loaded accepted plan id={entry.id} "
+        f"steps={len(data.get('steps') or [])}"
+    )
+    return data
+
+
+def save_accepted_plan(
+    repo_root: Path,
+    cfg: ProofImportConfig,
+    entry: ProofImportCatalogEntry,
+    plan: Dict[str, Any],
+) -> Path:
+    """Write accepted.json and a timestamped copy under plans/."""
+    pdir = plans_dir(repo_root, cfg, entry)
+    pdir.mkdir(parents=True, exist_ok=True)
+    plan = dict(plan)
+    plan.setdefault("source_id", entry.id)
+    plan.setdefault("accepted_at", _now_iso())
+    stamped = pdir / f"plan_{_now_iso().replace(':', '')}.json"
+    text = json.dumps(plan, indent=2) + "\n"
+    stamped.write_text(text, encoding="utf-8")
+    accepted = accepted_plan_path(repo_root, cfg, entry)
+    accepted.write_text(text, encoding="utf-8")
+    print(f"[saturday.proof_source] saved plan {stamped} and {accepted}")
+    return accepted
+
+
+def next_plan_step(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """First step with status not done."""
+    for step in plan.get("steps") or []:
+        if str(step.get("status", "pending")) != "done":
+            return step
+    return None
+
+
+def theory_excerpt(
+    repo_root: Path,
+    cfg: ProofImportConfig,
+    entry: ProofImportCatalogEntry,
+    theory_stem: str,
+    *,
+    max_chars: int = 12000,
+) -> str:
+    """Load a vendored .thy text for prompt injection."""
+    thys = thys_dir(source_dir(repo_root, cfg, entry))
+    path = thys / f"{theory_stem}.thy"
+    if not path.is_file():
+        matches = list(thys.rglob(f"{theory_stem}.thy"))
+        path = matches[0] if matches else path
+    if not path.is_file():
+        print(f"[saturday.proof_source] theory missing {theory_stem}")
+        return f"(missing theory {theory_stem}.thy under {thys})"
+    text = path.read_text(encoding="utf-8", errors="replace")
+    print(
+        f"[saturday.proof_source] theory_excerpt stem={theory_stem} "
+        f"chars={len(text)} path={path}"
+    )
+    if len(text) <= max_chars:
+        return text
+    head = max_chars // 2
+    tail = max_chars - head
+    return text[:head] + "\n\n...(truncated)...\n\n" + text[-tail:]
+
+
+def build_import_prompt_context(
+    repo_root: Path,
+    cfg: ProofImportConfig,
+    entry: ProofImportCatalogEntry,
+    *,
+    theory_stems: Optional[List[str]] = None,
+    max_chars_per_theory: int = 8000,
+) -> str:
+    """Concatenate primary theory excerpts for import prove or formalize."""
+    stems = theory_stems or list(entry.primary_theories) or []
+    # Prefer Cheeger + MGG when present in cache
+    preferred = [
+        "Expander_Graphs_MGG",
+        "Expander_Graphs_Cheeger_Inequality",
+        "Expander_Graphs_Eigenvalues",
+        "Expander_Graphs_Definition",
+    ]
+    ordered: List[str] = []
+    for s in preferred + stems:
+        if s not in ordered:
+            ordered.append(s)
+    parts = [
+        f"Import source id: {entry.id}",
+        f"Title: {entry.title}",
+        f"ITPs: {', '.join(entry.itps)}",
+        f"Frontier targets: {', '.join(entry.maps_to_frontier)}",
+        "Rule: adapt the foreign argument into a Lean port plan. "
+        "Never treat the foreign proof as a Lean axiom. "
+        "Critical path close requires zero sorry.",
+    ]
+    budget = 24000
+    used = 0
+    for stem in ordered:
+        if used >= budget:
+            break
+        room = min(max_chars_per_theory, budget - used)
+        excerpt = theory_excerpt(
+            repo_root, cfg, entry, stem, max_chars=room
+        )
+        block = f"\n--- theory {stem}.thy ---\n{excerpt}\n"
+        parts.append(block)
+        used += len(block)
+    print(
+        f"[saturday.proof_source] import_prompt_context theories={ordered} "
+        f"chars={used}"
+    )
+    return "\n".join(parts)
+
+
+def suggest_import_action(
+    repo_root: Path,
+    rung_id: str,
+    cfg: Optional[ProofImportConfig] = None,
+) -> Optional[Tuple[str, str, str]]:
+    """
+    If this rung has a ready catalog source, return (action, target, rationale).
+
+    Prove when no accepted plan yet; formalize when a plan step remains.
+    """
+    cfg = cfg or load_proof_import_config(repo_root)
+    if not cfg.enabled:
+        print("[saturday.proof_source] suggest_import_action disabled")
+        return None
+    entries = catalog_entries_for_rung(cfg, rung_id)
+    if not entries:
+        return None
+    entry = entries[0]
+    st = status_for_entry(repo_root, cfg, entry)
+    if not st.ready:
+        print(f"[saturday.proof_source] source not ready id={entry.id}")
+        return None
+    plan = load_accepted_plan(repo_root, cfg, entry)
+    if plan is None:
+        target = (
+            f"import plan: {entry.id} -> "
+            + (entry.maps_to_frontier[0] if entry.maps_to_frontier else "Frontier")
+        )
+        rationale = (
+            f"Ready proof source {entry.id}; build import plan before formalize"
+        )
+        print(f"[saturday.proof_source] suggest prove target={target!r}")
+        return "prove", target, rationale
+    step = next_plan_step(plan)
+    if step is None:
+        print("[saturday.proof_source] accepted plan has no open steps")
+        return None
+    step_id = str(step.get("id") or step.get("lean_name") or "next")
+    target = f"import cluster: {entry.id} step={step_id}"
+    rationale = f"Accepted import plan for {entry.id}; formalize next cluster"
+    print(f"[saturday.proof_source] suggest formalize target={target!r}")
+    return "formalize", target, rationale
+
+
+def is_import_target(target: str) -> bool:
+    t = (target or "").strip().lower()
+    return t.startswith("import plan:") or t.startswith("import cluster:")

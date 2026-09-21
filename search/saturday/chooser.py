@@ -56,6 +56,7 @@ def choose_action_for_rung(
     if action_override:
         action = action_override
         rationale = f"CLI action override on rung with status {status}"
+        target = target_override or _default_target(ctx, rung_id, action)
     else:
         from search.saturday.reflect import suggest_action_override
 
@@ -63,25 +64,43 @@ def choose_action_for_rung(
         if forced in VALID_ACTIONS:
             action = forced
             rationale = f"Reflect/control force_action={forced} (status={status})"
-        elif status == "prose_accepted":
-            action = "formalize"
-            rationale = "Prose accepted gate passed; formalize is next"
-        elif status == "blocked":
-            action = "prove"
-            rationale = "Rung blocked; change approach with a new prove cycle"
-        elif _needs_falsify(ctx, rung_id):
-            action = "falsify"
-            rationale = "No recent falsify calibration recorded for this rung"
-        elif status == "active":
-            action, rationale = _active_rung_action(ctx, rung_id)
-        elif status == "proposed":
-            action = "prove"
-            rationale = "Proposed rung needs an adopt decision path via prove content"
+            # Still prefer an import target when the catalog is ready
+            target = target_override or _import_or_default_target(
+                ctx, rung_id, action
+            )
         else:
-            action = "audit"
-            rationale = "Default audit pass for hygiene and barriers"
+            import_choice = _suggest_import(ctx, rung_id)
+            if import_choice is not None:
+                action, target, rationale = import_choice
+            elif status == "prose_accepted":
+                action = "formalize"
+                rationale = "Prose accepted gate passed; formalize is next"
+                target = target_override or _default_target(ctx, rung_id, action)
+            elif status == "blocked":
+                action = "prove"
+                rationale = "Rung blocked; change approach with a new prove cycle"
+                target = target_override or _default_target(ctx, rung_id, action)
+            elif _needs_falsify(ctx, rung_id):
+                action = "falsify"
+                rationale = "No recent falsify calibration recorded for this rung"
+                target = target_override or _default_target(ctx, rung_id, action)
+            elif status == "active":
+                action, rationale = _active_rung_action(ctx, rung_id)
+                target = target_override or _import_or_default_target(
+                    ctx, rung_id, action
+                )
+            elif status == "proposed":
+                action = "prove"
+                rationale = "Proposed rung needs an adopt decision path via prove content"
+                target = target_override or _default_target(ctx, rung_id, action)
+            else:
+                action = "audit"
+                rationale = "Default audit pass for hygiene and barriers"
+                target = target_override or _default_target(ctx, rung_id, action)
 
-    target = target_override or _default_target(ctx, rung_id, action)
+    if target_override and action_override:
+        target = target_override
+
     choice = ActionChoice(
         rung=rung_id,
         action_type=action,
@@ -92,6 +111,23 @@ def choose_action_for_rung(
     print(f"[saturday.chooser] choice={choice}")
     return choice
 
+
+def _suggest_import(ctx: CycleContext, rung_id: str):
+    """Return (action, target, rationale) when proof import applies."""
+    try:
+        from search.saturday.proof_source import suggest_import_action
+
+        return suggest_import_action(ctx.repo_root, rung_id)
+    except Exception as exc:
+        print(f"[saturday.chooser] import suggest skipped: {exc}")
+        return None
+
+
+def _import_or_default_target(ctx: CycleContext, rung_id: str, action: str) -> str:
+    hint = _suggest_import(ctx, rung_id)
+    if hint is not None and hint[0] == action:
+        return hint[1]
+    return _default_target(ctx, rung_id, action)
 
 def _sessions_for_rung(ctx: CycleContext, rung_id: str) -> List[dict]:
     """Recent session records for one rung, oldest to newest."""

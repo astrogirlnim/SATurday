@@ -249,6 +249,7 @@ saturday_loop:
           - "MGGFrontier.mggGraph_hasExpansionInv"
         primary_theories:
           - "Expander_Graphs_MGG"
+          - "Expander_Graphs_Cheeger_Inequality"
           - "Expander_Graphs_Definition"
           - "Expander_Graphs_Eigenvalues"
           - "Expander_Graphs_Strongly_Explicit"

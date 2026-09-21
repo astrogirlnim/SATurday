@@ -306,8 +306,8 @@ satday proof-source status
 
 ### M2 — Prove import plan in loop
 
-- Prompt + chooser hooks.
-- First accepted import plan on `r2-width-machinery` for MGG Cheeger / spectral
+- [x] Prompt + chooser hooks.
+- [ ] First accepted import plan on `r2-width-machinery` for MGG Cheeger / spectral
   discharge (human or gate_auto `accept_prose`).
 
 ### M3 — Formalize import clusters in loop

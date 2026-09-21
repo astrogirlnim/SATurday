@@ -5,9 +5,9 @@
     "isabelle"
   ],
   "license": "BSD",
-  "vendored_at": null,
-  "method": "stub",
-  "revision": null,
+  "vendored_at": "2026-09-21T10:49:52Z",
+  "method": "network",
+  "revision": "https://www.isa-afp.org/release/afp-current.tar.gz",
   "primary_theories": [
     "Expander_Graphs_MGG",
     "Expander_Graphs_Definition",
@@ -21,6 +21,10 @@
     "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
     "MGGFrontier.mggGraph_hasExpansionInv"
   ],
-  "notes": "Stub metadata only. Run satday proof-source fetch --from-dir to vendor .thy files.",
-  "afp_entry_url": "https://isa-afp.org/entries/Expander_Graphs.html"
+  "notes": "Hoory style Fourier proof; spectral bound 5/8 sqrt 2; vendor via satday proof-source",
+  "afp_entry_url": "https://isa-afp.org/entries/Expander_Graphs.html",
+  "archive_path": "search/proof_sources/afp-expander-graphs-mgg/downloads/afp-current.tar.gz",
+  "archive_member": "thys/Expander_Graphs",
+  "copied_files": 14,
+  "force": true
 }

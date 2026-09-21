@@ -204,16 +204,52 @@ def _run_prove(
         f"{choice.rung}_prove_{tag}.md",
         resp.text,
     )
+    plan_refs: List[str] = []
+    plan_meta = meta.get("import_plan")
+    if isinstance(plan_meta, dict) and plan_meta.get("steps"):
+        try:
+            from search.saturday.proof_source import (
+                catalog_entries_for_rung,
+                entry_by_id,
+                is_import_target,
+                load_proof_import_config,
+                save_accepted_plan,
+            )
+
+            if is_import_target(choice.target) or status == "success":
+                cfg = load_proof_import_config(ctx.repo_root)
+                entries = catalog_entries_for_rung(cfg, choice.rung)
+                if not entries and is_import_target(choice.target):
+                    tid = choice.target.split(":", 1)[1].strip().split()[0]
+                    entries = [entry_by_id(cfg, tid)]
+                if entries and (
+                    status == "success" or gate == "accept_prose"
+                ):
+                    # Persist plan draft; gate_auto accept will treat as accepted
+                    path = save_accepted_plan(
+                        ctx.repo_root, cfg, entries[0], plan_meta
+                    )
+                    plan_refs.append(str(path.relative_to(ctx.repo_root)))
+                    print(
+                        f"[saturday.actions] import plan saved path={path} "
+                        f"steps={len(plan_meta.get('steps') or [])}"
+                    )
+                    notes = (notes + f" | import_plan_saved={path.name}")[:2000]
+                    if next_action == "audit":
+                        next_action = "formalize"
+        except Exception as exc:
+            print(f"[saturday.actions] import plan save skipped: {exc}")
     memory = _dated_entry(
         "prove",
         status,
-        [artifact, str(prose_path.relative_to(ctx.repo_root))],
+        [artifact, str(prose_path.relative_to(ctx.repo_root))] + plan_refs,
         notes[:500],
     )
     memory = memory + "\n\n" + truncate_for_prompt(resp.text, 8000)
     return ActionResult(
         status=status,
-        artifact_refs=[artifact, str(prose_path.relative_to(ctx.repo_root))],
+        artifact_refs=[artifact, str(prose_path.relative_to(ctx.repo_root))]
+        + plan_refs,
         notes=notes[:2000],
         next_recommended_action=next_action,
         gate_pending=gate,
