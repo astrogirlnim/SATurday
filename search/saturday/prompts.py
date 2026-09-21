@@ -185,6 +185,14 @@ Micro lemma contract (Qwen sized unit={unit}):
   alternate identifiers; do not port whole AFP theories in one wake.
 - Optional tiny helpers are allowed only if needed to close that one name.
 - Prefer `exact` / `apply` of smart selected accepted decls over new proofs.
+- CRITICAL for Cheeger / Inv Frontier pins: reuse packaging lemmas such as
+  mggGraph_hasExpansionInv_of_multi_cheeger_and_twelfth,
+  mggGraph_hasExpansionInv15_of_multi_cheeger, and
+  mgg_card_le_fifteen_mul_edgeBoundary_of_multi_cheeger. Never treat a Nat
+  inequality witness (for example mgg_gabber_galil_cheeger_nat_witness) as a
+  term of type MggHasMultiCheeger. If Gabber Galil spectral content is not
+  already packaged as MggHasMultiCheeger, set status=blocked and lean to empty
+  string; leave the Frontier sorry intact.
 """
         import_rules = f"""
 Import cluster rules:

@@ -224,6 +224,51 @@ def _active_rung_action(ctx: CycleContext, rung_id: str) -> tuple:
 
     return "prove", "Active rung needs mathematical content in prose"
 
+def _rung_spectral_formalize_blocked(ctx: CycleContext, rung_id: str) -> bool:
+    """
+    True when this rung's import plan only has spectral Frontier pins left and
+    the host Lean module has no analysis surface. Local models must not burn
+    wakes inventing Nat witnesses for Gabber Galil.
+    """
+    try:
+        from search.saturday.proof_source import (
+            catalog_entries_for_rung,
+            load_accepted_plan,
+            load_entry_module_text,
+            load_proof_import_config,
+            module_has_analysis_surface,
+            step_needs_analysis_surface,
+        )
+
+        cfg = load_proof_import_config(ctx.repo_root)
+        entries = catalog_entries_for_rung(cfg, rung_id)
+        if not entries:
+            return False
+        entry = entries[0]
+        plan = load_accepted_plan(ctx.repo_root, cfg, entry)
+        if plan is None:
+            return False
+        pending = [
+            s
+            for s in (plan.get("steps") or [])
+            if str(s.get("status", "pending")) != "done"
+        ]
+        if not pending:
+            return False
+        if not all(step_needs_analysis_surface(s) for s in pending):
+            return False
+        module_text = load_entry_module_text(ctx.repo_root, entry)
+        blocked = not module_has_analysis_surface(module_text)
+        print(
+            f"[saturday.chooser] spectral_formalize_blocked rung={rung_id} "
+            f"pending={len(pending)} blocked={blocked}"
+        )
+        return blocked
+    except Exception as exc:
+        print(f"[saturday.chooser] spectral block check skipped: {exc}")
+        return False
+
+
 def choose_rung_and_action(
     ctx: CycleContext,
     rung_override: Optional[str] = None,
@@ -237,6 +282,9 @@ def choose_rung_and_action(
     3. else prove if content needed
     4. else falsify if no recent falsify on this rung
     5. else audit
+
+    Skip rungs whose only remaining import work is spectral Frontier pins
+    without an analysis Lean surface (continue on the next actionable rung).
     """
     print(
         f"[saturday.chooser] choose overrides rung={rung_override} "
@@ -270,7 +318,24 @@ def choose_rung_and_action(
     if not pool:
         raise RuntimeError("No actionable rung found in ladder memories")
 
-    rung_id = rung_override or pool[0]
+    if rung_override:
+        rung_id = rung_override
+    else:
+        runnable = [
+            rid for rid in pool if not _rung_spectral_formalize_blocked(ctx, rid)
+        ]
+        if not runnable:
+            print(
+                "[saturday.chooser] all preferred rungs spectral-blocked; "
+                "falling back to pool[0]"
+            )
+            runnable = pool
+        elif runnable != pool:
+            print(
+                f"[saturday.chooser] skipped spectral-blocked "
+                f"{[r for r in pool if r not in runnable]}; using {runnable[0]}"
+            )
+        rung_id = runnable[0]
     return choose_action_for_rung(ctx, rung_id, action_override, target_override)
 
 

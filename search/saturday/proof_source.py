@@ -594,15 +594,68 @@ def step_needs_unported_surface(step: Dict[str, Any]) -> bool:
     return False
 
 
-def step_is_cheap_executable(step: Dict[str, Any]) -> bool:
+# Frontier pins that need Gabber Galil / Fourier / Complex analysis, not Finset.
+_ANALYSIS_FRONTIER_MARKERS = (
+    "gabber",
+    "galil",
+    "fourier",
+    "rayleigh",
+    "mgg-cheeger-multi",
+    "mgg_has_multi_cheeger",
+    "mgg-inv-glue",
+    "mgggraph_hasexpansioninv",
+    "real.cos",
+    "complex",
+)
+
+
+def step_needs_analysis_surface(step: Dict[str, Any]) -> bool:
+    """True when discharging this pin needs Real/Complex analysis imports."""
+    blob = " ".join(
+        [
+            str(step.get("id") or ""),
+            str(step.get("lean_name") or ""),
+            str(step.get("goal") or ""),
+        ]
+    ).lower()
+    return any(m in blob for m in _ANALYSIS_FRONTIER_MARKERS)
+
+
+def module_has_analysis_surface(module_text: str) -> bool:
+    """True when the Lean module already imports analysis / Complex."""
+    text = module_text or ""
+    needles = (
+        "Mathlib.Analysis",
+        "Mathlib.Data.Complex",
+        "Mathlib.Analysis.SpecialFunctions",
+        "import Mathlib.Topology",
+    )
+    return any(n in text for n in needles)
+
+
+def step_is_cheap_executable(
+    step: Dict[str, Any],
+    *,
+    module_text: Optional[str] = None,
+) -> bool:
     """
     True when formalize should spend tokens on this micro today.
 
     Proof micros (lemma/theorem/...) are not executable without an explicit
     lean_sig and a Lean surface that already hosts the foreign API.
+    Spectral / Gabber Galil Frontier pins stay non-executable until the host
+    module imports an analysis surface (avoids local models inventing Nat
+    witnesses like mgg_gabber_galil_cheeger_nat_witness).
     """
     if str(step.get("fill_mode") or "") == "sorry_replace":
-        # Frontier pins are a different path (discharge open sorry).
+        if step_needs_analysis_surface(step):
+            if module_text is None or not module_has_analysis_surface(module_text):
+                print(
+                    f"[saturday.proof_source] skip spectral sorry_replace "
+                    f"id={step.get('id')} lean_name={step.get('lean_name')} "
+                    f"(no analysis surface; keep pending)"
+                )
+                return False
         return True
     kind = str(step.get("foreign_kind") or "").lower()
     if step_needs_unported_surface(step):
@@ -655,12 +708,36 @@ def auto_defer_unportable_steps(
     return plan
 
 
-def next_executable_plan_step(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def load_entry_module_text(
+    repo_root: Path, entry: ProofImportCatalogEntry
+) -> str:
+    """Load the Lean module text for a catalog entry (empty if missing)."""
+    module = str(getattr(entry, "lean_module", "") or "")
+    if not module:
+        return ""
+    path = repo_root / module
+    if not path.is_file():
+        print(f"[saturday.proof_source] module missing path={path}")
+        return ""
+    text = path.read_text(encoding="utf-8")
+    print(
+        f"[saturday.proof_source] loaded module={module} chars={len(text)} "
+        f"analysis={module_has_analysis_surface(text)}"
+    )
+    return text
+
+
+def next_executable_plan_step(
+    plan: Dict[str, Any],
+    *,
+    module_text: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """
     First pending step that is cheap to attempt with the current Lean surface.
 
     Prefers fun/definition micros; does not fall back to proof micros that
-    would only invent AFP types.
+    would only invent AFP types. Spectral sorry_replace pins stay pending but
+    non-executable until module_text has an analysis surface.
     """
     pending = [
         s
@@ -668,7 +745,7 @@ def next_executable_plan_step(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if str(s.get("status", "pending")) != "done"
     ]
     for step in pending:
-        if step_is_cheap_executable(step):
+        if step_is_cheap_executable(step, module_text=module_text):
             print(
                 f"[saturday.proof_source] next_executable "
                 f"id={step.get('id')} kind={step.get('foreign_kind')}"
@@ -1019,9 +1096,13 @@ def suggest_import_action(
         return "prove", target, rationale
     plan = auto_advance_certified_steps(repo_root, cfg, entry, plan)
     plan = auto_defer_unportable_steps(repo_root, cfg, entry, plan)
-    step = next_executable_plan_step(plan)
+    module_text = load_entry_module_text(repo_root, entry)
+    step = next_executable_plan_step(plan, module_text=module_text)
     if step is None:
-        print("[saturday.proof_source] accepted plan has no open steps")
+        print(
+            "[saturday.proof_source] accepted plan has no executable steps "
+            "(spectral Frontier pins may remain pending without analysis surface)"
+        )
         return None
     step_id = str(step.get("id") or step.get("lean_name") or "next")
     unit = str(step.get("unit") or "cluster")
@@ -1073,6 +1154,7 @@ def resolve_import_step(
         return None
     plan = auto_advance_certified_steps(repo_root, cfg, entry, plan)
     plan = auto_defer_unportable_steps(repo_root, cfg, entry, plan)
+    module_text = load_entry_module_text(repo_root, entry)
     step: Optional[Dict[str, Any]] = None
     if step_id:
         step = plan_step_by_id(plan, step_id)
@@ -1083,14 +1165,16 @@ def resolve_import_step(
                 "already done; advancing to next executable"
             )
             step = None
-        elif step is not None and not step_is_cheap_executable(step):
+        elif step is not None and not step_is_cheap_executable(
+            step, module_text=module_text
+        ):
             print(
                 f"[saturday.proof_source] resolve_import_step step={step_id} "
                 "not executable on current Lean surface; advancing"
             )
             step = None
     if step is None:
-        step = next_executable_plan_step(plan)
+        step = next_executable_plan_step(plan, module_text=module_text)
     if step is None:
         print("[saturday.proof_source] resolve_import_step: no open step")
         return None
