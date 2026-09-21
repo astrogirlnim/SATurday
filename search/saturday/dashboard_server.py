@@ -127,47 +127,93 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     margin-top: 0.75rem; padding: 0.65rem 0.8rem;
     border-left: 3px solid var(--accent); background: #101826; font-size: 0.9rem;
   }
-  details.rung-node, details.cluster-node {
-    border: 1px solid var(--line); border-radius: 8px; margin: 0.45rem 0;
+  details.rung-node, details.cluster-node, details.decl-node {
+    border: 1px solid var(--line); border-radius: 10px; margin: 0.5rem 0;
     background: #121a26;
   }
-  details.rung-node > summary, details.cluster-node > summary {
-    cursor: pointer; list-style: none; padding: 0.65rem 0.85rem;
-    display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+  details.rung-node > summary,
+  details.cluster-node > summary,
+  details.decl-node > summary {
+    cursor: pointer; list-style: none; padding: 0.75rem 0.95rem;
+    display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center;
   }
   details.rung-node > summary::-webkit-details-marker,
-  details.cluster-node > summary::-webkit-details-marker { display: none; }
+  details.cluster-node > summary::-webkit-details-marker,
+  details.decl-node > summary::-webkit-details-marker { display: none; }
   details.rung-node > summary::before,
-  details.cluster-node > summary::before {
-    content: "+"; color: var(--muted); font-family: ui-monospace, monospace;
-    width: 1rem; display: inline-block;
+  details.cluster-node > summary::before,
+  details.decl-node > summary::before {
+    content: ""; width: 0.55rem; height: 0.55rem; border-radius: 2px;
+    background: var(--muted); display: inline-block; transform: rotate(45deg);
+    opacity: 0.7;
   }
   details[open].rung-node > summary::before,
-  details[open].cluster-node > summary::before { content: "-"; }
+  details[open].cluster-node > summary::before,
+  details[open].decl-node > summary::before {
+    background: var(--accent); transform: rotate(135deg);
+  }
   details.rung-node.role-bridge { border-color: #3a4a2a; }
-  details.rung-node.role-setup { border-color: #2a3548; opacity: 0.95; }
+  details.rung-node.role-setup { border-color: #2a3548; }
   details.rung-node.role-main { border-left: 3px solid var(--accent); }
-  .rung-body, .cluster-body { padding: 0 0.85rem 0.85rem 1.4rem; }
+  details.cluster-node { background: #0f1620; margin-left: 0.35rem; }
+  details.decl-node {
+    background: #0c121c; border-color: #243044; margin: 0.55rem 0;
+  }
+  details.decl-node.has-prose { border-left: 3px solid var(--ok); }
+  details.decl-node.formula-only { border-left: 3px solid var(--accent); }
+  .rung-body, .cluster-body, .decl-body { padding: 0 0.95rem 0.95rem 1.35rem; }
   .branch {
-    margin-left: 0.35rem; padding-left: 0.85rem;
+    margin-left: 0.2rem; padding-left: 0.75rem;
     border-left: 1px solid var(--line);
   }
-  ul.decl-list {
-    list-style: none; margin: 0.35rem 0 0; padding: 0;
-    max-height: 320px; overflow: auto;
+  .decl-summary-title {
+    font-weight: 600; font-size: 0.98rem; letter-spacing: 0.01em;
   }
-  ul.decl-list li {
-    padding: 0.28rem 0.2rem; border-bottom: 1px solid #1c2636;
-    display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: baseline;
+  .decl-summary-preview {
+    flex: 1 1 100%; color: var(--muted); font-size: 0.86rem;
+    line-height: 1.4; margin-top: 0.15rem;
   }
-  ul.decl-list li .ns { color: var(--muted); font-size: 0.75rem; }
+  .prose-block {
+    margin: 0.35rem 0 0.7rem;
+    padding: 0.75rem 0.9rem;
+    background: #152033;
+    border: 1px solid #2a3a52;
+    border-radius: 8px;
+    font-family: "IBM Plex Serif", Georgia, serif;
+    font-size: 1.02rem;
+    line-height: 1.55;
+    color: #eef3fa;
+  }
+  .prose-label, .formula-label {
+    display: block; font-size: 0.72rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  .formula-block {
+    margin: 0;
+    padding: 0.7rem 0.85rem;
+    background: #0a1018;
+    border: 1px solid #2a3548;
+    border-radius: 8px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: #c9e4ff;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .decl-meta {
+    margin-top: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.5rem;
+    align-items: center; font-size: 0.78rem; color: var(--muted);
+  }
   .count-badge {
     margin-left: auto; font-family: ui-monospace, monospace;
     color: var(--muted); font-size: 0.8rem;
   }
   .empty-rung { color: var(--muted); font-style: italic; padding: 0.4rem 0; }
   .section-label {
-    margin: 1rem 0 0.35rem; font-size: 0.78rem; letter-spacing: 0.08em;
+    margin: 1.15rem 0 0.45rem; font-size: 0.78rem; letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--muted);
   }
 </style>
@@ -224,10 +270,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <h2>Accepted declarations by rung</h2>
       <p class="muted" style="margin:0 0 0.75rem">
         Source: <span class="mono" id="treePath">scripts/accepted_declarations.txt</span>.
-        Only merge_certified allowlist entries. R3/R4 show with zero decls so the ladder shape stays visible.
+        Expand a rung, then a cluster, then a declaration to read its Lean docstring
+        (mathematical prose) and the proposition / type formula.
       </p>
       <div class="tree-toolbar">
-        <input id="treeFilter" type="search" placeholder="Filter clusters or declaration names"/>
+        <input id="treeFilter" type="search" placeholder="Filter by name, prose, or formula"/>
         <button class="ghost" type="button" id="expandRungs">Expand rungs</button>
         <button class="ghost" type="button" id="collapseAll">Collapse all</button>
         <button class="ghost" type="button" id="reloadTree">Reload tree</button>
@@ -369,15 +416,65 @@ function filterMatches(text, q) {
   return String(text || '').toLowerCase().includes(q);
 }
 
+function previewText(d) {
+  if (d.prose) return d.prose;
+  if (d.formula) return d.formula;
+  return d.fq || '';
+}
+
+function declMatches(d, cTitle, q) {
+  if (!q) return true;
+  return filterMatches(d.fq, q)
+    || filterMatches(d.short, q)
+    || filterMatches(d.prose, q)
+    || filterMatches(d.formula, q)
+    || filterMatches(d.signature, q)
+    || filterMatches(cTitle, q);
+}
+
+function renderDecl(d) {
+  const prose = d.prose || '';
+  const formula = d.formula || '';
+  const kind = d.kind || 'decl';
+  const cls = prose ? 'has-prose' : (formula ? 'formula-only' : '');
+  const preview = previewText(d);
+  const previewShort = preview.length > 160 ? preview.slice(0, 157) + '…' : preview;
+  const proseHtml = prose
+    ? `<div class="prose-block"><span class="prose-label">Mathematical prose</span>${esc(prose)}</div>`
+    : `<div class="muted" style="margin:0.35rem 0 0.7rem">No docstring on this declaration; formula below is the Lean statement.</div>`;
+  const formulaHtml = formula
+    ? `<div><span class="formula-label">Lean formula</span><pre class="formula-block">${esc(formula)}</pre></div>`
+    : '';
+  return `<details class="decl-node ${cls}">
+    <summary>
+      <span class="decl-summary-title">${esc(d.short)}</span>
+      <span class="pill muted">${esc(kind)}</span>
+      <span class="decl-summary-preview">${esc(previewShort)}</span>
+    </summary>
+    <div class="decl-body">
+      ${proseHtml}
+      ${formulaHtml}
+      <div class="decl-meta">
+        <span class="mono">${esc(d.fq)}</span>
+        ${d.source ? `<span class="mono">${esc(d.source)}</span>` : ''}
+      </div>
+    </div>
+  </details>`;
+}
+
 function renderTree(data, filterQ) {
   console.log('[saturday.dashboard.ui] renderTree filter=', filterQ || '(none)');
   const q = (filterQ || '').trim().toLowerCase();
   const summary = data.summary || {};
   const dag = data.ladder_dag || {};
   document.getElementById('treePath').textContent = summary.decls_path || 'scripts/accepted_declarations.txt';
+  const stmtFound = summary.statements_found != null ? summary.statements_found : '—';
+  const stmtMissing = summary.statements_missing != null ? summary.statements_missing : '—';
   document.getElementById('treeMeta').innerHTML = `
     <div class="stat"><strong>${summary.total_declarations || 0}</strong> declarations</div>
     <div class="stat"><strong>${summary.rung_count_with_decls || 0}</strong> rungs with decls</div>
+    <div class="stat"><strong>${stmtFound}</strong> with Lean statements
+      ${stmtMissing && stmtMissing !== 0 ? `· <span class="warn">${stmtMissing} missing</span>` : ''}</div>
     <div class="stat mono">loaded ${new Date(treeLoadedAt).toLocaleTimeString()}</div>
   `;
   document.getElementById('dagNote').textContent =
@@ -390,27 +487,18 @@ function renderTree(data, filterQ) {
   const bridge = rungs.filter(r => r.role === 'bridge');
   const other = rungs.filter(r => !['setup','main','bridge'].includes(r.role));
 
-  function renderDecl(d) {
-    return `<li>
-      <span class="mono">${esc(d.short)}</span>
-      <span class="ns mono">${esc(d.namespace)}</span>
-    </li>`;
-  }
-
   function renderCluster(c) {
-    const decls = (c.declarations || []).filter(d =>
-      filterMatches(d.fq, q) || filterMatches(d.short, q) || filterMatches(c.title, q)
-    );
+    const decls = (c.declarations || []).filter(d => declMatches(d, c.title, q));
     if (q && !decls.length && !filterMatches(c.title, q)) return '';
     const showDecls = q ? decls : (c.declarations || []);
     if (q && !showDecls.length) return '';
-    return `<details class="cluster-node">
+    return `<details class="cluster-node" ${q ? 'open' : ''}>
       <summary>
         <span>${esc(c.title)}</span>
         <span class="count-badge">${showDecls.length} decl${showDecls.length===1?'':'s'}</span>
       </summary>
       <div class="cluster-body">
-        <ul class="decl-list">${showDecls.map(renderDecl).join('')}</ul>
+        <div class="branch">${showDecls.map(renderDecl).join('')}</div>
       </div>
     </details>`;
   }

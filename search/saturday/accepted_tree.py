@@ -279,23 +279,28 @@ def build_accepted_declaration_tree(
     decls_path: Optional[Path] = None,
     rung_statuses: Optional[Dict[str, str]] = None,
     verbose: bool = False,
+    with_statements: bool = True,
 ) -> Dict[str, Any]:
     """
     Build the JSON tree for /api/accepted-tree and the dashboard Tree tab.
 
     Empty rungs (R3/R4) are still included so the ladder shape is visible.
+    When with_statements is true, each declaration is enriched with Lean docstring
+    prose and the proposition / type formula from theory sources.
     """
     repo_root = Path(repo_root)
     path = Path(decls_path) if decls_path else _default_decls_path(repo_root)
     print(
         f"[saturday.accepted_tree] build tree repo={repo_root} "
-        f"decls={path} status_keys={list((rung_statuses or {}).keys())}"
+        f"decls={path} status_keys={list((rung_statuses or {}).keys())} "
+        f"with_statements={with_statements}"
     )
     parsed = parse_accepted_declarations_file(path, verbose=verbose)
     statuses = rung_statuses or {}
 
     rung_payload: List[Dict[str, Any]] = []
     total = 0
+    all_decls: List[Dict[str, Any]] = []
     for rung_id in TREE_RUNG_ORDER:
         node = parsed.get(rung_id) or AcceptedRungNode(
             rung_id=rung_id,
@@ -322,6 +327,7 @@ def build_accepted_declaration_tree(
         clusters_out: List[Dict[str, Any]] = []
         for cluster in node.clusters:
             decls_out = [asdict(d) for d in cluster.declarations]
+            all_decls.extend(decls_out)
             clusters_out.append(
                 {
                     "title": cluster.title,
@@ -350,6 +356,19 @@ def build_accepted_declaration_tree(
         print(f"[saturday.accepted_tree] unexpected rung bucket id={rung_id}")
         count = node.decl_count
         total += count
+        decls_lists: List[Dict[str, Any]] = []
+        clusters_out = []
+        for c in node.clusters:
+            decls_out = [asdict(d) for d in c.declarations]
+            all_decls.extend(decls_out)
+            decls_lists.append(decls_out)
+            clusters_out.append(
+                {
+                    "title": c.title,
+                    "decl_count": c.decl_count,
+                    "declarations": decls_out,
+                }
+            )
         rung_payload.append(
             {
                 "rung_id": node.rung_id,
@@ -359,16 +378,20 @@ def build_accepted_declaration_tree(
                 "status": statuses.get(rung_id, node.status),
                 "decl_count": count,
                 "cluster_count": len(node.clusters),
-                "clusters": [
-                    {
-                        "title": c.title,
-                        "decl_count": c.decl_count,
-                        "declarations": [asdict(d) for d in c.declarations],
-                    }
-                    for c in node.clusters
-                ],
+                "clusters": clusters_out,
             }
         )
+
+    stmt_found = 0
+    stmt_missing = 0
+    if with_statements and all_decls:
+        from search.saturday.lean_statements import attach_statements
+
+        print(
+            f"[saturday.accepted_tree] attaching Lean prose/formula "
+            f"to {len(all_decls)} decls"
+        )
+        stmt_found, stmt_missing = attach_statements(repo_root, all_decls)
 
     try:
         rel = str(path.relative_to(repo_root))
@@ -380,10 +403,13 @@ def build_accepted_declaration_tree(
         "total_declarations": total,
         "rung_count_with_decls": sum(1 for r in rung_payload if r["decl_count"] > 0),
         "by_rung": {r["rung_id"]: r["decl_count"] for r in rung_payload},
+        "statements_found": stmt_found,
+        "statements_missing": stmt_missing,
     }
     print(
         f"[saturday.accepted_tree] summary total={total} "
         f"rungs_with_decls={summary['rung_count_with_decls']} "
+        f"stmts_found={stmt_found} stmts_missing={stmt_missing} "
         f"by_rung={summary['by_rung']}"
     )
     return {
