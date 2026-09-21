@@ -484,8 +484,24 @@ document.querySelectorAll('.tabs button').forEach(btn => {
 
 async function loadProgress() {
   console.log('[saturday.dashboard.ui] fetch /api/progress');
-  const res = await fetch('/api/progress');
-  const data = await res.json();
+  try {
+    const res = await fetch('/api/progress');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    renderProgress(data);
+  } catch (err) {
+    console.error('[saturday.dashboard.ui] loadProgress failed', err);
+    const el = document.getElementById('liveSummary');
+    if (el) {
+      el.innerHTML = '<div class="bad">Progress fetch failed: '
+        + esc(String(err && err.message ? err.message : err))
+        + '. Is the dashboard process healthy?</div>';
+    }
+  }
+}
+
+function renderProgress(data) {
+  console.log('[saturday.dashboard.ui] renderProgress');
   const live = data.live || {};
   const stats = live.stats || {};
   const models = live.models || {};
