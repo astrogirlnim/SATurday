@@ -7,7 +7,9 @@ Pin lists are dynamic extracts of open Frontier sorries (no hard-coded names).
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from search.saturday.apply_lean import extract_open_frontier_obligations
@@ -20,32 +22,70 @@ from search.saturday.reflect import load_reflect
 from search.saturday.status import build_saturday_status, status_to_dict
 
 
-LEAN_BY_RUNG = {
-    "r2-width-machinery": "theory/Theory/ProofComplexity/CSExpansion.lean",
-    "r5-cook-reckhow-bridge": "theory/Theory/ProofComplexity/Bridge/ProofSystem.lean",
-    "r0-resolution-foundations": "theory/Theory/ProofComplexity/Resolution.lean",
-    "r1-php-haken": "theory/Theory/ProofComplexity/PHP.lean",
-    "r3-stronger-systems": "theory/Theory/ProofComplexity/Resolution.lean",
-    "r4-frontier": "theory/Theory/ProofComplexity/CSExpansion.lean",
+_PROGRESS_CACHE: Optional[Dict[str, Any]] = None
+_PROGRESS_CACHE_AT = 0.0
+_PROGRESS_CACHE_LOCK = Lock()
+_PROGRESS_CACHE_TTL_S = 2.5
+
+
+LEAN_BY_RUNG: Dict[str, List[str]] = {
+    "r2-width-machinery": [
+        "theory/Theory/ProofComplexity/MGG.lean",
+        "theory/Theory/ProofComplexity/CSExpansion.lean",
+    ],
+    "r5-cook-reckhow-bridge": [
+        "theory/Theory/ProofComplexity/Bridge/ProofSystem.lean",
+    ],
+    "r0-resolution-foundations": [
+        "theory/Theory/ProofComplexity/Resolution.lean",
+    ],
+    "r1-php-haken": [
+        "theory/Theory/ProofComplexity/PHP.lean",
+    ],
+    "r3-stronger-systems": [
+        "theory/Theory/ProofComplexity/Resolution.lean",
+    ],
+    "r4-frontier": [
+        "theory/Theory/ProofComplexity/CSExpansion.lean",
+    ],
 }
 
 
 def _obligations_for_rung(repo_root: Path, rung_id: str) -> List[str]:
-    rel = LEAN_BY_RUNG.get(rung_id)
-    if not rel:
-        return []
-    path = repo_root / rel
-    if not path.exists():
-        return []
-    text = path.read_text(encoding="utf-8")
-    return extract_open_frontier_obligations(text)
+    rels = LEAN_BY_RUNG.get(rung_id) or []
+    found: List[str] = []
+    seen = set()
+    for rel in rels:
+        path = repo_root / rel
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for name in extract_open_frontier_obligations(text):
+            if name not in seen:
+                seen.add(name)
+                found.append(name)
+    return found
 
 
 def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
     """JSON payload for dashboard / API."""
+    global _PROGRESS_CACHE, _PROGRESS_CACHE_AT
     repo_root = Path(repo_root)
+    now = time.time()
+    with _PROGRESS_CACHE_LOCK:
+        if (
+            _PROGRESS_CACHE is not None
+            and (now - _PROGRESS_CACHE_AT) < _PROGRESS_CACHE_TTL_S
+        ):
+            print(
+                f"[saturday.progress] cache hit age={now - _PROGRESS_CACHE_AT:.2f}s"
+            )
+            return _PROGRESS_CACHE
+
+    t0 = time.time()
     print(f"[saturday.progress] build snapshot repo={repo_root}")
-    status = build_saturday_status(repo_root)
+    # Skip chooser on the dashboard poll path (import-ladder scans are slow).
+    status = build_saturday_status(repo_root, include_chooser=False)
     control = load_control(repo_root)
     reflect = load_reflect(repo_root)
 
@@ -124,7 +164,7 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
         f"{accepted_summary.get('total_declarations')}"
     )
 
-    return {
+    snap = {
         "toward_p_vs_np": status.toward_p_vs_np,
         "rung_completion_pct": rung_pct,
         "critical_pin_pct": pin_pct,
@@ -148,6 +188,11 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
         "status": status_to_dict(status),
         "accepted_tree_summary": accepted_summary,
     }
+    with _PROGRESS_CACHE_LOCK:
+        _PROGRESS_CACHE = snap
+        _PROGRESS_CACHE_AT = time.time()
+    print(f"[saturday.progress] snapshot ready in {time.time() - t0:.2f}s")
+    return snap
 
 
 def build_accepted_tree_snapshot(repo_root: Path) -> Dict[str, Any]:

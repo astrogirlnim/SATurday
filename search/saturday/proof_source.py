@@ -546,21 +546,26 @@ def frontier_ns_for_module(module: str) -> str:
     return "CSExpansionFrontier"
 
 
-def lean_name_is_open_sorry(module_text: str, lean_name: str) -> bool:
+def lean_name_is_open_sorry(
+    module_text: str, lean_name: str, *, quiet: bool = False
+) -> bool:
     """True when lean_name is an open `:= by sorry` theorem/lemma in module_text."""
     from search.saturday.apply_lean import extract_open_frontier_obligations
 
     open_names = set(extract_open_frontier_obligations(module_text))
     short = (lean_name or "").rsplit(".", 1)[-1]
     hit = lean_name in open_names or short in open_names
-    print(
-        f"[saturday.proof_source] lean_name_is_open_sorry name={lean_name} "
-        f"short={short} hit={hit} open_n={len(open_names)}"
-    )
+    if not quiet:
+        print(
+            f"[saturday.proof_source] lean_name_is_open_sorry name={lean_name} "
+            f"short={short} hit={hit} open_n={len(open_names)}"
+        )
     return hit
 
 
-def lean_name_is_certified(module_text: str, lean_name: str) -> bool:
+def lean_name_is_certified(
+    module_text: str, lean_name: str, *, quiet: bool = False
+) -> bool:
     """
     True when lean_name appears as theorem/lemma with a non-sorry proof body.
 
@@ -568,16 +573,17 @@ def lean_name_is_certified(module_text: str, lean_name: str) -> bool:
     """
     if not lean_name:
         return False
-    if lean_name_is_open_sorry(module_text, lean_name):
+    if lean_name_is_open_sorry(module_text, lean_name, quiet=True):
         return False
-    # Decl present and not an open sorry
+    short = lean_name.rsplit(".", 1)[-1]
     pat = re.compile(
-        rf"(?m)^\s*(?:theorem|lemma)\s+{re.escape(lean_name)}\b"
+        rf"(?m)^\s*(?:theorem|lemma)\s+{re.escape(short)}\b"
     )
     hit = bool(pat.search(module_text))
-    print(
-        f"[saturday.proof_source] lean_name_is_certified name={lean_name} hit={hit}"
-    )
+    if not quiet:
+        print(
+            f"[saturday.proof_source] lean_name_is_certified name={lean_name} hit={hit}"
+        )
     return hit
 
 
@@ -622,8 +628,11 @@ def auto_advance_certified_steps(
     """
     Mark pending micro-steps done when their lean_name is already certified
     in the step module (no open sorry).
+
+    Reads each Lean module at most once (critical for large import ladders).
     """
     changed = False
+    module_cache: Dict[str, str] = {}
     for step in plan.get("steps") or []:
         if str(step.get("status", "pending")) == "done":
             continue
@@ -631,15 +640,20 @@ def auto_advance_certified_steps(
         module = str(step.get("module") or "")
         if not lean_name or not module:
             continue
-        path = repo_root / module
-        if not path.is_file():
+        path_m = repo_root / module
+        if not path_m.is_file():
             print(
                 f"[saturday.proof_source] auto_advance skip missing module={module}"
             )
             continue
-        text = path.read_text(encoding="utf-8")
-        # Only auto-skip when certified outside open-sorry (or closed already)
-        if lean_name_is_certified(text, lean_name):
+        if module not in module_cache:
+            module_cache[module] = path_m.read_text(encoding="utf-8")
+            print(
+                f"[saturday.proof_source] auto_advance loaded module={module} "
+                f"chars={len(module_cache[module])}"
+            )
+        text_m = module_cache[module]
+        if lean_name_is_certified(text_m, lean_name, quiet=True):
             step["status"] = "done"
             step["done_reason"] = "already_certified"
             step["done_at"] = _now_iso()
@@ -651,6 +665,7 @@ def auto_advance_certified_steps(
     if changed:
         save_accepted_plan(repo_root, cfg, entry, plan)
     return plan
+
 
 
 def theory_excerpt(

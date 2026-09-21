@@ -175,10 +175,19 @@ def _suggested_commands(
     return ordered
 
 
-def build_saturday_status(repo_root: Path) -> SaturdayStatus:
-    """Assemble status from rung memories and session log."""
+def build_saturday_status(
+    repo_root: Path, *, include_chooser: bool = True
+) -> SaturdayStatus:
+    """Assemble status from rung memories and session log.
+
+    Set include_chooser=False on the dashboard hot path: chooser scans import
+    ladders and can take seconds, which leaves the UI blank.
+    """
     repo_root = Path(repo_root)
-    print(f"[saturday.status] build repo_root={repo_root}")
+    print(
+        f"[saturday.status] build repo_root={repo_root} "
+        f"include_chooser={include_chooser}"
+    )
     ctx: CycleContext = load_cycle_context(repo_root)
 
     rows: List[RungStatusRow] = []
@@ -214,11 +223,22 @@ def build_saturday_status(repo_root: Path) -> SaturdayStatus:
         if r.status in {"active", "prose_accepted", "blocked"}
     ]
 
-    choice = choose_rung_and_action(ctx)
-    parallel = list_parallel_choices(ctx)
-    next_cycle = _choice_dict(choice)
-    parallel_paths = [_choice_dict(c) for c in parallel]
-    suggested = _suggested_commands(choice, parallel)
+    if include_chooser:
+        choice = choose_rung_and_action(ctx)
+        parallel = list_parallel_choices(ctx)
+        next_cycle = _choice_dict(choice)
+        parallel_paths = [_choice_dict(c) for c in parallel]
+        suggested = _suggested_commands(choice, parallel)
+    else:
+        next_cycle = {
+            "rung": "—",
+            "action_type": "—",
+            "target": "see live feed",
+            "rationale": "chooser skipped on dashboard hot path",
+            "workstream": "",
+        }
+        parallel_paths = []
+        suggested = []
 
     recent = _load_recent_sessions(repo_root, limit=5)
     last = recent[-1] if recent else ctx.last_session

@@ -464,6 +464,7 @@ function statusClass(st) {
 
 let treeCache = null;
 let treeLoadedAt = 0;
+let progressInFlight = false;
 
 function setTab(name) {
   console.log('[saturday.dashboard.ui] setTab', name);
@@ -483,20 +484,31 @@ document.querySelectorAll('.tabs button').forEach(btn => {
 });
 
 async function loadProgress() {
+  if (progressInFlight) {
+    console.log('[saturday.dashboard.ui] skip poll; previous still in flight');
+    return;
+  }
+  progressInFlight = true;
   console.log('[saturday.dashboard.ui] fetch /api/progress');
+  const liveEl = document.getElementById('liveSummary');
+  if (liveEl && !liveEl.dataset.filled) {
+    liveEl.innerHTML = '<div class="muted">Loading auto-loop progress…</div>';
+  }
   try {
     const res = await fetch('/api/progress');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     renderProgress(data);
+    if (liveEl) liveEl.dataset.filled = '1';
   } catch (err) {
     console.error('[saturday.dashboard.ui] loadProgress failed', err);
-    const el = document.getElementById('liveSummary');
-    if (el) {
-      el.innerHTML = '<div class="bad">Progress fetch failed: '
+    if (liveEl) {
+      liveEl.innerHTML = '<div class="bad">Progress fetch failed: '
         + esc(String(err && err.message ? err.message : err))
         + '. Is the dashboard process healthy?</div>';
     }
+  } finally {
+    progressInFlight = false;
   }
 }
 
@@ -754,7 +766,7 @@ document.getElementById('unkillBtn').onclick = async () => {
 };
 
 loadProgress();
-setInterval(loadProgress, 2000);
+setInterval(loadProgress, 4000);
 </script>
 </body>
 </html>
