@@ -2569,5 +2569,19 @@ def mggImport_mgg_graph_step (n : ℕ) (i j : ℤ) (l : ℕ) (σ : ℤ) : ℤ ×
 
 end MGGFrontier
 
+namespace MGGFrontier
+
+/-- Port of Isabelle `mgg_graph`: the edge set of the MGG graph on dimension n.
+Vertices are pairs (i,j) with 0 ≤ i,j < n. The edge set consists of all arcs
+labeled by (l,σ) where l ∈ {0,1,2,3} and σ ∈ {-1,1}, connecting each vertex
+to its four neighbors computed by the step function. -/
+def mggImport_mgg_graph (n : ℕ) : Finset ((ℤ × ℤ) × (ℤ × ℤ)) :=
+  (Finset.range n ×ˢ Finset.range n).biUnion fun (i, j) =>
+    (Finset.range 4 ×ˢ ({-1, 1} : Finset ℤ)).image fun (l, σ) =>
+      ((↑i, ↑j), mggImport_mgg_graph_step n (↑i) (↑j) l σ)
+
+end MGGFrontier
+
+
 
 end SATurday.ProofComplexity
