@@ -301,10 +301,12 @@ def _strip_ns_wrapper(fragment: str) -> str:
 
 
 def _split_decl_blocks(body: str) -> dict[str, str]:
-    """Map decl name -> full theorem/lemma block text (best effort)."""
+    """Map decl name -> full theorem/lemma/def block text (best effort)."""
     starts = [
         m.start()
-        for m in re.finditer(r"(?m)^(?:theorem|lemma)\s+[A-Za-z0-9_']+", body)
+        for m in re.finditer(
+            r"(?m)^(?:theorem|lemma|def|abbrev)\s+[A-Za-z0-9_']+", body
+        )
     ]
     blocks: dict[str, str] = {}
     for i, start in enumerate(starts):
@@ -321,11 +323,16 @@ def _split_decl_blocks(body: str) -> dict[str, str]:
             end = start + cut.start()
         chunk = body[doc_start:end].strip()
         name_m = re.match(
-            r"(?ms)(?:/--(?:(?!-/).)*?-/\s*)?(?:theorem|lemma)\s+([A-Za-z0-9_']+)",
+            r"(?ms)(?:/--(?:(?!-/).)*?-/\s*)?(?:theorem|lemma|def|abbrev)\s+"
+            r"([A-Za-z0-9_']+)",
             chunk,
         )
         if name_m:
             blocks[name_m.group(1)] = chunk
+    print(
+        f"[saturday.apply] split_decl_blocks n={len(blocks)} "
+        f"names={sorted(blocks)[:12]}"
+    )
     return blocks
 
 
@@ -392,7 +399,7 @@ def merge_frontier_fragment(
             raise ValueError("fragment has no theorem/lemma decls to merge")
         raise ValueError(
             "fragment decls could not be split into blocks; "
-            "emit theorem/lemma with := by ..."
+            "emit theorem/lemma/def with := ..."
         )
 
     existing = _existing_decl_names(original)
