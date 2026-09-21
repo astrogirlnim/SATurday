@@ -2,7 +2,7 @@
 SATurday CLI - Unified command-line interface for agent-driven research.
 
 Commands:
-- auto: Autonomous parallel research loop (all next workstreams; Ctrl-C to stop)
+- auto: Autonomous research loop (serial by default; --parallel for multi-rung)
 - saturday: One local research cycle (CLI + localhost LLMs)
 - status: Ladder completion, summit readiness, and suggested next commands
 - loop: Repeated saturday wakes with optional parallel workstreams
@@ -65,7 +65,7 @@ def auto_cmd(
     remote: bool = typer.Option(
         False,
         "--remote",
-        help="Use OpenRouter (GPT-6 Astra) for formalize; needs OPENROUTER_API_KEY",
+        help="Use OpenRouter for formalize/prove; needs OPENROUTER_API_KEY",
     ),
     remote_only: bool = typer.Option(
         False,
@@ -77,29 +77,52 @@ def auto_cmd(
         "--escalate",
         help="With --remote: try local first, then OpenRouter on failure",
     ),
+    parallel: Optional[bool] = typer.Option(
+        None,
+        "--parallel/--serial",
+        help=(
+            "Run disjoint workstreams together each wake, or one rung at a time. "
+            "Default: saturday_loop.loop_parallel_default (false = serial)."
+        ),
+    ),
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
 ):
     """
-    Autonomous mode: run all next disjoint workstreams in parallel, forever.
+    Autonomous mode: one wake after another until Ctrl-C.
 
-    Each wake runs every actionable parallel path together (typically R2 and R5),
-    then starts the next wake immediately. OpenRouter pacing is per-request
-    cooldown, not inter-wake sleep. Stop with Ctrl-C.
+    By default runs serially (one chooser pick per wake) so shared lake builds
+    do not race. Pass --parallel to run R2 and R5 together when both are ready.
 
     Examples:
         satday auto
         satday auto --remote
+        satday auto --remote --parallel
         satday auto --remote --escalate
         satday auto --sleep 30
         satday auto --cycles 5
         satday auto --dry-run --cycles 1
     """
-    console.print("[bold blue]SATurday auto (parallel loop)[/bold blue]")
-    console.print(
-        "Runs all next workstreams each wake, then continues immediately. "
-        "Stop with Ctrl-C. Look for lines starting with >>> for human readable "
-        "status; [saturday.*] lines are detailed debug logs."
+    from infra.config.loader import load_config
+
+    cfg = load_config(repo_root=repo_root, config_file=config)
+    use_parallel = (
+        bool(parallel)
+        if parallel is not None
+        else bool(cfg.saturday_loop.loop_parallel_default)
     )
+    mode_label = "parallel" if use_parallel else "serial"
+    console.print(f"[bold blue]SATurday auto ({mode_label} loop)[/bold blue]")
+    if use_parallel:
+        console.print(
+            "Runs all next workstreams each wake, then continues immediately. "
+            "Stop with Ctrl-C. Look for lines starting with >>> for human readable "
+            "status; [saturday.*] lines are detailed debug logs."
+        )
+    else:
+        console.print(
+            "Runs one rung per wake (no shared-tree races), then continues "
+            "immediately. Pass --parallel for R2+R5 together. Stop with Ctrl-C."
+        )
     if remote_only:
         remote = True
     # Default --remote skips weak local formalize; --escalate restores local-first
@@ -111,7 +134,7 @@ def auto_cmd(
         remote_mode = None
     console.print(
         f"cycles={cycles} sleep={sleep} dry_run={dry_run} "
-        f"remote={bool(remote)} remote_mode={remote_mode}"
+        f"parallel={use_parallel} remote={bool(remote)} remote_mode={remote_mode}"
     )
     try:
         from search.saturday.loop import run_saturday_loop
@@ -121,7 +144,7 @@ def auto_cmd(
             config_file=config,
             cycles=cycles,
             sleep_seconds=sleep,
-            parallel=True,
+            parallel=use_parallel,
             dry_run=dry_run,
             remote=bool(remote),
             remote_mode=remote_mode,
@@ -153,7 +176,7 @@ def saturday_cmd(
     remote: bool = typer.Option(
         False,
         "--remote",
-        help="Use OpenRouter (GPT-6 Astra) for formalize; needs OPENROUTER_API_KEY",
+        help="Use OpenRouter for formalize/prove; needs OPENROUTER_API_KEY",
     ),
     remote_only: bool = typer.Option(
         False,
@@ -252,7 +275,7 @@ def loop_cmd(
     remote: bool = typer.Option(
         False,
         "--remote",
-        help="Use OpenRouter (GPT-6 Astra) for formalize; needs OPENROUTER_API_KEY",
+        help="Use OpenRouter for formalize/prove; needs OPENROUTER_API_KEY",
     ),
     remote_only: bool = typer.Option(
         False,

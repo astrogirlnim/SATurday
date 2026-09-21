@@ -29,8 +29,9 @@ satday kill --reason "operator stop"
 satday unkill
 ```
 
-`satday auto` runs all next disjoint workstreams in parallel each wake and
-continues immediately when a wake finishes (no arbitrary sleep). OpenRouter
+`satday auto` defaults to serial (one rung per wake; `loop_parallel_default:
+false`) so shared lake builds do not race. Pass `--parallel` for R2+R5 together.
+Continues immediately when a wake finishes (no arbitrary sleep). OpenRouter
 pacing is per-request cooldown. Formalize auto-applies Frontier drafts into
 `theory/` when lake build stays green (`saturday_loop.auto_apply`).
 
