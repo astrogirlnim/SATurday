@@ -449,6 +449,18 @@ def validate_lean_draft(
     if "begin" in cleaned.split() and "by" not in cleaned[:200]:
         reasons.append("possible Lean 3 proof style")
 
+    # Nat inequality witness is not a term of type MggHasMultiCheeger.
+    # Local models keep inventing `exact mgg_gabber_galil_cheeger_nat_witness ...`
+    # which lake rejects with "Function expected".
+    if (
+        "mgg_has_multi_cheeger" in name.lower()
+        or "MggHasMultiCheeger" in cleaned
+    ) and "mgg_gabber_galil_cheeger_nat_witness" in cleaned:
+        reasons.append(
+            "mgg_gabber_galil_cheeger_nat_witness is a Nat inequality, not a "
+            "MggHasMultiCheeger proof; use packaging lemmas or status=blocked"
+        )
+
     unknown: List[str] = []
     if known_idents is not None:
         allow = set(known_idents) | set(defined) | set(_BUILTIN_CAP)
