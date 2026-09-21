@@ -30,111 +30,237 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>SATurday progress</title>
+<title>SATurday</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
   :root {
-    --bg: #0f1419;
-    --panel: #1a2332;
-    --text: #e7ecf3;
-    --muted: #8b9bb4;
-    --accent: #3d9cf0;
-    --ok: #3ecf8e;
-    --warn: #e6b84d;
-    --bad: #e85d5d;
-    --line: #2a3548;
+    --bg: #08090b;
+    --bg-2: #0e1013;
+    --panel: #12151a;
+    --panel-2: #171b22;
+    --text: #f3f1ea;
+    --muted: #8b9188;
+    --line: #2a2f28;
+    --line-hot: #3d4638;
+    --sage: #c7d9a8;
+    --sage-dim: #9baf7e;
+    --cyan: #5ce1e6;
+    --magenta: #ff4ecd;
+    --ok: #7dff9a;
+    --warn: #ffd36a;
+    --bad: #ff6b7a;
+    --phosphor: #9dffb0;
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "DM Sans", "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
     margin: 0;
-    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-    background:
-      radial-gradient(1200px 600px at 10% -10%, #1b2a44 0%, transparent 55%),
-      radial-gradient(900px 500px at 100% 0%, #243018 0%, transparent 50%),
-      var(--bg);
+    font-family: var(--sans);
     color: var(--text);
     min-height: 100vh;
+    background:
+      radial-gradient(900px 480px at 12% -8%, rgba(255, 77, 205, 0.08), transparent 55%),
+      radial-gradient(800px 520px at 92% 0%, rgba(92, 225, 230, 0.07), transparent 50%),
+      radial-gradient(700px 400px at 50% 100%, rgba(199, 217, 168, 0.05), transparent 55%),
+      var(--bg);
+    background-attachment: fixed;
   }
-  header {
-    padding: 1.5rem 1.75rem 0.75rem;
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.22;
+    background-image:
+      linear-gradient(rgba(92, 225, 230, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 77, 205, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 35%, transparent 85%);
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.04;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.35) 2px,
+      rgba(0, 0, 0, 0.35) 3px
+    );
+  }
+  .shell { position: relative; z-index: 1; }
+
+  /* Top nav — portfolio magazine bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+    padding: 1rem 1.75rem;
     border-bottom: 1px solid var(--line);
+    background: rgba(8, 9, 11, 0.82);
+    backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 20;
   }
-  header h1 {
-    margin: 0;
-    font-family: "IBM Plex Serif", Georgia, serif;
-    font-weight: 600;
-    font-size: 1.75rem;
-    letter-spacing: 0.02em;
+  .brand {
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text); text-decoration: none;
   }
-  header p { margin: 0.4rem 0 0; color: var(--muted); max-width: 52rem; }
-  .tabs {
-    display: flex; gap: 0.4rem; margin-top: 1rem; flex-wrap: wrap;
-  }
+  .brand span { color: var(--sage); }
+  .tabs { display: flex; gap: 0.15rem; flex-wrap: wrap; }
   .tabs button {
-    background: transparent; color: var(--muted);
-    border: 1px solid var(--line); border-radius: 8px;
-    padding: 0.45rem 0.85rem; font-weight: 600; cursor: pointer;
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em;
+    text-transform: uppercase; background: transparent; color: var(--muted);
+    border: 0; border-bottom: 1px solid transparent;
+    padding: 0.55rem 0.75rem; cursor: pointer; font-weight: 500;
   }
+  .tabs button:hover { color: var(--text); }
   .tabs button.active {
-    background: var(--accent); color: #061018; border-color: var(--accent);
+    color: var(--sage); border-bottom-color: var(--sage);
   }
-  main { padding: 1.25rem 1.75rem 2.5rem; display: grid; gap: 1rem; }
+  .topbar-meta {
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .topbar-meta .dot { color: var(--cyan); margin: 0 0.35rem; }
+
+  main { padding: 1.35rem 1.75rem 2.5rem; display: grid; gap: 1.1rem; }
   .panel { display: none; }
-  .panel.active { display: grid; gap: 1rem; }
+  .panel.active { display: grid; gap: 1.1rem; }
   .row { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
   .card {
-    background: color-mix(in srgb, var(--panel) 92%, black);
+    background: color-mix(in srgb, var(--panel) 88%, black);
     border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 1rem 1.1rem;
+    border-radius: 14px;
+    padding: 1.05rem 1.15rem;
+    position: relative;
+    overflow: hidden;
   }
-  .card h2 { margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-  .big { font-size: 2rem; font-weight: 650; }
+  .card::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(199,217,168,0.45), rgba(92,225,230,0.35), transparent);
+    opacity: 0.7;
+  }
+  .card h2, .sec-label {
+    margin: 0 0 0.7rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 500;
+  }
+  .sec-label .num { color: var(--cyan); margin-right: 0.35rem; }
+  .big {
+    font-family: var(--serif);
+    font-size: 2.35rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--sage);
+  }
   .bar {
-    height: 10px; background: #243044; border-radius: 999px; overflow: hidden; margin-top: 0.55rem;
+    height: 6px; background: #1a1f18; border-radius: 999px; overflow: hidden; margin-top: 0.65rem;
   }
-  .bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--ok)); }
+  .bar > span {
+    display: block; height: 100%;
+    background: linear-gradient(90deg, var(--sage), var(--cyan));
+  }
   table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-  th, td { text-align: left; padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 550; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
-  .pill {
-    display: inline-block; padding: 0.12rem 0.45rem; border-radius: 999px;
-    font-size: 0.75rem; border: 1px solid var(--line);
+  th, td { text-align: left; padding: 0.7rem 0.45rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th {
+    color: var(--muted); font-weight: 500; font-size: 0.68rem;
+    text-transform: uppercase; letter-spacing: 0.12em; font-family: var(--mono);
   }
+  .pill {
+    display: inline-block; padding: 0.14rem 0.5rem; border-radius: 999px;
+    font-size: 0.72rem; border: 1px solid var(--line);
+    font-family: var(--mono); letter-spacing: 0.04em;
+  }
+  .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+  .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+  .pill.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+  .pill.muted { color: var(--muted); }
   .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
   .controls { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
   button, .btn {
-    background: var(--accent); color: #061018; border: 0; border-radius: 8px;
-    padding: 0.55rem 0.9rem; font-weight: 650; cursor: pointer;
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em;
+    text-transform: uppercase; font-weight: 600;
+    background: var(--sage); color: #10140c; border: 1px solid var(--sage);
+    border-radius: 4px; padding: 0.6rem 0.95rem; cursor: pointer;
   }
-  button.danger { background: var(--bad); color: white; }
-  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  button:hover { filter: brightness(1.05); }
+  button.danger {
+    background: transparent; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 55%, var(--line));
+  }
+  button.ghost {
+    background: transparent; color: var(--text); border: 1px solid var(--line-hot);
+  }
+  button.ghost:hover { border-color: var(--sage); color: var(--sage); }
   input[type=text], input[type=search] {
-    flex: 1; min-width: 220px; background: #101826; color: var(--text);
-    border: 1px solid var(--line); border-radius: 8px; padding: 0.55rem 0.7rem;
+    flex: 1; min-width: 220px;
+    background: #0b0d10; color: var(--text);
+    border: 1px solid var(--line); border-radius: 4px;
+    padding: 0.65rem 0.8rem; font-family: var(--mono); font-size: 0.82rem;
   }
-  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.82rem; }
+  input[type=text]:focus, input[type=search]:focus {
+    outline: none; border-color: var(--cyan);
+    box-shadow: 0 0 0 1px rgba(92, 225, 230, 0.25);
+  }
+  .mono { font-family: var(--mono); font-size: 0.82rem; }
   .muted { color: var(--muted); }
-  footer { padding: 0 1.75rem 1.5rem; color: var(--muted); font-size: 0.85rem; }
+  .term {
+    background: #070809;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.85rem 0.95rem;
+    max-height: 280px; overflow: auto;
+    font-family: var(--mono); font-size: 0.8rem;
+    line-height: 1.55; color: var(--phosphor);
+  }
+  .term .muted { color: #5f6a5c; }
+  footer {
+    padding: 0 1.75rem 2rem; color: var(--muted);
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em;
+  }
 
-  /* Accepted declaration tree */
+  /* Tree */
   .tree-toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
-  .tree-meta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.7rem; }
+  .tree-meta { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 0.85rem; }
   .tree-meta .stat {
-    background: #101826; border: 1px solid var(--line); border-radius: 8px;
-    padding: 0.45rem 0.7rem; font-size: 0.85rem;
+    background: #0b0d10; border: 1px solid var(--line); border-radius: 8px;
+    padding: 0.5rem 0.75rem; font-size: 0.82rem;
+  }
+  .tree-meta .stat strong {
+    font-family: var(--serif); font-size: 1.15rem; color: var(--sage); font-weight: 600;
   }
   .dag-note {
-    margin-top: 0.75rem; padding: 0.65rem 0.8rem;
-    border-left: 3px solid var(--accent); background: #101826; font-size: 0.9rem;
+    margin-top: 0.85rem; padding: 0.75rem 0.9rem;
+    border-left: 2px solid var(--magenta);
+    background: rgba(255, 77, 205, 0.04);
+    font-size: 0.9rem; color: var(--muted);
   }
   details.rung-node, details.cluster-node, details.decl-node {
-    border: 1px solid var(--line); border-radius: 10px; margin: 0.5rem 0;
-    background: #121a26;
+    border: 1px solid var(--line); border-radius: 12px; margin: 0.55rem 0;
+    background: var(--panel);
+    transition: border-color 0.15s ease;
+  }
+  details.rung-node:hover, details.cluster-node:hover, details.decl-node:hover {
+    border-color: var(--line-hot);
   }
   details.rung-node > summary,
   details.cluster-node > summary,
   details.decl-node > summary {
-    cursor: pointer; list-style: none; padding: 0.75rem 0.95rem;
+    cursor: pointer; list-style: none; padding: 0.8rem 1rem;
     display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center;
   }
   details.rung-node > summary::-webkit-details-marker,
@@ -143,111 +269,111 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   details.rung-node > summary::before,
   details.cluster-node > summary::before,
   details.decl-node > summary::before {
-    content: ""; width: 0.55rem; height: 0.55rem; border-radius: 2px;
-    background: var(--muted); display: inline-block; transform: rotate(45deg);
-    opacity: 0.7;
+    content: "⊢";
+    font-family: var(--mono); color: var(--muted); width: 1rem;
+    display: inline-block; font-size: 0.85rem;
   }
   details[open].rung-node > summary::before,
   details[open].cluster-node > summary::before,
   details[open].decl-node > summary::before {
-    background: var(--accent); transform: rotate(135deg);
+    content: "⊨"; color: var(--sage);
   }
-  details.rung-node.role-bridge { border-color: #3a4a2a; }
-  details.rung-node.role-setup { border-color: #2a3548; }
-  details.rung-node.role-main { border-left: 3px solid var(--accent); }
-  details.cluster-node { background: #0f1620; margin-left: 0.35rem; }
-  details.decl-node {
-    background: #0c121c; border-color: #243044; margin: 0.55rem 0;
-  }
-  details.decl-node.has-prose { border-left: 3px solid var(--ok); }
-  details.decl-node.formula-only { border-left: 3px solid var(--accent); }
-  .rung-body, .cluster-body, .decl-body { padding: 0 0.95rem 0.95rem 1.35rem; }
+  details.rung-node.role-bridge { border-color: color-mix(in srgb, var(--cyan) 35%, var(--line)); }
+  details.rung-node.role-setup { border-color: var(--line); }
+  details.rung-node.role-main { border-left: 2px solid var(--sage); }
+  details.cluster-node { background: var(--bg-2); margin-left: 0.35rem; }
+  details.decl-node { background: #0b0d10; border-color: #22272a; margin: 0.55rem 0; }
+  details.decl-node.has-prose { border-left: 2px solid var(--ok); }
+  details.decl-node.formula-only { border-left: 2px solid var(--cyan); }
+  .rung-body, .cluster-body, .decl-body { padding: 0 1rem 1rem 1.35rem; }
   .branch {
-    margin-left: 0.2rem; padding-left: 0.75rem;
+    margin-left: 0.15rem; padding-left: 0.8rem;
     border-left: 1px solid var(--line);
   }
   .decl-summary-title {
-    font-weight: 600; font-size: 0.98rem; letter-spacing: 0.01em;
+    font-family: var(--serif); font-weight: 600; font-size: 1.05rem;
   }
   .decl-summary-preview {
-    flex: 1 1 100%; color: var(--muted); font-size: 0.86rem;
-    line-height: 1.4; margin-top: 0.15rem;
+    flex: 1 1 100%; color: var(--muted); font-size: 0.88rem;
+    line-height: 1.45; margin-top: 0.1rem;
   }
   .prose-block {
-    margin: 0.35rem 0 0.7rem;
-    padding: 0.75rem 0.9rem;
-    background: #152033;
-    border: 1px solid #2a3a52;
-    border-radius: 8px;
-    font-family: "IBM Plex Serif", Georgia, serif;
-    font-size: 1.02rem;
+    margin: 0.35rem 0 0.75rem;
+    padding: 0.85rem 0.95rem;
+    background: rgba(199, 217, 168, 0.05);
+    border: 1px solid color-mix(in srgb, var(--sage) 28%, var(--line));
+    border-radius: 10px;
+    font-family: var(--serif);
+    font-size: 1.05rem;
     line-height: 1.55;
-    color: #eef3fa;
+    color: var(--text);
   }
   .prose-label, .formula-label {
-    display: block; font-size: 0.72rem; letter-spacing: 0.08em;
-    text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem;
-    font-family: "IBM Plex Sans", sans-serif;
+    display: block; font-size: 0.68rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem;
+    font-family: var(--mono);
   }
   .formula-block {
     margin: 0;
-    padding: 0.7rem 0.85rem;
-    background: #0a1018;
-    border: 1px solid #2a3548;
+    padding: 0.75rem 0.9rem;
+    background: #060708;
+    border: 1px solid var(--line);
     border-radius: 8px;
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: 0.88rem;
-    line-height: 1.5;
-    color: #c9e4ff;
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    line-height: 1.55;
+    color: var(--cyan);
     overflow-x: auto;
     white-space: pre-wrap;
     word-break: break-word;
+    text-shadow: 0 0 18px rgba(92, 225, 230, 0.18);
   }
   .decl-meta {
-    margin-top: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.5rem;
-    align-items: center; font-size: 0.78rem; color: var(--muted);
+    margin-top: 0.7rem; display: flex; flex-wrap: wrap; gap: 0.55rem;
+    align-items: center; font-size: 0.75rem; color: var(--muted);
   }
   .count-badge {
-    margin-left: auto; font-family: ui-monospace, monospace;
-    color: var(--muted); font-size: 0.8rem;
+    margin-left: auto; font-family: var(--mono);
+    color: var(--muted); font-size: 0.72rem; letter-spacing: 0.04em;
   }
   .empty-rung { color: var(--muted); font-style: italic; padding: 0.4rem 0; }
   .section-label {
-    margin: 1.15rem 0 0.45rem; font-size: 0.78rem; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--muted);
+    margin: 1.35rem 0 0.5rem; font-size: 0.7rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--sage-dim); font-family: var(--mono);
   }
 </style>
 </head>
 <body>
-<header>
-  <h1>SATurday</h1>
-  <p>Live auto-loop feed, accepted-declaration ladder tree, critical Frontier pins, and kill switch.</p>
+<div class="shell">
+<header class="topbar">
+  <a class="brand" href="/">SATurday</a>
   <div class="tabs" role="tablist">
     <button type="button" class="active" data-tab="progress" id="tabProgress">Progress</button>
-    <button type="button" data-tab="tree" id="tabTree">Accepted tree</button>
+    <button type="button" data-tab="tree" id="tabTree">Tree</button>
   </div>
+  <div class="topbar-meta">dashboard<span class="dot">·</span>8765</div>
 </header>
+
 <main>
   <div id="panel-progress" class="panel active">
     <section class="card" id="liveCard">
-      <h2>Loop now</h2>
+      <h2 class="sec-label">Loop</h2>
       <div id="liveSummary" class="mono"></div>
-      <div class="row" style="margin-top:0.8rem" id="liveStats"></div>
-      <div id="liveFeed" class="mono" style="margin-top:0.9rem;max-height:280px;overflow:auto;line-height:1.45"></div>
+      <div class="row" style="margin-top:0.9rem" id="liveStats"></div>
+      <div id="liveFeed" class="term" style="margin-top:0.95rem"></div>
     </section>
     <section class="row" id="summary"></section>
     <section class="card">
-      <h2>Kill switch</h2>
+      <h2 class="sec-label">Kill switch</h2>
       <div class="controls">
-        <input id="reason" type="text" placeholder="Reason for kill (optional)"/>
-        <button class="danger" id="killBtn">Kill auto loop</button>
-        <button class="ghost" id="unkillBtn">Clear kill</button>
+        <input id="reason" type="text" placeholder="Reason (optional)"/>
+        <button class="danger" id="killBtn">Kill</button>
+        <button class="ghost" id="unkillBtn">Clear</button>
         <span id="killState" class="mono"></span>
       </div>
-      <p class="muted" style="margin:0.7rem 0 0">Auto checks this each wake. Equivalent CLI: <span class="mono">satday kill</span> / <span class="mono">satday unkill</span></p>
     </section>
     <section class="card">
-      <h2>Rungs</h2>
+      <h2 class="sec-label">Rungs</h2>
       <div style="overflow-x:auto">
         <table>
           <thead>
@@ -260,39 +386,36 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       </div>
     </section>
     <section class="card">
-      <h2>Recent sessions</h2>
-      <div id="sessions" class="mono"></div>
+      <h2 class="sec-label">Sessions</h2>
+      <div id="sessions" class="term"></div>
     </section>
   </div>
 
   <div id="panel-tree" class="panel">
     <section class="card">
-      <h2>Accepted declarations by rung</h2>
-      <p class="muted" style="margin:0 0 0.75rem">
-        Source: <span class="mono" id="treePath">scripts/accepted_declarations.txt</span>.
-        Expand a rung, then a cluster, then a declaration to read its Lean docstring
-        (mathematical prose) and the proposition / type formula.
+      <h2 class="sec-label">Accepted declarations</h2>
+      <p class="muted" style="margin:0 0 0.85rem">
+        <span class="mono" id="treePath">scripts/accepted_declarations.txt</span>
       </p>
       <div class="tree-toolbar">
-        <input id="treeFilter" type="search" placeholder="Filter by name, prose, or formula"/>
-        <button class="ghost" type="button" id="expandRungs">Expand rungs</button>
-        <button class="ghost" type="button" id="collapseAll">Collapse all</button>
-        <button class="ghost" type="button" id="reloadTree">Reload tree</button>
+        <input id="treeFilter" type="search" placeholder="Filter"/>
+        <button class="ghost" type="button" id="expandRungs">Expand</button>
+        <button class="ghost" type="button" id="collapseAll">Collapse</button>
+        <button class="ghost" type="button" id="reloadTree">Reload</button>
       </div>
       <div class="tree-meta" id="treeMeta"></div>
       <div class="dag-note" id="dagNote"></div>
     </section>
     <section class="card">
-      <h2>Ladder tree</h2>
+      <h2 class="sec-label">Tree</h2>
       <div id="treeRoot"></div>
     </section>
   </div>
 </main>
 <footer>
-  Progress refreshes every 2s from <span class="mono">/api/progress</span>.
-  Tree loads from <span class="mono">/api/accepted-tree</span>.
-  Driver: <span class="mono">satday auto --remote</span>.
+  /api/progress · /api/accepted-tree
 </footer>
+</div>
 <script>
 function esc(s) {
   return String(s || '').replace(/[&<>"'`]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));
@@ -331,8 +454,13 @@ async function loadProgress() {
   const stats = live.stats || {};
   const models = live.models || {};
   const runCls = live.running && !live.stale ? 'ok' : (live.stale ? 'warn' : 'bad');
+  const runLabel = !live.running
+    ? 'AUTO NOT RUNNING'
+    : (live.stale
+      ? (live.proc_alive ? 'AUTO RUNNING (quiet heartbeat)' : 'STALE heartbeat')
+      : 'AUTO RUNNING');
   document.getElementById('liveSummary').innerHTML = `
-    <div><span class="${runCls}">${live.running ? (live.stale ? 'STALE heartbeat' : 'AUTO RUNNING') : 'AUTO NOT RUNNING'}</span>
+    <div><span class="${runCls}">${runLabel}</span>
       · wake <strong>${live.wake || 0}</strong>
       · phase <strong>${esc(live.phase || 'unknown')}</strong>
       · pid ${esc(live.pid || '—')}
@@ -343,7 +471,7 @@ async function loadProgress() {
   const ats = data.accepted_tree_summary || {};
   const byRung = ats.by_rung || {};
   document.getElementById('liveStats').innerHTML = `
-    <div class="card"><h2>This auto run</h2>
+    <div class="card"><h2>Run</h2>
       <div>accepted <span class="ok">${stats.accepted || 0}</span></div>
       <div>reverted <span class="bad">${stats.reverted || 0}</span></div>
       <div>rejected <span class="warn">${stats.rejected || 0}</span></div>
@@ -353,11 +481,10 @@ async function loadProgress() {
       ${Object.keys(live.workstreams || {}).length
         ? Object.entries(live.workstreams).map(([k,v]) =>
             `<div><strong>${esc(k)}</strong>: ${esc(v.phase)} — ${esc(v.detail)}</div>`).join('')
-        : '<div class="muted">No workstream heartbeat yet</div>'}
+        : '<div class="muted">—</div>'}
     </div>
-    <div class="card"><h2>Accepted decls</h2>
+    <div class="card"><h2>Decls</h2>
       <div class="big">${ats.total_declarations != null ? ats.total_declarations : '—'}</div>
-      <div class="muted">allowlisted FQ names</div>
       <div class="mono muted" style="margin-top:0.35rem">R0=${byRung['r0-resolution-foundations']||0}
         R1=${byRung['r1-php-haken']||0}
         R2=${byRung['r2-width-machinery']||0}
@@ -369,17 +496,17 @@ async function loadProgress() {
     ? events.slice(0, 40).map(e =>
         `<div>[${esc(e.ts)}] ${e.workstream ? '['+esc(e.workstream)+'] ' : ''}${esc(e.detail || e.phase || '')}</div>`
       ).join('')
-    : '<div class="muted">No live events yet. If auto is running, restart it so it writes search/logs/saturday_live.json</div>';
+    : '<div class="muted">No live events</div>';
 
   const sum = document.getElementById('summary');
   sum.innerHTML = `
-    <div class="card"><h2>Rung certification</h2><div class="big">${data.rung_completion_pct}%</div>
-      <div class="muted">${data.certified_count} / ${data.rung_count} certified</div>
+    <div class="card"><h2>Certified</h2><div class="big">${data.rung_completion_pct}%</div>
+      <div class="muted">${data.certified_count} / ${data.rung_count}</div>
       <div class="bar"><span style="width:${data.rung_completion_pct}%"></span></div></div>
-    <div class="card"><h2>Critical pins</h2><div class="big">${data.critical_pin_pct}%</div>
-      <div class="muted">${data.critical_total - data.critical_open} closed / ${data.critical_total} tracked</div>
+    <div class="card"><h2>Pins</h2><div class="big">${data.critical_pin_pct}%</div>
+      <div class="muted">${data.critical_total - data.critical_open} closed / ${data.critical_total}</div>
       <div class="bar"><span style="width:${data.critical_pin_pct}%"></span></div></div>
-    <div class="card"><h2>Toward P vs NP</h2><div style="font-size:1rem;line-height:1.45">${esc(data.toward_p_vs_np || '')}</div></div>
+    <div class="card"><h2>Status</h2><div style="font-size:1rem;line-height:1.45">${esc(data.toward_p_vs_np || '')}</div></div>
   `;
   const killed = data.control && data.control.killed;
   const ks = document.getElementById('killState');
@@ -440,10 +567,10 @@ function renderDecl(d) {
   const preview = previewText(d);
   const previewShort = preview.length > 160 ? preview.slice(0, 157) + '…' : preview;
   const proseHtml = prose
-    ? `<div class="prose-block"><span class="prose-label">Mathematical prose</span>${esc(prose)}</div>`
-    : `<div class="muted" style="margin:0.35rem 0 0.7rem">No docstring on this declaration; formula below is the Lean statement.</div>`;
+    ? `<div class="prose-block"><span class="prose-label">Prose</span>${esc(prose)}</div>`
+    : `<div class="muted" style="margin:0.35rem 0 0.7rem">No docstring</div>`;
   const formulaHtml = formula
-    ? `<div><span class="formula-label">Lean formula</span><pre class="formula-block">${esc(formula)}</pre></div>`
+    ? `<div><span class="formula-label">Formula</span><pre class="formula-block">${esc(formula)}</pre></div>`
     : '';
   return `<details class="decl-node ${cls}">
     <summary>
@@ -471,15 +598,14 @@ function renderTree(data, filterQ) {
   const stmtFound = summary.statements_found != null ? summary.statements_found : '—';
   const stmtMissing = summary.statements_missing != null ? summary.statements_missing : '—';
   document.getElementById('treeMeta').innerHTML = `
-    <div class="stat"><strong>${summary.total_declarations || 0}</strong> declarations</div>
-    <div class="stat"><strong>${summary.rung_count_with_decls || 0}</strong> rungs with decls</div>
-    <div class="stat"><strong>${stmtFound}</strong> with Lean statements
+    <div class="stat"><strong>${summary.total_declarations || 0}</strong> decls</div>
+    <div class="stat"><strong>${summary.rung_count_with_decls || 0}</strong> rungs</div>
+    <div class="stat"><strong>${stmtFound}</strong> with statements
       ${stmtMissing && stmtMissing !== 0 ? `· <span class="warn">${stmtMissing} missing</span>` : ''}</div>
-    <div class="stat mono">loaded ${new Date(treeLoadedAt).toLocaleTimeString()}</div>
   `;
+  const climb = (dag.main_climb || []).map(id => id.split('-')[0]).join(' → ');
   document.getElementById('dagNote').textContent =
-    (dag.note || '') + ' Main climb: ' + (dag.main_climb || []).join(' -> ') +
-    '. Bridge: ' + (dag.bridge || 'r5');
+    climb ? `${climb} → summit · bridge ${dag.bridge || 'r5'}` : '';
 
   const rungs = data.rungs || [];
   const setup = rungs.filter(r => r.role === 'setup');
@@ -509,8 +635,8 @@ function renderTree(data, filterQ) {
     if (q && !clustersHtml && !rungHit && r.decl_count > 0) return '';
     if (q && r.decl_count === 0 && !rungHit) return '';
     const body = r.decl_count === 0
-      ? `<div class="empty-rung">No accepted declarations yet (rung status: ${esc(r.status)}).</div>`
-      : `<div class="branch">${clustersHtml || '<div class="empty-rung">No clusters match filter.</div>'}</div>`;
+      ? `<div class="empty-rung">No accepted decls yet (${esc(r.status)}).</div>`
+      : `<div class="branch">${clustersHtml || '<div class="empty-rung">No matches</div>'}</div>`;
     return `<details class="rung-node role-${esc(r.role)}" data-rung="${esc(r.rung_id)}" ${q ? 'open' : ''}>
       <summary>
         <strong>${esc(r.title)}</strong>
@@ -531,8 +657,8 @@ function renderTree(data, filterQ) {
 
   document.getElementById('treeRoot').innerHTML =
     block('Setup', setup) +
-    block('Main climb (R0 to R4)', main) +
-    block('Side bridge (joins at summit)', bridge) +
+    block('Main', main) +
+    block('Bridge', bridge) +
     block('Other', other);
 }
 
