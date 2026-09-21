@@ -11,9 +11,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from search.saturday.apply_lean import extract_open_frontier_obligations
+from search.saturday.accepted_tree import (
+    build_accepted_declaration_tree,
+    build_accepted_tree_summary,
+)
 from search.saturday.control import load_control
 from search.saturday.reflect import load_reflect
-from search.saturday.status import RUNG_TITLES, build_saturday_status, status_to_dict
+from search.saturday.status import build_saturday_status, status_to_dict
 
 
 LEAN_BY_RUNG = {
@@ -112,6 +116,14 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
 
     live = load_live(repo_root)
 
+    # Counts only on the hot poll path; full tree is /api/accepted-tree.
+    print("[saturday.progress] building accepted_tree summary for progress poll")
+    accepted_summary = build_accepted_tree_summary(repo_root)
+    print(
+        f"[saturday.progress] accepted_tree total="
+        f"{accepted_summary.get('total_declarations')}"
+    )
+
     return {
         "toward_p_vs_np": status.toward_p_vs_np,
         "rung_completion_pct": rung_pct,
@@ -134,4 +146,35 @@ def build_progress_snapshot(repo_root: Path) -> Dict[str, Any]:
         "recent_sessions": recent,
         "live": live,
         "status": status_to_dict(status),
+        "accepted_tree_summary": accepted_summary,
     }
+
+
+def build_accepted_tree_snapshot(repo_root: Path) -> Dict[str, Any]:
+    """Full accepted-declaration tree with live rung Status lines."""
+    repo_root = Path(repo_root)
+    print(f"[saturday.progress] build accepted tree snapshot repo={repo_root}")
+    # Lightweight Status: reads only (skip full satday status / chooser).
+    from search.saturday.context import RUNG_IDS, STATUS_RE
+
+    rung_statuses: Dict[str, str] = {}
+    for rung_id in RUNG_IDS:
+        path = repo_root / "docs" / "ladder" / "rungs" / f"{rung_id}.md"
+        status = "unknown"
+        if path.is_file():
+            text = path.read_text(encoding="utf-8")
+            m = STATUS_RE.search(text)
+            if m:
+                status = m.group(1)
+        rung_statuses[rung_id] = status
+        print(f"[saturday.progress] tree status {rung_id}={status}")
+
+    tree = build_accepted_declaration_tree(
+        repo_root,
+        rung_statuses=rung_statuses,
+    )
+    print(
+        f"[saturday.progress] accepted tree ready "
+        f"total={tree['summary']['total_declarations']}"
+    )
+    return tree

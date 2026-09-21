@@ -317,10 +317,11 @@ def dashboard_cmd(
     port: int = typer.Option(8765, "--port", "-p", help="HTTP port"),
 ):
     """
-    Local progress dashboard with kill switch (no external deps).
+    Local progress dashboard with kill switch and accepted-declaration tree.
 
     Open http://127.0.0.1:8765/ while satday auto runs. Preferred monitor for
-    the saturday skill.
+    the saturday skill. Use the Accepted tree tab for allowlisted Lean decls
+    grouped by ladder rung (from scripts/accepted_declarations.txt).
 
     Examples:
         satday dashboard
