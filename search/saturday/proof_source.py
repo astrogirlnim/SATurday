@@ -547,11 +547,33 @@ _PROOF_FOREIGN_KINDS = frozenset(
 )
 
 
+def _normalize_foreign_name(name: str) -> str:
+    """Strip Isabelle symbol markup so \<tau> matches tau."""
+    text = (name or "").lower()
+    text = re.sub(r"\\?<[^>]+>", "", text)  # leftover
+    text = text.replace("\\<", "").replace(">", "")
+    # Common: \<tau> -> after removing markup junk becomes tau if we extract
+    m = re.search(r"\\?<([a-z0-9]+)>", (name or "").lower())
+    if m:
+        return m.group(1)
+    m = re.search(r"\\<([a-z0-9]+)>", (name or "").lower())
+    if m:
+        return m.group(1)
+    # lean_name mggImport_tau -> tau
+    short = text.rsplit(".", 1)[-1]
+    if short.startswith("mggimport_"):
+        return short[len("mggimport_") :]
+    return short
+
+
 def step_needs_unported_surface(step: Dict[str, Any]) -> bool:
     """True when the foreign names require AFP digraph locales we lack."""
     names = []
     for fl in step.get("foreign_lemmas") or []:
-        names.append(str(fl).rsplit(".", 1)[-1].lower())
+        names.append(_normalize_foreign_name(str(fl)))
+    lean_norm = _normalize_foreign_name(str(step.get("lean_name") or ""))
+    if lean_norm:
+        names.append(lean_norm)
     goal = str(step.get("goal") or "").lower()
     lean = str(step.get("lean_name") or "").lower()
     blob = " ".join(names) + " " + goal + " " + lean
@@ -564,7 +586,6 @@ def step_needs_unported_surface(step: Dict[str, Any]) -> bool:
     # Substring match only for longer tokens (avoid 'l' matching everything).
     long_toks = [t for t in _UNPORTED_FOREIGN_SURFACE if len(t) >= 4]
     if any(tok in blob for tok in long_toks):
-        # Definitional mgg_graph mentions pre_digraph in goal text historically.
         if kind in _EXECUTABLE_FOREIGN_KINDS and any(
             n.startswith("mgg_graph") for n in names
         ):
