@@ -2201,7 +2201,7 @@
     },
     {
       "id": "thy-expander-graphs-mgg-mgg-bound",
-      "status": "pending",
+      "status": "done",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -2226,7 +2226,9 @@
       "foreign_line": 1244,
       "lean_name": "mggImport_MGG_bound",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `MGG_bound` from Expander_Graphs_MGG as Lean helper `mggImport_MGG_bound` (no Frontier sorry; no axiom)."
+      "goal": "Port Isabelle definition `MGG_bound` from Expander_Graphs_MGG as Lean helper `mggImport_MGG_bound` (no Frontier sorry; no axiom).",
+      "done_reason": "deferred_missing_lean_surface",
+      "done_at": "2026-09-21T15:05:16Z"
     },
     {
       "id": "thy-expander-graphs-mgg-mgg-numerical-radius",
@@ -2478,7 +2480,7 @@
     },
     {
       "id": "thy-expander-graphs-cheeger-inequality-l",
-      "status": "pending",
+      "status": "done",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -2503,7 +2505,9 @@
       "foreign_line": 274,
       "lean_name": "mggImport_L",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `L` from Expander_Graphs_Cheeger_Inequality as Lean helper `mggImport_L` (no Frontier sorry; no axiom)."
+      "goal": "Port Isabelle definition `L` from Expander_Graphs_Cheeger_Inequality as Lean helper `mggImport_L` (no Frontier sorry; no axiom).",
+      "done_reason": "deferred_missing_lean_surface",
+      "done_at": "2026-09-21T15:05:16Z"
     },
     {
       "id": "thy-expander-graphs-cheeger-inequality-l-pos-semidefinite",

@@ -364,8 +364,10 @@ def validate_lean_draft(
     meta_decl = envelope["decl_name"]
     meta_uses = envelope["uses"]
     decls = list(_DECL.finditer(cleaned))
-    if envelope["status"] == "blocked" and not cleaned.strip():
-        reasons.append("model marked status=blocked with empty lean")
+    if envelope["status"] == "blocked":
+        reasons.append(
+            "model marked status=blocked; refusing apply (missing Lean surface)"
+        )
         return DraftGateResult(
             code=cleaned,
             ok=False,
