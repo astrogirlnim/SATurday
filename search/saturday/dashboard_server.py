@@ -132,6 +132,31 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   }
   .topbar-meta .dot { color: var(--cyan); margin: 0 0.35rem; }
 
+  .page-intro {
+    padding: 1.15rem 1.75rem 0.35rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .page-intro h1 {
+    margin: 0;
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.65rem;
+    letter-spacing: -0.01em;
+  }
+  .page-intro p {
+    margin: 0.35rem 0 0;
+    color: var(--muted);
+    max-width: 40rem;
+    font-size: 0.95rem;
+    line-height: 1.45;
+  }
+  .card-blurb {
+    margin: -0.35rem 0 0.75rem;
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+
   main { padding: 1.35rem 1.75rem 2.5rem; display: grid; gap: 1.1rem; }
   .panel { display: none; }
   .panel.active { display: grid; gap: 1.1rem; }
@@ -349,15 +374,21 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <a class="brand" href="/">SATurday</a>
   <div class="tabs" role="tablist">
     <button type="button" class="active" data-tab="progress" id="tabProgress">Progress</button>
-    <button type="button" data-tab="tree" id="tabTree">Tree</button>
+    <button type="button" data-tab="tree" id="tabTree">Accepted tree</button>
   </div>
-  <div class="topbar-meta">dashboard<span class="dot">·</span>8765</div>
+  <div class="topbar-meta">local<span class="dot">·</span>Lean 4</div>
 </header>
+
+<section class="page-intro">
+  <h1>Research dashboard</h1>
+  <p>Watch the auto loop, check rung status, and browse accepted Lean declarations.</p>
+</section>
 
 <main>
   <div id="panel-progress" class="panel active">
     <section class="card" id="liveCard">
-      <h2 class="sec-label">Loop</h2>
+      <h2 class="sec-label">Auto loop</h2>
+      <p class="card-blurb">What the current <span class="mono">satday auto</span> run is doing.</p>
       <div id="liveSummary" class="mono"></div>
       <div class="row" style="margin-top:0.9rem" id="liveStats"></div>
       <div id="liveFeed" class="term" style="margin-top:0.95rem"></div>
@@ -365,15 +396,17 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <section class="row" id="summary"></section>
     <section class="card">
       <h2 class="sec-label">Kill switch</h2>
+      <p class="card-blurb">Stops the next wake. Same as <span class="mono">satday kill</span>.</p>
       <div class="controls">
         <input id="reason" type="text" placeholder="Reason (optional)"/>
-        <button class="danger" id="killBtn">Kill</button>
-        <button class="ghost" id="unkillBtn">Clear</button>
+        <button class="danger" id="killBtn">Kill auto loop</button>
+        <button class="ghost" id="unkillBtn">Clear kill</button>
         <span id="killState" class="mono"></span>
       </div>
     </section>
     <section class="card">
       <h2 class="sec-label">Rungs</h2>
+      <p class="card-blurb">Ladder status, pin progress, and reflect counters.</p>
       <div style="overflow-x:auto">
         <table>
           <thead>
@@ -386,7 +419,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       </div>
     </section>
     <section class="card">
-      <h2 class="sec-label">Sessions</h2>
+      <h2 class="sec-label">Recent sessions</h2>
+      <p class="card-blurb">Latest saturday cycles from the session log.</p>
       <div id="sessions" class="term"></div>
     </section>
   </div>
@@ -394,12 +428,13 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <div id="panel-tree" class="panel">
     <section class="card">
       <h2 class="sec-label">Accepted declarations</h2>
-      <p class="muted" style="margin:0 0 0.85rem">
-        <span class="mono" id="treePath">scripts/accepted_declarations.txt</span>
+      <p class="card-blurb">
+        Allowlist from <span class="mono" id="treePath">scripts/accepted_declarations.txt</span>.
+        Expand a rung, then a cluster, then a name for prose and the Lean formula.
       </p>
       <div class="tree-toolbar">
-        <input id="treeFilter" type="search" placeholder="Filter"/>
-        <button class="ghost" type="button" id="expandRungs">Expand</button>
+        <input id="treeFilter" type="search" placeholder="Filter names, prose, or formulas"/>
+        <button class="ghost" type="button" id="expandRungs">Expand rungs</button>
         <button class="ghost" type="button" id="collapseAll">Collapse</button>
         <button class="ghost" type="button" id="reloadTree">Reload</button>
       </div>
@@ -407,13 +442,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <div class="dag-note" id="dagNote"></div>
     </section>
     <section class="card">
-      <h2 class="sec-label">Tree</h2>
+      <h2 class="sec-label">Ladder tree</h2>
+      <p class="card-blurb">Setup, main climb (R0–R4), and the R5 bridge.</p>
       <div id="treeRoot"></div>
     </section>
   </div>
 </main>
 <footer>
-  /api/progress · /api/accepted-tree
+  Refreshes from <span class="mono">/api/progress</span> · tree from <span class="mono">/api/accepted-tree</span>
 </footer>
 </div>
 <script>
@@ -471,7 +507,7 @@ async function loadProgress() {
   const ats = data.accepted_tree_summary || {};
   const byRung = ats.by_rung || {};
   document.getElementById('liveStats').innerHTML = `
-    <div class="card"><h2>Run</h2>
+    <div class="card"><h2>This run</h2>
       <div>accepted <span class="ok">${stats.accepted || 0}</span></div>
       <div>reverted <span class="bad">${stats.reverted || 0}</span></div>
       <div>rejected <span class="warn">${stats.rejected || 0}</span></div>
@@ -481,10 +517,11 @@ async function loadProgress() {
       ${Object.keys(live.workstreams || {}).length
         ? Object.entries(live.workstreams).map(([k,v]) =>
             `<div><strong>${esc(k)}</strong>: ${esc(v.phase)} — ${esc(v.detail)}</div>`).join('')
-        : '<div class="muted">—</div>'}
+        : '<div class="muted">No workstream heartbeat yet</div>'}
     </div>
-    <div class="card"><h2>Decls</h2>
+    <div class="card"><h2>Accepted decls</h2>
       <div class="big">${ats.total_declarations != null ? ats.total_declarations : '—'}</div>
+      <div class="muted">names on the allowlist</div>
       <div class="mono muted" style="margin-top:0.35rem">R0=${byRung['r0-resolution-foundations']||0}
         R1=${byRung['r1-php-haken']||0}
         R2=${byRung['r2-width-machinery']||0}
@@ -496,17 +533,17 @@ async function loadProgress() {
     ? events.slice(0, 40).map(e =>
         `<div>[${esc(e.ts)}] ${e.workstream ? '['+esc(e.workstream)+'] ' : ''}${esc(e.detail || e.phase || '')}</div>`
       ).join('')
-    : '<div class="muted">No live events</div>';
+    : '<div class="muted">No live events yet</div>';
 
   const sum = document.getElementById('summary');
   sum.innerHTML = `
-    <div class="card"><h2>Certified</h2><div class="big">${data.rung_completion_pct}%</div>
-      <div class="muted">${data.certified_count} / ${data.rung_count}</div>
+    <div class="card"><h2>Certified rungs</h2><div class="big">${data.rung_completion_pct}%</div>
+      <div class="muted">${data.certified_count} / ${data.rung_count} certified</div>
       <div class="bar"><span style="width:${data.rung_completion_pct}%"></span></div></div>
-    <div class="card"><h2>Pins</h2><div class="big">${data.critical_pin_pct}%</div>
-      <div class="muted">${data.critical_total - data.critical_open} closed / ${data.critical_total}</div>
+    <div class="card"><h2>Critical pins</h2><div class="big">${data.critical_pin_pct}%</div>
+      <div class="muted">${data.critical_total - data.critical_open} closed / ${data.critical_total} open tracked</div>
       <div class="bar"><span style="width:${data.critical_pin_pct}%"></span></div></div>
-    <div class="card"><h2>Status</h2><div style="font-size:1rem;line-height:1.45">${esc(data.toward_p_vs_np || '')}</div></div>
+    <div class="card"><h2>Toward P vs NP</h2><div style="font-size:1rem;line-height:1.45">${esc(data.toward_p_vs_np || '')}</div></div>
   `;
   const killed = data.control && data.control.killed;
   const ks = document.getElementById('killState');
@@ -598,14 +635,13 @@ function renderTree(data, filterQ) {
   const stmtFound = summary.statements_found != null ? summary.statements_found : '—';
   const stmtMissing = summary.statements_missing != null ? summary.statements_missing : '—';
   document.getElementById('treeMeta').innerHTML = `
-    <div class="stat"><strong>${summary.total_declarations || 0}</strong> decls</div>
-    <div class="stat"><strong>${summary.rung_count_with_decls || 0}</strong> rungs</div>
-    <div class="stat"><strong>${stmtFound}</strong> with statements
+    <div class="stat"><strong>${summary.total_declarations || 0}</strong> declarations</div>
+    <div class="stat"><strong>${summary.rung_count_with_decls || 0}</strong> rungs with decls</div>
+    <div class="stat"><strong>${stmtFound}</strong> with Lean statements
       ${stmtMissing && stmtMissing !== 0 ? `· <span class="warn">${stmtMissing} missing</span>` : ''}</div>
   `;
-  const climb = (dag.main_climb || []).map(id => id.split('-')[0]).join(' → ');
   document.getElementById('dagNote').textContent =
-    climb ? `${climb} → summit · bridge ${dag.bridge || 'r5'}` : '';
+    'R0 → R1 → R2 → R3 → R4 → summit. R5 is the Cook–Reckhow bridge.';
 
   const rungs = data.rungs || [];
   const setup = rungs.filter(r => r.role === 'setup');
@@ -657,8 +693,8 @@ function renderTree(data, filterQ) {
 
   document.getElementById('treeRoot').innerHTML =
     block('Setup', setup) +
-    block('Main', main) +
-    block('Bridge', bridge) +
+    block('Main climb', main) +
+    block('Side bridge', bridge) +
     block('Other', other);
 }
 

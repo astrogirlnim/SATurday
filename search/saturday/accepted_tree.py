@@ -425,10 +425,18 @@ def build_accepted_declaration_tree(
     }
 
 
+_SUMMARY_CACHE: Dict[str, Any] = {"mtime": None, "payload": None}
+
+
 def build_accepted_tree_summary(repo_root: Path) -> Dict[str, Any]:
     """Lightweight counts only (safe to embed in the 2s progress poll)."""
     repo_root = Path(repo_root)
     path = _default_decls_path(repo_root)
+    mtime = path.stat().st_mtime if path.is_file() else None
+    cached = _SUMMARY_CACHE.get("payload")
+    if cached is not None and _SUMMARY_CACHE.get("mtime") == mtime:
+        print("[saturday.accepted_tree] summary-only cache hit")
+        return cached
     print(f"[saturday.accepted_tree] summary-only parse path={path}")
     parsed = parse_accepted_declarations_file(path, verbose=False)
     by_rung = {rid: 0 for rid in TREE_RUNG_ORDER}
@@ -454,5 +462,7 @@ def build_accepted_tree_summary(repo_root: Path) -> Dict[str, Any]:
             ),
         },
     }
+    _SUMMARY_CACHE["mtime"] = mtime
+    _SUMMARY_CACHE["payload"] = summary
     print(f"[saturday.accepted_tree] summary-only total={total}")
     return summary
