@@ -53,7 +53,7 @@ _ISABELLE_SYM: Dict[str, str] = {
     r"\<prime>": "prime",
 }
 
-# Top-level Isabelle declarations we turn into plan micros.
+# Top-level Isabelle declarations we can parse from .thy files.
 _ISABELLE_KINDS = (
     "lemma",
     "theorem",
@@ -62,6 +62,43 @@ _ISABELLE_KINDS = (
     "definition",
     "fun",
     "primrec",
+)
+
+# Default micros: definitional only. Proof decls need AFP locales / types we
+# usually lack (wf_digraph, fin_digraph, Arc, ...) and burn formalize tokens.
+_DEFAULT_MICRO_KINDS = frozenset(
+    {
+        "definition",
+        "fun",
+        "primrec",
+        "abbreviation",
+    }
+)
+
+_PROOF_MICRO_KINDS = frozenset(
+    {
+        "lemma",
+        "theorem",
+        "corollary",
+        "proposition",
+    }
+)
+
+# Foreign names / type tokens that are not in theory/ MGG surface yet.
+_UNPORTED_SURFACE_TOKENS = frozenset(
+    {
+        "wf_digraph",
+        "fin_digraph",
+        "pre_digraph",
+        "digraph_iso",
+        "digraph_isomorphism",
+        "strongly_explicit_expander",
+        "see_mgg",
+        "graph_of",
+        "arcs_pos",
+        "arcs_neg",
+        "unfold_locales",
+    }
 )
 
 _ISABELLE_DECL_RE = re.compile(
@@ -258,6 +295,44 @@ def excerpt_decl(
     return chunk
 
 
+def foreign_decl_is_portable(decl: ForeignDecl) -> bool:
+    """
+    True when this foreign decl is worth a helper_insert micro today.
+
+    Definitional decls (fun/definition/...) are portable onto our Finset MGG
+    surface. Proof decls and digraph-locale API are deferred until Lean has
+    matching types.
+    """
+    kind = (decl.kind or "").lower()
+    if kind in _PROOF_MICRO_KINDS:
+        print(
+            f"[saturday.import_ladder] skip proof decl kind={kind} "
+            f"name={decl.name}"
+        )
+        return False
+    if kind not in _DEFAULT_MICRO_KINDS:
+        return False
+    blob = f"{decl.name} {decl.raw_line}".lower()
+    for tok in _UNPORTED_SURFACE_TOKENS:
+        if tok in blob:
+            # Allow mgg_graph itself: we already map pre_digraph -> Finset.
+            if decl.name.lower() in {"mgg_graph", "mgg_graph_step"}:
+                continue
+            print(
+                f"[saturday.import_ladder] skip unported surface token={tok} "
+                f"name={decl.name}"
+            )
+            return False
+    # Arc datatype constructors / fields without a Lean Arc type.
+    if re.search(r"\barc\b", blob) and decl.name.lower() not in {
+        "mgg_graph",
+        "mgg_graph_step",
+    }:
+        print(f"[saturday.import_ladder] skip Arc-typed decl name={decl.name}")
+        return False
+    return True
+
+
 def step_id_for_decl(theory: str, decl: ForeignDecl) -> str:
     """Deterministic plan step id from theory + foreign name."""
     thy = re.sub(r"[^a-z0-9]+", "-", theory.lower()).strip("-")
@@ -272,15 +347,24 @@ def decls_to_micro_steps(
     kinds: Optional[Set[str]] = None,
     max_steps: Optional[int] = None,
     name_regex: Optional[re.Pattern[str]] = None,
+    require_portable: bool = True,
 ) -> List[Dict[str, Any]]:
     """Turn foreign decls into unit=micro helper_insert plan steps."""
     module = lean_module_for_entry(entry)
     prefix = lean_name_prefix(entry)
-    allow = kinds or set(_ISABELLE_KINDS)
+    allow = kinds if kinds is not None else set(_DEFAULT_MICRO_KINDS)
     steps: List[Dict[str, Any]] = []
     seen_ids: Set[str] = set()
+    skipped_proof = 0
+    skipped_surface = 0
     for decl in decls:
         if decl.kind not in allow:
+            continue
+        if require_portable and not foreign_decl_is_portable(decl):
+            if (decl.kind or "").lower() in _PROOF_MICRO_KINDS:
+                skipped_proof += 1
+            else:
+                skipped_surface += 1
             continue
         if name_regex is not None and not name_regex.search(decl.name):
             continue
@@ -324,7 +408,9 @@ def decls_to_micro_steps(
             break
     print(
         f"[saturday.import_ladder] micro_steps={len(steps)} "
-        f"from_decls={len(decls)} max={max_steps}"
+        f"from_decls={len(decls)} max={max_steps} "
+        f"skipped_proof={skipped_proof} skipped_surface={skipped_surface} "
+        f"kinds={sorted(allow)}"
     )
     return steps
 
@@ -451,7 +537,9 @@ def merge_ladder_plan(
         "revised_at": _now_iso(),
         "method": "import_ladder",
         "notes": (
-            "Auto-built from foreign theory decls (unit=micro helper_insert) "
+            "Auto-built from portable foreign theory decls only "
+            "(unit=micro helper_insert for fun/definition/primrec; proof "
+            "decls and digraph-locale API deferred until Lean surface exists) "
             "plus terminal Frontier sorry_replace pins. Generalizable via "
             "catalog primary_theories / maps_to_frontier / lean_module. "
             "Never encode foreign proofs as Lean axioms."
@@ -535,7 +623,7 @@ def build_import_ladder(
     decls, used = collect_decls_for_entry(
         repo_root, cfg, entry, theories=theories
     )
-    kind_set = set(kinds) if kinds else set(_ISABELLE_KINDS)
+    kind_set = set(kinds) if kinds else set(_DEFAULT_MICRO_KINDS)
     name_re = re.compile(name_pattern) if name_pattern else None
     micros = decls_to_micro_steps(
         entry,
@@ -543,6 +631,7 @@ def build_import_ladder(
         kinds=kind_set,
         max_steps=max_steps,
         name_regex=name_re,
+        require_portable=True,
     )
     existing = (
         load_accepted_plan(repo_root, cfg, entry) if merge_existing else None

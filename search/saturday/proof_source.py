@@ -492,6 +492,149 @@ def next_plan_step(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
+# AFP Graph_Theory / locale surface we have not ported into MGG.lean yet.
+# Calling the model on these burns tokens and always invents types.
+_UNPORTED_FOREIGN_SURFACE = frozenset(
+    {
+        "wf_digraph",
+        "fin_digraph",
+        "pre_digraph",
+        "digraph_iso",
+        "digraph_isomorphism",
+        "arc",
+        "arcs",
+        "arcs_pos",
+        "arcs_neg",
+        "verts",
+        "tail",
+        "head",
+        "strongly_explicit_expander",
+        "see_mgg",
+        "graph_of",
+        "unfold_locales",
+    }
+)
+
+_EXECUTABLE_FOREIGN_KINDS = frozenset(
+    {"fun", "definition", "abbreviation", "consts", "def", "primrec"}
+)
+
+_PROOF_FOREIGN_KINDS = frozenset(
+    {"lemma", "theorem", "corollary", "proposition"}
+)
+
+
+def step_needs_unported_surface(step: Dict[str, Any]) -> bool:
+    """True when the foreign names require AFP digraph locales we lack."""
+    names = []
+    for fl in step.get("foreign_lemmas") or []:
+        names.append(str(fl).rsplit(".", 1)[-1].lower())
+    goal = str(step.get("goal") or "").lower()
+    lean = str(step.get("lean_name") or "").lower()
+    blob = " ".join(names) + " " + goal + " " + lean
+    kind = str(step.get("foreign_kind") or "").lower()
+    # Allow already-landed MGG Finset ports even if goal text mentions digraph.
+    if any(n in {"mgg_graph", "mgg_graph_step"} for n in names):
+        return False
+    if any(n in _UNPORTED_FOREIGN_SURFACE for n in names):
+        return True
+    if any(tok in blob for tok in _UNPORTED_FOREIGN_SURFACE):
+        # Definitional mgg_graph mentions pre_digraph in goal text historically.
+        if kind in _EXECUTABLE_FOREIGN_KINDS and any(
+            n.startswith("mgg_graph") for n in names
+        ):
+            return False
+        return True
+    return False
+
+
+def step_is_cheap_executable(step: Dict[str, Any]) -> bool:
+    """
+    True when formalize should spend tokens on this micro today.
+
+    Proof micros (lemma/theorem/...) are not executable without an explicit
+    lean_sig and a Lean surface that already hosts the foreign API.
+    """
+    if str(step.get("fill_mode") or "") == "sorry_replace":
+        # Frontier pins are a different path (discharge open sorry).
+        return True
+    kind = str(step.get("foreign_kind") or "").lower()
+    if step_needs_unported_surface(step):
+        return False
+    if kind in _PROOF_FOREIGN_KINDS:
+        # Only attempt proof micros when an explicit Lean signature was pinned.
+        if not str(step.get("lean_sig") or "").strip():
+            return False
+    if kind in _EXECUTABLE_FOREIGN_KINDS:
+        return True
+    if kind in _PROOF_FOREIGN_KINDS and str(step.get("lean_sig") or "").strip():
+        return True
+    # Unknown kind: do not burn tokens.
+    return False
+
+
+def auto_defer_unportable_steps(
+    repo_root: Path,
+    cfg: ProofImportConfig,
+    entry: ProofImportCatalogEntry,
+    plan: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Mark pending helper_insert micros done(deferred) when they are not
+    executable on the current Lean surface (proof decls, digraph locales).
+    """
+    changed = False
+    for step in plan.get("steps") or []:
+        if str(step.get("status", "pending")) == "done":
+            continue
+        if str(step.get("fill_mode") or "") != "helper_insert":
+            continue
+        if step_is_cheap_executable(step):
+            continue
+        reason = "deferred_missing_lean_surface"
+        kind = str(step.get("foreign_kind") or "").lower()
+        if kind in _PROOF_FOREIGN_KINDS:
+            reason = "deferred_proof_micro_no_lean_surface"
+        step["status"] = "done"
+        step["done_reason"] = reason
+        step["done_at"] = _now_iso()
+        changed = True
+        print(
+            f"[saturday.proof_source] auto_defer step={step.get('id')} "
+            f"lean_name={step.get('lean_name')} foreign_kind={kind} "
+            f"reason={reason}"
+        )
+    if changed:
+        save_accepted_plan(repo_root, cfg, entry, plan)
+    return plan
+
+
+def next_executable_plan_step(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    First pending step that is cheap to attempt with the current Lean surface.
+
+    Prefers fun/definition micros; does not fall back to proof micros that
+    would only invent AFP types.
+    """
+    pending = [
+        s
+        for s in (plan.get("steps") or [])
+        if str(s.get("status", "pending")) != "done"
+    ]
+    for step in pending:
+        if step_is_cheap_executable(step):
+            print(
+                f"[saturday.proof_source] next_executable "
+                f"id={step.get('id')} kind={step.get('foreign_kind')}"
+            )
+            return step
+    print(
+        f"[saturday.proof_source] next_executable none "
+        f"(pending={len(pending)} all deferred or non-executable)"
+    )
+    return None
+
+
 def parse_import_cluster_target(target: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Parse `import cluster: <source_id> step=<step_id>` into (source_id, step_id).
@@ -829,7 +972,8 @@ def suggest_import_action(
         print(f"[saturday.proof_source] suggest prove target={target!r}")
         return "prove", target, rationale
     plan = auto_advance_certified_steps(repo_root, cfg, entry, plan)
-    step = next_plan_step(plan)
+    plan = auto_defer_unportable_steps(repo_root, cfg, entry, plan)
+    step = next_executable_plan_step(plan)
     if step is None:
         print("[saturday.proof_source] accepted plan has no open steps")
         return None
@@ -838,7 +982,7 @@ def suggest_import_action(
     target = f"import cluster: {entry.id} step={step_id}"
     rationale = (
         f"Accepted import plan for {entry.id}; formalize next {unit} "
-        f"lean_name={step.get('lean_name')}"
+        f"lean_name={step.get('lean_name')} foreign_kind={step.get('foreign_kind')}"
     )
     print(f"[saturday.proof_source] suggest formalize target={target!r}")
     return "formalize", target, rationale
@@ -882,18 +1026,25 @@ def resolve_import_step(
     if plan is None:
         return None
     plan = auto_advance_certified_steps(repo_root, cfg, entry, plan)
+    plan = auto_defer_unportable_steps(repo_root, cfg, entry, plan)
     step: Optional[Dict[str, Any]] = None
     if step_id:
         step = plan_step_by_id(plan, step_id)
-        # Chooser may still name a step that auto_advance just closed.
+        # Chooser may still name a step that auto_advance/defer just closed.
         if step is not None and str(step.get("status", "pending")) == "done":
             print(
                 f"[saturday.proof_source] resolve_import_step step={step_id} "
-                "already done; advancing to next pending"
+                "already done; advancing to next executable"
+            )
+            step = None
+        elif step is not None and not step_is_cheap_executable(step):
+            print(
+                f"[saturday.proof_source] resolve_import_step step={step_id} "
+                "not executable on current Lean surface; advancing"
             )
             step = None
     if step is None:
-        step = next_plan_step(plan)
+        step = next_executable_plan_step(plan)
     if step is None:
         print("[saturday.proof_source] resolve_import_step: no open step")
         return None

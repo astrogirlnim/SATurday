@@ -21,15 +21,16 @@ SYSTEM_PROVE = (
 )
 
 SYSTEM_FORMALIZE = (
-    "You are the SATurday formalizer. Emit Lean 4 only inside a fenced lean code block. "
-    "No new axioms. Prefer mathlib idioms. Work in progress MUST live in a namespace whose "
-    "name contains Frontier and may use sorry. Do not emit import lines. Do not use Lean 3 "
-    "begin/end. Use Lean 4 by tactics only. Prefer calling accepted declarations listed in "
-    "the prompt; do not re prove theorems that are already accepted. Only cite identifiers "
-    "that appear in the Lean excerpt or accepted list; never invent lemma or type names. "
-    "After the fence, emit JSON with keys status, notes, decl_name, uses (array of "
-    "identifiers you called), next_recommended_action, gate_pending. Avoid hyphens as "
-    "punctuation in comments; spell connections in words."
+    "You are the SATurday formalizer. Reply with ONE JSON object only (no markdown "
+    "fences around the JSON). Required keys: lean (string: Lean 4 source only, no "
+    "imports), decl_name, decl_kind (def|theorem|lemma|abbrev), no_sorry (bool true), "
+    "uses (array of identifiers you call), extra_decls (array, must be empty unless "
+    "discharging a Frontier pin), status, notes, next_recommended_action, gate_pending. "
+    "No new axioms. Prefer mathlib idioms. Work in progress MUST live in a namespace "
+    "whose name contains Frontier. Do not use Lean 3 begin/end or ranges like [0..n]. "
+    "Use Lean 4 by tactics only. Prefer calling accepted declarations listed in the "
+    "prompt; do not invent lemma names. Avoid hyphens as punctuation in notes; spell "
+    "connections in words."
 )
 
 SYSTEM_AUDIT = (
@@ -141,15 +142,37 @@ def build_formalize_prompt(
         tactics_s = ", ".join(str(t) for t in tactics)
         micro = ""
         if step and fill_mode == "helper_insert":
+            foreign_kind = str(step.get("foreign_kind") or "")
+            prefer_def = foreign_kind in {
+                "fun",
+                "definition",
+                "abbreviation",
+                "consts",
+                "def",
+            }
+            shape = (
+                f"Emit a Lean `def` named `{lean_name}` (foreign_kind={foreign_kind}). "
+                "No theorem proof. No sorry."
+                if prefer_def
+                else (
+                    f"Emit ONE complete Lean decl named `{lean_name}` with a real proof "
+                    f"(foreign_kind={foreign_kind}). Prefer `simp`/`rfl`/`decide` only. "
+                    "If the foreign lemma needs AFP digraph locales we do not have, set "
+                    "status=blocked and lean to empty string instead of inventing types."
+                )
+            )
             micro = f"""
 Micro lemma contract (import ladder unit={unit} fill_mode=helper_insert):
-- Emit ONE new Lean helper named exactly: {lean_name}
+- {shape}
 - Intent: {lean_sig or step.get('goal') or '(port foreign lemma)'}
 - Do NOT discharge Frontier sorries in this wake; helpers only.
 - No sorry. No axioms. No alternate identifier for the helper name.
+- extra_decls MUST be []. Do not invent mggImport_* helpers beyond {lean_name}.
 - Allowed tactics ONLY: {tactics_s}
 - Prefer exact/apply of smart selected accepted decls when they fit.
-- Translate the foreign excerpt; keep the surface close to existing Lean names.
+- Translate the foreign excerpt; keep the surface close to existing Lean names
+  (mggImport_mgg_graph_step, mggImport_mgg_graph, Finset). Never invent
+  wf_digraph / pre_digraph / Arc unless they already appear in the Lean excerpt.
 """
         elif step:
             micro = f"""
@@ -180,28 +203,40 @@ Foreign source excerpts for this cluster (truncated for micro steps):
     if helper_only:
         step = import_step or {}
         lean_name = str(step.get("lean_name") or "importHelper")
+        foreign_kind = str(step.get("foreign_kind") or "")
+        prefer_def = foreign_kind in {
+            "fun",
+            "definition",
+            "abbreviation",
+            "consts",
+            "def",
+        }
+        kind_line = (
+            f"4. Prefer decl_kind=def for foreign_kind={foreign_kind}; name MUST be `{lean_name}`."
+            if prefer_def
+            else f"4. The decl name MUST be exactly `{lean_name}` (new decl; not a Frontier pin)."
+        )
         task_block = f"""Task:
-Emit one Lean 4 fragment that ADDS the new helper `{lean_name}` (import ladder micro).
+Return ONE JSON object that ADDS the new helper `{lean_name}` (import ladder micro).
 Requirements:
-1. Namespace {ns} only.
-2. No imports. No axioms. No sorry.
-3. Lean 4 ONLY: `:= by`. NEVER `begin`. NEVER Lean 3 ranges like [0..n].
-4. The theorem/lemma name MUST be exactly `{lean_name}` (new decl; not a Frontier pin).
+1. Put Lean 4 source in the `lean` string. Namespace {ns} only inside that string.
+2. No imports. No axioms. no_sorry must be true. Never write the word sorry.
+3. Lean 4 ONLY: `:= by` or pure `:=` for defs. NEVER `begin`. NEVER ranges like [0..n] or `..`.
+{kind_line}
 5. Do not restate open Frontier sorry names in this wake.
 6. Prefer smart selected accepted declarations above; call them with exact/apply.
-7. After the code fence, JSON with:
-   status, notes, decl_name (exact Lean name), uses (array of identifiers you
-   called via exact/apply/rw), next_recommended_action=formalize, gate_pending.
-   Every entry in uses must appear in the excerpt or accepted list.
+7. JSON keys (all required): lean, decl_name, decl_kind, no_sorry, uses, extra_decls
+   (must be []), status, notes, next_recommended_action=formalize, gate_pending.
+   If you cannot finish without new AFP types, status=blocked and lean=\"\".
 {import_rules}
 """
     else:
         task_block = f"""Task:
-Emit one Lean 4 fragment that DISCHARGES at least one open obligation above.
+Return ONE JSON object that DISCHARGES at least one open obligation above.
 Requirements:
-1. Namespace {ns} only.
+1. Put Lean 4 source in the `lean` string. Namespace {ns} only inside that string.
 2. No imports. No axioms.
-3. Lean 4 ONLY: `:= by`. NEVER `begin`. NEVER Lean 3 ranges like [0..n].
+3. Lean 4 ONLY: `:= by`. NEVER `begin`. NEVER ranges like [0..n] or `..`.
 4. REQUIRED: restate ONE open obligation name from the list with a real proof
    (not sorry). That name must match exactly so apply can replace the open sorry.
 5. Optional: include NEW helper lemmas in the same fragment if they are needed
@@ -211,10 +246,8 @@ Requirements:
    Do not re prove theorems that already appear on that list. Prefer identifiers
    that already appear in the excerpt; do not invent machines or sequencers that
    are not present.
-7. After the code fence, JSON with:
-   status, notes, decl_name (exact Lean name discharged), uses (array of
-   identifiers you called), next_recommended_action=formalize, gate_pending.
-   Every entry in uses must appear in the excerpt or accepted list.
+7. JSON keys (all required): lean, decl_name, decl_kind, no_sorry, uses, extra_decls,
+   status, notes, next_recommended_action=formalize, gate_pending.
 {import_rules}
 """
     return f"""Rung id: {choice.rung}

@@ -40,6 +40,9 @@ class LLMRequest:
     temperature: float = 0.1
     num_predict: int = 8192
     api_style: str = "ollama"  # ollama | openai_compatible
+    # When set, ask the provider for a JSON object (OpenAI response_format /
+    # Ollama format=json). Use for structured formalize envelopes.
+    response_format: Optional[str] = None  # None | "json_object"
 
 
 @dataclass
@@ -161,6 +164,9 @@ class LocalLLMClient:
                 "num_predict": request.num_predict,
             },
         }
+        if request.response_format == "json_object":
+            payload["format"] = "json"
+            print("[LocalLLMClient] ollama format=json")
         raw = self._post_json(url, payload)
         text = raw.get("response", "")
         if not isinstance(text, str):
@@ -186,6 +192,9 @@ class LocalLLMClient:
             "max_tokens": request.num_predict,
             "stream": False,
         }
+        if request.response_format == "json_object":
+            payload["response_format"] = {"type": "json_object"}
+            print("[LocalLLMClient] openai response_format=json_object")
         raw = self._post_json(url, payload)
         choices = raw.get("choices") or []
         text = ""

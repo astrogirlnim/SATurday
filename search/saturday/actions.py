@@ -70,6 +70,7 @@ def _role_request(
     *,
     model_override: Optional[str] = None,
     api_style_override: Optional[str] = None,
+    response_format: Optional[str] = None,
 ) -> LLMRequest:
     return LLMRequest(
         model=model_override or role.model,
@@ -78,19 +79,38 @@ def _role_request(
         temperature=role.temperature,
         num_predict=role.num_predict,
         api_style=api_style_override or loop_cfg.api_style,
+        response_format=response_format,
     )
 
 
 def _parse_trailing_json(text: str) -> Dict[str, Any]:
     """Best effort extract of the status JSON object from model output."""
     print(f"[saturday.actions] parse JSON from model text chars={len(text)}")
+    # Prefer first full object when response_format=json_object (whole body).
+    stripped = (text or "").strip()
+    if stripped.startswith("{"):
+        try:
+            data, _end = json.JSONDecoder().raw_decode(stripped)
+            if isinstance(data, dict) and (
+                "status" in data
+                or "decl_name" in data
+                or "uses" in data
+                or "lean" in data
+            ):
+                print(f"[saturday.actions] parsed JSON keys={list(data)}")
+                return data
+        except json.JSONDecodeError:
+            pass
     # Prefer last object that json-decodes (supports uses: [...] arrays).
     start = text.rfind("{")
     while start >= 0:
         try:
             data, _end = json.JSONDecoder().raw_decode(text[start:])
             if isinstance(data, dict) and (
-                "status" in data or "decl_name" in data or "uses" in data
+                "status" in data
+                or "decl_name" in data
+                or "uses" in data
+                or "lean" in data
             ):
                 print(f"[saturday.actions] parsed JSON keys={list(data)}")
                 return data
@@ -119,6 +139,25 @@ def _parse_trailing_json(text: str) -> Dict[str, Any]:
         "next_recommended_action": "prove",
         "gate_pending": "none",
     }
+
+
+def _lean_from_formalize_response(resp_text: str, meta: Dict[str, Any]) -> str:
+    """
+    Prefer structured envelope field `lean`; else fenced lean block; else raw.
+    """
+    lean = meta.get("lean")
+    if isinstance(lean, str) and lean.strip():
+        print(
+            f"[saturday.actions] lean from structured JSON chars={len(lean.strip())}"
+        )
+        return lean.strip()
+    fence = LEAN_FENCE_RE.search(resp_text or "")
+    if fence:
+        body = fence.group(1).strip()
+        print(f"[saturday.actions] lean from fence chars={len(body)}")
+        return body
+    print("[saturday.actions] lean fallback to raw model text")
+    return (resp_text or "").strip()
 
 
 def _dated_entry(action: str, result: str, artifacts: List[str], learned: str) -> str:
@@ -601,11 +640,11 @@ def _run_formalize(
                 prompt_builders.SYSTEM_FORMALIZE,
                 model_override=model,
                 api_style_override=api_style,
+                response_format="json_object",
             )
         )
-        fence = LEAN_FENCE_RE.search(resp.text)
-        lean_code = fence.group(1).strip() if fence else resp.text
         meta = _parse_trailing_json(resp.text)
+        lean_code = _lean_from_formalize_response(resp.text, meta)
         suffix = tag if attempt <= 1 else f"{tag}_repair{attempt}"
         draft_path = _write_draft(
             ctx.repo_root,
@@ -866,6 +905,10 @@ def _run_formalize(
                 known_idents=known_idents,
                 meta=gen.get("meta"),
                 require_known_call_sites=True,
+                require_meta_decl=bool(
+                    import_step
+                    and str(import_step.get("fill_mode") or "") == "helper_insert"
+                ),
             )
             last_gate = gate_res
             lean_code = gate_res.code

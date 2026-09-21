@@ -27,9 +27,12 @@ _LIST_GET_BANG = re.compile(
 )
 _LEAN3_BEGIN = re.compile(r"(?m)(?::=\s*begin\b|^\s*begin\s*$)")
 _SORRY = re.compile(r"\bsorry\b")
+# Lean 3 ellipsis ranges and pattern `..` that Lean 4 rejects in this codebase
+_LEAN3_DOTDOT = re.compile(r"\.\.|\[\s*\d+\s*\.\.\s*\d*\s*\]")
 _DECL = re.compile(
     r"(?m)^\s*(theorem|lemma|def|abbrev)\s+([A-Za-z_][\w']*)\b"
 )
+_MGG_IMPORT = re.compile(r"\bmggImport_[A-Za-z0-9_']+\b")
 # Capitalized Lean identifiers (types, lemmas, namespaces pieces)
 _CAP_IDENT = re.compile(r"\b([A-Z][A-Za-z0-9_']*)\b")
 # Call sites that invent names and burn lake cycles when wrong
@@ -311,6 +314,38 @@ def parse_formalize_meta(meta: Optional[Dict[str, Any]]) -> tuple[str, List[str]
     return decl, uses
 
 
+def parse_formalize_envelope(meta: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Normalize structured formalize JSON (lean envelope)."""
+    meta = meta or {}
+    decl, uses = parse_formalize_meta(meta)
+    extra_raw = meta.get("extra_decls") or []
+    if isinstance(extra_raw, str):
+        extras = [p.strip() for p in extra_raw.split(",") if p.strip()]
+    elif isinstance(extra_raw, list):
+        extras = [str(u).strip() for u in extra_raw if str(u).strip()]
+    else:
+        extras = []
+    no_sorry = meta.get("no_sorry")
+    if isinstance(no_sorry, str):
+        no_sorry_b = no_sorry.strip().lower() in {"true", "1", "yes"}
+    else:
+        no_sorry_b = bool(no_sorry) if no_sorry is not None else False
+    out = {
+        "decl_name": decl,
+        "uses": uses,
+        "extra_decls": extras,
+        "no_sorry": no_sorry_b,
+        "decl_kind": str(meta.get("decl_kind") or "").strip().lower(),
+        "status": str(meta.get("status") or "").strip().lower(),
+    }
+    print(
+        f"[saturday.draft_gate] envelope decl={out['decl_name']!r} "
+        f"kind={out['decl_kind']!r} no_sorry={out['no_sorry']} "
+        f"extras={out['extra_decls']} status={out['status']!r}"
+    )
+    return out
+
+
 def validate_lean_draft(
     code: str,
     *,
@@ -325,8 +360,20 @@ def validate_lean_draft(
     cleaned, repairs = sanitize_lean_draft(code)
     reasons: List[str] = []
     warnings: List[str] = []
-    meta_decl, meta_uses = parse_formalize_meta(meta)
+    envelope = parse_formalize_envelope(meta)
+    meta_decl = envelope["decl_name"]
+    meta_uses = envelope["uses"]
     decls = list(_DECL.finditer(cleaned))
+    if envelope["status"] == "blocked" and not cleaned.strip():
+        reasons.append("model marked status=blocked with empty lean")
+        return DraftGateResult(
+            code=cleaned,
+            ok=False,
+            reasons=reasons,
+            repairs=repairs,
+            meta_decl_name=meta_decl,
+            meta_uses=meta_uses,
+        )
     if not decls:
         reasons.append("no theorem/lemma/def/abbrev declaration found")
         return DraftGateResult(
@@ -342,10 +389,39 @@ def validate_lean_draft(
     defined = extract_decl_names(cleaned)
     fill = str((import_step or {}).get("fill_mode") or "")
     want = str((import_step or {}).get("lean_name") or "").rsplit(".", 1)[-1]
+    foreign_kind = str((import_step or {}).get("foreign_kind") or "").lower()
     if want and name != want and want not in cleaned:
         reasons.append(
             f"expected decl name {want!r} from import plan; found {name!r}"
         )
+    if fill == "helper_insert":
+        if len(defined) != 1:
+            reasons.append(
+                f"helper_insert requires exactly one decl; found {defined}"
+            )
+        if want and defined and defined[0] != want:
+            reasons.append(
+                f"helper_insert decl must be {want!r}; found {defined[0]!r}"
+            )
+        for extra in envelope["extra_decls"]:
+            short = extra.rsplit(".", 1)[-1]
+            if want and short != want:
+                reasons.append(
+                    f"extra_decls must be empty or only {want!r}; got {short!r}"
+                )
+        if not envelope["no_sorry"]:
+            reasons.append("JSON no_sorry must be true for helper_insert")
+        if foreign_kind in {"fun", "definition", "abbreviation", "consts", "def"}:
+            if kind != "def" and kind != "abbrev":
+                reasons.append(
+                    f"foreign_kind={foreign_kind} expects def/abbrev; got {kind}"
+                )
+        # Ban inventing other mggImport_* names in the body
+        for hit in _MGG_IMPORT.findall(cleaned):
+            if want and hit != want:
+                reasons.append(
+                    f"invented import helper {hit!r}; only {want!r} is allowed"
+                )
     if require_meta_decl and meta_decl and meta_decl.rsplit(".", 1)[-1] != name:
         reasons.append(
             f"JSON decl_name {meta_decl!r} does not match Lean decl {name!r}"
@@ -360,6 +436,10 @@ def validate_lean_draft(
         reasons.append("sorry present on helper_insert draft")
     if _LEAN3_BEGIN.search(cleaned):
         reasons.append("Lean 3 begin/end is forbidden; use := by")
+    if _LEAN3_DOTDOT.search(cleaned):
+        reasons.append(
+            "Lean 3 ellipsis `..` or [a..b] is forbidden; use Finset.range / List.range"
+        )
     if ".get!" in cleaned:
         reasons.append(
             "Lean 4 has no List.get!; use xs[i]! (GetElem) instead of .get!"
@@ -383,13 +463,11 @@ def validate_lean_draft(
             for cite in extract_call_site_idents(cleaned):
                 if cite in allow:
                     continue
-                # Skip namespace-looking prefixes that appear as Module.lemma elsewhere
                 unknown.append(cite)
                 reasons.append(
                     f"call site cites unknown identifier {cite!r}; "
                     "prefer exact/apply of names from the excerpt or accepted list"
                 )
-        # Soft: other capitalized tokens not in allowlist
         for cite in extract_referenced_cap_idents(cleaned):
             if cite in allow or cite in unknown:
                 continue
