@@ -137,7 +137,18 @@ def build_formalize_prompt(
         unit = str(step.get("unit") or "cluster")
         tactics_s = ", ".join(str(t) for t in tactics)
         micro = ""
-        if step:
+        if step and fill_mode == "helper_insert":
+            micro = f"""
+Micro lemma contract (import ladder unit={unit} fill_mode=helper_insert):
+- Emit ONE new Lean helper named exactly: {lean_name}
+- Intent: {lean_sig or step.get('goal') or '(port foreign lemma)'}
+- Do NOT discharge Frontier sorries in this wake; helpers only.
+- No sorry. No axioms. No alternate identifier for the helper name.
+- Allowed tactics ONLY: {tactics_s}
+- Prefer exact/apply of smart selected accepted decls when they fit.
+- Translate the foreign excerpt; keep the surface close to existing Lean names.
+"""
+        elif step:
             micro = f"""
 Micro lemma contract (Qwen sized unit={unit}):
 - Discharge exactly this name: {lean_name}
@@ -159,23 +170,28 @@ Import cluster rules:
 Foreign source excerpts for this cluster (truncated for micro steps):
 {truncate_for_prompt(import_block, 6000 if step else 14000)}
 """
-    return f"""Rung id: {choice.rung}
-Status: {rung.status}
-Target: {choice.target}
-
-Open Frontier sorry obligations (live extract from the Lean home; dynamic):
-{obligations}
-
-Rung memory (truncated):
-{truncate_for_prompt(rung.text, 6000)}
-
-Existing Lean Frontier excerpt (truncated):
-{truncate_for_prompt(module_excerpt, 10000)}
-{accepted_section}
-Prior lake build or gate errors:
-{truncate_for_prompt(err_block, 6000)}
-
-Task:
+    helper_only = (
+        import_step is not None
+        and str((import_step or {}).get("fill_mode") or "") == "helper_insert"
+    )
+    if helper_only:
+        step = import_step or {}
+        lean_name = str(step.get("lean_name") or "importHelper")
+        task_block = f"""Task:
+Emit one Lean 4 fragment that ADDS the new helper `{lean_name}` (import ladder micro).
+Requirements:
+1. Namespace {ns} only.
+2. No imports. No axioms. No sorry.
+3. Lean 4 ONLY: `:= by`. NEVER `begin`. NEVER Lean 3 ranges like [0..n].
+4. The theorem/lemma name MUST be exactly `{lean_name}` (new decl; not a Frontier pin).
+5. Do not restate open Frontier sorry names in this wake.
+6. Prefer smart selected accepted declarations above; call them with exact/apply.
+7. After the code fence, JSON with status, notes, next_recommended_action=formalize,
+   gate_pending.
+{import_rules}
+"""
+    else:
+        task_block = f"""Task:
 Emit one Lean 4 fragment that DISCHARGES at least one open obligation above.
 Requirements:
 1. Namespace {ns} only.
@@ -193,6 +209,24 @@ Requirements:
 7. After the code fence, JSON with status, notes, next_recommended_action=formalize,
    gate_pending.
 {import_rules}
+"""
+    return f"""Rung id: {choice.rung}
+Status: {rung.status}
+Target: {choice.target}
+
+Open Frontier sorry obligations (live extract from the Lean home; dynamic):
+{obligations}
+
+Rung memory (truncated):
+{truncate_for_prompt(rung.text, 6000)}
+
+Existing Lean Frontier excerpt (truncated):
+{truncate_for_prompt(module_excerpt, 10000)}
+{accepted_section}
+Prior lake build or gate errors:
+{truncate_for_prompt(err_block, 6000)}
+
+{task_block}
 """
 
 

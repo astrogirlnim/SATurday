@@ -255,6 +255,7 @@ saturday_loop:
         maps_to_frontier:
           - "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil"
           - "MGGFrontier.mggGraph_hasExpansionInv"
+        lean_module: "theory/Theory/ProofComplexity/MGG.lean"
         primary_theories:
           - "Expander_Graphs_MGG"
           - "Expander_Graphs_Cheeger_Inequality"
@@ -263,7 +264,7 @@ saturday_loop:
           - "Expander_Graphs_Strongly_Explicit"
         fetch_url: "https://www.isa-afp.org/release/afp-current.tar.gz"
         archive_member: "thys/Expander_Graphs"
-        notes: "Hoory style Fourier proof; spectral bound 5/8 sqrt 2; vendor via satday proof-source"
+        notes: "Hoory style Fourier proof; spectral bound 5/8 sqrt 2; vendor via satday proof-source; discrete ladder via satday proof-source ladder"
   # Rank a small subset of accepted_declarations.txt into formalize/prove prompts
   accepted_select:
     enabled: true

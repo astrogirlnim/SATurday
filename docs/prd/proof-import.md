@@ -293,6 +293,8 @@ failure. Import does not invent a third endpoint.
 ### M1 — Cache + CLI
 
 - [x] `search/proof_sources/` layout + `satday proof-source status|fetch`.
+- [x] `satday proof-source ladder <id>`: catalog-driven discrete lemma ladder
+  from vendored theories (Isabelle `.thy` first; reusable for later imports).
 - [x] Vendor script or documented manual vendor steps for AFP Expander Graphs.
 - [x] No LLM changes required to pass M1.
 

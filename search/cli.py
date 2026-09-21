@@ -492,6 +492,120 @@ def proof_source_fetch_cmd(
         raise typer.Exit(code=1)
 
 
+@proof_source_app.command("ladder")
+def proof_source_ladder_cmd(
+    source_id: str = typer.Argument(..., help="Catalog id to ladderize"),
+    theories: Optional[str] = typer.Option(
+        None,
+        "--theories",
+        help="Comma-separated theory stems (default: catalog primary_theories)",
+    ),
+    kinds: Optional[str] = typer.Option(
+        None,
+        "--kinds",
+        help="Comma-separated decl kinds (default: lemma,theorem,definition,fun,...)",
+    ),
+    max_steps: Optional[int] = typer.Option(
+        None,
+        "--max-steps",
+        help="Cap number of micro steps (Frontier pins still appended)",
+    ),
+    name_pattern: Optional[str] = typer.Option(
+        None,
+        "--name-pattern",
+        help="Regex filter on foreign decl names",
+    ),
+    merge: bool = typer.Option(
+        True,
+        "--merge/--no-merge",
+        help="Merge with existing accepted.json (keep done steps)",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print summary without writing accepted.json",
+    ),
+    json_out: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit plan JSON to stdout",
+    ),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
+):
+    """
+    Build a discrete import ladder from vendored foreign theories.
+
+    Catalog-driven and reusable for any proof source: parse primary_theories
+    into ordered unit=micro helper_insert steps, keep prior done steps, append
+    maps_to_frontier as terminal sorry_replace pins.
+
+    Examples:
+        satday proof-source ladder afp-expander-graphs-mgg
+        satday proof-source ladder afp-expander-graphs-mgg \\
+          --theories Expander_Graphs_MGG,Expander_Graphs_Cheeger_Inequality \\
+          --max-steps 40
+    """
+    from search.saturday import proof_source as ps
+    from search.saturday.import_ladder import build_import_ladder
+
+    console.print(
+        f"[bold blue]SATurday proof-source ladder[/bold blue] id={source_id}"
+    )
+    try:
+        cfg = ps.load_proof_import_config(repo_root)
+        entry = ps.entry_by_id(cfg, source_id)
+        st = ps.status_for_entry(repo_root, cfg, entry)
+        if not st.ready:
+            console.print(
+                f"[yellow]Source not ready:[/yellow] {'; '.join(st.blockers)}"
+            )
+            raise typer.Exit(code=1)
+        theory_list = (
+            [t.strip() for t in theories.split(",") if t.strip()]
+            if theories
+            else None
+        )
+        kind_list = (
+            [k.strip() for k in kinds.split(",") if k.strip()] if kinds else None
+        )
+        result = build_import_ladder(
+            repo_root,
+            cfg,
+            entry,
+            theories=theory_list,
+            kinds=kind_list,
+            max_steps=max_steps,
+            name_pattern=name_pattern,
+            merge_existing=merge,
+            write=not dry_run,
+        )
+        console.print(
+            f"decls={result.decls_extracted} steps={result.steps_emitted} "
+            f"done_kept={result.steps_kept_done} theories={result.theories}"
+        )
+        if result.path:
+            console.print(f"wrote {result.path}")
+        elif dry_run:
+            console.print("[yellow]dry-run: plan not written[/yellow]")
+        nxt = None
+        for step in result.plan.get("steps") or []:
+            if str(step.get("status", "pending")) != "done":
+                nxt = step
+                break
+        if nxt:
+            console.print(
+                f"next step id={nxt.get('id')} lean={nxt.get('lean_name')} "
+                f"fill={nxt.get('fill_mode')}"
+            )
+        if json_out:
+            console.print_json(data=result.plan)
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
 @app.command("status")
 def status_cmd(
     json_out: bool = typer.Option(

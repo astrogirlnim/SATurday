@@ -365,14 +365,21 @@ def _replace_open_sorry_block(source: str, name: str, new_block: str) -> str:
 
 
 
-def merge_frontier_fragment(original: str, fragment: str, rung_id: str) -> tuple[str, str]:
+def merge_frontier_fragment(
+    original: str,
+    fragment: str,
+    rung_id: str,
+    *,
+    allow_helper_only: bool = False,
+) -> tuple[str, str]:
     """
     Merge fragment into original.
 
     Policy (dynamic, no pin-name allowlist):
     - If open Frontier sorries exist, the draft MUST replace at least one by name
       (proof discharge). Helpers may accompany that discharge in the same fragment.
-    - Pure helper inserts that leave every open sorry untouched are rejected.
+    - Pure helper inserts that leave every open sorry untouched are rejected
+      unless allow_helper_only (import ladder micro fill_mode=helper_insert).
     - Certified (non-sorry) decls cannot be redefined.
     """
     open_sorry = set(extract_open_frontier_obligations(original))
@@ -402,15 +409,25 @@ def merge_frontier_fragment(original: str, fragment: str, rung_id: str) -> tuple
             raise ValueError(
                 "decls already defined (certified): " + name
             )
+        if allow_helper_only and re.search(r"\bsorry\b", block):
+            raise ValueError(
+                f"helper_insert rejects sorry in new decl: {name}"
+            )
         helpers.append(name)
 
     if open_sorry and not replaced:
-        raise ValueError(
-            "draft does not discharge any open Frontier sorry. Open: "
-            + ", ".join(sorted(open_sorry)[:20])
-            + ". Restate one of those names with a real proof (helpers may "
-            "accompany it in the same fragment)."
-        )
+        if allow_helper_only and helpers:
+            print(
+                "[saturday.apply] allow_helper_only: inserting helpers without "
+                f"Frontier discharge helpers={helpers}"
+            )
+        else:
+            raise ValueError(
+                "draft does not discharge any open Frontier sorry. Open: "
+                + ", ".join(sorted(open_sorry)[:20])
+                + ". Restate one of those names with a real proof (helpers may "
+                "accompany it in the same fragment)."
+            )
 
     if helpers:
         helper_blocks = [
@@ -436,11 +453,14 @@ def apply_frontier_draft(
     lean_path: Path,
     lean_code: str,
     rung_id: str,
+    *,
+    allow_helper_only: bool = False,
 ) -> ApplyResult:
     """
     Auto-apply a Frontier draft into lean_path if lake build stays green.
 
     On build failure, restore the previous file contents.
+    Set allow_helper_only for import-ladder micros (fill_mode=helper_insert).
     """
     repo_root = Path(repo_root)
     lean_path = Path(lean_path)
@@ -448,7 +468,10 @@ def apply_frontier_draft(
         rel = str(lean_path.relative_to(repo_root))
     except ValueError:
         rel = str(lean_path)
-    print(f"[saturday.apply] start target={rel} rung={rung_id}")
+    print(
+        f"[saturday.apply] start target={rel} rung={rung_id} "
+        f"allow_helper_only={allow_helper_only}"
+    )
     announce(f"Applying Frontier draft into {rel}")
 
     fragment, reason = prepare_frontier_fragment(lean_code, rung_id)
@@ -530,7 +553,12 @@ def apply_frontier_draft(
             )
 
         try:
-            updated, mode = merge_frontier_fragment(backup, fragment, rung_id)
+            updated, mode = merge_frontier_fragment(
+                backup,
+                fragment,
+                rung_id,
+                allow_helper_only=allow_helper_only,
+            )
         except ValueError as exc:
             print(f"[saturday.apply] reject merge: {exc}")
             announce(f"Rejected draft before build: {exc}")

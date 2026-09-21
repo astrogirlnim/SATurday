@@ -735,6 +735,7 @@ def build_import_prompt_context(
         "Never treat the foreign proof as a Lean axiom. "
         "Critical path close requires zero sorry.",
     ]
+    used = 0
     if step:
         parts.append(
             "Current micro step id: "
@@ -742,7 +743,25 @@ def build_import_prompt_context(
             + "\nForeign lemmas (focus): "
             + ", ".join(str(x) for x in (step.get("foreign_lemmas") or []))
         )
-    used = 0
+        try:
+            from search.saturday.import_ladder import lemma_focus_excerpt_for_step
+
+            focus = lemma_focus_excerpt_for_step(
+                repo_root,
+                cfg,
+                entry,
+                step,
+                max_chars=min(3500, int(step.get("max_chars") or 3500)),
+            )
+            if focus:
+                parts.append(focus)
+                used += len(focus)
+                print(
+                    "[saturday.proof_source] injected lemma focus excerpt "
+                    f"chars={len(focus)}"
+                )
+        except Exception as exc:
+            print(f"[saturday.proof_source] lemma focus skipped: {exc}")
     for stem in ordered:
         if used >= budget:
             break

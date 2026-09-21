@@ -157,6 +157,8 @@ class ProofImportCatalogEntry(BaseModel):
     maps_to_rungs: List[str] = Field(default_factory=list)
     maps_to_frontier: List[str] = Field(default_factory=list)
     primary_theories: List[str] = Field(default_factory=list)
+    # Lean module for import ladder / formalize clusters (optional heuristic fallback)
+    lean_module: str = ""
     # Optional archive URL used only by `satday proof-source fetch --network`
     fetch_url: str = ""
     # Subpath inside the archive (POSIX) whose contents are copied into thys/

@@ -24,6 +24,7 @@ satday dashboard
 satday status
 satday proof-source status
 satday proof-source fetch afp-expander-graphs-mgg --from-dir /path/to/afp/thys/Expander_Graphs
+satday proof-source ladder afp-expander-graphs-mgg
 satday kill --reason "operator stop"
 satday unkill
 ```
@@ -35,7 +36,11 @@ pacing is per-request cooldown. Formalize auto-applies Frontier drafts into
 
 Proof import cache (M1, see `docs/prd/proof-import.md`): foreign ITP sources
 live under `search/proof_sources/`. Auto only reads the cache; populate with
-`satday proof-source fetch` (offline `--from-dir` preferred).
+`satday proof-source fetch` (offline `--from-dir` preferred). Build a discrete
+lemma ladder from vendored `.thy` files with `satday proof-source ladder <id>`
+(catalog-driven; works for any future import source with `primary_theories` +
+`maps_to_frontier`). Micros use `fill_mode=helper_insert`; Frontier pins stay
+`sorry_replace`.
 
 Accepted smart select (`saturday_loop.accepted_select`): before each formalize
 (and lightly on prove), the loop ranks a small subset of

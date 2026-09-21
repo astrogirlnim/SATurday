@@ -8,7 +8,12 @@ Auto wakes **only read** this tree. Populate it with the CLI:
 ```bash
 satday proof-source status
 satday proof-source fetch afp-expander-graphs-mgg --from-dir /path/to/afp/thys/Expander_Graphs
+satday proof-source ladder afp-expander-graphs-mgg
 ```
+
+`ladder` parses vendored theories into an ordered micro plan (general for any
+catalog entry with `primary_theories` + `maps_to_frontier` + optional
+`lean_module`). Does not invent Lean axioms.
 
 Network fetch is off by default (`saturday_loop.proof_import.allow_network_fetch`).
 

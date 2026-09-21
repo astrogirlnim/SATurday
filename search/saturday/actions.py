@@ -594,6 +594,11 @@ def _run_formalize(
                 lean_path=lean_path,
                 lean_code=lean_code,
                 rung_id=choice.rung,
+                allow_helper_only=(
+                    bool(import_step)
+                    and str(import_step.get("fill_mode") or "")
+                    == "helper_insert"
+                ),
             )
             apply_notes = applied.notes
             build_tail = applied.build_tail or ""
@@ -622,12 +627,24 @@ def _run_formalize(
                     remaining = extract_open_frontier_obligations(
                         lean_path.read_text(encoding="utf-8")
                     )
-                if remaining:
+                fill_mode = (
+                    str(import_step.get("fill_mode") or "")
+                    if import_step
+                    else ""
+                )
+                if remaining and fill_mode != "helper_insert":
                     status = "partial"
                     gate = "none"
                     announce(
                         f"Apply stuck in theory/, but Frontier sorries remain: "
                         + ", ".join(remaining[:6])
+                    )
+                elif remaining and fill_mode == "helper_insert":
+                    status = "partial"
+                    gate = "none"
+                    announce(
+                        "Import micro helper landed; Frontier sorries remain "
+                        f"({len(remaining)} open)."
                     )
                 elif applied.has_sorry:
                     status = "partial"
@@ -636,6 +653,45 @@ def _run_formalize(
                     status = "success"
                     gate = "merge_certified"
                 arts.append(applied.target)
+                # Advance accepted import plan when this step's decl stuck.
+                if import_step and import_step.get("id"):
+                    try:
+                        from search.saturday.proof_source import (
+                            entry_by_id,
+                            load_proof_import_config,
+                            mark_plan_step_done,
+                            parse_import_cluster_target,
+                        )
+
+                        pi_cfg = load_proof_import_config(ctx.repo_root)
+                        source_id, _ = parse_import_cluster_target(choice.target)
+                        if not source_id:
+                            source_id = str(
+                                import_step.get("source_id")
+                                or (pi_cfg.catalog[0].id if pi_cfg.catalog else "")
+                            )
+                        if source_id:
+                            entry = entry_by_id(pi_cfg, source_id)
+                            reason = (
+                                "helper_insert_applied"
+                                if fill_mode == "helper_insert"
+                                else "formalize_applied"
+                            )
+                            mark_plan_step_done(
+                                ctx.repo_root,
+                                pi_cfg,
+                                entry,
+                                str(import_step.get("id")),
+                                reason=reason,
+                            )
+                            print(
+                                "[saturday.actions] import plan step marked done "
+                                f"id={import_step.get('id')} reason={reason}"
+                            )
+                    except Exception as exc:
+                        print(
+                            f"[saturday.actions] mark_plan_step_done skipped: {exc}"
+                        )
             else:
                 status = "partial"
         else:
