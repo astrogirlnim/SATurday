@@ -283,8 +283,9 @@ def choose_rung_and_action(
     4. else falsify if no recent falsify on this rung
     5. else audit
 
-    Skip rungs whose only remaining import work is spectral Frontier pins
-    without an analysis Lean surface (continue on the next actionable rung).
+    Operator force_actions pin a rung. Paused rungs are skipped unless forced.
+    Spectral import pins stay non-executable (proof_source); the rung itself
+    remains selectable so Block A can continue via default formalize / decompose.
     """
     print(
         f"[saturday.chooser] choose overrides rung={rung_override} "
@@ -295,6 +296,14 @@ def choose_rung_and_action(
         return choose_action_for_rung(
             ctx, rung_override, action_override, target_override
         )
+
+    from search.saturday.control import load_control
+
+    ctrl = load_control(ctx.repo_root)
+    paused = set(ctrl.paused_rungs or [])
+    forced_rungs = [
+        rid for rid, act in (ctrl.force_actions or {}).items() if act in VALID_ACTIONS
+    ]
 
     ordered = [rid for rid in RUNG_IDS if rid in ctx.rungs]
     candidates = [
@@ -315,27 +324,30 @@ def choose_rung_and_action(
             for rid in ordered
             if ctx.rungs[rid].status not in {"certified", "killed"}
         ]
+    # Drop paused rungs unless the operator forced an action on them.
+    pool = [
+        rid
+        for rid in pool
+        if rid not in paused or rid in (ctrl.force_actions or {})
+    ]
     if not pool:
         raise RuntimeError("No actionable rung found in ladder memories")
 
     if rung_override:
         rung_id = rung_override
+    elif forced_rungs:
+        # Prefer the lowest forced rung still in the pool (operator focus).
+        forced_in_pool = [rid for rid in ordered if rid in forced_rungs and rid in pool]
+        rung_id = forced_in_pool[0] if forced_in_pool else pool[0]
+        print(f"[saturday.chooser] operator force prefers rung={rung_id}")
     else:
-        runnable = [
-            rid for rid in pool if not _rung_spectral_formalize_blocked(ctx, rid)
-        ]
-        if not runnable:
+        rung_id = pool[0]
+        if _rung_spectral_formalize_blocked(ctx, rung_id):
             print(
-                "[saturday.chooser] all preferred rungs spectral-blocked; "
-                "falling back to pool[0]"
+                f"[saturday.chooser] rung={rung_id} import spectral-blocked; "
+                "staying on rung for Block A formalize or decompose "
+                "(import sorry_replace stays non-executable)"
             )
-            runnable = pool
-        elif runnable != pool:
-            print(
-                f"[saturday.chooser] skipped spectral-blocked "
-                f"{[r for r in pool if r not in runnable]}; using {runnable[0]}"
-            )
-        rung_id = runnable[0]
     return choose_action_for_rung(ctx, rung_id, action_override, target_override)
 
 
@@ -398,6 +410,21 @@ def _default_target(ctx: CycleContext, rung_id: str, action: str) -> str:
     if action == "falsify":
         return f"budgeted calibration for {rung_id}"
     if action == "formalize":
+        if rung_id == "r2-width-machinery":
+            # Block A critical path: MGG Inv pins (import spectral stays deferred).
+            if _rung_spectral_formalize_blocked(ctx, rung_id):
+                return (
+                    "formalize Block A MGGFrontier.mggGraph_hasExpansionInv "
+                    "via packaging "
+                    "mggGraph_hasExpansionInv_of_multi_cheeger_and_twelfth or "
+                    "mggGraph_hasExpansionInv15_of_multi_cheeger; "
+                    "do not invent Nat Cheeger witnesses; leave spectral sorry "
+                    "if MggHasMultiCheeger is unavailable"
+                )
+            return (
+                "formalize Block A MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil "
+                "and MGGFrontier.mggGraph_hasExpansionInv"
+            )
         return f"formalize next Frontier obligation on {rung_id}"
     if action == "audit":
         return f"barrier and hygiene audit of {rung_id}"
