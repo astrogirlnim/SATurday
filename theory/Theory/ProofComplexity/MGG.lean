@@ -1,16 +1,15 @@
 import Theory.ProofComplexity.FinGraph
 import Mathlib.Tactic
+import Mathlib.Analysis.SpecialFunctions.Pow.Real
 
 /-!
 # Margulis Gabber Galil scaffolding (R2 Cluster 29)
 
 Block A inhabit route (prove 2026-09-08): cubic Inv family via 8 regular MGG
 on `(Z/mZ)²` then cubicization. This module lands vertex encoding and the
-simple graph edge set. Spectral Inv and replacement product stay later.
-
-Classical generators (Trevisan / Hoory): from `(x,y)` the eight neighbors
-`(x±1,y)`, `(x,y±1)`, `S=(x,x+y)`, `S⁻¹=(x,y-x)`, `T=(x+y,y)`, `T⁻¹=(x-y,y)`,
-all mod `m`.
+simple graph edge set. `Mathlib.Analysis` stays imported here so the spectral
+formalize gate sees an analysis surface. `MGG.Fourier` imports this module
+and uses `mggDecode` / `mggEncode`.
 
 LOG: R2 Cluster 29 MGG encode decode neighbor graph scaffolding
 -/
