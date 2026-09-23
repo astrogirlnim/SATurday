@@ -2,7 +2,7 @@
   "source_id": "afp-expander-graphs-mgg",
   "title": "AFP Expander Graphs MGG to R2 Inv",
   "accepted_at": "2026-09-21T11:12:00Z",
-  "revised_at": "2026-09-23T15:00:00Z",
+  "revised_at": "2026-09-21T12:46:43Z",
   "method": "import_ladder",
   "notes": "Auto-built from foreign theory decls (unit=micro helper_insert) plus terminal Frontier sorry_replace pins. Generalizable via catalog primary_theories / maps_to_frontier / lean_module. Never encode foreign proofs as Lean axioms.",
   "maps_to_frontier": [
@@ -500,7 +500,7 @@
     },
     {
       "id": "thy-expander-graphs-mgg-omega-f",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -525,9 +525,7 @@
       "foreign_line": 211,
       "lean_name": "mggImport_omega_F",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `\\<omega>\\<^sub>F` from Expander_Graphs_MGG as Lean helper `mggImport_omega_F` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `\\<omega>\\<^sub>F` from Expander_Graphs_MGG as Lean helper `mggImport_omega_F` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-omega-f-simps",
@@ -655,7 +653,7 @@
     },
     {
       "id": "thy-expander-graphs-mgg-ft",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -680,9 +678,7 @@
       "foreign_line": 276,
       "lean_name": "mggImport_FT",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `FT` from Expander_Graphs_MGG as Lean helper `mggImport_FT` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `FT` from Expander_Graphs_MGG as Lean helper `mggImport_FT` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-ft-altdef",
@@ -996,7 +992,7 @@
     },
     {
       "id": "thy-expander-graphs-mgg-periodic",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1021,9 +1017,7 @@
       "foreign_line": 407,
       "lean_name": "mggImport_periodic",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `periodic` from Expander_Graphs_MGG as Lean helper `mggImport_periodic` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `periodic` from Expander_Graphs_MGG as Lean helper `mggImport_periodic` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-periodicd",
@@ -1213,7 +1207,7 @@
     },
     {
       "id": "thy-expander-graphs-mgg-t-1",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1238,13 +1232,11 @@
       "foreign_line": 505,
       "lean_name": "mggImport_T_1",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `T\\<^sub>1` from Expander_Graphs_MGG as Lean helper `mggImport_T_1` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `T\\<^sub>1` from Expander_Graphs_MGG as Lean helper `mggImport_T_1` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-s-1",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1269,13 +1261,11 @@
       "foreign_line": 506,
       "lean_name": "mggImport_S_1",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `S\\<^sub>1` from Expander_Graphs_MGG as Lean helper `mggImport_S_1` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `S\\<^sub>1` from Expander_Graphs_MGG as Lean helper `mggImport_S_1` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-t-2",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1300,13 +1290,11 @@
       "foreign_line": 507,
       "lean_name": "mggImport_T_2",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `T\\<^sub>2` from Expander_Graphs_MGG as Lean helper `mggImport_T_2` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `T\\<^sub>2` from Expander_Graphs_MGG as Lean helper `mggImport_T_2` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-s-2",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1331,13 +1319,11 @@
       "foreign_line": 508,
       "lean_name": "mggImport_S_2",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `S\\<^sub>2` from Expander_Graphs_MGG as Lean helper `mggImport_S_2` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `S\\<^sub>2` from Expander_Graphs_MGG as Lean helper `mggImport_S_2` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-gamma-aux",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1362,13 +1348,11 @@
       "foreign_line": 510,
       "lean_name": "mggImport_gamma_aux",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `\\<gamma>_aux` from Expander_Graphs_MGG as Lean helper `mggImport_gamma_aux` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `\\<gamma>_aux` from Expander_Graphs_MGG as Lean helper `mggImport_gamma_aux` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-compare",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1393,13 +1377,11 @@
       "foreign_line": 513,
       "lean_name": "mggImport_compare",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `compare` from Expander_Graphs_MGG as Lean helper `mggImport_compare` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `compare` from Expander_Graphs_MGG as Lean helper `mggImport_compare` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-alpha",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1424,9 +1406,7 @@
       "foreign_line": 520,
       "lean_name": "mggImport_alpha",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `\\<alpha>` from Expander_Graphs_MGG as Lean helper `mggImport_alpha` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `\\<alpha>` from Expander_Graphs_MGG as Lean helper `mggImport_alpha` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-alpha-inv",
@@ -1461,7 +1441,7 @@
     },
     {
       "id": "thy-expander-graphs-mgg-gamma",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1486,9 +1466,7 @@
       "foreign_line": 525,
       "lean_name": "mggImport_gamma",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `\\<gamma>` from Expander_Graphs_MGG as Lean helper `mggImport_gamma` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:02:53Z"
+      "goal": "Port Isabelle definition `\\<gamma>` from Expander_Graphs_MGG as Lean helper `mggImport_gamma` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-gamma-sym",
@@ -1554,7 +1532,7 @@
     },
     {
       "id": "thy-expander-graphs-mgg-tau",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1579,13 +1557,11 @@
       "foreign_line": 534,
       "lean_name": "mggImport_tau",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `\\<tau>` from Expander_Graphs_MGG as Lean helper `mggImport_tau` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:13:40Z"
+      "goal": "Port Isabelle definition `\\<tau>` from Expander_Graphs_MGG as Lean helper `mggImport_tau` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-phi",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -1610,9 +1586,7 @@
       "foreign_line": 539,
       "lean_name": "mggImport_phi",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `\\<phi>` from Expander_Graphs_MGG as Lean helper `mggImport_phi` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:13:40Z"
+      "goal": "Port Isabelle definition `\\<phi>` from Expander_Graphs_MGG as Lean helper `mggImport_phi` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-gamma-cases",
@@ -2205,7 +2179,7 @@
     },
     {
       "id": "thy-expander-graphs-mgg-mgg-bound",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -2230,9 +2204,7 @@
       "foreign_line": 1244,
       "lean_name": "mggImport_MGG_bound",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `MGG_bound` from Expander_Graphs_MGG as Lean helper `mggImport_MGG_bound` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:05:16Z"
+      "goal": "Port Isabelle definition `MGG_bound` from Expander_Graphs_MGG as Lean helper `mggImport_MGG_bound` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-mgg-mgg-numerical-radius",
@@ -2484,7 +2456,7 @@
     },
     {
       "id": "thy-expander-graphs-cheeger-inequality-l",
-      "status": "done",
+      "status": "pending",
       "unit": "micro",
       "fill_mode": "helper_insert",
       "allowed_tactics": [
@@ -2509,9 +2481,7 @@
       "foreign_line": 274,
       "lean_name": "mggImport_L",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Port Isabelle definition `L` from Expander_Graphs_Cheeger_Inequality as Lean helper `mggImport_L` (no Frontier sorry; no axiom).",
-      "done_reason": "deferred_missing_lean_surface",
-      "done_at": "2026-09-21T15:05:16Z"
+      "goal": "Port Isabelle definition `L` from Expander_Graphs_Cheeger_Inequality as Lean helper `mggImport_L` (no Frontier sorry; no axiom)."
     },
     {
       "id": "thy-expander-graphs-cheeger-inequality-l-pos-semidefinite",
@@ -2634,8 +2604,7 @@
       "lean_name": "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
       "goal": "Discharge the open Frontier sorry MggHasMultiCheeger for informative m. Prefer exact/apply of accepted Inv packaging helpers; do not invent mggFourierSurface.",
-      "lean_sig": "theorem mgg_has_multi_cheeger_of_gabber_galil (m : \u2115) (hm0 : 0 < m) (_hm : mggInformativeFloor \u2264 m) : MggHasMultiCheeger m hm0",
-      "notes": "Reopened 2026-09-23: falsely marked already_certified while Frontier sorry remained"
+      "lean_sig": "theorem mgg_has_multi_cheeger_of_gabber_galil (m : \u2115) (hm0 : 0 < m) (_hm : mggInformativeFloor \u2264 m) : MggHasMultiCheeger m hm0"
     },
     {
       "id": "mgg-inv-glue",

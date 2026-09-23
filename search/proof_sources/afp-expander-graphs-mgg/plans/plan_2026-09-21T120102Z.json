@@ -1,0 +1,269 @@
+{
+  "source_id": "afp-expander-graphs-mgg",
+  "title": "AFP Expander Graphs MGG to R2 Inv",
+  "accepted_at": "2026-09-21T11:12:00Z",
+  "revised_at": "2026-09-21T12:05:00Z",
+  "method": "operator_seed_micro_split",
+  "notes": "Megasteps mgg-fourier-surface / mgg-rayleigh-adjacency were research sized and named Lean decls that did not exist. Split into (1) certified Nat or Inv-15 shell micros that auto-advance, (2) Cluster 39 MGG_bound Nat micros, (3) terminal research pins for spectral Cheeger and Inv-4 glue. Never encode AFP as a Lean axiom. Qwen only owns unit=micro with decide/omega/simp/exact.",
+  "maps_to_frontier": [
+    "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
+    "MGGFrontier.mggGraph_hasExpansionInv"
+  ],
+  "steps": [
+    {
+      "id": "mgg-micro-cheeger-nat-witness",
+      "status": "done",
+      "unit": "micro",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "decide"
+      ],
+      "max_chars": 2000,
+      "foreign_theories": [
+        "Expander_Graphs_MGG"
+      ],
+      "foreign_lemmas": [
+        "MGG_bound",
+        "mgg_numerical_radius"
+      ],
+      "lean_name": "mgg_gabber_galil_cheeger_nat_witness",
+      "lean_sig": "theorem mgg_gabber_galil_cheeger_nat_witness : 50 * 100 < 71 * 71",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Confirm Cluster 30 Nat witness for 5\u221a2 < 71/10 already certified.",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T12:01:02Z"
+    },
+    {
+      "id": "mgg-micro-two-fifth-nat",
+      "status": "done",
+      "unit": "micro",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "decide"
+      ],
+      "max_chars": 2000,
+      "foreign_theories": [
+        "Expander_Graphs_Cheeger_Inequality"
+      ],
+      "foreign_lemmas": [
+        "Cheeger inequality",
+        "see_mgg spectral bound 5 sqrt 2 / 8"
+      ],
+      "lean_name": "mgg_cheeger_two_fifth_nat",
+      "lean_sig": "theorem mgg_cheeger_two_fifth_nat : 36 * 36 > 2 * (25 * 25)",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Confirm (8-5\u221a2)/2 \u2265 2/5 Nat form already certified.",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T12:01:02Z"
+    },
+    {
+      "id": "mgg-micro-gap-rational-proxy",
+      "status": "done",
+      "unit": "micro",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "decide"
+      ],
+      "max_chars": 2000,
+      "foreign_theories": [
+        "Expander_Graphs_MGG"
+      ],
+      "foreign_lemmas": [
+        "MGG_bound"
+      ],
+      "lean_name": "mgg_cheeger_gap_rational_proxy",
+      "lean_sig": "theorem mgg_cheeger_gap_rational_proxy : (8 * 10 - 71) * 5 \u2265 4 * 10",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Confirm rational gap proxy already certified.",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T12:01:02Z"
+    },
+    {
+      "id": "mgg-micro-bound-lt-one",
+      "status": "done",
+      "unit": "micro",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "decide"
+      ],
+      "max_chars": 2000,
+      "foreign_theories": [
+        "Expander_Graphs_MGG"
+      ],
+      "foreign_lemmas": [
+        "MGG_bound"
+      ],
+      "lean_name": "mgg_bound_lt_one_nat",
+      "lean_sig": "theorem mgg_bound_lt_one_nat : 5 * 5 * 2 < 8 * 8",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "AFP MGG_bound = 5\u221a2/8 is strictly less than 1 (Cluster 39).",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T12:01:02Z"
+    },
+    {
+      "id": "mgg-micro-bound-proxy-lt-one",
+      "status": "done",
+      "unit": "micro",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "decide"
+      ],
+      "max_chars": 2000,
+      "foreign_theories": [
+        "Expander_Graphs_MGG"
+      ],
+      "foreign_lemmas": [
+        "MGG_bound"
+      ],
+      "lean_name": "mgg_bound_proxy_lt_one_nat",
+      "lean_sig": "theorem mgg_bound_proxy_lt_one_nat : 5 * 71 < 8 * 10 * 10",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "With \u221a2 < 71/10, bound proxy is less than 1.",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T12:01:02Z"
+    },
+    {
+      "id": "mgg-micro-bound-proxy-le-nine-tenth",
+      "status": "done",
+      "unit": "micro",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "decide"
+      ],
+      "max_chars": 2000,
+      "foreign_theories": [
+        "Expander_Graphs_MGG"
+      ],
+      "foreign_lemmas": [
+        "MGG_bound"
+      ],
+      "lean_name": "mgg_bound_proxy_le_nine_tenth_nat",
+      "lean_sig": "theorem mgg_bound_proxy_le_nine_tenth_nat : 5 * 71 \u2264 9 * 8 * 10",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Bound proxy \u2264 9/10 Nat comparison.",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T12:01:02Z"
+    },
+    {
+      "id": "mgg-micro-inv15-packaging",
+      "status": "done",
+      "unit": "micro",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "exact",
+        "apply",
+        "intro"
+      ],
+      "max_chars": 3000,
+      "foreign_theories": [
+        "Expander_Graphs_Cheeger_Inequality"
+      ],
+      "foreign_lemmas": [
+        "Cheeger inequality"
+      ],
+      "lean_name": "mggGraph_hasExpansionInv15_of_multi_cheeger",
+      "lean_sig": "theorem mggGraph_hasExpansionInv15_of_multi_cheeger {m : \u2115} (hm : 3 \u2264 m) (hcheeger : MggHasMultiCheeger m _) : HasExpansionInv (mggGraph m _) 15",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Confirm Inv-15 glue from multi Cheeger already certified; reuse via exact/apply.",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T12:01:02Z"
+    },
+    {
+      "id": "mgg-micro-card-fifteen",
+      "status": "done",
+      "unit": "micro",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "exact",
+        "apply",
+        "omega"
+      ],
+      "max_chars": 3000,
+      "foreign_theories": [
+        "Expander_Graphs_Cheeger_Inequality"
+      ],
+      "foreign_lemmas": [
+        "Cheeger inequality"
+      ],
+      "lean_name": "mgg_card_le_fifteen_mul_edgeBoundary_of_multi_cheeger",
+      "lean_sig": "theorem mgg_card_le_fifteen_mul_edgeBoundary_of_multi_cheeger ...",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Confirm card \u2264 15|\u2202_G| packaging already certified.",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T12:01:02Z"
+    },
+    {
+      "id": "mgg-research-cheeger-multi",
+      "status": "pending",
+      "unit": "research",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "exact",
+        "apply",
+        "intro",
+        "have",
+        "refine",
+        "simp",
+        "omega"
+      ],
+      "max_chars": 8000,
+      "foreign_theories": [
+        "Expander_Graphs_Cheeger_Inequality",
+        "Expander_Graphs_MGG",
+        "Expander_Graphs_Eigenvalues"
+      ],
+      "foreign_lemmas": [
+        "mgg_numerical_radius",
+        "MGG_bound",
+        "hoory_8_3",
+        "fun_bound",
+        "Cheeger inequality"
+      ],
+      "lean_name": "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
+      "lean_sig": "theorem mgg_has_multi_cheeger_of_gabber_galil (m : \u2115) (hm0 : 0 < m) (_hm : mggInformativeFloor \u2264 m) : MggHasMultiCheeger m hm0",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Spectral pin: discharge MggHasMultiCheeger for informative m with zero sorry. Requires Fourier and Rayleigh ladder not yet in Lean; Opus-scale or human micro-port of AFP, not one-wake Qwen."
+    },
+    {
+      "id": "mgg-research-inv-glue",
+      "status": "pending",
+      "unit": "research",
+      "fill_mode": "sorry_replace",
+      "allowed_tactics": [
+        "exact",
+        "apply",
+        "intro",
+        "have",
+        "refine"
+      ],
+      "max_chars": 6000,
+      "foreign_theories": [
+        "Expander_Graphs_MGG"
+      ],
+      "foreign_lemmas": [
+        "see_mgg is_expander"
+      ],
+      "lean_name": "MGGFrontier.mggGraph_hasExpansionInv",
+      "lean_sig": "theorem mggGraph_hasExpansionInv (m : \u2115) (hm0 : 0 < m) (hm : mggInformativeFloor \u2264 m) : HasExpansionInv (mggGraph m hm0) mggInvK",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Glue multi Cheeger to locked Inv-4; needs spectral pin plus reverseLoss stricter than 4|\u2202_G|. Prefer exact/apply of Inv-15 only if rung accepts weaker k."
+    },
+    {
+      "id": "mgg-family-packaging",
+      "status": "done",
+      "unit": "micro",
+      "foreign_theories": [
+        "Expander_Graphs_Strongly_Explicit"
+      ],
+      "foreign_lemmas": [
+        "see_mgg",
+        "strongly explicit packaging"
+      ],
+      "lean_name": "exists_mgg_simple_hasExpansionInv_family",
+      "module": "theory/Theory/ProofComplexity/MGG.lean",
+      "goal": "Confirm family packaging of_inv closes once mggGraph_hasExpansionInv is accepted.",
+      "done_reason": "already_certified",
+      "done_at": "2026-09-21T11:57:51Z"
+    }
+  ]
+}

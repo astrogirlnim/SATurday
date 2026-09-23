@@ -2,7 +2,7 @@
   "source_id": "afp-expander-graphs-mgg",
   "title": "AFP Expander Graphs MGG to R2 Inv",
   "accepted_at": "2026-09-21T11:12:00Z",
-  "revised_at": "2026-09-23T15:00:00Z",
+  "revised_at": "2026-09-21T12:46:43Z",
   "method": "import_ladder",
   "notes": "Auto-built from foreign theory decls (unit=micro helper_insert) plus terminal Frontier sorry_replace pins. Generalizable via catalog primary_theories / maps_to_frontier / lean_module. Never encode foreign proofs as Lean axioms.",
   "maps_to_frontier": [
@@ -2634,8 +2634,7 @@
       "lean_name": "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
       "module": "theory/Theory/ProofComplexity/MGG.lean",
       "goal": "Discharge the open Frontier sorry MggHasMultiCheeger for informative m. Prefer exact/apply of accepted Inv packaging helpers; do not invent mggFourierSurface.",
-      "lean_sig": "theorem mgg_has_multi_cheeger_of_gabber_galil (m : \u2115) (hm0 : 0 < m) (_hm : mggInformativeFloor \u2264 m) : MggHasMultiCheeger m hm0",
-      "notes": "Reopened 2026-09-23: falsely marked already_certified while Frontier sorry remained"
+      "lean_sig": "theorem mgg_has_multi_cheeger_of_gabber_galil (m : \u2115) (hm0 : 0 < m) (_hm : mggInformativeFloor \u2264 m) : MggHasMultiCheeger m hm0"
     },
     {
       "id": "mgg-inv-glue",
