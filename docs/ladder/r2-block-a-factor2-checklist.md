@@ -42,17 +42,22 @@ Accepted declarations to reuse when retargeting are listed in
 
 ### 1. Factor-2 graph on the same vertex set
 
-- [ ] Define eight labeled factor-2 steps next to `mggNeighbor`, matching the
+- [x] Define eight labeled factor-2 steps next to `mggNeighbor`, matching the
   AFP / Jimbo–Maruoka presentation already stubbed as
   `MGGFrontier.mggImport_mgg_graph_step` and `MGGFrontier.mggImport_mgg_graph`
   in [MGG.lean](../../theory/Theory/ProofComplexity/MGG.lean).
-- [ ] Reuse accepted encode and decode without duplication:
+  Implemented as `mggF2Neighbor` in
+  [MGG/Factor2.lean](../../theory/Theory/ProofComplexity/MGG/Factor2.lean)
+  (cross-ref on `mggNeighbor` docstring).
+- [x] Reuse accepted encode and decode without duplication:
   `mggDecode`, `mggEncode`, `mggEncode_decode`, `mggDecode_encode`.
-- [ ] Build the corresponding simple `FinGraph` and labeled multi-cut (the
+- [x] Build the corresponding simple `FinGraph` and labeled multi-cut (the
   unit-shear analogues are `mggGraph`, `mggMultiCutCard`, `mggLeavingGens`).
-- [ ] Prove connectivity for the factor-2 simple graph. Do not cite
+  Factor-2: `mggF2Graph`, `mggF2MultiCutCard`, `mggF2LeavingGens`.
+- [x] Prove connectivity for the factor-2 simple graph. Do not cite
   `mggGraph_isConnected` (that declaration is for the unit-shear graph).
-- [ ] Leave the certified unit-shear surface untouched:
+  Certified: `mggF2Graph_isConnected` via shear composition unit walks.
+- [x] Leave the certified unit-shear surface untouched:
   `mggNeighbor`, `mggNeighbor_S_eq`, `mggNeighbor_T_eq`,
   `mggNeighbor_shear_loop_mem_axis`, near-axis excess lemmas, and related
   accepted decls in [accepted_declarations.txt](../../scripts/accepted_declarations.txt).

@@ -56,7 +56,8 @@ theorem mggDecode_encode {m : ℕ} (hm : 0 < m) (p : Fin m × Fin m) :
 /-- Local `NeZero` from positivity, for `OfNat` on `Fin m`. -/
 private theorem mggNeZero {m : ℕ} (hm : 0 < m) : NeZero m := ⟨ne_of_gt hm⟩
 
-/-- Eight MGG neighbor indices. -/
+/-- Eight MGG neighbor indices (unit-shear star: translations and ±S, ±T).
+Factor-2 Jimbo–Maruoka steps live in `MGG.Factor2` as `mggF2Neighbor`. -/
 def mggNeighbor {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) (s : Fin 8) : Fin (m * m) :=
   letI : NeZero m := mggNeZero hm
   let x := (mggDecode hm v).1
