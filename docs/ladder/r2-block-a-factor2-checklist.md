@@ -64,23 +64,35 @@ Accepted declarations to reuse when retargeting are listed in
 
 ### 2. Multi-Cheeger from `gg_numerical_radius`
 
-- [ ] Define the factor-2 adjacency Rayleigh form on torus coordinates (same
+- [x] Define the factor-2 adjacency Rayleigh form on torus coordinates (same
   shape as `mggMultiRayleigh` in
   [Spectral.lean](../../theory/Theory/ProofComplexity/MGG/Spectral.lean),
   but using the factor-2 steps / `ggAdj`).
-- [ ] Prove the cut identity for set indicators: Rayleigh equals
+  Implemented as `mggF2MultiRayleigh` and `mggF2MultiRayleigh_eq_ggAdj` in
+  [MGG/Factor2Spectral.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Spectral.lean).
+- [x] Prove the cut identity for set indicators: Rayleigh equals
   `8 · |S| − multiCut` (pattern:
   `mggMultiRayleigh_setIndicator`, `mgg_staySum_eq_eight_sub_leaving`,
   `sum_mggSetIndicator` in [Spectral.lean](../../theory/Theory/ProofComplexity/MGG/Spectral.lean)).
-- [ ] Center the indicator (`sum_mggCenteredIndicator` pattern) and apply
+  Factor-2: `mggF2_staySum_eq_eight_sub_leaving`, `mggF2MultiRayleigh_setIndicator`.
+- [x] Center the indicator (`sum_mggCenteredIndicator` pattern) and apply
   `gg_numerical_radius` from
   [Rayleigh.lean](../../theory/Theory/ProofComplexity/MGG/GG/Rayleigh.lean).
-- [ ] For nonempty half-sets, obtain
+  `mggF2MultiRayleigh_centered`, `mggF2_centered_eq_eight_norm_sub_cut`,
+  `mggF2_centered_numerical_radius`.
+- [x] For nonempty half-sets, obtain
   `multiCut ≥ ((8 − 5√2) / 2) · |S|`, hence `2 · |S| ≤ 5 · multiCut`.
-- [ ] Package as a factor-2 analogue of accepted `MggHasMultiCheeger`; reuse
+  `mggF2MultiCut_ge_gap_mass`, `mggF2MultiCut_ge_half_gap`,
+  `mggF2_two_card_le_five_multiCut` for `3 ≤ m`.
+- [x] Package as a factor-2 analogue of accepted `MggHasMultiCheeger`; reuse
   the Nat ceiling `mgg_card_le_three_mul_of_two_fifth` and
   `mgg_card_le_three_mul_multiCut_of_cheeger` only after the cut type matches
   (those decls currently quantify over `mggMultiCutCard` on `mggNeighbor`).
+  `MggF2HasMultiCheeger` quantifies over `mggF2MultiCutCard`.
+  `mggF2_hasMultiCheeger` inhabits it for `3 ≤ m`.
+  `mggF2_card_le_three_mul_multiCut_of_cheeger` calls
+  `mgg_card_le_three_mul_of_two_fifth`. The unit-shear
+  `mgg_card_le_three_mul_multiCut_of_cheeger` is not applied.
 
 ### 3. Simple-graph Inv at locked `mggInvK = 4`
 

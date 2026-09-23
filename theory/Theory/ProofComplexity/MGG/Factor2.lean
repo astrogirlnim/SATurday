@@ -13,6 +13,7 @@ Reuses accepted `mggDecode`, `mggEncode`, `mggEncode_decode`, `mggDecode_encode`
 Does not touch the certified unit-shear surface (`mggNeighbor`, `mggGraph`, …).
 
 Connectivity: `(2y+1) - 2y = 1` gives unit horizontal walks; likewise vertical.
+The factor-2 Rayleigh form and multi-Cheeger packaging live in `MGG.Factor2Spectral`.
 LOG: R2 Block A factor-2 FinGraph multi-cut connectivity
 -/
 
@@ -138,6 +139,42 @@ theorem mggF2Neighbor_Ym2x_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
       mggEncode hm
         ((mggDecode hm v).1,
           (mggDecode hm v).2 - (mggDecode hm v).1 - (mggDecode hm v).1) := by
+  letI : NeZero m := mggF2NeZero hm
+  rfl
+
+theorem mggF2Neighbor_Xp2y_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggF2Neighbor hm v mggF2Xp2y =
+      letI : NeZero m := mggF2NeZero hm
+      mggEncode hm
+        ((mggDecode hm v).1 + (mggDecode hm v).2 + (mggDecode hm v).2,
+          (mggDecode hm v).2) := by
+  letI : NeZero m := mggF2NeZero hm
+  rfl
+
+theorem mggF2Neighbor_Yp2x_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggF2Neighbor hm v mggF2Yp2x =
+      letI : NeZero m := mggF2NeZero hm
+      mggEncode hm
+        ((mggDecode hm v).1,
+          (mggDecode hm v).2 + (mggDecode hm v).1 + (mggDecode hm v).1) := by
+  letI : NeZero m := mggF2NeZero hm
+  rfl
+
+theorem mggF2Neighbor_Xm2y1_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggF2Neighbor hm v mggF2Xm2y1 =
+      letI : NeZero m := mggF2NeZero hm
+      mggEncode hm
+        ((mggDecode hm v).1 - (mggDecode hm v).2 - (mggDecode hm v).2 - 1,
+          (mggDecode hm v).2) := by
+  letI : NeZero m := mggF2NeZero hm
+  rfl
+
+theorem mggF2Neighbor_Ym2x1_eq {m : ℕ} (hm : 0 < m) (v : Fin (m * m)) :
+    mggF2Neighbor hm v mggF2Ym2x1 =
+      letI : NeZero m := mggF2NeZero hm
+      mggEncode hm
+        ((mggDecode hm v).1,
+          (mggDecode hm v).2 - (mggDecode hm v).1 - (mggDecode hm v).1 - 1) := by
   letI : NeZero m := mggF2NeZero hm
   rfl
 
