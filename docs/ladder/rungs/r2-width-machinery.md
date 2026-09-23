@@ -9628,3 +9628,17 @@ theorem mggGraph_hasExpansionInv : HasExpansionInv mggGraph :=
     sorry
 
 end MGGFrontier
+
+- 2026-09-23 formalize (Block A item 3 factor-2 Inv-4): PARTIAL.
+  Artifacts: `theory/Theory/ProofComplexity/MGG/Factor2Inv.lean` (commit `4391a70`),
+  `docs/ladder/r2-block-a-factor2-checklist.md`.
+  Certified: fresh multi-to-simple loss (`mggF2OutNeighbors`,
+  `mggF2LeavingExcess`, `mggF2ReverseCutLoss`, fiber ≤ 2,
+  `mggF2MultiCutCard_le_two_mul_edgeBoundary`), unconditional
+  `mggF2Graph_hasExpansionInv5`, sparse Inv-4
+  `mggF2_card_le_four_mul_edgeBoundary_of_sparse` (`1000·|S| ≤ 461·m²`).
+  Open pin: `Factor2InvFrontier.mggF2_five_multiCut_le_eight_edgeBoundary`
+  (`5·multiCut ≤ 8·|∂|` for `|S| ≥ 5`), needed only on the dense half-set band.
+  Most important thing learned: pointwise `multiCut ≤ 2·|∂|` is tight, so
+  2/5 Cheeger plus that bound yields Inv-5 only; locked Inv-4 needs either the
+  sparse mass argument or a denser-set multiplicity budget below 8/5.
