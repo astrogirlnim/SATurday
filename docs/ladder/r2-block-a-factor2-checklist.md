@@ -96,24 +96,62 @@ Accepted declarations to reuse when retargeting are listed in
 
 ### 3. Simple-graph Inv at locked `mggInvK = 4`
 
+All of the following live in
+[MGG/Factor2Inv.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Inv.lean).
+
+- [x] Prove a fresh multi-to-simple loss bound for the factor-2 generators.
+  Unit-shear loss lemmas
+  (`mggLeavingExcess_le_four`,
+  `mggLeavingExcess_le_two_of_not_mem_nearAxis`,
+  `mggReverseCutLoss_le_four_near_two_off`,
+  `mggReverseCutLoss_le_two_mul_card_add_twelve_mul_m`) do not transfer and are
+  not cited. Certified chain, standard axioms only:
+  `mggF2OutNeighbors`, `mggF2LeavingExcess`, `mggF2ReverseCutLoss`,
+  `mggF2MultiCutCard_eq_sum_out_add_reverseLoss`,
+  `mggF2_labels_to_ne_neighbor_card_le_two` (non-loop fibers have size at most
+  two), `mggF2LeavingGens_card_le_two_mul_outNeighbors_of_mem`,
+  `mggF2ReverseCutLoss_le_sum_outNeighbors`,
+  `sum_mggF2OutNeighbors_card_le_edgeBoundary` (directed cut pair injection),
+  `mggF2ReverseCutLoss_le_edgeBoundary`,
+  `mggF2MultiCutCard_le_two_mul_edgeBoundary`.
+- [x] Do not apply
+  `mggGraph_hasExpansionInv_of_multi_cheeger_and_twelfth`. Not cited; no twelfth
+  witness is claimed for the factor-2 graph.
+- [x] Do not stop at the Inv-15 packaging
+  `mggGraph_hasExpansionInv15_of_multi_cheeger` (uses
+  `mggReverseCutLoss_le_four_mul_edgeBoundary` on the unit shears). Not cited.
+  The unconditional factor-2 packaging is `mggF2Graph_hasExpansionInv5`
+  (Inv-5, certified for every `m ≥ 3`), strictly better than Inv-15.
+- [x] Cut positivity for nonempty half-sets from factor-2 connectivity only:
+  `mggF2_edgeBoundary_card_pos` via `mggF2Graph_isConnected`.
+- [x] Sparse-regime Inv-4, certified: `mggF2_gap_ge_bound`
+  (`8 − 5√2 ≥ 0.9289`, sharper than `mggF2_cheeger_gap_ge_two_fifths`) and
+  `mggF2_card_le_four_mul_edgeBoundary_of_sparse`, which proves
+  `|S| ≤ 4 · |∂S|` whenever `1000 · |S| ≤ 461 · m²`.
 - [ ] Target: for every nonempty half-set `S` and every
   `m ≥ mggInformativeFloor`,
   `|S| ≤ mggInvK · |edgeBoundary G S|` on the factor-2 simple graph
   (`HasExpansionInv` in
   [FinGraph.lean](../../theory/Theory/ProofComplexity/FinGraph.lean)).
-- [ ] Do not apply
-  `mggGraph_hasExpansionInv_of_multi_cheeger_and_twelfth` until a twelfth
-  reverse-loss witness exists for the factor-2 graph. That packaging needs
-  `12 · reverseLoss ≤ |S|`.
-- [ ] Do not stop at the Inv-15 packaging
-  `mggGraph_hasExpansionInv15_of_multi_cheeger` (uses
-  `mggReverseCutLoss_le_four_mul_edgeBoundary` on the unit shears).
-- [ ] Prove a fresh multi-to-simple loss bound for the factor-2 generators.
-  Unit-shear loss lemmas
-  (`mggLeavingExcess_le_four`,
-  `mggLeavingExcess_le_two_of_not_mem_nearAxis`,
-  `mggReverseCutLoss_le_four_near_two_off`,
-  `mggReverseCutLoss_le_two_mul_card_add_twelve_mul_m`) do not transfer.
+  `mggF2Graph_hasExpansionInv` is proved but rests on one quarantined pin.
+
+Remaining pin (the only `sorry` in the module):
+`Factor2InvFrontier.mggF2_five_multiCut_le_eight_edgeBoundary`, asserting
+`5 · mggF2MultiCutCard ≤ 8 · |∂S|` for `5 ≤ |S|`.
+
+- Consumed only in the dense band `461 · m² < 1000 · |S| ≤ 500 · m²`, since the
+  sparse regime is already certified. In that band `|S| ≥ 17` for
+  `m ≥ mggInformativeFloor`, so the `5 ≤ |S|` hypothesis is free.
+- The pointwise bound `multiCut ≤ 2 · |∂|` is tight and cannot be improved
+  vertex by vertex: when `4y₀ + 1 ≡ 0 (mod m)` the vertex `(y₀, y₀)` has all
+  four of its simple edges doubled. That vertex is why the case split uses
+  `|S| ≤ 4` (absorbed by `mggF2_edgeBoundary_card_pos`) on the other side.
+- Empirical support: exhaustive per-vertex fiber enumeration for `m ≤ 80` plus
+  randomized cut search for `m ∈ [6, 17]` gives a worst observed ratio of `3/2`
+  under `5 ≤ |S|`, against the `8/5` budget asserted here.
+- Proof route not yet in Lean: a doubled horizontal edge in row `y` forces
+  `4y`, `4y + 1`, or `4y + 2` to vanish mod `m` with a non-loop target, which
+  confines doubled edges to at most two rows and two columns per torus.
 
 ### 4. Discharge Block A Frontier pins
 
