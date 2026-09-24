@@ -9642,3 +9642,23 @@ end MGGFrontier
   Most important thing learned: pointwise `multiCut ≤ 2·|∂|` is tight, so
   2/5 Cheeger plus that bound yields Inv-5 only; locked Inv-4 needs either the
   sparse mass argument or a denser-set multiplicity budget below 8/5.
+
+- 2026-09-24 formalize (Block A item 3 factor-2 Inv-4): SUCCESS.
+  Artifacts: `theory/Theory/ProofComplexity/MGG/Factor2Inv.lean`,
+  `theory/Theory/ProofComplexity/MGG/Factor2Doubled.lean`,
+  `theory/Theory/ProofComplexity/MGG/Factor2Lines.lean`,
+  `theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean`,
+  `docs/ladder/r2-block-a-factor2-checklist.md`.
+  Certified: `HasExpansionInv (mggF2Graph m _) mggInvK` for every
+  `m ≥ mggInformativeFloor`, standard axioms only (`propext`,
+  `Classical.choice`, `Quot.sound`). Sparse sets by
+  `mggF2_card_le_four_mul_edgeBoundary_of_sparse`. Dense band by
+  `mggF2MultiCutCard_le_edgeBoundary_add_two_mul` (`m ≥ 19`) and
+  `mggF2MultiCutCard_add_mixed_le` plus `mggF2_lines_dichotomy`
+  (`6 ≤ m ≤ 18`). Deleted the `Factor2InvFrontier` 8/5 pin; that bound
+  was not needed. Did not cite Inv-15 or the unit twelfth packaging.
+  Unit-shear surface untouched. Items 4 and 5 (Frontier rewrite, axiom
+  gate, accepted decls) remain.
+  Most important thing learned: at most two torus rows and two columns
+  carry doubled factor-2 edges, so reverse loss is additive `2m` rather
+  than a pointwise factor of two, and that is enough for locked Inv-4.

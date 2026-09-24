@@ -26,12 +26,12 @@ Content, in dependency order.
    Locked `mggInvK = 4` needs more. Sets of density at most `461 / 1000` are
    certified outright by `mggF2_card_le_four_mul_edgeBoundary_of_sparse`, which
    keeps the mass factor `(m² - |S|) / m²` of `mggF2MultiCut_ge_gap_mass` instead
-   of discarding it at one half. The dense band needs the sharper multiplicity
-   budget `5 * multiCut <= 8 * |∂|`; that is the single remaining obligation and
-   sits in `Factor2InvFrontier`. Small sets ride on positivity of the cut, which
-   follows from `mggF2Graph_isConnected`.
+   of discarding it at one half. The dense band and the locked Inv-4 packaging
+   live in `MGG.Factor2Inv4` (additive loss plus line dichotomy; no twelfth
+   witness and no unit-shear Inv-15). Small sets ride on positivity of the cut,
+   which follows from `mggF2Graph_isConnected`.
 
-LOG: R2 Block A factor-2 reverse loss, multiCut <= 2 cut, Inv-5 certified, Inv-4 packaged
+LOG: R2 Block A factor-2 reverse loss, multiCut <= 2 cut, Inv-5 certified, sparse Inv-4
 -/
 
 namespace SATurday.ProofComplexity
@@ -736,81 +736,5 @@ theorem mggF2_card_le_four_mul_edgeBoundary_of_sparse {m : ℕ} (hm : 3 ≤ m)
     exact_mod_cast hcast
   have hdouble := mggF2MultiCutCard_le_two_mul_edgeBoundary hm0 S
   omega
-
-namespace Factor2InvFrontier
-
-/-- Remaining Block A obligation for locked `mggInvK = 4`.
-
-Statement: for `5 ≤ |S|` the labeled multi-cut over-counts the simple cut by a
-factor of at most `8 / 5`, i.e. at most `3 / 5` of the cut edges carry two
-labels.
-
-Why the certified `multiCut ≤ 2 · |∂|` cannot be improved pointwise: a vertex
-`v = (y₀, y₀)` with `4 y₀ + 1 ≡ 0 (mod m)` has horizontal offsets
-`{2y₀, -(2y₀+1)}` and `{2y₀+1, -2y₀}` collapsing pairwise, and likewise
-vertically, so all four of its simple edges are doubled and the pointwise ratio
-is exactly `2`. That vertex forces the `|S| ≤ 4` side of the case split (where
-`0 < |∂|` suffices) and is why the hypothesis here is `5 ≤ |S|`.
-
-Scope actually needed. `mggF2_card_le_four_mul_edgeBoundary_of_sparse` already
-certifies Inv-4 for `1000 · |S| ≤ 461 · m²`, so the only regime where this pin is
-consumed is the dense band `461 · m² < 1000 · |S| ≤ 500 · m²`. There `|S| ≥ 17`
-whenever `m ≥ mggInformativeFloor`, which is why the `5 ≤ |S|` hypothesis is free
-at the call site.
-
-Evidence: exhaustive per-vertex fiber enumeration plus randomized cut search over
-`m ∈ [6, 17]` finds maximum ratio `3 / 2` under `5 ≤ |S|`, against the `8 / 5`
-budget claimed here. A proof needs the row and column structure of the doubled
-edges: a doubled horizontal edge in row `y` forces `4y`, `4y + 1`, or `4y + 2` to
-vanish mod `m` with a non-loop target, which pins the doubled edges into at most
-two rows and two columns of the torus. Formalizing that count is the open step. -/
-theorem mggF2_five_multiCut_le_eight_edgeBoundary {m : ℕ} (hm : 0 < m)
-    (S : Finset (Fin (m * m))) (_hcard : 5 ≤ S.card)
-    (_hhalf : 2 * S.card ≤ m * m) :
-    5 * mggF2MultiCutCard hm S ≤
-      8 * (edgeBoundary (mggF2Graph m hm) S).card := by
-  sorry
-
-end Factor2InvFrontier
-
-/-- Factor-2 simple-graph Inv at locked `mggInvK = 4` for every
-`m ≥ mggInformativeFloor`. Does not cite
-`mggGraph_hasExpansionInv15_of_multi_cheeger` or the unit twelfth packaging
-`mggGraph_hasExpansionInv_of_multi_cheeger_and_twelfth`.
-
-Sparse sets (`1000 · |S| ≤ 461 · m²`) are fully certified by
-`mggF2_card_le_four_mul_edgeBoundary_of_sparse`; only the dense band consumes the
-`Factor2InvFrontier` multiplicity budget. -/
-theorem mggF2Graph_hasExpansionInv {m : ℕ} (hm : mggInformativeFloor ≤ m) :
-    HasExpansionInv
-      (mggF2Graph m (lt_of_lt_of_le (by decide : 0 < mggInformativeFloor) hm))
-      mggInvK := by
-  intro S hne hhalf
-  have hm0 : 0 < m :=
-    lt_of_lt_of_le (by decide : 0 < mggInformativeFloor) hm
-  have hm3 : 3 ≤ m := le_trans (by decide : 3 ≤ mggInformativeFloor) hm
-  have hm6 : 6 ≤ m := by simpa [mggInformativeFloor] using hm
-  show S.card ≤ mggInvK * (edgeBoundary (mggF2Graph m hm0) S).card
-  rw [show mggInvK = 4 from rfl]
-  by_cases hdens : 1000 * S.card ≤ 461 * (m * m)
-  · exact mggF2_card_le_four_mul_edgeBoundary_of_sparse hm3 S hne hdens
-  -- Dense band: `|S| ≥ 17`, so the multiplicity budget applies.
-  have hd : 461 * (m * m) < 1000 * S.card := not_le.mp hdens
-  have hmm : 36 ≤ m * m := by
-    have h := Nat.mul_le_mul hm6 hm6
-    simpa using h
-  have h36 : (16596 : ℕ) ≤ 461 * (m * m) := by
-    have h := Nat.mul_le_mul (le_refl 461) hmm
-    simpa using h
-  have hbig : 16596 < 1000 * S.card := lt_of_le_of_lt h36 hd
-  have h5 : 5 ≤ S.card := by omega
-  have hch : 2 * S.card ≤ 5 * mggF2MultiCutCard hm0 S :=
-    mggF2_two_card_le_five_multiCut hm3 S hne hhalf
-  have hg : 1 ≤ (edgeBoundary (mggF2Graph m hm0) S).card :=
-    mggF2_edgeBoundary_card_pos hm0 S hne hhalf
-  exact mggF2_inv4_of_cheeger_cases hch hg
-    (Or.inr
-      (Factor2InvFrontier.mggF2_five_multiCut_le_eight_edgeBoundary hm0 S h5
-        hhalf))
 
 end SATurday.ProofComplexity

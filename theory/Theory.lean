@@ -10,7 +10,7 @@ import Theory.ProofComplexity.Width
 import Theory.ProofComplexity.SizeWidth
 import Theory.ProofComplexity.FinGraph
 import Theory.ProofComplexity.MGG
-import Theory.ProofComplexity.MGG.Factor2Inv
+import Theory.ProofComplexity.MGG.Factor2Inv4
 import Theory.ProofComplexity.Tseitin
 import Theory.ProofComplexity.CSExpansion
 import Theory.ProofComplexity.Bridge.Encoding

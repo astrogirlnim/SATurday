@@ -96,8 +96,14 @@ Accepted declarations to reuse when retargeting are listed in
 
 ### 3. Simple-graph Inv at locked `mggInvK = 4`
 
-All of the following live in
+Loss and sparse Inv-4 live in
 [MGG/Factor2Inv.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Inv.lean).
+Doubled-edge count lives in
+[MGG/Factor2Doubled.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Doubled.lean).
+Line dichotomy lives in
+[MGG/Factor2Lines.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Lines.lean).
+Locked Inv-4 packaging lives in
+[MGG/Factor2Inv4.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean).
 
 - [x] Prove a fresh multi-to-simple loss bound for the factor-2 generators.
   Unit-shear loss lemmas
@@ -128,30 +134,20 @@ All of the following live in
   (`8 − 5√2 ≥ 0.9289`, sharper than `mggF2_cheeger_gap_ge_two_fifths`) and
   `mggF2_card_le_four_mul_edgeBoundary_of_sparse`, which proves
   `|S| ≤ 4 · |∂S|` whenever `1000 · |S| ≤ 461 · m²`.
-- [ ] Target: for every nonempty half-set `S` and every
+- [x] Target: for every nonempty half-set `S` and every
   `m ≥ mggInformativeFloor`,
   `|S| ≤ mggInvK · |edgeBoundary G S|` on the factor-2 simple graph
   (`HasExpansionInv` in
   [FinGraph.lean](../../theory/Theory/ProofComplexity/FinGraph.lean)).
-  `mggF2Graph_hasExpansionInv` is proved but rests on one quarantined pin.
-
-Remaining pin (the only `sorry` in the module):
-`Factor2InvFrontier.mggF2_five_multiCut_le_eight_edgeBoundary`, asserting
-`5 · mggF2MultiCutCard ≤ 8 · |∂S|` for `5 ≤ |S|`.
-
-- Consumed only in the dense band `461 · m² < 1000 · |S| ≤ 500 · m²`, since the
-  sparse regime is already certified. In that band `|S| ≥ 17` for
-  `m ≥ mggInformativeFloor`, so the `5 ≤ |S|` hypothesis is free.
-- The pointwise bound `multiCut ≤ 2 · |∂|` is tight and cannot be improved
-  vertex by vertex: when `4y₀ + 1 ≡ 0 (mod m)` the vertex `(y₀, y₀)` has all
-  four of its simple edges doubled. That vertex is why the case split uses
-  `|S| ≤ 4` (absorbed by `mggF2_edgeBoundary_card_pos`) on the other side.
-- Empirical support: exhaustive per-vertex fiber enumeration for `m ≤ 80` plus
-  randomized cut search for `m ∈ [6, 17]` gives a worst observed ratio of `3/2`
-  under `5 ≤ |S|`, against the `8/5` budget asserted here.
-- Proof route not yet in Lean: a doubled horizontal edge in row `y` forces
-  `4y`, `4y + 1`, or `4y + 2` to vanish mod `m` with a non-loop target, which
-  confines doubled edges to at most two rows and two columns per torus.
+  Certified in
+  [MGG/Factor2Inv4.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean)
+  as `mggF2Graph_hasExpansionInv`. No `sorry`. The 8/5 multiplicity pin was
+  not needed: dense-band Inv-4 uses additive loss
+  `multiCut ≤ |∂| + 2m` (`mggF2MultiCutCard_le_edgeBoundary_add_two_mul` in
+  [Factor2Doubled.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Doubled.lean))
+  for `m ≥ 19`, and line-count loss plus `mggF2_lines_dichotomy` in
+  [Factor2Lines.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Lines.lean)
+  for `6 ≤ m ≤ 18`. The `Factor2InvFrontier` 8/5 statement was deleted.
 
 ### 4. Discharge Block A Frontier pins
 
