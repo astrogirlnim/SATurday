@@ -127,9 +127,9 @@ theorem not_isRegular_mggGraph_three_eight :
 /-! ## Cluster 29c: Inv-only intermediate pin + translation adjacency
 
 Prove accept_prose 2026-09-08: intermediate pin is connectivity plus
-`HasExpansionInv (mggGraph m _) mggInvK` (no simple regularity 8).
-This cluster certifies constants and right/up adjacency; full connectivity
-and Inv family stay in `MGGFrontier`. -/
+`HasExpansionInv` (no simple regularity 8). This cluster certifies constants
+and right/up adjacency on the unit-shear surface. Block A Inv family is on
+`mggF2Graph` (see `MGG.Factor2Inv4`). -/
 
 def mggInvK : ℕ := 4
 def mggInformativeFloor : ℕ := 6
@@ -600,21 +600,10 @@ theorem mggNeighbor_left_ne_down {m : ℕ} (hm : 1 < m) (v : Fin (m * m)) :
   exact Fin.sub_one_ne_of_one_lt hm (mggDecode hm0 v).1
     (Prod.ext_iff.mp hpq).1
 
-/-- Family packaging: uniform Inv on large `m` yields the intermediate pin. -/
-theorem exists_mgg_simple_hasExpansionInv_family_of_inv
-    (hInv : ∀ (m : ℕ) (hm0 : 0 < m),
-      mggInformativeFloor ≤ m → HasExpansionInv (mggGraph m hm0) mggInvK) :
-    ∀ N : ℕ, ∃ (m : ℕ) (hm : 0 < m),
-      max N mggInformativeFloor ≤ m ∧
-        (mggGraph m hm).IsConnected ∧
-          HasExpansionInv (mggGraph m hm) mggInvK := by
-  intro N
-  let m := max N mggInformativeFloor
-  have hm0 : 0 < m :=
-    lt_of_lt_of_le (by decide : 0 < mggInformativeFloor)
-      (le_max_right N mggInformativeFloor)
-  refine ⟨m, hm0, le_rfl, mggGraph_isConnected (m := m) hm0, ?_⟩
-  exact hInv m hm0 (le_max_right N mggInformativeFloor)
+/-! Family packaging for Block A lives on the factor-2 graph in
+`MGG.Factor2Inv4` (`exists_mgg_simple_hasExpansionInv_family_of_inv`,
+`exists_mgg_simple_hasExpansionInv_family`). The unit-shear graph keeps its
+combinatorial surface below; spectral Inv is not claimed for `mggNeighbor`. -/
 
 /-! ## Cluster 30: axis set, loops, multi-cut surface, Nat Cheeger slack
 
@@ -2527,26 +2516,11 @@ theorem not_twelfth_compatible_with_inv15 {s g : ℕ}
   intro h
   omega
 
-namespace MGGFrontier
-
-theorem mgg_has_multi_cheeger_of_gabber_galil (m : ℕ) (hm0 : 0 < m) (_hm : mggInformativeFloor ≤ m) : MggHasMultiCheeger m hm0 := by
-  sorry
-
-theorem mggGraph_hasExpansionInv (m : ℕ) (hm0 : 0 < m)
-    (hm : mggInformativeFloor ≤ m) :
-    HasExpansionInv (mggGraph m hm0) mggInvK := by
-  sorry
-
-/-- Intermediate Block A pin: unbounded simple MGG Inv expanders (no regularity).
-Discharges connectivity via packaging; open content is `mggGraph_hasExpansionInv`. -/
-theorem exists_mgg_simple_hasExpansionInv_family :
-    ∀ N : ℕ, ∃ (m : ℕ) (hm : 0 < m),
-      max N mggInformativeFloor ≤ m ∧
-        (mggGraph m hm).IsConnected ∧
-          HasExpansionInv (mggGraph m hm) mggInvK :=
-  exists_mgg_simple_hasExpansionInv_family_of_inv mggGraph_hasExpansionInv
-
-end MGGFrontier
+/-! Block A spectral pins discharged on `mggF2Graph` in `MGG.Factor2Inv4`
+(`MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil`,
+`MGGFrontier.mggGraph_hasExpansionInv`,
+`MGGFrontier.exists_mgg_simple_hasExpansionInv_family`). Unit-shear
+`MggHasMultiCheeger` remains a combinatorial surface only. -/
 
 namespace MGGFrontier
 

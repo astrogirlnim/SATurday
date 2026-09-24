@@ -9662,3 +9662,22 @@ end MGGFrontier
   Most important thing learned: at most two torus rows and two columns
   carry doubled factor-2 edges, so reverse loss is additive `2m` rather
   than a pointwise factor of two, and that is enough for locked Inv-4.
+
+- 2026-09-24 formalize (Block A items 4-5 Frontier retarget): SUCCESS.
+  Artifacts: `theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean`,
+  `theory/Theory/ProofComplexity/MGG.lean`,
+  `theory/Theory/ProofComplexity/MGG/SpectralFrontier.lean`,
+  `docs/ladder/r2-block-a-factor2-checklist.md`,
+  `scripts/accepted_declarations.txt`,
+  `search/proof_sources/afp-expander-graphs-mgg/plans/accepted.json`.
+  Discharged: `MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil` as
+  `MggF2HasMultiCheeger`, `MGGFrontier.mggGraph_hasExpansionInv` as
+  `HasExpansionInv (mggF2Graph m _) mggInvK`, and
+  `exists_mgg_simple_hasExpansionInv_family` via retargeted
+  `exists_mgg_simple_hasExpansionInv_family_of_inv` on `mggF2Graph`.
+  Deleted false unit-shear SpectralFrontier claims. Unit-shear surface
+  untouched. Rung status remains `prose_accepted` (cubic Inv and CS
+  existence still open). Next: checklist item 6 cubicization only.
+  Most important thing learned: packaging had to move out of `MGG.lean`
+  because `mggF2Graph` imports it; Frontier pin names can keep historical
+  labels while their types point at the factor-2 graph.

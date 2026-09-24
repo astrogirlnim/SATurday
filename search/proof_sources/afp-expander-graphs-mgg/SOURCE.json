@@ -17,11 +17,8 @@
   "maps_to_rungs": [
     "r2-width-machinery"
   ],
-  "maps_to_frontier": [
-    "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
-    "MGGFrontier.mggGraph_hasExpansionInv"
-  ],
-  "notes": "Hoory style Fourier proof; spectral bound 5/8 sqrt 2; vendor via satday proof-source",
+  "maps_to_frontier": [],
+  "notes": "Hoory style Fourier proof; spectral bound 5/8 sqrt 2; vendor via satday proof-source. Block A MGG Inv pins discharged on mggF2Graph 2026-09-24.",
   "afp_entry_url": "https://isa-afp.org/entries/Expander_Graphs.html",
   "archive_path": "search/proof_sources/afp-expander-graphs-mgg/downloads/afp-current.tar.gz",
   "archive_member": "thys/Expander_Graphs",

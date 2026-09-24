@@ -2,10 +2,13 @@
 
 Catalog id: `afp-expander-graphs-mgg`
 
-Maps to R2 Frontier:
+Block A MGG Inv pins discharged on `mggF2Graph` (2026-09-24):
 
-- `MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil`
-- `MGGFrontier.mggGraph_hasExpansionInv`
+- `MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil` (`MggF2HasMultiCheeger`)
+- `MGGFrontier.mggGraph_hasExpansionInv` (`HasExpansionInv (mggF2Graph m _) mggInvK`)
+- `exists_mgg_simple_hasExpansionInv_family`
+
+Next R2 inhabit is cubicization (`TseitinFrontier`), not these spectral pins.
 
 ## Vendor (offline)
 

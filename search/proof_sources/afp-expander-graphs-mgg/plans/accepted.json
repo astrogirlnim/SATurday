@@ -2,13 +2,10 @@
   "source_id": "afp-expander-graphs-mgg",
   "title": "AFP Expander Graphs MGG to R2 Inv",
   "accepted_at": "2026-09-21T11:12:00Z",
-  "revised_at": "2026-09-23T15:00:00Z",
+  "revised_at": "2026-09-24T23:30:00Z",
   "method": "import_ladder",
-  "notes": "Auto-built from foreign theory decls (unit=micro helper_insert) plus terminal Frontier sorry_replace pins. Generalizable via catalog primary_theories / maps_to_frontier / lean_module. Never encode foreign proofs as Lean axioms.",
-  "maps_to_frontier": [
-    "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
-    "MGGFrontier.mggGraph_hasExpansionInv"
-  ],
+  "notes": "Auto-built from foreign theory decls (unit=micro helper_insert) plus terminal Frontier sorry_replace pins. Block A spectral pins discharged 2026-09-24 on mggF2Graph (not unit-shear mggNeighbor). Never encode foreign proofs as Lean axioms.",
+  "maps_to_frontier": [],
   "steps": [
     {
       "id": "mgg-fourier-surface",
@@ -59,10 +56,10 @@
         "strongly explicit packaging"
       ],
       "lean_name": "exists_mgg_simple_hasExpansionInv_family",
-      "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Confirm family packaging of_inv closes once mggGraph_hasExpansionInv is accepted.",
-      "done_reason": "already_certified",
-      "done_at": "2026-09-21T11:57:51Z"
+      "module": "theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean",
+      "goal": "Confirm family packaging of_inv closes once mggF2Graph_hasExpansionInv is accepted.",
+      "done_reason": "retargeted_to_mggF2Graph_certified",
+      "done_at": "2026-09-24T23:30:00Z"
     },
     {
       "id": "thy-expander-graphs-mgg-mgg-graph-step",
@@ -2608,7 +2605,7 @@
     },
     {
       "id": "mgg-cheeger-multi",
-      "status": "pending",
+      "status": "done",
       "unit": "research",
       "fill_mode": "sorry_replace",
       "allowed_tactics": [
@@ -2632,14 +2629,16 @@
         "MGG_bound"
       ],
       "lean_name": "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil",
-      "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Discharge the open Frontier sorry MggHasMultiCheeger for informative m. Prefer exact/apply of accepted Inv packaging helpers; do not invent mggFourierSurface.",
-      "lean_sig": "theorem mgg_has_multi_cheeger_of_gabber_galil (m : \u2115) (hm0 : 0 < m) (_hm : mggInformativeFloor \u2264 m) : MggHasMultiCheeger m hm0",
-      "notes": "Reopened 2026-09-23: falsely marked already_certified while Frontier sorry remained"
+      "module": "theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean",
+      "goal": "Discharge Gabber Galil multi Cheeger on the factor-2 cut for informative m.",
+      "lean_sig": "theorem mgg_has_multi_cheeger_of_gabber_galil (m : \u2115) (hm0 : 0 < m) (hm : mggInformativeFloor \u2264 m) : MggF2HasMultiCheeger m hm0",
+      "done_reason": "retargeted_to_mggF2_hasMultiCheeger",
+      "done_at": "2026-09-24T23:30:00Z",
+      "notes": "Unit-shear MggHasMultiCheeger from 5\sqrt2 is false; certified via mggF2_hasMultiCheeger."
     },
     {
       "id": "mgg-inv-glue",
-      "status": "pending",
+      "status": "done",
       "unit": "research",
       "fill_mode": "sorry_replace",
       "allowed_tactics": [
@@ -2657,18 +2656,20 @@
         "see_mgg is_expander"
       ],
       "lean_name": "MGGFrontier.mggGraph_hasExpansionInv",
-      "module": "theory/Theory/ProofComplexity/MGG.lean",
-      "goal": "Glue multi Cheeger to HasExpansionInv via certified Inv-15 packaging or Inv-4 with twelfth loss; remove Frontier sorry.",
-      "lean_sig": "theorem mggGraph_hasExpansionInv (m : \u2115) (hm0 : 0 < m) (hm : mggInformativeFloor \u2264 m) : HasExpansionInv (mggGraph m hm0) mggInvK"
+      "module": "theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean",
+      "goal": "Glue factor-2 spectral Inv-4 to HasExpansionInv at locked mggInvK; remove Frontier sorry.",
+      "lean_sig": "theorem mggGraph_hasExpansionInv (m : \u2115) (hm0 : 0 < m) (hm : mggInformativeFloor \u2264 m) : HasExpansionInv (mggF2Graph m hm0) mggInvK",
+      "done_reason": "retargeted_to_mggF2Graph_hasExpansionInv",
+      "done_at": "2026-09-24T23:30:00Z"
     }
   ],
   "ladder_meta": {
     "micro_count": 82,
-    "done_kept": 3,
-    "frontier_pending": 2,
+    "done_kept": 5,
+    "frontier_pending": 0,
     "itps": [
       "isabelle"
     ],
-    "lean_module": "theory/Theory/ProofComplexity/MGG.lean"
+    "lean_module": "theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean"
   }
 }

@@ -5,7 +5,8 @@ import Mathlib.Tactic
 # Factor-2 simple-graph Inv at locked `mggInvK = 4` (R2 Block A item 3, closed)
 
 Fully certified `HasExpansionInv (mggF2Graph m _) mggInvK` for every
-`m ≥ mggInformativeFloor`. No `sorry`, no Frontier namespace.
+`m ≥ mggInformativeFloor`. No `sorry`. Historical `MGGFrontier` pin names
+are discharged here with factor-2 types.
 
 Inputs, all certified upstream:
 
@@ -151,5 +152,60 @@ theorem mggF2Graph_hasExpansionInv {m : ℕ} (hm : mggInformativeFloor ≤ m) :
       · exact Or.inr (mggF2_lines_dichotomy hm0 S 8 h)
       · exact Or.inl (not_le.mp h)
     exact mggF2_dense_small_nat m S.card _ _ _ hm6 hm18 hd hhalf hsp hL2' hd4 hd8
+
+/-! ## Block A family packaging (retargeted to `mggF2Graph`) -/
+
+/-- Family packaging: uniform Inv on large `m` yields the intermediate pin.
+Retargeted from the unit-shear `mggGraph` packaging; uses `mggF2Graph_isConnected`. -/
+theorem exists_mgg_simple_hasExpansionInv_family_of_inv
+    (hInv : ∀ (m : ℕ) (hm0 : 0 < m),
+      mggInformativeFloor ≤ m → HasExpansionInv (mggF2Graph m hm0) mggInvK) :
+    ∀ N : ℕ, ∃ (m : ℕ) (hm : 0 < m),
+      max N mggInformativeFloor ≤ m ∧
+        (mggF2Graph m hm).IsConnected ∧
+          HasExpansionInv (mggF2Graph m hm) mggInvK := by
+  intro N
+  let m := max N mggInformativeFloor
+  have hm0 : 0 < m :=
+    lt_of_lt_of_le (by decide : 0 < mggInformativeFloor)
+      (le_max_right N mggInformativeFloor)
+  refine ⟨m, hm0, le_rfl, mggF2Graph_isConnected (m := m) hm0, ?_⟩
+  exact hInv m hm0 (le_max_right N mggInformativeFloor)
+
+/-- Intermediate Block A pin: unbounded factor-2 simple MGG Inv expanders
+(no regularity). Connectivity via `mggF2Graph_isConnected`; Inv via
+`mggF2Graph_hasExpansionInv`. -/
+theorem exists_mgg_simple_hasExpansionInv_family :
+    ∀ N : ℕ, ∃ (m : ℕ) (hm : 0 < m),
+      max N mggInformativeFloor ≤ m ∧
+        (mggF2Graph m hm).IsConnected ∧
+          HasExpansionInv (mggF2Graph m hm) mggInvK :=
+  exists_mgg_simple_hasExpansionInv_family_of_inv fun _m _hm0 hm =>
+    by convert mggF2Graph_hasExpansionInv hm
+
+namespace MGGFrontier
+
+/-- Retargeted Gabber-Galil multi Cheeger pin: factor-2 cut (`MggF2HasMultiCheeger`),
+not the unit-shear `MggHasMultiCheeger`. -/
+theorem mgg_has_multi_cheeger_of_gabber_galil (m : ℕ) (hm0 : 0 < m)
+    (hm : mggInformativeFloor ≤ m) : MggF2HasMultiCheeger m hm0 := by
+  have hm3 : 3 ≤ m := (by decide : 3 ≤ mggInformativeFloor).trans hm
+  convert mggF2_hasMultiCheeger hm3
+
+/-- Retargeted Inv-4 pin: `HasExpansionInv` on `mggF2Graph` at locked `mggInvK`. -/
+theorem mggGraph_hasExpansionInv (m : ℕ) (hm0 : 0 < m)
+    (hm : mggInformativeFloor ≤ m) :
+    HasExpansionInv (mggF2Graph m hm0) mggInvK := by
+  convert mggF2Graph_hasExpansionInv hm
+
+/-- Same family packaging under the historical `MGGFrontier` name. -/
+theorem exists_mgg_simple_hasExpansionInv_family :
+    ∀ N : ℕ, ∃ (m : ℕ) (hm : 0 < m),
+      max N mggInformativeFloor ≤ m ∧
+        (mggF2Graph m hm).IsConnected ∧
+          HasExpansionInv (mggF2Graph m hm) mggInvK :=
+  SATurday.ProofComplexity.exists_mgg_simple_hasExpansionInv_family
+
+end MGGFrontier
 
 end SATurday.ProofComplexity

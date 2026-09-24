@@ -252,10 +252,8 @@ saturday_loop:
         root: "afp-expander-graphs-mgg"
         license: "BSD"
         maps_to_rungs: ["r2-width-machinery"]
-        maps_to_frontier:
-          - "MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil"
-          - "MGGFrontier.mggGraph_hasExpansionInv"
-        lean_module: "theory/Theory/ProofComplexity/MGG.lean"
+        maps_to_frontier: []
+        lean_module: "theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean"
         primary_theories:
           - "Expander_Graphs_MGG"
           - "Expander_Graphs_Cheeger_Inequality"

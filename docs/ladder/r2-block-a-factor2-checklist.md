@@ -1,7 +1,7 @@
 # R2 Block A checklist: factor-2 MGG to cubic Inv
 
-Status: planning only. Do not start `satday auto` on the spectral pins
-until steps 1 through 5 below are sorry-free proofs.
+Status: Block A MGG Inv closed (items 1-5). Do not start `satday auto` on
+spectral pins. Item 6 (cubicization) is next; item 7 (CS 3-CNF) remains open.
 
 Rung: [r2-width-machinery.md](rungs/r2-width-machinery.md) (`Status: prose_accepted`).
 Item 1 (Ben-Sasson–Wigderson) is already in the accepted tree. This checklist
@@ -151,32 +151,40 @@ Locked Inv-4 packaging lives in
 
 ### 4. Discharge Block A Frontier pins
 
-- [ ] Replace both `sorry`s in [MGG.lean](../../theory/Theory/ProofComplexity/MGG.lean):
+- [x] Replace both `sorry`s in [MGG.lean](../../theory/Theory/ProofComplexity/MGG.lean):
   - `MGGFrontier.mgg_has_multi_cheeger_of_gabber_galil`
   - `MGGFrontier.mggGraph_hasExpansionInv`
   Retarget names and types to the factor-2 graph if the pin statements still
   mention `mggGraph` / `mggMultiCutCard`.
-- [ ] Wire
+  Discharged in [Factor2Inv4.lean](../../theory/Theory/ProofComplexity/MGG/Factor2Inv4.lean):
+  types are `MggF2HasMultiCheeger` and `HasExpansionInv (mggF2Graph m _) mggInvK`.
+  Unit-shear sorry stubs removed from `MGG.lean`.
+- [x] Wire
   `exists_mgg_simple_hasExpansionInv_family_of_inv` (accepted) so
   `exists_mgg_simple_hasExpansionInv_family` packages connectivity plus Inv
   for the factor-2 graph.
-- [ ] Delete or rewrite the three false-unit claims in
+  Retargeted `of_inv` and family to `mggF2Graph` / `mggF2Graph_isConnected`
+  in `Factor2Inv4.lean`; `MGGFrontier.exists_mgg_simple_hasExpansionInv_family`
+  aliases the top-level family.
+- [x] Delete or rewrite the three false-unit claims in
   [SpectralFrontier.lean](../../theory/Theory/ProofComplexity/MGG/SpectralFrontier.lean)
   (`numerical_radius_aux`, `has_multi_cheeger`,
   `hasExpansionInv_of_multi_cheeger`). `numerical_radius_aux` asserts the
   impossible unit-shear bound.
+  Deleted; module now points at `mggF2_hasMultiCheeger` and
+  `mggF2Graph_hasExpansionInv` only. No `sorry`.
 
 ### 5. Certify the MGG pin only
 
-- [ ] Run [scripts/check_axioms.sh](../../scripts/check_axioms.sh)
+- [x] Run [scripts/check_axioms.sh](../../scripts/check_axioms.sh)
   (sorry only in Frontier-marked files; accepted decls only
   `propext`, `Classical.choice`, `Quot.sound`).
-- [ ] Append new declarations to
+- [x] Append new declarations to
   [scripts/accepted_declarations.txt](../../scripts/accepted_declarations.txt).
-- [ ] Update plan truthfulness in
+- [x] Update plan truthfulness in
   [search/proof_sources/afp-expander-graphs-mgg/plans/accepted.json](../../search/proof_sources/afp-expander-graphs-mgg/plans/accepted.json)
   only for Lean decls that exist.
-- [ ] Append a session entry to
+- [x] Append a session entry to
   [r2-width-machinery.md](rungs/r2-width-machinery.md). Keep rung status
   `prose_accepted` until cubic and CS obligations below are also closed.
 - [ ] Commit without push. Do not unkill the Saturday loop for spectral work.
