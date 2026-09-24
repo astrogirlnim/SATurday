@@ -187,7 +187,7 @@ Locked Inv-4 packaging lives in
 - [x] Append a session entry to
   [r2-width-machinery.md](rungs/r2-width-machinery.md). Keep rung status
   `prose_accepted` until cubic and CS obligations below are also closed.
-- [ ] Commit without push. Do not unkill the Saturday loop for spectral work.
+- [x] Commit without push. Do not unkill the Saturday loop for spectral work.
 
 ### 6. Cubicization (only after step 5)
 
