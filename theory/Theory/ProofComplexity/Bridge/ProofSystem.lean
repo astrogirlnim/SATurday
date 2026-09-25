@@ -8231,8 +8231,126 @@ Remaining (Cluster D2 sequencer glue, next formalize):
 4. Branch to `constTrueListComputableInPolyTime` / `prefixFalseCopyComputer`.
 5. Package `TM2ComputableInPolyTime encodeIndexValidate idBitEnc
    indexValidateOnTriple`, then glue into
-   `validatesTautologyResult_computableInPolyTime`.
+   `validatesTautologyResult_computableInPolyTime` via `comp_idBitEnc_idBitEnc`.
 -/
+
+/-! ## Cluster D2.1: little-endian odometer (assignment counter)
+
+Instead of rebuilding `natBitsLE i` each iteration, walk assignments by
+incrementing a length-`n` bit list in little-endian order. This matches
+`assignmentAt` index order: `00..0`, `10..0`, `01..0`, ... -/
+
+/-- Add one to a little-endian bit list. `none` means overflow (carry out). -/
+def odometerSucc : List Bool → Option (List Bool)
+  | [] => none
+  | false :: rest => some (true :: rest)
+  | true :: rest =>
+      match odometerSucc rest with
+      | some rest' => some (false :: rest')
+      | none => none
+
+theorem odometerSucc_nil : odometerSucc [] = none := rfl
+
+theorem odometerSucc_false (rest : List Bool) :
+    odometerSucc (false :: rest) = some (true :: rest) := rfl
+
+theorem odometerSucc_true_some (rest rest' : List Bool)
+    (h : odometerSucc rest = some rest') :
+    odometerSucc (true :: rest) = some (false :: rest') := by
+  simp [odometerSucc, h]
+
+theorem odometerSucc_true_none (rest : List Bool)
+    (h : odometerSucc rest = none) :
+    odometerSucc (true :: rest) = none := by
+  simp [odometerSucc, h]
+
+theorem length_odometerSucc {bs bs' : List Bool}
+    (h : odometerSucc bs = some bs') :
+    bs'.length = bs.length := by
+  induction bs generalizing bs' with
+  | nil => simp [odometerSucc] at h
+  | cons b rest ih =>
+      cases b with
+      | false =>
+          simp [odometerSucc] at h
+          subst h; rfl
+      | true =>
+          cases hrest : odometerSucc rest with
+          | none => simp [odometerSucc, hrest] at h
+          | some rest' =>
+              simp [odometerSucc, hrest] at h
+              subst h
+              simp [ih hrest]
+
+/-- Value of little-endian bits (head = LSB), same as `bitsLEValue`. -/
+theorem odometerSucc_value {bs bs' : List Bool}
+    (h : odometerSucc bs = some bs') :
+    bitsLEValue bs' = bitsLEValue bs + 1 := by
+  induction bs generalizing bs' with
+  | nil => simp [odometerSucc] at h
+  | cons b rest ih =>
+      cases b with
+      | false =>
+          simp [odometerSucc] at h
+          subst h
+          simp [bitsLEValue]
+          omega
+      | true =>
+          cases hrest : odometerSucc rest with
+          | none => simp [odometerSucc, hrest] at h
+          | some rest' =>
+              simp [odometerSucc, hrest] at h
+              subst h
+              have ih' := ih hrest
+              simp [bitsLEValue, ih']
+              omega
+
+/-- In-place odometer matches `assignmentAt` succession. -/
+theorem odometerSucc_assignmentAt (n i : ℕ) (hi : i + 1 < 2 ^ n) :
+    odometerSucc (assignmentAt n i) = some (assignmentAt n (i + 1)) := by
+  induction n generalizing i with
+  | zero =>
+      omega
+  | succ n ihn =>
+      have hi0 : i < 2 ^ (n + 1) := Nat.lt_of_succ_lt hi
+      have hdiv : i / 2 < 2 ^ n := by
+        have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by
+          rw [Nat.pow_succ, Nat.mul_comm]
+        have : i < 2 * 2 ^ n := by simpa [hpow] using hi0
+        omega
+      by_cases hmod : i % 2 = 0
+      · -- even: false :: σ  →  true :: σ = assignmentAt (n+1) (i+1)
+        set k := i / 2 with hk
+        have hi_eq : i = 2 * k := by omega
+        have hleft :
+            odometerSucc (assignmentAt (n + 1) i) =
+              some (true :: assignmentAt n k) := by
+          rw [hi_eq, assignmentAt_succ_mul_two, odometerSucc_false]
+        have hright :
+            assignmentAt (n + 1) (i + 1) = true :: assignmentAt n k := by
+          have : i + 1 = 2 * k + 1 := by omega
+          rw [this, assignmentAt_succ_mul_two_add_one]
+        rw [hleft, hright]
+      · -- odd: true :: σ  →  false :: succ σ
+        set k := i / 2 with hk
+        have hi_eq : i = 2 * k + 1 := by omega
+        have hdiv_succ : k + 1 < 2 ^ n := by
+          have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by
+            rw [Nat.pow_succ, Nat.mul_comm]
+          have : i + 1 < 2 * 2 ^ n := by simpa [hpow] using hi
+          omega
+        have hrest := ihn k hdiv_succ
+        have hleft :
+            odometerSucc (assignmentAt (n + 1) i) =
+              some (false :: assignmentAt n (k + 1)) := by
+          rw [hi_eq, assignmentAt_succ_mul_two_add_one]
+          simp [odometerSucc, hrest]
+        have hright :
+            assignmentAt (n + 1) (i + 1) =
+              false :: assignmentAt n (k + 1) := by
+          have : i + 1 = 2 * (k + 1) := by omega
+          rw [this, assignmentAt_succ_mul_two]
+        rw [hleft, hright]
 
 namespace ProofSystemFrontier
 
@@ -8256,10 +8374,13 @@ Also certified (Cluster D2): functional `indexValidate` /
 `indexValidateFuel` / `indexStepOk` equiv to `validatesTautology_by_index`,
 `indexValidateResult_eq_validatesTautologyResult`, length-gate Bool
 `indexLengthGate`, one-iter `indexStepBitsComputer` with EvalsToInTime /
-`indexStepBitsComputableInPolyTime`, and semantic target
-`indexValidateOnTriple` under `encodeIndexValidate`.
+`indexStepBitsComputableInPolyTime`, semantic target
+`indexValidateOnTriple` under `encodeIndexValidate`, and `odometerSucc`
+matching `assignmentAt` succession.
+Also certified: local `comp_idBitEnc_idBitEnc` (Complexity) for Bool-tape
+composition with an output-size bound.
 Remaining: FinTM2 `indexValidateComputer` nesting pad then eval then
-indexStepBits under `|table|` fuel, then TT map glue into this pin. -/
+indexStepBits under `|table|` fuel (odometer), then TT map glue into this pin. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by
