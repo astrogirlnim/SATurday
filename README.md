@@ -76,8 +76,14 @@ file is reverted; `sorry` remains allowed only inside Frontier namespaces.
 
 Models and endpoint live under `saturday_loop` in `infra/config/defaults.yaml`
 (default: Ollama at `http://localhost:11434`; prove/audit `qwen2.5:14b`,
-formalize `qwen2.5-coder:14b`). Prefer Goedel-Prover-V2-8B behind an OpenAI
-compatible local server for Lean drafts when available.
+formalize `qwen2.5-coder:14b`). The loop sends those names over HTTP. It does
+not load weight files. Set `OLLAMA_MODELS` (or `SATURDAY_MODELS_DIR`) in `.env`
+to put blobs on this volume, then restart `ollama serve` with the same env.
+Override role names with `SATURDAY_PROVE_MODEL` / `SATURDAY_FORMALIZE_MODEL` /
+`SATURDAY_AUDIT_MODEL`. The Ollama binary can stay on the internal disk.
+On 16GB Apple Silicon, stay at 14B-class models; do not pull 32B/70B for this
+loop. Prefer Goedel-Prover-V2-8B behind an OpenAI compatible local server for
+Lean drafts when available.
 
 The Cursor `saturday` skill remains an interactive alternate that uses the
 in-IDE agent. Prefer the CLI for privacy, cost control, and reproducibility.

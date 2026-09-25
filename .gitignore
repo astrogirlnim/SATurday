@@ -87,6 +87,9 @@ archive/research/**/.deps/
 .env.*
 !.env.example
 
+# Local model weights (saturday_loop.models_dir). Ollama blobs, not source.
+models/ollama/
+
 # Proof import cache: keep metadata; ignore bulk Isabelle trees and downloads
 search/proof_sources/**/thys/**
 !search/proof_sources/**/thys/.gitkeep

@@ -257,6 +257,10 @@ class SaturdayLoopConfig(BaseModel):
     api_style: str = Field("ollama", pattern="^(ollama|openai_compatible)$")
     timeout_seconds: int = Field(600, gt=0)
     require_local: bool = True
+    # Optional weight store path (relative to repo or absolute). Empty means
+    # leave Ollama's default alone. Prefer env OLLAMA_MODELS (native) or
+    # SATURDAY_MODELS_DIR over baking a volume path into YAML.
+    models_dir: str = ""
     # Role models sized for Apple Silicon 16GB+ unified memory
     prove: SaturdayRoleLLMConfig = SaturdayRoleLLMConfig(
         model="qwen2.5:14b",

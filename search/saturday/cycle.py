@@ -57,10 +57,21 @@ def run_saturday_cycle(
     if remote:
         enable_remote_on_config(loop_cfg, mode=remote_mode or "escalate")
 
+    from search.saturday.llm_factory import (
+        announce_local_model_store,
+        apply_local_model_overrides,
+    )
+
+    apply_local_model_overrides(loop_cfg)
     print(
         f"[saturday.cycle] loop endpoint={loop_cfg.endpoint} "
-        f"api_style={loop_cfg.api_style} require_local={loop_cfg.require_local}"
+        f"api_style={loop_cfg.api_style} require_local={loop_cfg.require_local} "
+        f"models_dir={loop_cfg.models_dir!r} "
+        f"prove={loop_cfg.prove.model} formalize={loop_cfg.formalize.model} "
+        f"audit={loop_cfg.audit.model}"
     )
+    if loop_cfg.api_style == "ollama":
+        announce_local_model_store(repo_root, loop_cfg)
 
     ctx = load_cycle_context(repo_root)
     choice = choose_rung_and_action(

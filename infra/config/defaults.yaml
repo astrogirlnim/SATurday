@@ -187,6 +187,9 @@ saturday_loop:
   api_style: "ollama"
   timeout_seconds: 600
   require_local: true
+  # Empty: use Ollama default store. Override with OLLAMA_MODELS or
+  # SATURDAY_MODELS_DIR (preferred) rather than hardcoding a volume path here.
+  models_dir: ""
   prove:
     model: "qwen2.5:14b"
     num_predict: 8192

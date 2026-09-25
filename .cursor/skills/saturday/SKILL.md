@@ -32,6 +32,14 @@ satday kill --reason "operator stop"
 satday unkill
 ```
 
+Local model names are `saturday_loop.prove.model`, `formalize.model`, and
+`audit.model` (overridable via `SATURDAY_PROVE_MODEL` /
+`SATURDAY_FORMALIZE_MODEL` / `SATURDAY_AUDIT_MODEL`). The loop sends those
+names to `endpoint`. Weight location is `OLLAMA_MODELS` (preferred) or
+`SATURDAY_MODELS_DIR`; restart `ollama serve` after changing it. The Ollama
+binary can stay on the internal disk. On 16GB machines keep the existing
+14B pair; do not pull larger models for RAM.
+
 `satday auto` defaults to serial (one rung per wake; `loop_parallel_default:
 false`) so shared lake builds do not race. Pass `--parallel` for R2+R5 together.
 Continues immediately when a wake finishes (no arbitrary sleep). OpenRouter
