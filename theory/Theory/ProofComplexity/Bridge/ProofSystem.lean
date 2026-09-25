@@ -8352,6 +8352,114 @@ theorem odometerSucc_assignmentAt (n i : ℕ) (hi : i + 1 < 2 ^ n) :
           rw [this, assignmentAt_succ_mul_two]
         rw [hleft, hright]
 
+/-! ### Cluster D2.1 FinTM2: `odometerSuccComputer`
+
+Input: bit list `bs` on `inp`. Output: `false :: bs'` on success
+(`odometerSucc bs = some bs'`), or `[true]` on overflow. -/
+
+open TM2.Stmt
+
+inductive OdoStack where
+  | inp | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype OdoStack where
+  elems := {.inp, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive OdoLabel where
+  | loop | carry | rev | writeFail | drain
+  deriving DecidableEq, Repr
+
+instance : Fintype OdoLabel where
+  elems := {.loop, .carry, .rev, .writeFail, .drain}
+  complete s := by cases s <;> simp
+
+/-- Result encoding for the odometer FinTM2. -/
+def odometerSuccResult (bs : List Bool) : List Bool :=
+  match odometerSucc bs with
+  | some bs' => false :: bs'
+  | none => [true]
+
+theorem odometerSuccResult_some {bs bs' : List Bool}
+    (h : odometerSucc bs = some bs') :
+    odometerSuccResult bs = false :: bs' := by
+  simp [odometerSuccResult, h]
+
+theorem odometerSuccResult_none {bs : List Bool}
+    (h : odometerSucc bs = none) :
+    odometerSuccResult bs = [true] := by
+  simp [odometerSuccResult, h]
+
+/-- FinTM2 realizing `odometerSuccResult`. Walks LSB-first, flipping trues to
+false until a false (write true and copy rest) or overflow (empty). -/
+def odometerSuccComputer : FinTM2 where
+  K := OdoStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := OdoLabel
+  main := .loop
+  σ := Option Bool
+  initialState := none
+  m
+    | .loop =>
+        pop OdoStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => OdoLabel.writeFail)
+            (branch (fun s => decide (s = some false))
+              (push OdoStack.work (fun _ => true) <|
+                load (fun _ => none) <| goto fun _ => OdoLabel.carry)
+              (push OdoStack.work (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => OdoLabel.loop))
+    | .carry =>
+        pop OdoStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => OdoLabel.rev)
+            (push OdoStack.work (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => OdoLabel.carry)
+    | .rev =>
+        pop OdoStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push OdoStack.out (fun _ => false) <|
+              load (fun _ => none) halt)
+            (push OdoStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => OdoLabel.rev)
+    | .writeFail =>
+        pop OdoStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push OdoStack.out (fun _ => true) <|
+              load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => OdoLabel.writeFail)
+    | .drain =>
+        pop OdoStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => OdoLabel.writeFail)
+            (load (fun _ => none) <| goto fun _ => OdoLabel.drain)
+
+def odoStk (inp work out : List Bool) : OdoStack → List Bool
+  | .inp => inp
+  | .work => work
+  | .out => out
+
+def odoCfg (l : Option OdoLabel) (v : Option Bool)
+    (inp work out : List Bool) : odometerSuccComputer.Cfg :=
+  ⟨l, v, odoStk inp work out⟩
+
+theorem odometerSucc_initList (s : List Bool) :
+    initList odometerSuccComputer s =
+      odoCfg (some .loop) none s [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some OdoLabel.loop, none, stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [odometerSuccComputer, odoStk]
+
+theorem odometerSucc_haltList (out : List Bool) :
+    haltList odometerSuccComputer out =
+      odoCfg none none [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option OdoLabel), none, stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [odometerSuccComputer, odoStk]
+
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
