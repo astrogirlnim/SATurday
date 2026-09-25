@@ -8865,6 +8865,30 @@ theorem length_afterDecodePairResult_le (s : List Bool) :
                       (Nat.le_succ_of_le le_rfl)
           exact Nat.le_trans hout (Nat.add_le_add_right hφ 1)
 
+/-- Polynomial output-size bound for `decodePairResult` (for `comp_idBitEnc`). -/
+noncomputable def decodePairResultOutBound : Polynomial ℕ := 3 * Polynomial.X + 2
+
+theorem decodePairResultOutBound_eval (n : ℕ) :
+    decodePairResultOutBound.eval n = 3 * n + 2 := by
+  simp [decodePairResultOutBound, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_X, Polynomial.eval_ofNat]
+
+theorem decodePairResult_length_le_outBound (π : List Bool) :
+    (decodePairResult π).length ≤ decodePairResultOutBound.eval π.length := by
+  simpa [decodePairResultOutBound_eval] using length_decodePairResult_le π
+
+/-- Polynomial output-size bound for `afterDecodePairResult`. -/
+noncomputable def afterDecodePairResultOutBound : Polynomial ℕ := Polynomial.X + 1
+
+theorem afterDecodePairResultOutBound_eval (n : ℕ) :
+    afterDecodePairResultOutBound.eval n = n + 1 := by
+  simp [afterDecodePairResultOutBound, Polynomial.eval_add, Polynomial.eval_X,
+    Polynomial.eval_one]
+
+theorem afterDecodePairResult_length_le_outBound (s : List Bool) :
+    (afterDecodePairResult s).length ≤ afterDecodePairResultOutBound.eval s.length := by
+  simpa [afterDecodePairResultOutBound_eval] using length_afterDecodePairResult_le s
+
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
