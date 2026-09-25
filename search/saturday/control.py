@@ -143,6 +143,56 @@ def pause_rung(repo_root: Path, rung_id: str, reason: str = "") -> ControlState:
     state.at = _now()
     state.source = state.source or "reflect"
     save_control(repo_root, state)
+    try:
+        from search.saturday.pin_plans import pause_rung_plan
+
+        pause_rung_plan(repo_root, rung_id, reason or "control.pause_rung")
+    except Exception as exc:
+        print(f"[saturday.control] pin_plan pause sync skipped: {exc}")
+    print(f"[saturday.control] paused rung={rung_id} reason={reason!r}")
+    return state
+
+
+def unpause_rung(repo_root: Path, rung_id: str, reason: str = "") -> ControlState:
+    state = load_control(repo_root)
+    state.paused_rungs = [r for r in state.paused_rungs if r != rung_id]
+    if reason:
+        state.reason = reason
+    state.at = _now()
+    state.source = state.source or "cli"
+    save_control(repo_root, state)
+    try:
+        from search.saturday.pin_plans import unpause_rung_plan
+
+        unpause_rung_plan(repo_root, rung_id, reason or "control.unpause_rung")
+    except Exception as exc:
+        print(f"[saturday.control] pin_plan unpause sync skipped: {exc}")
+    print(f"[saturday.control] unpaused rung={rung_id}")
+    return state
+
+
+def plateau_stop(
+    repo_root: Path,
+    rung_id: str,
+    reason: str,
+    *,
+    scope: str = "rung",
+    source: str = "reflect",
+) -> ControlState:
+    """
+    Stop thrash without freezing every workstream.
+
+    scope=rung (default): pause this rung only.
+    scope=global: engage saturday_KILL (legacy).
+    """
+    scope_n = (scope or "rung").strip().lower()
+    if scope_n == "global":
+        return engage_kill(repo_root, reason, source=source)
+    state = pause_rung(repo_root, rung_id, reason)
+    print(
+        f"[saturday.control] plateau_stop scope=rung rung={rung_id} "
+        f"source={source} reason={reason!r}"
+    )
     return state
 
 

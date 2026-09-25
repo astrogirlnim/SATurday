@@ -448,6 +448,27 @@ def validate_lean_draft(
                 f"status={envelope['status']!r} is not applyable; "
                 "emit status=blocked or a complete discharge"
             )
+        # Placeholder / stub prose in Lean is not a discharge.
+        low = cleaned.lower()
+        placeholder_hits = (
+            "placeholder" in low
+            or "todo: prove" in low
+            or "proof omitted" in low
+            or "the proof is still a placeholder" in low
+            or "admit" in low.split()
+        )
+        if placeholder_hits:
+            reasons.append(
+                "placeholder or stub language in draft; refuse auto-apply "
+                "(blocked_method)"
+            )
+        # status=blocked must not ship Lean that still looks like a discharge.
+        if envelope["status"] == "blocked" and cleaned.strip():
+            if _SORRY.search(cleaned) or placeholder_hits:
+                reasons.append(
+                    "status=blocked with sorry/placeholder lean; "
+                    "emit empty lean or a real discharge"
+                )
     if _LEAN3_BEGIN.search(cleaned):
         reasons.append("Lean 3 begin/end is forbidden; use := by")
     if _LEAN3_DOTDOT.search(cleaned):

@@ -22,9 +22,12 @@ pip install -e .
 satday auto --remote
 satday dashboard
 satday status
+satday pin status
 satday proof-source status
 satday proof-source fetch afp-expander-graphs-mgg --from-dir /path/to/afp/thys/Expander_Graphs
 satday proof-source ladder afp-expander-graphs-mgg
+satday pause r2-width-machinery --reason "spectral hold"
+satday unpause r2-width-machinery
 satday kill --reason "operator stop"
 satday unkill
 ```
@@ -75,9 +78,26 @@ rung and cluster), live Frontier sorry progress (dynamic extract, no
 hard-coded pin names), reflection plateau counters, and a kill button. Auto
 also stops if `search/logs/saturday_KILL` exists. Reflect progress requires
 the open Frontier sorry set to shrink; helper-only drafts are rejected.
-Plateau recovery defaults to staying on `formalize` (`plateau_switch_action`).
-Operator `force_actions` are sticky and are not overwritten by reflect.
-Config: `saturday_loop.reflect` in `infra/config/defaults.yaml`.
+Plateau recovery defaults to `prove` (`plateau_switch_action`) so the loop
+audits the method or restates the pin instead of formalize thrash. Plateau
+stop uses `auto_kill_scope: rung` (pause that rung only) rather than engaging
+global `saturday_KILL`. Pin plans under `search/logs/pin_plans/` are first
+class: chooser prefers `ready_for_auto` checklist steps and refuses
+`formalize` on `dead` / `archival` / `blocked_missing_surface` pins.
+Ambient lake red skips the formalize model call, recommends `audit`, and
+pauses the rung after `ambient_red_pause_after` streak. Operator
+`force_actions` are sticky and are not overwritten by reflect.
+Config: `saturday_loop.reflect` in `infra/config/defaults.yaml`. See
+`docs/prd/pin-plans.md`.
+
+```bash
+satday pin status
+satday pin status r2-width-machinery
+satday pause r5-cook-reckhow-bridge --reason "operator hold"
+satday unpause r5-cook-reckhow-bridge
+satday pin set-status r2-width-machinery spectral_hard_family archival
+satday pin checklist r2-width-machinery r3_adopt_gate ready_for_auto
+```
 
 Preferred research driver is `satday auto --remote`, not chat
 `AGENT_LOOP_WAKE_saturday` wakes. Shared client: `search/llm/client.py`.

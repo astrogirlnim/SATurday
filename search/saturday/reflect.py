@@ -4,8 +4,10 @@ Plateau / novelty reflection for satday auto (no LLM required).
 Progress is defined dynamically: the open Frontier sorry set extracted from
 the rung Lean home must shrink. There is no hard-coded pin name list.
 
-When stuck on formalize, default recovery stays on formalize (config-driven)
-rather than flipping to prose. Operator force_actions are never overwritten.
+When stuck on formalize, default recovery switches to prove (config-driven
+plateau_switch_action) for method audit or restatement. Operator force_actions
+are never overwritten. Plateau stop defaults to per-rung pause
+(auto_kill_scope=rung), not global saturday_KILL.
 """
 
 from __future__ import annotations
@@ -20,9 +22,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence
 
 from search.saturday.control import (
-    engage_kill,
     load_control,
     pause_rung,
+    plateau_stop,
     reflect_path,
     set_force_action,
 )
@@ -239,7 +241,7 @@ def _apply_plateau_recovery(
       clear — drop force so chooser decides
       stay — keep current force / chooser; no write
     """
-    action = (prefer_switch or "formalize").strip().lower()
+    action = (prefer_switch or "prove").strip().lower()
     if action in {"stay", "none", ""}:
         print(f"[saturday.reflect] plateau stay: {reason}")
         return None
@@ -283,7 +285,9 @@ def record_wave_outcome(
     max_dupes = int(getattr(cfg, "max_consecutive_near_duplicates", 3))
     max_same_err = int(getattr(cfg, "max_consecutive_same_error", 3))
     auto_kill = bool(getattr(cfg, "auto_kill_on_plateau", True))
-    prefer_switch = str(getattr(cfg, "plateau_switch_action", "formalize"))
+    kill_scope = str(getattr(cfg, "auto_kill_scope", "rung") or "rung").strip().lower()
+    ambient_pause_after = int(getattr(cfg, "ambient_red_pause_after", 3))
+    prefer_switch = str(getattr(cfg, "plateau_switch_action", "prove"))
     decomp_enabled = bool(getattr(decompose_cfg, "enabled", False)) if decompose_cfg else False
     decomp_trigger = int(getattr(decompose_cfg, "trigger_after_wakes", 3)) if decompose_cfg else 3
     hold_kill = bool(getattr(decompose_cfg, "hold_kill_while_pending", True)) if decompose_cfg else True
@@ -302,11 +306,40 @@ def record_wave_outcome(
         if not ambient_ok:
             notes.append("ambient lake red; skip no-progress increment")
             print(f"[saturday.reflect] ambient red on {rung_id}; not counting plateau")
+            try:
+                from search.saturday.pin_plans import bump_ambient_red_streak
+
+                streak = bump_ambient_red_streak(repo_root, rung_id)
+                notes.append(f"ambient_red_streak={streak}")
+                if streak >= ambient_pause_after:
+                    decision.pause_rung = True
+                    decision.action_override = "audit"
+                    decision.reason = (
+                        f"{rung_id}: ambient lake red {streak} wakes; "
+                        "pause rung (not global kill)"
+                    )
+                    pause_rung(repo_root, rung_id, decision.reason)
+                    set_force_action(repo_root, rung_id, "audit", source="reflect")
+                    notes.append(decision.reason)
+            except Exception as exc:
+                print(f"[saturday.reflect] ambient streak skipped: {exc}")
         elif action == "formalize" and not progressed:
             row.wakes_without_obligation_progress += 1
+            try:
+                from search.saturday.pin_plans import clear_ambient_red_streak
+
+                clear_ambient_red_streak(repo_root, rung_id)
+            except Exception:
+                pass
         elif progressed:
             row.wakes_without_obligation_progress = 0
             row.decompose_pending = False
+            try:
+                from search.saturday.pin_plans import clear_ambient_red_streak
+
+                clear_ambient_red_streak(repo_root, rung_id)
+            except Exception:
+                pass
 
         for name in applied_decls:
             row.recent_decl_names = (row.recent_decl_names + [name])[-40:]
@@ -428,13 +461,22 @@ def record_wave_outcome(
             and row.wakes_without_obligation_progress >= max_no_progress
             and not pending_decompose
         ):
-            decision.kill = True
-            engage_kill(repo_root, decision.reason, source="reflect")
-            notes.append("auto kill engaged")
+            plateau_stop(
+                repo_root,
+                rung_id,
+                decision.reason,
+                scope=kill_scope,
+                source="reflect",
+            )
+            if kill_scope == "global":
+                decision.kill = True
+                notes.append("auto kill engaged (global scope)")
+            else:
+                notes.append("auto plateau stop: rung paused (scope=rung)")
         elif pending_decompose:
             notes.append("auto kill held: decompose pending")
 
-    # Hard kill only when recovery is not "keep formalizing".
+    # Hard stop only when recovery is not "keep formalizing".
     kill_on_formalize_hold = prefer_switch not in {
         "formalize",
         "stay",
@@ -448,11 +490,22 @@ def record_wave_outcome(
         and row.wakes_without_obligation_progress >= max_no_progress + 2
         and not pending_decompose
     ):
-        decision.kill = True
         decision.reason = (
-            f"{rung_id}: plateau beyond {max_no_progress + 2} wakes; kill auto loop"
+            f"{rung_id}: plateau beyond {max_no_progress + 2} wakes; "
+            f"stop scope={kill_scope}"
         )
-        engage_kill(repo_root, decision.reason, source="reflect")
+        plateau_stop(
+            repo_root,
+            rung_id,
+            decision.reason,
+            scope=kill_scope,
+            source="reflect",
+        )
+        if kill_scope == "global":
+            decision.kill = True
+        else:
+            decision.pause_rung = True
+            decision.action_override = decision.action_override or prefer_switch
         notes.append(decision.reason)
     elif pending_decompose and row.wakes_without_obligation_progress >= max_no_progress:
         notes.append("plateau kill held while decompose plan pending")
@@ -484,7 +537,17 @@ def clear_decompose_pending(repo_root: Path, rung_id: str) -> None:
 def suggest_action_override(repo_root: Path, rung_id: str) -> Optional[str]:
     """Chooser hook: honor control.force_actions if set."""
     ctrl = load_control(repo_root)
-    if rung_id in ctrl.paused_rungs and rung_id not in ctrl.force_actions:
+    pin_paused = False
+    try:
+        from search.saturday.pin_plans import is_rung_paused
+
+        pin_paused = is_rung_paused(repo_root, rung_id)
+    except Exception:
+        pin_paused = False
+    if (
+        (rung_id in ctrl.paused_rungs or pin_paused)
+        and rung_id not in ctrl.force_actions
+    ):
         print(f"[saturday.reflect] rung {rung_id} paused; defaulting to audit")
         return "audit"
     forced = ctrl.force_actions.get(rung_id)

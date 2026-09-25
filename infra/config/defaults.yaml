@@ -228,9 +228,12 @@ saturday_loop:
     max_wakes_without_obligation_progress: 5
     max_consecutive_near_duplicates: 3
     max_consecutive_same_error: 3
-    # Stay on formalize when Frontier sorries are not shrinking; do not flip to prose
-    plateau_switch_action: "formalize"
+    # Method audit / restatement after obligation plateau (not more formalize thrash)
+    plateau_switch_action: "prove"
     auto_kill_on_plateau: true
+    # Pause the stuck rung only; do not freeze R2 and R5 together
+    auto_kill_scope: "rung"
+    ambient_red_pause_after: 3
     reject_near_duplicate_drafts: true
   # Stuck formalize: accepted reuse check, then LLM micro split (plan JSON only)
   decompose:

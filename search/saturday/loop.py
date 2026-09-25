@@ -106,24 +106,36 @@ def run_saturday_loop(
                 mark_stopped(f"kill: {kill_reason}")
                 break
 
-            if use_parallel:
-                records = run_saturday_parallel(
-                    repo_root=repo_root,
-                    config_file=config_file,
-                    dry_run=dry_run,
-                    remote=remote,
-                    remote_mode=remote_mode,
-                )
-            else:
-                records = [
-                    run_saturday_cycle(
+            try:
+                if use_parallel:
+                    records = run_saturday_parallel(
                         repo_root=repo_root,
                         config_file=config_file,
                         dry_run=dry_run,
                         remote=remote,
                         remote_mode=remote_mode,
                     )
-                ]
+                else:
+                    records = [
+                        run_saturday_cycle(
+                            repo_root=repo_root,
+                            config_file=config_file,
+                            dry_run=dry_run,
+                            remote=remote,
+                            remote_mode=remote_mode,
+                        )
+                    ]
+            except RuntimeError as exc:
+                msg = str(exc)
+                if "No actionable rung" in msg:
+                    announce(
+                        "No actionable rung (paused, certified, or killed). "
+                        "Stopping auto without global kill."
+                    )
+                    print(f"[saturday.loop] stop: {msg}")
+                    mark_stopped(f"no_actionable_rung: {msg}")
+                    break
+                raise
             waves.append(records)
             print(
                 f"[saturday.loop] wake={wake} finished "

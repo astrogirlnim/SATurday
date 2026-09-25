@@ -537,6 +537,14 @@ def _run_formalize(
             "Ambient lake is red; skipping formalize model call "
             "(formalize_require_green_lake). Fix theory/ or pause the other rung."
         )
+        try:
+            from search.saturday.pin_plans import bump_ambient_red_streak
+
+            streak = bump_ambient_red_streak(ctx.repo_root, choice.rung)
+            print(f"[saturday.actions] ambient_red_streak={streak}")
+        except Exception as exc:
+            print(f"[saturday.actions] ambient streak skipped: {exc}")
+            streak = 0
         notes = (
             "Blocked: ambient lake red before formalize. "
             + (prior_errors[-1200:] if prior_errors else "")
@@ -546,7 +554,7 @@ def _run_formalize(
             status="blocked",
             artifact_refs=[],
             notes=notes[:2000],
-            next_recommended_action="formalize",
+            next_recommended_action="audit",
             gate_pending="none",
             memory_entry=memory,
             raw_model_text=prior_errors[-4000:],
@@ -925,12 +933,26 @@ def _run_formalize(
                     f"Draft gate rejected attempt {attempt}: "
                     + "; ".join(gate_res.reasons[:4])
                 )
+                reason_blob = " ".join(gate_res.reasons).lower()
+                method_block = any(
+                    tok in reason_blob
+                    for tok in (
+                        "placeholder",
+                        "sorry_replace discharge forbids sorry",
+                        "status='blocked'",
+                        'status="blocked"',
+                        "status=blocked",
+                        "blocked_method",
+                        "missing lean surface",
+                    )
+                )
                 outcome = {
-                    "status": "partial",
+                    "status": "blocked" if method_block else "partial",
                     "gate": "none",
                     "notes": (
                         f"{gen['notes']} draft_gate reject: "
                         + "; ".join(gate_res.reasons[:6])
+                        + ("; blocked_method" if method_block else "")
                     ),
                     "arts": all_arts,
                     "lean_code": lean_code,
@@ -939,8 +961,13 @@ def _run_formalize(
                     "build_tail": "",
                     "tag": tag,
                     "model": model,
+                    "next_recommended_action": "prove" if method_block else "formalize",
                 }
-                if attempt < max_tries and is_worth_repairing("", gate_res):
+                if (
+                    (not method_block)
+                    and attempt < max_tries
+                    and is_worth_repairing("", gate_res)
+                ):
                     cur_err = build_repair_context(
                         failed_lean=lean_code, gate=gate_res
                     )
@@ -1080,7 +1107,11 @@ def _run_formalize(
                     outcome["notes"] + f" OpenRouter escalate failed: {exc}"
                 )
 
-    next_action = "formalize"
+    next_action = str(outcome.get("next_recommended_action") or "formalize")
+    if outcome.get("status") == "blocked" and "ambient lake red" in (
+        outcome.get("notes") or ""
+    ).lower():
+        next_action = "audit"
     notes = outcome["notes"]
     if not build["ok"]:
         notes = notes + f" Ambient lake build was red (tail): {prior_errors[-800:]}"

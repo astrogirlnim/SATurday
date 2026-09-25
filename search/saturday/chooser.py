@@ -68,39 +68,110 @@ def choose_action_for_rung(
             target = target_override or _import_or_default_target(
                 ctx, rung_id, action
             )
+            # Refuse formalize when pin plan marks the target dead/archival.
+            if action == "formalize" and _formalize_refused(ctx, rung_id, target):
+                action = "prove"
+                rationale = (
+                    f"Force formalize refused by pin plan; switch to prove "
+                    f"(status={status})"
+                )
+                target = target_override or _default_target(ctx, rung_id, action)
         else:
-            decomp_choice = _suggest_decompose(ctx, rung_id)
-            if decomp_choice is not None:
-                action, target, rationale = decomp_choice
+            pin_choice = _suggest_pin_plan(ctx, rung_id)
+            if pin_choice is not None:
+                action, target, rationale = pin_choice
             else:
-                import_choice = _suggest_import(ctx, rung_id)
-                if import_choice is not None:
-                    action, target, rationale = import_choice
-                elif status == "prose_accepted":
-                    action = "formalize"
-                    rationale = "Prose accepted gate passed; formalize is next"
-                    target = target_override or _default_target(ctx, rung_id, action)
-                elif status == "blocked":
-                    action = "prove"
-                    rationale = "Rung blocked; change approach with a new prove cycle"
-                    target = target_override or _default_target(ctx, rung_id, action)
-                elif _needs_falsify(ctx, rung_id):
-                    action = "falsify"
-                    rationale = "No recent falsify calibration recorded for this rung"
-                    target = target_override or _default_target(ctx, rung_id, action)
-                elif status == "active":
-                    action, rationale = _active_rung_action(ctx, rung_id)
-                    target = target_override or _import_or_default_target(
-                        ctx, rung_id, action
-                    )
-                elif status == "proposed":
-                    action = "prove"
-                    rationale = "Proposed rung needs an adopt decision path via prove content"
-                    target = target_override or _default_target(ctx, rung_id, action)
+                decomp_choice = _suggest_decompose(ctx, rung_id)
+                if decomp_choice is not None:
+                    action, target, rationale = decomp_choice
+                    if action == "formalize" and _formalize_refused(
+                        ctx, rung_id, target
+                    ):
+                        action = "prove"
+                        rationale = (
+                            "Decompose formalize refused by pin plan; prove restatement"
+                        )
+                        target = target_override or _default_target(
+                            ctx, rung_id, action
+                        )
                 else:
-                    action = "audit"
-                    rationale = "Default audit pass for hygiene and barriers"
-                    target = target_override or _default_target(ctx, rung_id, action)
+                    import_choice = _suggest_import(ctx, rung_id)
+                    if import_choice is not None:
+                        action, target, rationale = import_choice
+                        if action == "formalize" and _formalize_refused(
+                            ctx, rung_id, target
+                        ):
+                            print(
+                                "[saturday.chooser] import formalize refused by pin plan"
+                            )
+                            action = "audit"
+                            rationale = (
+                                "Import formalize refused by pin plan "
+                                "(dead/archival/missing surface)"
+                            )
+                            target = target_override or _default_target(
+                                ctx, rung_id, action
+                            )
+                    elif status == "prose_accepted":
+                        action = "formalize"
+                        rationale = "Prose accepted gate passed; formalize is next"
+                        target = target_override or _default_target(
+                            ctx, rung_id, action
+                        )
+                        if _formalize_refused(ctx, rung_id, target):
+                            action = "prove"
+                            rationale = (
+                                "Prose accepted but pin plan refuses formalize; "
+                                "prove restatement"
+                            )
+                            target = target_override or _default_target(
+                                ctx, rung_id, action
+                            )
+                    elif status == "blocked":
+                        action = "prove"
+                        rationale = (
+                            "Rung blocked; change approach with a new prove cycle"
+                        )
+                        target = target_override or _default_target(
+                            ctx, rung_id, action
+                        )
+                    elif _needs_falsify(ctx, rung_id):
+                        action = "falsify"
+                        rationale = (
+                            "No recent falsify calibration recorded for this rung"
+                        )
+                        target = target_override or _default_target(
+                            ctx, rung_id, action
+                        )
+                    elif status == "active":
+                        action, rationale = _active_rung_action(ctx, rung_id)
+                        target = target_override or _import_or_default_target(
+                            ctx, rung_id, action
+                        )
+                        if action == "formalize" and _formalize_refused(
+                            ctx, rung_id, target
+                        ):
+                            action = "prove"
+                            rationale = (
+                                "Active formalize refused by pin plan; prove"
+                            )
+                            target = target_override or _default_target(
+                                ctx, rung_id, action
+                            )
+                    elif status == "proposed":
+                        action = "prove"
+                        rationale = (
+                            "Proposed rung needs an adopt decision path via prove content"
+                        )
+                        target = target_override or _default_target(
+                            ctx, rung_id, action
+                        )
+                    else:
+                        action = "audit"
+                        rationale = "Default audit pass for hygiene and barriers"
+                        target = target_override or _default_target(
+                            ctx, rung_id, action
+                        )
 
     if target_override and action_override:
         target = target_override
@@ -114,6 +185,51 @@ def choose_action_for_rung(
     )
     print(f"[saturday.chooser] choice={choice}")
     return choice
+
+
+def _suggest_pin_plan(ctx: CycleContext, rung_id: str):
+    """Return (action, target, rationale) from pin plan checklist / live pins."""
+    try:
+        from search.saturday.pin_plans import (
+            R2_SEED_PLAN,
+            ensure_seed_plan,
+            suggest_pin_plan_action,
+        )
+
+        if rung_id == "r2-width-machinery":
+            ensure_seed_plan(ctx.repo_root, rung_id, R2_SEED_PLAN)
+        return suggest_pin_plan_action(ctx.repo_root, rung_id)
+    except Exception as exc:
+        print(f"[saturday.chooser] pin_plan suggest skipped: {exc}")
+        return None
+
+
+def _formalize_refused(ctx: CycleContext, rung_id: str, target: str) -> bool:
+    """True when pin plan marks the target decl dead/archival/missing surface."""
+    try:
+        from search.saturday.pin_plans import (
+            formalize_refused_for_pin,
+            load_pin_plan,
+        )
+
+        plan = load_pin_plan(ctx.repo_root, rung_id)
+        # Try whole target and last identifier token.
+        candidates = [target]
+        for tok in str(target or "").replace("/", " ").replace(".", " ").split():
+            if tok and (tok[0].islower() or "_" in tok):
+                candidates.append(tok)
+        for cand in candidates:
+            refused, why = formalize_refused_for_pin(plan, cand)
+            if refused:
+                print(
+                    f"[saturday.chooser] formalize refused rung={rung_id} "
+                    f"cand={cand!r} why={why}"
+                )
+                return True
+        return False
+    except Exception as exc:
+        print(f"[saturday.chooser] pin refuse check skipped: {exc}")
+        return False
 
 
 def _suggest_decompose(ctx: CycleContext, rung_id: str):
@@ -283,9 +399,10 @@ def choose_rung_and_action(
     4. else falsify if no recent falsify on this rung
     5. else audit
 
-    Operator force_actions pin a rung. Paused rungs are skipped unless forced.
-    Spectral import pins stay non-executable (proof_source); the rung itself
-    remains selectable so Block A can continue via default formalize / decompose.
+    Operator force_actions pin a rung. Paused rungs (control or pin plan) are
+    skipped unless forced. Spectral import pins stay non-executable
+    (proof_source); the rung itself remains selectable so Block A can continue
+    via checklist / pin plan / decompose when ready_for_auto.
     """
     print(
         f"[saturday.chooser] choose overrides rung={rung_override} "
@@ -301,6 +418,15 @@ def choose_rung_and_action(
 
     ctrl = load_control(ctx.repo_root)
     paused = set(ctrl.paused_rungs or [])
+    try:
+        from search.saturday.pin_plans import is_rung_paused
+        from search.saturday.context import RUNG_IDS as _ALL
+
+        for rid in _ALL:
+            if is_rung_paused(ctx.repo_root, rid):
+                paused.add(rid)
+    except Exception as exc:
+        print(f"[saturday.chooser] pin_plan pause merge skipped: {exc}")
     forced_rungs = [
         rid for rid, act in (ctrl.force_actions or {}).items() if act in VALID_ACTIONS
     ]
@@ -331,7 +457,9 @@ def choose_rung_and_action(
         if rid not in paused or rid in (ctrl.force_actions or {})
     ]
     if not pool:
-        raise RuntimeError("No actionable rung found in ladder memories")
+        raise RuntimeError(
+            "No actionable rung found (all candidates paused, certified, or killed)"
+        )
 
     if rung_override:
         rung_id = rung_override
@@ -345,7 +473,7 @@ def choose_rung_and_action(
         if _rung_spectral_formalize_blocked(ctx, rung_id):
             print(
                 f"[saturday.chooser] rung={rung_id} import spectral-blocked; "
-                "staying on rung for Block A formalize or decompose "
+                "staying on rung for checklist / pin plan / decompose "
                 "(import sorry_replace stays non-executable)"
             )
     return choose_action_for_rung(ctx, rung_id, action_override, target_override)

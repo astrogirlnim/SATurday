@@ -387,6 +387,160 @@ def unkill_cmd():
     console.print("[bold green]Kill cleared[/bold green]. You can run satday auto again.")
 
 
+@app.command("pause")
+def pause_cmd(
+    rung: str = typer.Argument(..., help="Rung id (e.g. r2-width-machinery)"),
+    reason: str = typer.Option("operator pause", "--reason", "-r"),
+):
+    """Pause one rung (pin plan + control) without engaging global kill."""
+    from search.saturday.control import pause_rung
+
+    state = pause_rung(repo_root, rung, reason)
+    console.print(f"[yellow]Paused[/yellow] {rung}: {reason}")
+    console.print(f"paused_rungs={state.paused_rungs}")
+
+
+@app.command("unpause")
+def unpause_cmd(
+    rung: str = typer.Argument(..., help="Rung id to unpause"),
+    reason: str = typer.Option("operator unpause", "--reason", "-r"),
+):
+    """Clear per-rung pause so the chooser may select it again."""
+    from search.saturday.control import unpause_rung
+
+    state = unpause_rung(repo_root, rung, reason)
+    console.print(f"[green]Unpaused[/green] {rung}")
+    console.print(f"paused_rungs={state.paused_rungs}")
+
+
+pin_app = typer.Typer(
+    name="pin",
+    help="Inspect and mutate per-rung pin plans (chooser control plane)",
+    no_args_is_help=True,
+)
+app.add_typer(pin_app, name="pin")
+
+
+@pin_app.command("status")
+def pin_status_cmd(
+    rung: Optional[str] = typer.Argument(
+        None,
+        help="Rung id (default: show all pin plan files)",
+    ),
+    json_out: bool = typer.Option(False, "--json", help="Emit JSON"),
+):
+    """Show pin plan health and next ready_for_auto checklist step."""
+    from search.saturday.pin_plans import (
+        load_pin_plan,
+        pin_plans_dir,
+        routing_hint,
+    )
+
+    console.print("[bold blue]SATurday pin plans[/bold blue]")
+    try:
+        if rung:
+            plan = load_pin_plan(repo_root, rung)
+            hint = routing_hint(repo_root, rung)
+            if json_out:
+                console.print_json(data={"plan": plan, "routing": hint})
+                return
+            console.print(f"rung={hint['rung_id']} paused={hint['paused']}")
+            console.print(f"pause_reason={hint['pause_reason']!r}")
+            console.print(f"ambient_red_streak={hint['ambient_red_streak']}")
+            console.print(f"checklist_ref={hint['checklist_ref']}")
+            console.print(
+                f"next_checklist={hint['next_checklist_id']!r} "
+                f"action={hint['next_checklist_action']!r} "
+                f"title={hint['next_checklist_title']!r}"
+            )
+            console.print(
+                f"next_live_pin={hint['next_live_pin_id']!r} "
+                f"decl={hint['next_live_pin_decl']!r}"
+            )
+            table = Table(title="Pins")
+            table.add_column("id")
+            table.add_column("status")
+            table.add_column("ready")
+            table.add_column("lean_decl")
+            for pin in plan.get("pins") or []:
+                table.add_row(
+                    str(pin.get("id") or ""),
+                    str(pin.get("status") or ""),
+                    "yes" if pin.get("ready_for_auto") else "no",
+                    str(pin.get("lean_decl") or ""),
+                )
+            console.print(table)
+            return
+        root = pin_plans_dir(repo_root)
+        rows = (
+            sorted(p for p in root.glob("*.json") if not p.name.startswith("._"))
+            if root.is_dir()
+            else []
+        )
+        if json_out:
+            data = [routing_hint(repo_root, p.stem) for p in rows]
+            console.print_json(data=data)
+            return
+        if not rows:
+            console.print("No pin plan files under search/logs/pin_plans/")
+            return
+        table = Table(title="Pin plans")
+        table.add_column("rung")
+        table.add_column("paused")
+        table.add_column("ambient")
+        table.add_column("next_checklist")
+        table.add_column("next_action")
+        for p in rows:
+            h = routing_hint(repo_root, p.stem)
+            table.add_row(
+                h["rung_id"],
+                "yes" if h["paused"] else "no",
+                str(h["ambient_red_streak"]),
+                h["next_checklist_id"] or "-",
+                h["next_checklist_action"] or "-",
+            )
+        console.print(table)
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
+@pin_app.command("set-status")
+def pin_set_status_cmd(
+    rung: str = typer.Argument(..., help="Rung id"),
+    pin_id: str = typer.Argument(..., help="Pin id"),
+    status: str = typer.Argument(
+        ...,
+        help="live|dead|restated|archival|done|blocked_missing_surface",
+    ),
+    reason: str = typer.Option("", "--reason", "-r"),
+):
+    """Set one pin status (chooser refuses formalize on dead/archival/...)."""
+    from search.saturday.pin_plans import set_pin_status
+
+    path = set_pin_status(
+        repo_root, rung, pin_id, status, reason=reason, create_if_missing=True
+    )
+    console.print(f"[green]Updated[/green] {pin_id} -> {status} ({path})")
+
+
+@pin_app.command("checklist")
+def pin_checklist_cmd(
+    rung: str = typer.Argument(..., help="Rung id"),
+    step_id: str = typer.Argument(..., help="Checklist step id"),
+    status: str = typer.Argument(
+        ...,
+        help="pending|ready_for_auto|in_progress|done|blocked|skipped",
+    ),
+    reason: str = typer.Option("", "--reason", "-r"),
+):
+    """Set checklist step status (ready_for_auto is preferred by chooser)."""
+    from search.saturday.pin_plans import set_checklist_status
+
+    path = set_checklist_status(repo_root, rung, step_id, status, reason=reason)
+    console.print(f"[green]Updated[/green] checklist {step_id} -> {status} ({path})")
+
+
 proof_source_app = typer.Typer(
     name="proof-source",
     help="Vendor and inspect foreign ITP proof sources for loop native import",

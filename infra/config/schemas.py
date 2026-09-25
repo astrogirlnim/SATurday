@@ -82,12 +82,19 @@ class SaturdayReflectConfig(BaseModel):
     max_wakes_without_obligation_progress: int = Field(5, ge=1)
     max_consecutive_near_duplicates: int = Field(3, ge=1)
     max_consecutive_same_error: int = Field(3, ge=1)
+    # Default prove: method audit / restatement after obligation plateau.
     # formalize|stay|clear keep machine work; prove|falsify|audit switch roles
     plateau_switch_action: str = Field(
-        "formalize",
+        "prove",
         pattern="^(prove|falsify|audit|formalize|stay|clear)$",
     )
+    # When true, plateau may engage global kill. Prefer auto_kill_scope=rung.
     auto_kill_on_plateau: bool = True
+    # rung: pause only that rung (pin plan + control.paused_rungs).
+    # global: engage saturday_KILL (legacy freeze-everything).
+    auto_kill_scope: str = Field("rung", pattern="^(rung|global)$")
+    # After this many ambient-red formalize skips on one rung, pause that rung.
+    ambient_red_pause_after: int = Field(3, ge=1)
     reject_near_duplicate_drafts: bool = True
 
 
