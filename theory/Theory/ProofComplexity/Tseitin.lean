@@ -1,6 +1,7 @@
 import Theory.ProofComplexity.FinGraph
 import Theory.ProofComplexity.Width
 import Theory.ProofComplexity.SizeWidth
+import Theory.ProofComplexity.MGG.Cubicize
 
 /-!
 # Tseitin CNF on FinGraphs (Ladder Rung R2, item 2)
@@ -26,9 +27,11 @@ unconditional width ≥ 4 (sharp floor beats regular axiom width 3).
 Cluster 26 (2026-08-15, accept_prose on Tseitin Block A pivot): informative
 floor threshold `n ≥ 14`, cubic expander packaging into width or size lower
 bounds, and Spreads free reduction from an unbounded `HasExpansion` family.
-Cluster 28 (2026-09-04): restated Block A to `HasExpansionInv` with
-`cubicInvK = 2` and floor 26; Inv width or size packaging certified; Frontier
-holds `exists_cubic_hasExpansionInv_family` (factor-1 family archival).
+Cluster 28 (2026-09-04): restated Block A to `HasExpansionInv`.
+Cycle cubicization of factor-2 MGG Inv-4 raises the constant to
+`cubicInvK = mggF2CubK` (164) and `cubicInvInformativeFloor = mggF2CubFloor`
+(1968). `exists_cubic_hasExpansionInv_family` and
+`exists_tseitin_inv_expander_hard_family` are inhabited.
 Random CS existence stays secondary in `CSExpansionFrontier`.
 
 LOG: R2 Tseitin Cluster 28 HasExpansionInv cubic packaging
@@ -1503,16 +1506,17 @@ theorem exists_tseitin_expander_hard_family_of_cubic_expanders
 /-! ## Cluster 28: HasExpansionInv packaging (Block A restatement 2026-09-04)
 
 Gate auto accept_prose on killing unbounded `HasExpansion _ 1` as Block A primary.
-Primary pin is inverse expansion at fixed `cubicInvK = 2` with informative floor
-`cubicInvInformativeFloor = 26` (ceil medium floor over k beats cnfWidth 3).
+Primary pin is inverse expansion at `cubicInvK = mggF2CubK` with informative
+floor `cubicInvInformativeFloor = mggF2CubFloor`. The constant 164 is the
+cycle-cubicization charge of factor-2 Inv-4; k = 2 is false for that gadget.
 Connectivity is an explicit hypothesis when `k > 1`. Family inhabitant stays
 Frontier under the new Inv name. -/
 
-/-- Locked inverse expansion constant: combinatorial expansion at least `1/2`. -/
-def cubicInvK : ℕ := 2
+/-- Inverse expansion constant from cycle cubicization of factor-2 MGG Inv-4. -/
+def cubicInvK : ℕ := mggF2CubK
 
 /-- Least `n` where ceil(`tseitinMediumFloor n / cubicInvK`) beats axiom width 3. -/
-def cubicInvInformativeFloor : ℕ := 26
+def cubicInvInformativeFloor : ℕ := mggF2CubFloor
 
 /-- Nat ceil of `tseitinMediumFloor n / k`: width floor under inverse expansion. -/
 def tseitinInvWidthFloor (n k : ℕ) : ℕ :=
@@ -1603,15 +1607,14 @@ theorem tseitin_inv_expander_size_lower_bound {n : ℕ} {G : FinGraph n}
   intro d'
   exact tseitin_inv_expander_width_lower_bound hk hkpos hG d' hn
 
-/-- At `n ≥ 26` and `k = 2`, ceil medium floor over k is at least 4. -/
+/-- At `n ≥ mggF2CubFloor` and `k = mggF2CubK`, ceil medium floor over k is at least 4. -/
 theorem tseitinInvWidthFloor_cubic_gt_three {n : ℕ}
     (hn : cubicInvInformativeFloor ≤ n) :
     3 < tseitinInvWidthFloor n cubicInvK := by
-  have hn26 : 26 ≤ n := by simpa [cubicInvInformativeFloor] using hn
-  simp only [tseitinInvWidthFloor, cubicInvK, tseitinMediumFloor]
-  -- goal: 3 < ((n/2 + 2)/2 + 1) / 2
-  have hdiv : 13 ≤ n / 2 := by omega
-  have hmed : 7 ≤ (n / 2 + 2) / 2 := by omega
+  have hnN : 1968 ≤ n := by simpa [cubicInvInformativeFloor, mggF2CubFloor] using hn
+  simp only [tseitinInvWidthFloor, cubicInvK, mggF2CubK, tseitinMediumFloor]
+  have hdiv : 984 ≤ n / 2 := by omega
+  have hmed : 493 ≤ (n / 2 + 2) / 2 := by omega
   omega
 
 /-- Single cubic Inv packaging: regular 3, connected, Inv-k expansion, and
@@ -1625,7 +1628,9 @@ theorem tseitin_cubic_hasExpansionInv_informative {n : ℕ} {G : FinGraph n}
         3 < tseitinInvWidthFloor n cubicInvK ∧
           ∀ d : Derivation (tseitinCNF G χ) (∅ : Clause),
             tseitinInvWidthFloor n cubicInvK ≤ d.width := by
-  have hn26 : 26 ≤ n := by simpa [cubicInvInformativeFloor] using hn
+  have hn2 : 2 ≤ n := by
+    have hpos : 2 ≤ cubicInvInformativeFloor := by decide
+    omega
   refine ⟨tseitinCNF_unsat G χ hχ, ?_, ?_, ?_⟩
   · exact cnfWidth_tseitinCNF_of_regular hreg (by omega : 0 < n) (by omega : 0 < 3)
   · exact tseitinInvWidthFloor_cubic_gt_three hn
@@ -1642,7 +1647,9 @@ theorem tseitin_cubic_hasExpansionInv_size_informative {n : ℕ} {G : FinGraph n
     let W := tseitinInvWidthFloor n cubicInvK
     2 ^ ((W - cnfWidth (tseitinCNF G χ)) * (W - cnfWidth (tseitinCNF G χ)) /
           (bswRateConst * (cnfVars (tseitinCNF G χ)).card)) ≤ d.size := by
-  have hn26 : 26 ≤ n := by simpa [cubicInvInformativeFloor] using hn
+  have hn2 : 2 ≤ n := by
+    have hpos : 2 ≤ cubicInvInformativeFloor := by decide
+    omega
   exact tseitin_inv_expander_size_lower_bound hk (by decide : 0 < cubicInvK) hG hχ d
     (by omega : 2 ≤ n)
 
@@ -1665,7 +1672,9 @@ theorem exists_tseitin_expander_hard_family_of_cubic_inv_expanders
   have hfl : cubicInvInformativeFloor ≤ n :=
     le_trans (le_max_right N cubicInvInformativeFloor) hn
   have hN : N ≤ n := le_trans (le_max_left N cubicInvInformativeFloor) hn
-  have hn26 : 26 ≤ n := by simpa [cubicInvInformativeFloor] using hfl
+  have hn2 : 2 ≤ n := by
+    have hpos : 2 ≤ cubicInvInformativeFloor := by decide
+    omega
   let χ := oddCharge_single n ⟨0, by omega⟩
   have hχ : oddCharge χ := oddCharge_single_odd n ⟨0, by omega⟩
   obtain ⟨hunsat, hw, hfloor, hwidth⟩ :=
@@ -1692,18 +1701,14 @@ theorem exists_tseitin_expander_hard_family :
                 1 * tseitinMediumFloor n ≤ d.width := by
   sorry
 
-/-- Primary Block A existence pin: unbounded cubic Inv expanders at `cubicInvK`
-with informative floor `cubicInvInformativeFloor`. Classical constructions:
-Friedman random cubics, LPS style with degree reduction. Lean inhabitant open. -/
+/-- Primary Block A existence pin: cubic Inv expanders from factor-2 MGG. -/
 theorem exists_cubic_hasExpansionInv_family :
     ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n),
       max N cubicInvInformativeFloor ≤ n ∧
-        IsRegular G 3 ∧ G.IsConnected ∧ HasExpansionInv G cubicInvK := by
-  sorry
+        IsRegular G 3 ∧ G.IsConnected ∧ HasExpansionInv G cubicInvK :=
+  exists_mggF2Cub_hasExpansionInv_family
 
-/-- Block A primary hardness pin under Inv packaging. Follows from
-`exists_cubic_hasExpansionInv_family` via
-`exists_tseitin_expander_hard_family_of_cubic_inv_expanders` once inhabited. -/
+/-- Block A primary hardness pin under Inv packaging. -/
 theorem exists_tseitin_inv_expander_hard_family :
     ∀ N : ℕ, ∃ (n : ℕ) (G : FinGraph n) (χ : Charge n),
       N ≤ n ∧ IsRegular G 3 ∧ G.IsConnected ∧ HasExpansionInv G cubicInvK ∧
@@ -1712,8 +1717,9 @@ theorem exists_tseitin_inv_expander_hard_family :
           cnfWidth (tseitinCNF G χ) = 3 ∧
             3 < tseitinInvWidthFloor n cubicInvK ∧
               ∀ d : Derivation (tseitinCNF G χ) (∅ : Clause),
-                tseitinInvWidthFloor n cubicInvK ≤ d.width := by
-  sorry
+                tseitinInvWidthFloor n cubicInvK ≤ d.width :=
+  exists_tseitin_expander_hard_family_of_cubic_inv_expanders
+    exists_cubic_hasExpansionInv_family
 
 end TseitinFrontier
 

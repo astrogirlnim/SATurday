@@ -56,11 +56,13 @@ satday auto
       `exists_cubic_hasExpansion_family`. Prove 2026-09-04: kill unbounded
       `HasExpansion _ 1` as Block A primary (factor 1 fails on McGee,
       Moebius Kantor, Desargues, random cubics past Heawood); pin
-      `HasExpansionInv` with `cubicInvK = 2`, informative floor `26`.
+      `HasExpansionInv` with `cubicInvK = 2`, informative floor `26`
+      (superseded 2026-09-25: live pin is `cubicInvK = 164`, floor `1968`,
+      cubic Inv family and Tseitin hard family inhabited).
       Cluster 28 (2026-09-08) certified Inv packaging (predicate, width or size
-      bounds, family reduction); axiom gate PASS. Remaining: inhabit
-      `exists_cubic_hasExpansionInv_family` (Margulis, Gabber Galil, LPS, or
-      probabilistic method). Random CS Frontier secondary.
+      bounds, family reduction); axiom gate PASS. Item 6 (2026-09-25)
+      inhabited `exists_cubic_hasExpansionInv_family` and
+      `exists_tseitin_inv_expander_hard_family`. Random CS Frontier secondary.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Move R2 from `prose_accepted` to `certified` only after the existence

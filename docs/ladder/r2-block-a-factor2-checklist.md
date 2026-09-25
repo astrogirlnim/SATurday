@@ -1,7 +1,9 @@
 # R2 Block A checklist: factor-2 MGG to cubic Inv
 
-Status: Block A MGG Inv closed (items 1-5). Do not start `satday auto` on
-spectral pins. Item 6 (cubicization) is next; item 7 (CS 3-CNF) remains open.
+Status: Block A items 1-6 closed. Item 6 inhabited the cubic Inv family at
+`mggF2CubK = 164` and floor `1968` (the locked `cubicInvK = 2` is false for
+this gadget). Do not start `satday auto`. Item 7 (CS 3-CNF) remains open.
+Rung status stays `prose_accepted`.
 
 Rung: [r2-width-machinery.md](rungs/r2-width-machinery.md) (`Status: prose_accepted`).
 Item 1 (Ben-Sasson–Wigderson) is already in the accepted tree. This checklist
@@ -12,7 +14,12 @@ Locked constants (do not weaken):
 
 - `mggInvK := 4` in [theory/Theory/ProofComplexity/MGG.lean](../../theory/Theory/ProofComplexity/MGG.lean)
 - `mggInformativeFloor := 6` in the same file
-- Downstream: `cubicInvK := 2` in [theory/Theory/ProofComplexity/Tseitin.lean](../../theory/Theory/ProofComplexity/Tseitin.lean)
+- Downstream: `cubicInvK := mggF2CubK` (164) and
+  `cubicInvInformativeFloor := mggF2CubFloor` (1968) in
+  [Tseitin.lean](../../theory/Theory/ProofComplexity/Tseitin.lean). The
+  2026-09-08 inhabit plan authorizes this raise when cubicization of Inv-4
+  only yields `kCub > 2`. Full-cloud lifts of half-sets multiply the cut
+  ratio by 8, so `k = 2` is false for the cycle replacement.
 
 ## Why the unit-shear pins cannot use the new spectral proof
 
@@ -191,16 +198,21 @@ Locked Inv-4 packaging lives in
 
 ### 6. Cubicization (only after step 5)
 
-- [ ] Inhabit
+- [x] Inhabit
   `TseitinFrontier.exists_cubic_hasExpansionInv_family` in
   [Tseitin.lean](../../theory/Theory/ProofComplexity/Tseitin.lean)
-  at locked `cubicInvK = 2` and `cubicInvInformativeFloor`, using the factor-2
-  MGG Inv family (replacement product / cubicization; not spectral invention).
-- [ ] Discharge
+  from cycle cubicization of `mggF2Graph` in
+  [Cubicize.lean](../../theory/Theory/ProofComplexity/MGG/Cubicize.lean).
+  Charging gives `mggF2CubK = 164` (`|T| ≤ 32|∂C| + 33·Σ c ≤ 164|∂C|`)
+  and `mggF2CubFloor = 1968` so `tseitinInvWidthFloor n 164 > 3`.
+  `cubicInvK` and `cubicInvInformativeFloor` are aliases of those defs.
+  `k = 2` is not inhabited.
+- [x] Discharge
   `TseitinFrontier.exists_tseitin_inv_expander_hard_family` via accepted
   `exists_tseitin_expander_hard_family_of_cubic_inv_expanders` in the same file
   (no new width proof).
 - [ ] Only then may `satday auto` resume on cubicization, not on spectral pins.
+  Not started.
 
 ### 7. Outside this Block A checklist
 

@@ -89,7 +89,9 @@ R4-class results plus the certified R5 bridge.
     `HasExpansion _ 1` (ladder filter); prove 2026-09-04 kills unbounded
     `HasExpansion _ 1` as Block A primary (McGee, Moebius Kantor, Desargues,
     random cubics fail factor 1 past Heawood) and pins
-    `HasExpansionInv` with `cubicInvK = 2` pending accept_prose; Frontier
+    `HasExpansionInv` with `cubicInvK = 2` pending accept_prose (item 6,
+    2026-09-25, raised the live pin to `cubicInvK = 164`, floor `1968`,
+    and inhabited the cubic Inv family); Frontier
     `exists_cubic_hasExpansion_family` archival relative to the inv restatement;
     Cluster 28 (2026-09-08) certified Inv packaging and family reduction,
     Cluster 29 (2026-09-08) MGG scaffolding module; Cluster 29d connectivity;

@@ -9681,3 +9681,24 @@ end MGGFrontier
   Most important thing learned: packaging had to move out of `MGG.lean`
   because `mggF2Graph` imports it; Frontier pin names can keep historical
   labels while their types point at the factor-2 graph.
+
+- 2026-09-25 formalize (Block A item 6 cubicization): SUCCESS.
+  Artifacts: `theory/Theory/ProofComplexity/MGG/Cubicize.lean`,
+  `theory/Theory/ProofComplexity/Tseitin.lean`,
+  `docs/ladder/r2-block-a-factor2-checklist.md`.
+  Cycle replacement of `mggF2Graph` (cloud size 8, ports ordered so the
+  generator inverse is not cycle-adjacent) is 3-regular and connected.
+  Full-cloud lifts multiply the Inv-4 ratio by 8, so `cubicInvK = 2` is
+  false for this gadget. The 2026-09-08 inhabit plan authorizes the raise.
+  Charging: `|F| ≤ 4|∂_G F|`, base cut edges land in the cubic boundary or
+  in partial in-ports, and a proper subset of `C_8` satisfies
+  `card ≤ 4 · cycleBoundary`, hence `|T| ≤ 164 |∂C|`.
+  Locked `mggF2CubK = 164`, `mggF2CubFloor = 1968`
+  (`tseitinInvWidthFloor 1968 164 = 4`).
+  Discharged: `exists_mggF2Cub_hasExpansionInv_family`,
+  `TseitinFrontier.exists_cubic_hasExpansionInv_family`,
+  `TseitinFrontier.exists_tseitin_inv_expander_hard_family`.
+  Archival factor-1 sorries stay. Rung status remains `prose_accepted`
+  (CS 3-CNF still open). Did not start `satday auto`.
+  Most important thing learned: the cubic constant is a charging bound,
+  not the measured ratio (about 4 to 5 at small m).
