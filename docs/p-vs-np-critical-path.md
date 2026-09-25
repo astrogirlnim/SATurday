@@ -139,8 +139,8 @@ Complexity half is done. Remaining modules from the R5 plan
 2. In parallel sessions only: R5 Cluster C continue with mutual
    `assignmentAtList` equals `allBitstrings` (definitional; no summit claim
    until Lemmas C to E).
-3. Do not open R3 until R2 is certified or explicitly blocked with a kill or
-   redesign decision.
+3. R2 is certified (2026-09-25). R3 may open via adopt gate on
+   `docs/ladder/rungs/r3-stronger-systems.md`.
 
 ## Live pointers
 
