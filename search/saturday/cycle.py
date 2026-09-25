@@ -163,16 +163,29 @@ def _execute_choice(
         from search.saturday.progress import LEAN_BY_RUNG
         from search.saturday.reflect import extract_decl_names, record_wave_outcome
 
-        lean_rel = LEAN_BY_RUNG.get(choice.rung)
+        # LEAN_BY_RUNG maps rung -> list of relative Lean paths
+        lean_rels = list(LEAN_BY_RUNG.get(choice.rung) or [])
         obligations: list[str] = []
-        lean_path = None
+        seen_obl: set[str] = set()
         module_excerpt = ""
-        if lean_rel:
+        primary_lean_rel = lean_rels[0] if lean_rels else ""
+        for lean_rel in lean_rels:
             lean_path = repo_root / lean_rel
-            if lean_path.exists():
-                lean_text = lean_path.read_text(encoding="utf-8")
-                obligations = extract_open_frontier_obligations(lean_text)
-                module_excerpt = lean_text[-12000:]
+            if not lean_path.exists():
+                print(f"[saturday.cycle] reflect lean missing path={lean_path}")
+                continue
+            lean_text = lean_path.read_text(encoding="utf-8")
+            for name in extract_open_frontier_obligations(lean_text):
+                if name not in seen_obl:
+                    seen_obl.add(name)
+                    obligations.append(name)
+            # Keep the last (usually Bridge) file excerpt for decompose prompts
+            module_excerpt = lean_text[-12000:]
+            primary_lean_rel = lean_rel
+        print(
+            f"[saturday.cycle] reflect obligations={obligations} "
+            f"lean_files={lean_rels}"
+        )
         decls = extract_decl_names(result.raw_model_text or "")
         applied_ok = "auto-apply succeeded" in (result.notes or "")
         reverted = "reverted" in (result.notes or "").lower()
@@ -219,7 +232,7 @@ def _execute_choice(
                     rung_id=choice.rung,
                     wakes_without_progress=decision.wakes_without_obligation_progress,
                     obligations=obligations,
-                    module_path=lean_rel or "",
+                    module_path=primary_lean_rel or "",
                     module_excerpt=module_excerpt,
                     loop_cfg=loop_cfg,
                     client=decomp_client,
