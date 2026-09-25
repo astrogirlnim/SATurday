@@ -64,7 +64,7 @@ def resolve_models_dir(
 
 
 def apply_local_model_overrides(loop_cfg: SaturdayLoopConfig) -> None:
-    """Apply SATURDAY_*_MODEL env overrides onto role model names."""
+    """Apply SATURDAY_*_MODEL and SATURDAY_NUM_CTX env overrides."""
     prove = os.environ.get(_LOCAL_PROVE_MODEL_ENV, "").strip()
     if prove:
         loop_cfg.prove.model = prove
@@ -77,6 +77,13 @@ def apply_local_model_overrides(loop_cfg: SaturdayLoopConfig) -> None:
     if audit:
         loop_cfg.audit.model = audit
         print(f"[saturday.llm] {_LOCAL_AUDIT_MODEL_ENV}={audit}")
+    num_ctx_raw = os.environ.get("SATURDAY_NUM_CTX", "").strip()
+    if num_ctx_raw:
+        try:
+            loop_cfg.num_ctx = int(num_ctx_raw)
+            print(f"[saturday.llm] SATURDAY_NUM_CTX={loop_cfg.num_ctx}")
+        except ValueError:
+            print(f"[saturday.llm] ignoring bad SATURDAY_NUM_CTX={num_ctx_raw!r}")
 
 
 def announce_local_model_store(repo_root: Path, loop_cfg: SaturdayLoopConfig) -> None:
@@ -131,6 +138,7 @@ def make_local_client(loop_cfg: SaturdayLoopConfig) -> LocalLLMClient:
         timeout_seconds=loop_cfg.timeout_seconds,
         require_local=loop_cfg.require_local,
         label="local",
+        num_ctx=getattr(loop_cfg, "num_ctx", None),
     )
 
 
