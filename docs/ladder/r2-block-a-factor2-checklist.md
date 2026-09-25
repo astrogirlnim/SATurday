@@ -3,13 +3,13 @@
 Status: Block A items 1-7 closed. Item 6 inhabited the cubic Inv family at
 `mggF2CubK = 164` and floor `1968`. Item 7 restated the CS pin off the
 false Cluster 23 equations (`α = 1`, `r = n / 16`) and inhabited it from
-the Tseitin Inv hard family. Do not start `satday auto`. Rung status stays
-`prose_accepted` pending merge_certified.
+the Tseitin Inv hard family. Human gate merge_certified applied 2026-09-25.
+Rung status is `certified`. Do not start `satday auto` unless explicitly asked.
 
-Rung: [r2-width-machinery.md](rungs/r2-width-machinery.md) (`Status: prose_accepted`).
+Rung: [r2-width-machinery.md](rungs/r2-width-machinery.md) (`Status: certified`).
 Item 1 (Ben-Sasson–Wigderson) is already in the accepted tree. This checklist
 covers Block A of item 2 (expander Tseitin via Margulis–Gabber–Galil), then
-notes the separate random 3-CNF obligation.
+notes the separate random 3-CNF obligation (archival).
 
 Locked constants (do not weaken):
 
@@ -229,8 +229,8 @@ Locked Inv-4 packaging lives in
   accepted and unused. `exists_spreads_matchable_unsat_random3CNF` stays
   archival `sorry`. `satday auto` stays off.
 - [x] Rung item 2 existence pins are sorry-free: cubic Inv Tseitin (item 6)
-  and the restated CS pin (item 7). Rung status stays `prose_accepted`
-  until a merge_certified gate moves it.
+  and the restated CS pin (item 7). Rung status `certified` after
+  merge_certified 2026-09-25.
 
 ---
 

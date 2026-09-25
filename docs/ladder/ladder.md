@@ -41,9 +41,10 @@ R4-class results plus the certified R5 bridge.
     (`php_resolution_size_lower_bound`; family defs in PHP.lean)
 
 - R2 width machinery
-  - status: prose_accepted (2026-08-04, human gate accept_prose)
-  - statement: Ben-Sasson-Wigderson width-size tradeoff, random k-CNF and Tseitin
-    expander lower bounds
+  - status: certified (2026-09-25, human gate merge_certified; axiom gate green)
+  - statement: Ben-Sasson-Wigderson width-size tradeoff; Tseitin Inv expander
+    width lower bounds (random CS Cluster 23 equations archival)
+
   - memory: docs/ladder/rungs/r2-width-machinery.md
   - lean: Width.lean and SizeWidth.lean (item 1 BSW merged); FinGraph.lean and
     Tseitin.lean (item 2 Tseitin width machine and Heawood expansion merged);

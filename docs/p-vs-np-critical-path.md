@@ -33,7 +33,7 @@ satday auto
 
 ## Critical path (ordered)
 
-### Block A: Finish R2 (blocks R2 certified and clean R3 open)
+### Block A: Finish R2 (DONE 2026-09-25; R3 may open)
 
 - [x] Close Frontier `CSExpansionFrontier.exists_cs_clause_expanding_3cnf`
       (`theory/Theory/ProofComplexity/CSExpansion.lean`).
@@ -67,10 +67,11 @@ satday auto
       Live pin restated to cubic Inv Tseitin hardness
       (`exists_cs_clause_expanding_3cnf_of_tseitin_inv`). Random Spreads
       stays archival. Do not resume `satday auto`.
-- [ ] Quarantined variable side Frontier sorries stay archival; do not spend
+- [x] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
-- [ ] Move R2 from `prose_accepted` to `certified` only after the existence
-      pin is axiom gate green (merge_certified human gate).
+- [x] Move R2 from `prose_accepted` to `certified` (merge_certified human
+      gate 2026-09-25; axiom gate green on restated CS pin and Tseitin Inv
+      hard family).
 
 ### Block B: R3 one bound above resolution (blocks credible R4)
 

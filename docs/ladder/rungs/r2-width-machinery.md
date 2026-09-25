@@ -1,6 +1,6 @@
 # R2: Width Machinery and More Families
 
-Status: prose_accepted
+Status: certified
 Lean home: theory/Theory/ProofComplexity/Width.lean and SizeWidth.lean (item 1
 merged); FinGraph.lean and Tseitin.lean (item 2 width machine merged, including
 heawoodGraph_expansion); CSExpansion.lean (item 2 CS width machine certified under
@@ -11,7 +11,7 @@ single support starCNF and SpreadsSupports scaffolding merged 2026-08-10;
 matching SpreadsSupports at informative r = 8 merged 2026-08-11; overlapping
 loose path SpreadsSupports and polarity CNF packaging merged 2026-08-11;
 existence `exists_cs_clause_expanding_3cnf` restated 2026-09-25 to
-Tseitin Inv hardness; Cluster 23 CS equations killed)
+Tseitin Inv hardness; Cluster 23 CS equations killed; merge_certified 2026-09-25)
 
 ## Statement
 
@@ -9744,3 +9744,12 @@ end MGGFrontier
   Did not start `satday auto`.
   Most important thing learned: item 7 is a restatement, not a Spreads
   inhabitant. Clause-set α = 1 at medium size 4 contradicts unsat 3-CNF.
+
+- 2026-09-25 human gate merge_certified: APPROVED.
+  Rung status moved to `certified`. Axiom gate PASS on accepted decls
+  including `exists_cs_clause_expanding_3cnf_of_tseitin_inv` and
+  `CSExpansionFrontier.exists_cs_clause_expanding_3cnf` (restated Tseitin
+  Inv hardness). Archival Cluster 23 and random Spreads sorries stay
+  Frontier. Did not start `satday auto`.
+  Most important thing learned: R2 closes on BSW plus cubic Inv Tseitin;
+  classical random 3-CNF α = 1 is not claimed.
