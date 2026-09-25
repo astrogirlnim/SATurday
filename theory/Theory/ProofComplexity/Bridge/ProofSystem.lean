@@ -8889,33 +8889,40 @@ theorem afterDecodePairResult_length_le_outBound (s : List Bool) :
     (afterDecodePairResult s).length ≤ afterDecodePairResultOutBound.eval s.length := by
   simpa [afterDecodePairResultOutBound_eval] using length_afterDecodePairResult_le s
 
-/-! ## Cluster D3.1 FinTM2: `afterDecodePairResultComputer` (fail-tag path)
+/-! ## Cluster D3.1 FinTM2: `afterDecodePairResultComputer`
 
 Fail tag `[true]` (and drain of a leading `true` with leftover) emits `[true]`.
-Success path `false :: encodePair (φCode, table)` is Stmt-scaffolded toward
-`validatesTautologyResult`; full Evals for the index loop remain with the
-sequencer packaging below. -/
+Success tag `false :: rest` runs the certified `encodePair` load (as in
+`bitsEqualComputer`): parse fail drains and emits `[true]`; parse success loads
+`(φCode.reverse, table.reverse)` then currently drains and rejects (scaffold
+toward `indexValidate` / `validatesTautologyResult`). Certified Evals cover
+fail-tag, parse-fail, and success-tag reject cases where the semantic output
+is `[true]`. Accept `false :: φCode` remains with the indexValidate sequencer. -/
 
 open TM2.Stmt
 
 inductive ADRStack where
-  | inp | work | out
+  | inp | left | right | work | out
   deriving DecidableEq, Repr
 
 instance : Fintype ADRStack where
-  elems := {.inp, .work, .out}
+  elems := {.inp, .left, .right, .work, .out}
   complete s := by cases s <;> simp
 
 inductive ADRLabel where
-  | readTag | drainTrue | writeFail | parsePair
+  | readTag | drainTrue | writeFail
+  | parse | expectBit | loadRight
+  | clearLeft | clearRight | afterParse
   deriving DecidableEq, Repr
 
 instance : Fintype ADRLabel where
-  elems := {.readTag, .drainTrue, .writeFail, .parsePair}
+  elems := {.readTag, .drainTrue, .writeFail, .parse, .expectBit, .loadRight,
+    .clearLeft, .clearRight, .afterParse}
   complete s := by cases s <;> simp
 
-/-- FinTM2 for `afterDecodePairResult` fail-tag cases. Leading `true` drains
-and emits `[true]`. Leading `false` goes to `parsePair` (success scaffold). -/
+/-- FinTM2 for `afterDecodePairResult`. Leading `true` drains and emits
+`[true]`. Leading `false` parses `encodePair` into `left`/`right`; parse fail
+or post-load scaffold drains and emits `[true]`. -/
 def afterDecodePairResultComputer : FinTM2 where
   K := ADRStack
   k₀ := .inp
@@ -8932,7 +8939,7 @@ def afterDecodePairResultComputer : FinTM2 where
             (load (fun _ => none) <| goto fun _ => ADRLabel.writeFail)
             (branch (fun s => decide (s = some true))
               (load (fun _ => none) <| goto fun _ => ADRLabel.drainTrue)
-              (load (fun _ => none) <| goto fun _ => ADRLabel.parsePair))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.parse))
     | .drainTrue =>
         pop ADRStack.inp (fun _ o => o) <|
           branch (fun s => decide (s = none))
@@ -8941,38 +8948,70 @@ def afterDecodePairResultComputer : FinTM2 where
     | .writeFail =>
         push ADRStack.out (fun _ => true) <|
           load (fun _ => none) halt
-    | .parsePair =>
-        -- Success scaffold: currently reject until indexValidate FinTM2 lands.
-        -- Correctness on success inputs is not claimed by the fail-tag theorems.
-        load (fun _ => none) <| goto fun _ => ADRLabel.writeFail
+    | .parse =>
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearLeft)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.loadRight)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.expectBit))
+    | .expectBit =>
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearLeft)
+            (push ADRStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.parse)
+    | .loadRight =>
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.afterParse)
+            (push ADRStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.loadRight)
+    | .afterParse =>
+        -- Success scaffold: reject until indexValidate FinTM2 lands.
+        -- Correct on inputs whose semantic output is `[true]` (decodeFormula
+        -- fail, length-gate fail, non-tautology table); accept path Remaining.
+        load (fun _ => none) <| goto fun _ => ADRLabel.clearLeft
+    | .clearLeft =>
+        pop ADRStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearRight)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearLeft)
+    | .clearRight =>
+        pop ADRStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.writeFail)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearRight)
 
-def adrStk (inp work out : List Bool) : ADRStack → List Bool
+def adrStk (inp left right work out : List Bool) : ADRStack → List Bool
   | .inp => inp
+  | .left => left
+  | .right => right
   | .work => work
   | .out => out
 
 def adrCfg (l : Option ADRLabel) (v : Option Bool)
-    (inp work out : List Bool) : afterDecodePairResultComputer.Cfg :=
-  ⟨l, v, adrStk inp work out⟩
+    (inp left right work out : List Bool) : afterDecodePairResultComputer.Cfg :=
+  ⟨l, v, adrStk inp left right work out⟩
 
 theorem afterDecodePairResult_initList (s : List Bool) :
     initList afterDecodePairResultComputer s =
-      adrCfg (some .readTag) none s [] [] := by
+      adrCfg (some .readTag) none s [] [] [] [] := by
   refine congrArg (fun stk =>
       (⟨some ADRLabel.readTag, none, stk⟩ : afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [afterDecodePairResultComputer, adrStk]
 
 theorem afterDecodePairResult_haltList (out : List Bool) :
     haltList afterDecodePairResultComputer out =
-      adrCfg none none [] [] out := by
+      adrCfg none none [] [] [] [] out := by
   refine congrArg (fun stk =>
       (⟨(none : Option ADRLabel), none, stk⟩ : afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [afterDecodePairResultComputer, adrStk]
 
-theorem adr_step_readTag_nil (work out : List Bool) (v : Option Bool) :
+theorem adr_step_readTag_nil (left right work out : List Bool) (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
-      (adrCfg (some .readTag) v [] work out) =
-      some (adrCfg (some .writeFail) none [] work out) := by
+      (adrCfg (some .readTag) v [] left right work out) =
+      some (adrCfg (some .writeFail) none [] left right work out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -8980,33 +9019,11 @@ theorem adr_step_readTag_nil (work out : List Bool) (v : Option Bool) :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
-theorem adr_step_readTag_true (rest work out : List Bool) (v : Option Bool) :
-    TM2.step afterDecodePairResultComputer.m
-      (adrCfg (some .readTag) v (true :: rest) work out) =
-      some (adrCfg (some .drainTrue) none rest work out) := by
-  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
-  refine congrArg some <|
-    congrArg (fun stk =>
-      (⟨some ADRLabel.drainTrue, (none : Option Bool), stk⟩ :
-        afterDecodePairResultComputer.Cfg)) ?_
-  funext k; cases k <;> simp [Function.update, adrStk]
-
-theorem adr_step_readTag_false (rest work out : List Bool) (v : Option Bool) :
-    TM2.step afterDecodePairResultComputer.m
-      (adrCfg (some .readTag) v (false :: rest) work out) =
-      some (adrCfg (some .parsePair) none rest work out) := by
-  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
-  refine congrArg some <|
-    congrArg (fun stk =>
-      (⟨some ADRLabel.parsePair, (none : Option Bool), stk⟩ :
-        afterDecodePairResultComputer.Cfg)) ?_
-  funext k; cases k <;> simp [Function.update, adrStk]
-
-theorem adr_step_drainTrue_cons (b : Bool) (rest work out : List Bool)
+theorem adr_step_readTag_true (rest left right work out : List Bool)
     (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
-      (adrCfg (some .drainTrue) v (b :: rest) work out) =
-      some (adrCfg (some .drainTrue) none rest work out) := by
+      (adrCfg (some .readTag) v (true :: rest) left right work out) =
+      some (adrCfg (some .drainTrue) none rest left right work out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -9014,10 +9031,35 @@ theorem adr_step_drainTrue_cons (b : Bool) (rest work out : List Bool)
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
-theorem adr_step_drainTrue_nil (work out : List Bool) (v : Option Bool) :
+theorem adr_step_readTag_false (rest left right work out : List Bool)
+    (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
-      (adrCfg (some .drainTrue) v [] work out) =
-      some (adrCfg (some .writeFail) none [] work out) := by
+      (adrCfg (some .readTag) v (false :: rest) left right work out) =
+      some (adrCfg (some .parse) none rest left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.parse, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_drainTrue_cons (b : Bool) (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .drainTrue) v (b :: rest) left right work out) =
+      some (adrCfg (some .drainTrue) none rest left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.drainTrue, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_drainTrue_nil (left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .drainTrue) v [] left right work out) =
+      some (adrCfg (some .writeFail) none [] left right work out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -9025,10 +9067,11 @@ theorem adr_step_drainTrue_nil (work out : List Bool) (v : Option Bool) :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
-theorem adr_step_writeFail (inp work out : List Bool) (v : Option Bool) :
+theorem adr_step_writeFail (inp left right work out : List Bool)
+    (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
-      (adrCfg (some .writeFail) v inp work out) =
-      some (adrCfg none none inp work (true :: out)) := by
+      (adrCfg (some .writeFail) v inp left right work out) =
+      some (adrCfg none none inp left right work (true :: out)) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -9036,10 +9079,140 @@ theorem adr_step_writeFail (inp work out : List Bool) (v : Option Bool) :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
-theorem adr_step_parsePair (inp work out : List Bool) (v : Option Bool) :
+theorem adr_step_parse_nil (left right work out : List Bool) (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
-      (adrCfg (some .parsePair) v inp work out) =
-      some (adrCfg (some .writeFail) none inp work out) := by
+      (adrCfg (some .parse) v [] left right work out) =
+      some (adrCfg (some .clearLeft) none [] left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearLeft, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_parse_false (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .parse) v (false :: rest) left right work out) =
+      some (adrCfg (some .loadRight) none rest left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.loadRight, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_parse_true (b : Bool) (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .parse) v (true :: b :: rest) left right work out) =
+      some (adrCfg (some .expectBit) none (b :: rest) left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.expectBit, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_expectBit (b : Bool) (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .expectBit) v (b :: rest) left right work out) =
+      some (adrCfg (some .parse) none rest (b :: left) right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.parse, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_expectBit_nil (left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .expectBit) v [] left right work out) =
+      some (adrCfg (some .clearLeft) none [] left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearLeft, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_loadRight_cons (b : Bool) (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .loadRight) v (b :: rest) left right work out) =
+      some (adrCfg (some .loadRight) none rest left (b :: right) work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.loadRight, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_loadRight_nil (left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .loadRight) v [] left right work out) =
+      some (adrCfg (some .afterParse) none [] left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.afterParse, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_afterParse (inp left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .afterParse) v inp left right work out) =
+      some (adrCfg (some .clearLeft) none inp left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearLeft, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_clearLeft_cons (b : Bool) (rest right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .clearLeft) v [] (b :: rest) right work out) =
+      some (adrCfg (some .clearLeft) none [] rest right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearLeft, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_clearLeft_nil (right work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .clearLeft) v [] [] right work out) =
+      some (adrCfg (some .clearRight) none [] [] right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearRight, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_clearRight_cons (b : Bool) (rest work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .clearRight) v [] [] (b :: rest) work out) =
+      some (adrCfg (some .clearRight) none [] [] rest work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearRight, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_clearRight_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .clearRight) v [] [] [] work out) =
+      some (adrCfg (some .writeFail) none [] [] [] work out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -9048,20 +9221,62 @@ theorem adr_step_parsePair (inp work out : List Bool) (v : Option Bool) :
   funext k; cases k <;> simp [Function.update, adrStk]
 
 def adr_evals_one {l l' : Option ADRLabel} {v v' : Option Bool}
-    {inp work out inp' work' out' : List Bool}
+    {inp left right work out inp' left' right' work' out' : List Bool}
     (h : TM2.step afterDecodePairResultComputer.m
-      (adrCfg l v inp work out) =
-      some (adrCfg l' v' inp' work' out')) :
+      (adrCfg l v inp left right work out) =
+      some (adrCfg l' v' inp' left' right' work' out')) :
     EvalsToInTime afterDecodePairResultComputer.step
-      (adrCfg l v inp work out)
-      (some (adrCfg l' v' inp' work' out')) 1 where
+      (adrCfg l v inp left right work out)
+      (some (adrCfg l' v' inp' left' right' work' out')) 1 where
   steps := 1
   steps_le_m := by decide
   evals_in_steps := by
-    change (some (adrCfg l v inp work out)).bind afterDecodePairResultComputer.step =
-      some (adrCfg l' v' inp' work' out')
+    change (some (adrCfg l v inp left right work out)).bind
+        afterDecodePairResultComputer.step =
+      some (adrCfg l' v' inp' left' right' work' out')
     simp only [FinTM2.step]
     exact h
+
+/-- Drain `right` then emit `[true]` (inp, left, work empty). -/
+noncomputable def adr_evals_clearRight (right : List Bool) (work out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .clearRight) v [] [] right work out)
+      (some (adrCfg none none [] [] [] work (true :: out)))
+      (right.length + 2) := by
+  induction right generalizing v with
+  | nil =>
+      have h1 := adr_evals_one (adr_step_clearRight_nil work out v)
+      have h2 := adr_evals_one (adr_step_writeFail [] [] [] work out none)
+      exact EvalsToInTime.trans afterDecodePairResultComputer.step 1 1 _ _ _ h1 h2
+  | cons b bs ih =>
+      have h1 := adr_evals_one (adr_step_clearRight_cons b bs work out v)
+      have h2 := ih none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        1 (bs.length + 2) _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by simp [List.length_cons])
+
+/-- Drain `left` then `right` then emit `[true]` (inp and work empty). -/
+noncomputable def adr_evals_clear_to_fail (left right : List Bool)
+    (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .clearLeft) v [] left right work out)
+      (some (adrCfg none none [] [] [] work (true :: out)))
+      (left.length + right.length + 3) := by
+  induction left generalizing v with
+  | nil =>
+      have h1 := adr_evals_one (adr_step_clearLeft_nil right work out v)
+      have h2 := adr_evals_clearRight right work out none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        1 (right.length + 2) _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by omega)
+  | cons b bs ih =>
+      have h1 := adr_evals_one
+        (adr_step_clearLeft_cons b bs right work out v)
+      have h2 := ih none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        1 (bs.length + right.length + 3) _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by simp [List.length_cons])
 
 /-- Fail-tag singleton `[true]` → `[true]` in 3 steps. -/
 noncomputable def afterDecodePairResult_evals_fail_tag :
@@ -9070,9 +9285,9 @@ noncomputable def afterDecodePairResult_evals_fail_tag :
     (initList afterDecodePairResultComputer [true])
     (some (haltList afterDecodePairResultComputer [true])) 3
   rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
-  have h1 := adr_evals_one (adr_step_readTag_true [] [] [] none)
-  have h2 := adr_evals_one (adr_step_drainTrue_nil [] [] none)
-  have h3 := adr_evals_one (adr_step_writeFail [] [] [] none)
+  have h1 := adr_evals_one (adr_step_readTag_true [] [] [] [] [] none)
+  have h2 := adr_evals_one (adr_step_drainTrue_nil [] [] [] [] none)
+  have h3 := adr_evals_one (adr_step_writeFail [] [] [] [] [] none)
   have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1 _ _ _ h1 h2
   exact EvalsToInTime.trans afterDecodePairResultComputer.step 2 1 _ _ _ t12 h3
 
@@ -9083,9 +9298,195 @@ noncomputable def afterDecodePairResult_evals_nil :
     (initList afterDecodePairResultComputer [])
     (some (haltList afterDecodePairResultComputer [true])) 2
   rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
-  have h1 := adr_evals_one (adr_step_readTag_nil [] [] none)
-  have h2 := adr_evals_one (adr_step_writeFail [] [] [] none)
+  have h1 := adr_evals_one (adr_step_readTag_nil [] [] [] [] none)
+  have h2 := adr_evals_one (adr_step_writeFail [] [] [] [] [] none)
   exact EvalsToInTime.trans afterDecodePairResultComputer.step 1 1 _ _ _ h1 h2
+
+/-! ### Cluster D3.1 success-tag: encodePair load then reject scaffold -/
+
+def adr_evals_one_bit (b : Bool) (rest left right work out : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parse) none (true :: b :: rest) left right work out)
+      (some (adrCfg (some .parse) none rest (b :: left) right work out)) 2 where
+  steps := 2
+  steps_le_m := by decide
+  evals_in_steps := by
+    change ((some (adrCfg (some .parse) none (true :: b :: rest) left right work out)).bind
+        afterDecodePairResultComputer.step).bind afterDecodePairResultComputer.step =
+      some (adrCfg (some .parse) none rest (b :: left) right work out)
+    simp only [FinTM2.step]
+    change ((TM2.step afterDecodePairResultComputer.m
+        (adrCfg (some .parse) none (true :: b :: rest) left right work out)).bind
+        (TM2.step afterDecodePairResultComputer.m)) =
+      some (adrCfg (some .parse) none rest (b :: left) right work out)
+    rw [adr_step_parse_true]
+    exact adr_step_expectBit b rest left right work out none
+
+noncomputable def adr_evals_parse_first (x rest left right work out : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parse) none
+        ((x.flatMap fun b => [true, b]) ++ rest) left right work out)
+      (some (adrCfg (some .parse) none rest (x.reverse ++ left) right work out))
+      (2 * x.length) := by
+  induction x generalizing left with
+  | nil =>
+      simpa using EvalsToInTime.refl afterDecodePairResultComputer.step
+        (adrCfg (some .parse) none rest left right work out)
+  | cons b xs ih =>
+      have h1 :=
+        adr_evals_one_bit b ((xs.flatMap fun b => [true, b]) ++ rest)
+          left right work out
+      have h2 := ih (b :: left)
+      have h :=
+        EvalsToInTime.trans afterDecodePairResultComputer.step 2 (2 * xs.length)
+          (adrCfg (some .parse) none
+            ((b :: xs).flatMap (fun b => [true, b]) ++ rest) left right work out)
+          (adrCfg (some .parse) none
+            ((xs.flatMap fun b => [true, b]) ++ rest) (b :: left) right work out)
+          (some (adrCfg (some .parse) none rest
+            (xs.reverse ++ (b :: left)) right work out))
+          (by simpa [List.flatMap] using h1) h2
+      simpa [List.flatMap, List.reverse_cons, List.append_assoc, Nat.mul_succ,
+        Nat.add_comm, Nat.add_left_comm, Nat.add_assoc, two_mul] using h
+
+noncomputable def adr_evals_loadRight (ys left right work out : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .loadRight) none ys left right work out)
+      (some (adrCfg (some .afterParse) none [] left (ys.reverse ++ right) work out))
+      (ys.length + 1) := by
+  induction ys generalizing right with
+  | nil =>
+      simpa using adr_evals_one (adr_step_loadRight_nil left right work out none)
+  | cons y ys ih =>
+      have h1 := adr_evals_one
+        (adr_step_loadRight_cons y ys left right work out none)
+      have h2 := ih (y :: right)
+      have h :=
+        EvalsToInTime.trans afterDecodePairResultComputer.step 1 (ys.length + 1)
+          _ _ _ h1 h2
+      refine ⟨⟨h.steps, ?_⟩, ?_⟩
+      · simpa [List.reverse_cons, List.append_assoc] using h.evals_in_steps
+      · exact le_trans h.steps_le_m (by simp [List.length_cons])
+
+/-- Load `encodePair (xs, ys)` into reversed stacks, then enter `afterParse`. -/
+noncomputable def adr_evals_load_encodePair (xs ys : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parse) none (encodePair (xs, ys)) [] [] [] [])
+      (some (adrCfg (some .afterParse) none [] xs.reverse ys.reverse [] []))
+      (2 * xs.length + ys.length + 2) := by
+  have hparse :=
+    adr_evals_parse_first xs (false :: ys) [] [] [] []
+  have htoLoad :=
+    adr_evals_one (adr_step_parse_false ys xs.reverse [] [] [] none)
+  have hload :=
+    adr_evals_loadRight ys xs.reverse [] [] []
+  have h1 : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parse) none (encodePair (xs, ys)) [] [] [] [])
+      (some (adrCfg (some .parse) none (false :: ys) xs.reverse [] [] []))
+      (2 * xs.length) := by
+    simpa [encodePair, List.append_assoc] using hparse
+  have h12 :=
+    EvalsToInTime.trans afterDecodePairResultComputer.step (2 * xs.length) 1
+      _ _ _ h1 htoLoad
+  have h12' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parse) none (encodePair (xs, ys)) [] [] [] [])
+      (some (adrCfg (some .loadRight) none ys xs.reverse [] [] []))
+      (2 * xs.length + 1) := by
+    simpa [Nat.add_comm] using h12
+  have h :=
+    EvalsToInTime.trans afterDecodePairResultComputer.step
+      (2 * xs.length + 1) (ys.length + 1) _ _ _ h12' hload
+  refine ⟨⟨h.steps, ?_⟩, ?_⟩
+  · simpa [List.append_nil] using h.evals_in_steps
+  · refine le_trans h.steps_le_m ?_
+    omega
+
+theorem afterDecodePairResult_of_false_decode_fail {rest : List Bool}
+    (h : decodePair rest = none) :
+    afterDecodePairResult (false :: rest) = [true] := by
+  simp [afterDecodePairResult, decodeDecodePairResult, h]
+
+/-- Success-tag parse fail: `false :: []` → `[true]`. -/
+noncomputable def afterDecodePairResult_evals_false_nil :
+    TM2OutputsInTime afterDecodePairResultComputer (false :: []) (some [true])
+      5 := by
+  change EvalsToInTime afterDecodePairResultComputer.step
+    (initList afterDecodePairResultComputer (false :: []))
+    (some (haltList afterDecodePairResultComputer [true])) 5
+  rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
+  have h1 := adr_evals_one (adr_step_readTag_false [] [] [] [] [] none)
+  have h2 := adr_evals_one (adr_step_parse_nil [] [] [] [] none)
+  have h3 := adr_evals_clear_to_fail [] [] [] [] none
+  have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1 _ _ _ h1 h2
+  exact EvalsToInTime.trans afterDecodePairResultComputer.step 2 3 _ _ _ t12 h3
+
+/-- Success-tag parse fail: `false :: [true]` → `[true]`. -/
+noncomputable def afterDecodePairResult_evals_false_true :
+    TM2OutputsInTime afterDecodePairResultComputer (false :: [true]) (some [true])
+      6 := by
+  change EvalsToInTime afterDecodePairResultComputer.step
+    (initList afterDecodePairResultComputer (false :: [true]))
+    (some (haltList afterDecodePairResultComputer [true])) 6
+  rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
+  have h1 := adr_evals_one (adr_step_readTag_false [true] [] [] [] [] none)
+  -- parse on [true]: pop true → expectBit on []
+  have h2 : TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .parse) none [true] [] [] [] []) =
+      some (adrCfg (some .expectBit) none [] [] [] [] []) := by
+    simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+    refine congrArg some <|
+      congrArg (fun stk =>
+        (⟨some ADRLabel.expectBit, (none : Option Bool), stk⟩ :
+          afterDecodePairResultComputer.Cfg)) ?_
+    funext k; cases k <;> simp [Function.update, adrStk]
+  have h2e := adr_evals_one h2
+  have h3 := adr_evals_one (adr_step_expectBit_nil [] [] [] [] none)
+  have h4 := adr_evals_clear_to_fail [] [] [] [] none
+  have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1 _ _ _ h1 h2e
+  have t123 := EvalsToInTime.trans afterDecodePairResultComputer.step 2 1 _ _ _ t12 h3
+  exact EvalsToInTime.trans afterDecodePairResultComputer.step 3 3 _ _ _ t123 h4
+
+/-- Success-tag reject scaffold: after loading `encodePair`, drain and emit
+`[true]`. Semantically matches `afterDecodePairResult` whenever
+`validatesTautologyResult φCode table = [true]` (decodeFormula fail, length-gate
+fail, or non-tautology table). Accept path Remaining. -/
+noncomputable def afterDecodePairResult_evals_encodePair_reject
+    (φCode table : List Bool)
+    (h : validatesTautologyResult φCode table = [true]) :
+    TM2OutputsInTime afterDecodePairResultComputer
+      (false :: encodePair (φCode, table)) (some [true])
+      (2 * φCode.length + table.length + φCode.length + table.length + 7) := by
+  change EvalsToInTime afterDecodePairResultComputer.step
+    (initList afterDecodePairResultComputer (false :: encodePair (φCode, table)))
+    (some (haltList afterDecodePairResultComputer [true]))
+    (2 * φCode.length + table.length + φCode.length + table.length + 7)
+  rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
+  have htag := adr_evals_one
+    (adr_step_readTag_false (encodePair (φCode, table)) [] [] [] [] none)
+  have hload := adr_evals_load_encodePair φCode table
+  have hafter := adr_evals_one
+    (adr_step_afterParse [] φCode.reverse table.reverse [] [] none)
+  have hclear := adr_evals_clear_to_fail φCode.reverse table.reverse [] [] none
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+    (2 * φCode.length + table.length + 2) _ _ _ htag hload
+  have t1' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .readTag) none (false :: encodePair (φCode, table)) [] [] [] [])
+      (some (adrCfg (some .afterParse) none [] φCode.reverse table.reverse [] []))
+      (2 * φCode.length + table.length + 3) :=
+    evalsToInTime_le_mono t1 (by omega)
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (2 * φCode.length + table.length + 3) 1 _ _ _ t1' hafter
+  have t2' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .readTag) none (false :: encodePair (φCode, table)) [] [] [] [])
+      (some (adrCfg (some .clearLeft) none [] φCode.reverse table.reverse [] []))
+      (2 * φCode.length + table.length + 4) :=
+    evalsToInTime_le_mono t2 (by omega)
+  have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (2 * φCode.length + table.length + 4)
+    (φCode.reverse.length + table.reverse.length + 3) _ _ _ t2' hclear
+  -- Semantic side-condition (keeps this lemma sound for reject cases only).
+  have _ := h
+  exact evalsToInTime_le_mono t3 (by simp [List.length_reverse]; omega)
 
 namespace ProofSystemFrontier
 
@@ -9118,8 +9519,12 @@ composition with an output-size bound.
 Also certified: `afterDecodePairResult` with
 `validatesTautologyResult_on_pair = afterDecodePairResult ∘ decodePairResult`
 and a length bound.
-Remaining: FinTM2 for `afterDecodePairResult` (indexValidate under
-`|table|` fuel via pad/eval/indexStepBits/odometer), then
+Also certified (Cluster D3.1): `afterDecodePairResultComputer` encodePair
+parse (bitsEqual load pattern), fail-tag / parse-fail Evals, and success-tag
+reject scaffold Evals under `validatesTautologyResult = [true]`.
+Remaining: replace `afterParse` reject scaffold with indexValidate under
+`|table|` fuel (pad/eval/indexStepBits/odometer), package
+`afterDecodePairResultComputableInPolyTime`, then
 `comp_idBitEnc_idBitEnc` closes this pin. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc

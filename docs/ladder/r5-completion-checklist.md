@@ -44,7 +44,13 @@ the hard pin first; the soft pin is packaging.
   (via `comp_idBitEnc_idBitEnc` of `decodePairResult` with
   `afterDecodePairResult`; functional equality + outBound certified;
   `afterDecodePairResultComputer` fail-tag Evals certified;
-  Remaining: success-path indexValidate FinTM2 under `|table|` fuel)
+  encodePair parse load certified (`adr_evals_load_encodePair`);
+  parse-fail Evals (`false::[]`, `false::[true]`);
+  success-tag reject scaffold Evals under
+  `validatesTautologyResult = [true]`
+  (`afterDecodePairResult_evals_encodePair_reject`);
+  Remaining: replace `afterParse` reject scaffold with indexValidate
+  under `|table|` fuel; package `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)
