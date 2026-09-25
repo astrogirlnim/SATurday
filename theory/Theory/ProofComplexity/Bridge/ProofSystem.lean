@@ -8893,8 +8893,12 @@ matching `assignmentAt` succession with `odometerSuccComputer` EvalsToInTime /
 `odometerSuccComputableInPolyTime`.
 Also certified: local `comp_idBitEnc_idBitEnc` (Complexity) for Bool-tape
 composition with an output-size bound.
-Remaining: FinTM2 `indexValidateComputer` nesting pad then eval then
-indexStepBits under `|table|` fuel (odometer), then TT map glue into this pin. -/
+Also certified: `afterDecodePairResult` with
+`validatesTautologyResult_on_pair = afterDecodePairResult ∘ decodePairResult`
+and a length bound.
+Remaining: FinTM2 for `afterDecodePairResult` (indexValidate under
+`|table|` fuel via pad/eval/indexStepBits/odometer), then
+`comp_idBitEnc_idBitEnc` closes this pin. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by
