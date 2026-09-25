@@ -6082,6 +6082,1503 @@ theorem validatesTautologyResult_on_pair_eq_inner {π φCode table : List Bool}
       validatesTautologyResult φCode table := by
   simp [validatesTautologyResult_on_pair, h]
 
+/-! ## Cluster D1 FinTM2: `evalEncoded` under `encodePair (σ, φCode)`
+
+Input `encodePair (σ, φCode)`. After load, forward `σ` sits on `assign` and
+forward `φCode` on `code`. Parsing mirrors `evalEncodedPrefixFuel`: tag bits like
+DFR, variable lookup by unary `encodeNat` with assign scan, and connective
+combine on `val`. Continuation markers use a 2-bit code on `inp`.
+
+Marker codes (push low then high; pop high then low):
+- applyNot:    `(false, false)`
+- combineAnd:  `(false, true)`
+- combineOr:   `(true, false)`
+- sibling:     `(true, true)`
+
+Output convention: `[b]` when `evalEncoded σ φCode = some b`; `[false]` on
+failure, matching `(evalEncoded σ φCode).getD false`. -/
+
+open TM2.Stmt
+
+inductive EvalEncStack where
+  | inp | assign | code | val | out
+  deriving DecidableEq, Repr
+
+instance : Fintype EvalEncStack where
+  elems := {.inp, .assign, .code, .val, .out}
+  complete s := by cases s <;> simp
+
+inductive EvalEncLabel where
+  | parse | expectBit | loadCode
+  | fixAssign1 | fixAssign2 | fixAssign3
+  | fixCode1 | fixCode2 | fixCode3
+  | parseTag0 | parseTag1F | parseTag1T
+  | parseNat | skipOne | readResult | restoreAssign
+  | afterSub
+  | doNot | doAndSave | doAndCombine | doOrSave | doOrCombine
+  | checkDone | clearAssign
+  | failClearInp | failClearAssign | failClearCode | failClearVal | failClearOut
+  | writeFalse
+  deriving DecidableEq, Repr
+
+instance : Fintype EvalEncLabel where
+  elems :=
+    {.parse, .expectBit, .loadCode, .fixAssign1, .fixAssign2, .fixAssign3,
+      .fixCode1, .fixCode2, .fixCode3, .parseTag0, .parseTag1F, .parseTag1T,
+      .parseNat, .skipOne, .readResult, .restoreAssign, .afterSub, .doNot,
+      .doAndSave, .doAndCombine, .doOrSave, .doOrCombine, .checkDone, .clearAssign,
+      .failClearInp, .failClearAssign, .failClearCode, .failClearVal, .failClearOut,
+      .writeFalse}
+  complete s := by cases s <;> simp
+
+/-- FinTM2 realizing `(evalEncoded σ φCode).getD false` on `encodePair (σ, φCode)`. -/
+def evalEncodedComputer : FinTM2 where
+  K := EvalEncStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := EvalEncLabel
+  main := .parse
+  σ := Option Bool
+  initialState := none
+  m
+    | .parse =>
+        pop EvalEncStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.writeFalse)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => EvalEncLabel.loadCode)
+              (load (fun _ => none) <| goto fun _ => EvalEncLabel.expectBit))
+    | .expectBit =>
+        pop EvalEncStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.writeFalse)
+            (push EvalEncStack.assign (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.parse)
+    | .loadCode =>
+        pop EvalEncStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.fixAssign1)
+            (push EvalEncStack.code (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.loadCode)
+    | .fixAssign1 =>
+        pop EvalEncStack.assign (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.fixAssign2)
+            (push EvalEncStack.inp (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.fixAssign1)
+    | .fixAssign2 =>
+        pop EvalEncStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.fixAssign3)
+            (push EvalEncStack.val (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.fixAssign2)
+    | .fixAssign3 =>
+        pop EvalEncStack.val (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.fixCode1)
+            (push EvalEncStack.assign (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.fixAssign3)
+    | .fixCode1 =>
+        pop EvalEncStack.code (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.fixCode2)
+            (push EvalEncStack.inp (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.fixCode1)
+    | .fixCode2 =>
+        pop EvalEncStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.fixCode3)
+            (push EvalEncStack.val (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.fixCode2)
+    | .fixCode3 =>
+        pop EvalEncStack.val (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.parseTag0)
+            (push EvalEncStack.code (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.fixCode3)
+    | .parseTag0 =>
+        pop EvalEncStack.code (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => EvalEncLabel.parseTag1F)
+              (load (fun _ => none) <| goto fun _ => EvalEncLabel.parseTag1T))
+    | .parseTag1F =>
+        pop EvalEncStack.code (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => EvalEncLabel.parseNat)
+              (push EvalEncStack.inp (fun _ => false) <|
+                push EvalEncStack.inp (fun _ => false) <|
+                  load (fun _ => none) <| goto fun _ => EvalEncLabel.parseTag0))
+    | .parseTag1T =>
+        pop EvalEncStack.code (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+            (branch (fun s => decide (s = some false))
+              (push EvalEncStack.inp (fun _ => false) <|
+                push EvalEncStack.inp (fun _ => true) <|
+                  push EvalEncStack.inp (fun _ => true) <|
+                    push EvalEncStack.inp (fun _ => true) <|
+                      load (fun _ => none) <| goto fun _ => EvalEncLabel.parseTag0)
+              (push EvalEncStack.inp (fun _ => true) <|
+                push EvalEncStack.inp (fun _ => false) <|
+                  push EvalEncStack.inp (fun _ => true) <|
+                    push EvalEncStack.inp (fun _ => true) <|
+                      load (fun _ => none) <| goto fun _ => EvalEncLabel.parseTag0))
+    | .parseNat =>
+        pop EvalEncStack.code (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <| goto fun _ => EvalEncLabel.skipOne)
+              (load (fun _ => none) <| goto fun _ => EvalEncLabel.readResult))
+    | .skipOne =>
+        pop EvalEncStack.assign (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.parseNat)
+            (push EvalEncStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.parseNat)
+    | .readResult =>
+        peek EvalEncStack.assign (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push EvalEncStack.val (fun _ => false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.restoreAssign)
+            (push EvalEncStack.val (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.restoreAssign)
+    | .restoreAssign =>
+        pop EvalEncStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.afterSub)
+            (push EvalEncStack.assign (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.restoreAssign)
+    | .afterSub =>
+        pop EvalEncStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.checkDone)
+            (branch (fun s => decide (s = some true))
+              (pop EvalEncStack.inp (fun _ o => o) <|
+                branch (fun s => decide (s = none))
+                  (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+                  (branch (fun s => decide (s = some true))
+                    (load (fun _ => none) <| goto fun _ => EvalEncLabel.parseTag0)
+                    (load (fun _ => none) <| goto fun _ => EvalEncLabel.doAndSave)))
+              (pop EvalEncStack.inp (fun _ o => o) <|
+                branch (fun s => decide (s = none))
+                  (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+                  (branch (fun s => decide (s = some true))
+                    (load (fun _ => none) <| goto fun _ => EvalEncLabel.doOrSave)
+                    (load (fun _ => none) <| goto fun _ => EvalEncLabel.doNot))))
+    | .doNot =>
+        pop EvalEncStack.val (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+            (push EvalEncStack.val (fun s => !(s.getD false)) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.afterSub)
+    | .doAndSave =>
+        pop EvalEncStack.val (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+            (push EvalEncStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.doAndCombine)
+    | .doAndCombine =>
+        pop EvalEncStack.val (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+            (pop EvalEncStack.out (fun s o =>
+                match s, o with
+                | some bφ, some bψ => some (bφ && bψ)
+                | _, _ => none) <|
+              branch (fun s => decide (s = none))
+                (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+                (push EvalEncStack.val (fun s => s.getD false) <|
+                  load (fun _ => none) <| goto fun _ => EvalEncLabel.afterSub))
+    | .doOrSave =>
+        pop EvalEncStack.val (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+            (push EvalEncStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => EvalEncLabel.doOrCombine)
+    | .doOrCombine =>
+        pop EvalEncStack.val (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+            (pop EvalEncStack.out (fun s o =>
+                match s, o with
+                | some bφ, some bψ => some (bφ || bψ)
+                | _, _ => none) <|
+              branch (fun s => decide (s = none))
+                (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+                (push EvalEncStack.val (fun s => s.getD false) <|
+                  load (fun _ => none) <| goto fun _ => EvalEncLabel.afterSub))
+    | .checkDone =>
+        pop EvalEncStack.code (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (pop EvalEncStack.val (fun _ o => o) <|
+              branch (fun s => decide (s = none))
+                (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+                (push EvalEncStack.out (fun s => s.getD false) <|
+                  pop EvalEncStack.val (fun _ o => o) <|
+                    branch (fun s => decide (s = none))
+                      (load (fun _ => none) <| goto fun _ => EvalEncLabel.clearAssign)
+                      (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+    | .clearAssign =>
+        pop EvalEncStack.assign (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| halt)
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.clearAssign)
+    | .failClearInp =>
+        pop EvalEncStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearAssign)
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearInp)
+    | .failClearAssign =>
+        pop EvalEncStack.assign (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearCode)
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearAssign)
+    | .failClearCode =>
+        pop EvalEncStack.code (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearVal)
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearCode)
+    | .failClearVal =>
+        pop EvalEncStack.val (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearOut)
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearVal)
+    | .failClearOut =>
+        pop EvalEncStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.writeFalse)
+            (load (fun _ => none) <| goto fun _ => EvalEncLabel.failClearOut)
+    | .writeFalse =>
+        push EvalEncStack.out (fun _ => false) <|
+          load (fun _ => none) <|
+            halt
+
+def evalEncStk (inp assign code val out : List Bool) : EvalEncStack → List Bool
+  | .inp => inp
+  | .assign => assign
+  | .code => code
+  | .val => val
+  | .out => out
+
+def evalEncCfg (l : Option EvalEncLabel) (v : Option Bool)
+    (inp assign code val out : List Bool) : evalEncodedComputer.Cfg :=
+  ⟨l, v, evalEncStk inp assign code val out⟩
+
+theorem evalEnc_initList (s : List Bool) :
+    initList evalEncodedComputer s =
+      evalEncCfg (some .parse) none s [] [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some EvalEncLabel.parse, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [evalEncodedComputer, evalEncStk]
+
+theorem evalEnc_haltList (out : List Bool) :
+    haltList evalEncodedComputer out =
+      evalEncCfg none none [] [] [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option EvalEncLabel), none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [evalEncodedComputer, evalEncStk]
+
+/-! ### evalEncodedComputer step lemmas -/
+
+open StateTransition
+
+private theorem evalEnc_cfg_ext {l : Option EvalEncLabel} {v : Option Bool}
+    {inp assign code val out : List Bool}
+    {l' : Option EvalEncLabel} {v' : Option Bool}
+    {inp' assign' code' val' out' : List Bool}
+    (hl : l = l') (hv : v = v') (hi : inp = inp') (ha : assign = assign')
+    (hc : code = code') (hval : val = val') (ho : out = out') :
+    evalEncCfg l v inp assign code val out =
+      evalEncCfg l' v' inp' assign' code' val' out' := by
+  subst_vars; rfl
+
+theorem evalEnc_step_parse_false (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parse) none (false :: rest) assign code val out) =
+      some (evalEncCfg (some .loadCode) none rest assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.loadCode, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parse_true (b : Bool) (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parse) none (true :: b :: rest) assign code val out) =
+      some (evalEncCfg (some .expectBit) none (b :: rest) assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.expectBit, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parse_nil (assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parse) none [] assign code val out) =
+      some (evalEncCfg (some .writeFalse) none [] assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.writeFalse, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_expectBit (b : Bool) (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .expectBit) none (b :: rest) assign code val out) =
+      some (evalEncCfg (some .parse) none rest (b :: assign) code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parse, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_loadCode_cons (b : Bool) (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .loadCode) none (b :: rest) assign code val out) =
+      some (evalEncCfg (some .loadCode) none rest assign (b :: code) val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.loadCode, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_loadCode_nil (assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .loadCode) none [] assign code val out) =
+      some (evalEncCfg (some .fixAssign1) none [] assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixAssign1, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_writeFalse (inp assign code val : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .writeFalse) none inp assign code val []) =
+      some (evalEncCfg none none inp assign code val [false]) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option EvalEncLabel), none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parseTag0_false (rest inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parseTag0) none inp assign (false :: rest) val out) =
+      some (evalEncCfg (some .parseTag1F) none inp assign rest val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseTag1F, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parseTag0_true (rest inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parseTag0) none inp assign (true :: rest) val out) =
+      some (evalEncCfg (some .parseTag1T) none inp assign rest val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseTag1T, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parseTag0_nil (inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parseTag0) none inp assign [] val out) =
+      some (evalEncCfg (some .failClearInp) none inp assign [] val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.failClearInp, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parseTag1F_var (rest inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parseTag1F) none inp assign (false :: rest) val out) =
+      some (evalEncCfg (some .parseNat) none inp assign rest val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseNat, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parseTag1F_not (rest inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parseTag1F) none inp assign (true :: rest) val out) =
+      some (evalEncCfg (some .parseTag0) none (false :: false :: inp) assign rest val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseTag0, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parseTag1T_and (rest inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parseTag1T) none inp assign (false :: rest) val out) =
+      some (evalEncCfg (some .parseTag0) none
+        (true :: true :: true :: false :: inp) assign rest val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseTag0, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parseTag1T_or (rest inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parseTag1T) none inp assign (true :: rest) val out) =
+      some (evalEncCfg (some .parseTag0) none
+        (true :: true :: false :: true :: inp) assign rest val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseTag0, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_doNot (b : Bool) (rest inp assign code out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .doNot) none inp assign code (b :: rest) out) =
+      some (evalEncCfg (some .afterSub) none inp assign code ((!b) :: rest) out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.afterSub, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_clearAssign_nil (inp code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .clearAssign) none inp [] code val out) =
+      some (evalEncCfg none none inp [] code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option EvalEncLabel), none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_clearAssign_cons (b : Bool) (rest inp code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .clearAssign) none inp (b :: rest) code val out) =
+      some (evalEncCfg (some .clearAssign) none inp rest code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.clearAssign, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+/-- Step budget for evaluating `encodeFormula φ` under assignment `σ` from
+`parseTag0` through `afterSub` (result pushed on `val`). -/
+def evalEncParseCost (φ : PropFormula) (σ : List Bool) : ℕ :=
+  match φ with
+  | .var n => 3 + (n + 1) + 1 + (min n σ.length) + 1
+  | .not ψ => 3 + evalEncParseCost ψ σ + 1 + 1
+  | .and ψ χ => 3 + 1 + evalEncParseCost ψ σ + 1 + evalEncParseCost χ σ + 1 + 1
+  | .or ψ χ => 3 + 1 + evalEncParseCost ψ σ + 1 + evalEncParseCost χ σ + 1 + 1
+
+/-- Generous poly bound used for `TM2ComputableInPolyTime` packaging. -/
+noncomputable def evalEncodedTime : Polynomial ℕ :=
+  20 * (Polynomial.X + 1) ^ 3
+
+theorem evalEncodedTime_eval (n : ℕ) :
+    evalEncodedTime.eval n = 20 * (n + 1) ^ 3 := by
+  simp [evalEncodedTime]
+
+
+
+theorem evalEnc_step_fixAssign1_cons (b : Bool) (rest inp code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixAssign1) none inp (b :: rest) code val out) =
+      some (evalEncCfg (some .fixAssign1) none (b :: inp) rest code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixAssign1, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixAssign1_nil (inp code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixAssign1) none inp [] code val out) =
+      some (evalEncCfg (some .fixAssign2) none inp [] code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixAssign2, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixAssign2_cons (b : Bool) (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixAssign2) none (b :: rest) assign code val out) =
+      some (evalEncCfg (some .fixAssign2) none rest assign code (b :: val) out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixAssign2, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixAssign2_nil (assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixAssign2) none [] assign code val out) =
+      some (evalEncCfg (some .fixAssign3) none [] assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixAssign3, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixAssign3_cons (b : Bool) (rest inp assign code out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixAssign3) none inp assign code (b :: rest) out) =
+      some (evalEncCfg (some .fixAssign3) none inp (b :: assign) code rest out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixAssign3, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixAssign3_nil (inp assign code out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixAssign3) none inp assign code [] out) =
+      some (evalEncCfg (some .fixCode1) none inp assign code [] out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixCode1, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixCode1_cons (b : Bool) (rest inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixCode1) none inp assign (b :: rest) val out) =
+      some (evalEncCfg (some .fixCode1) none (b :: inp) assign rest val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixCode1, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixCode1_nil (inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixCode1) none inp assign [] val out) =
+      some (evalEncCfg (some .fixCode2) none inp assign [] val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixCode2, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixCode2_cons (b : Bool) (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixCode2) none (b :: rest) assign code val out) =
+      some (evalEncCfg (some .fixCode2) none rest assign code (b :: val) out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixCode2, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixCode2_nil (assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixCode2) none [] assign code val out) =
+      some (evalEncCfg (some .fixCode3) none [] assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixCode3, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixCode3_cons (b : Bool) (rest inp assign code out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixCode3) none inp assign code (b :: rest) out) =
+      some (evalEncCfg (some .fixCode3) none inp assign (b :: code) rest out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.fixCode3, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_fixCode3_nil (inp assign code out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .fixCode3) none inp assign code [] out) =
+      some (evalEncCfg (some .parseTag0) none inp assign code [] out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseTag0, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parseNat_true (rest inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parseNat) none inp assign (true :: rest) val out) =
+      some (evalEncCfg (some .skipOne) none inp assign rest val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.skipOne, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_parseNat_false (rest inp assign val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .parseNat) none inp assign (false :: rest) val out) =
+      some (evalEncCfg (some .readResult) none inp assign rest val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.readResult, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_skipOne_cons (b : Bool) (rest inp code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .skipOne) none inp (b :: rest) code val out) =
+      some (evalEncCfg (some .parseNat) none inp rest code val (b :: out)) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseNat, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_skipOne_nil (inp code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .skipOne) none inp [] code val out) =
+      some (evalEncCfg (some .parseNat) none inp [] code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseNat, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_readResult_nil (inp code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .readResult) none inp [] code val out) =
+      some (evalEncCfg (some .restoreAssign) none inp [] code (false :: val) out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.restoreAssign, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_readResult_cons (b : Bool) (rest inp code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .readResult) none inp (b :: rest) code val out) =
+      some (evalEncCfg (some .restoreAssign) none inp (b :: rest) code (b :: val) out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.restoreAssign, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_restoreAssign_cons (b : Bool) (rest inp assign code val : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .restoreAssign) none inp assign code val (b :: rest)) =
+      some (evalEncCfg (some .restoreAssign) none inp (b :: assign) code val rest) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.restoreAssign, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_restoreAssign_nil (inp assign code val : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .restoreAssign) none inp assign code val []) =
+      some (evalEncCfg (some .afterSub) none inp assign code val []) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.afterSub, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_afterSub_root (assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .afterSub) none [] assign code val out) =
+      some (evalEncCfg (some .checkDone) none [] assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.checkDone, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_afterSub_sibling (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .afterSub) none (true :: true :: rest) assign code val out) =
+      some (evalEncCfg (some .parseTag0) none rest assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.parseTag0, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_afterSub_and (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .afterSub) none (true :: false :: rest) assign code val out) =
+      some (evalEncCfg (some .doAndSave) none rest assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.doAndSave, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_afterSub_or (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .afterSub) none (false :: true :: rest) assign code val out) =
+      some (evalEncCfg (some .doOrSave) none rest assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.doOrSave, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_afterSub_not (rest assign code val out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .afterSub) none (false :: false :: rest) assign code val out) =
+      some (evalEncCfg (some .doNot) none rest assign code val out) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.doNot, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_doAndSave (b : Bool) (rest inp assign code out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .doAndSave) none inp assign code (b :: rest) out) =
+      some (evalEncCfg (some .doAndCombine) none inp assign code rest (b :: out)) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.doAndCombine, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_doAndCombine (bφ bψ : Bool) (rest inp assign code : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .doAndCombine) none inp assign code (bφ :: rest) [bψ]) =
+      some (evalEncCfg (some .afterSub) none inp assign code ((bφ && bψ) :: rest) []) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.afterSub, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_doOrSave (b : Bool) (rest inp assign code out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .doOrSave) none inp assign code (b :: rest) out) =
+      some (evalEncCfg (some .doOrCombine) none inp assign code rest (b :: out)) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.doOrCombine, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_doOrCombine (bφ bψ : Bool) (rest inp assign code : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .doOrCombine) none inp assign code (bφ :: rest) [bψ]) =
+      some (evalEncCfg (some .afterSub) none inp assign code ((bφ || bψ) :: rest) []) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.afterSub, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+theorem evalEnc_step_checkDone (b : Bool) (inp assign out : List Bool) :
+    TM2.step evalEncodedComputer.m
+      (evalEncCfg (some .checkDone) none inp assign [] [b] out) =
+      some (evalEncCfg (some .clearAssign) none inp assign [] [] (b :: out)) := by
+  simp [evalEncodedComputer, evalEncCfg, evalEncStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some EvalEncLabel.clearAssign, none, stk⟩ : evalEncodedComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, evalEncStk]
+
+
+/-! ### Cluster D1 EvalsToInTime -/
+
+set_option maxHeartbeats 8000000
+
+def evalEnc_evals_one {l l' : Option EvalEncLabel} {v v' : Option Bool}
+    {inp assign code val out inp' assign' code' val' out' : List Bool}
+    (h : TM2.step evalEncodedComputer.m
+      (evalEncCfg l v inp assign code val out) =
+      some (evalEncCfg l' v' inp' assign' code' val' out')) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg l v inp assign code val out)
+      (some (evalEncCfg l' v' inp' assign' code' val' out')) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (evalEncCfg l v inp assign code val out)).bind
+        evalEncodedComputer.step =
+      some (evalEncCfg l' v' inp' assign' code' val' out')
+    simp only [FinTM2.step]
+    exact h
+
+/-- Parse first `encodePair` component into reversed assign. -/
+noncomputable def evalEnc_evals_parse_first (xs rest assign code val out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parse) none (encodePair (xs, rest)) assign code val out)
+      (some (evalEncCfg (some .parse) none (false :: rest) (xs.reverse ++ assign) code val out))
+      (2 * xs.length) := by
+  induction xs generalizing assign with
+  | nil =>
+      simpa [encodePair] using
+        EvalsToInTime.refl evalEncodedComputer.step
+          (evalEncCfg (some .parse) none (false :: rest) assign code val out)
+  | cons b xs ih =>
+      have hbits : encodePair (b :: xs, rest) = true :: b :: encodePair (xs, rest) := by
+        simp [encodePair]
+      rw [hbits]
+      have h1 := evalEnc_evals_one (evalEnc_step_parse_true b (encodePair (xs, rest)) assign code val out)
+      have h2 := evalEnc_evals_one (evalEnc_step_expectBit b (encodePair (xs, rest)) assign code val out)
+      have h12 := EvalsToInTime.trans evalEncodedComputer.step 1 1 _ _ _ h1 h2
+      have h3 := ih (b :: assign)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 2 (2 * xs.length) _ _ _ h12 h3
+      simpa [List.reverse_cons, List.append_assoc, Nat.mul_succ, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc, two_mul] using h
+
+noncomputable def evalEnc_evals_loadCode (ys assign code val out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .loadCode) none ys assign code val out)
+      (some (evalEncCfg (some .fixAssign1) none [] assign (ys.reverse ++ code) val out))
+      (ys.length + 1) := by
+  induction ys generalizing code with
+  | nil =>
+      simpa using evalEnc_evals_one (evalEnc_step_loadCode_nil assign code val out)
+  | cons b ys ih =>
+      have h1 := evalEnc_evals_one (evalEnc_step_loadCode_cons b ys assign code val out)
+      have h2 := ih (b :: code)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 1 (ys.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+        using h
+
+noncomputable def evalEnc_evals_fixAssign1 (assign inp code val out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixAssign1) none inp assign code val out)
+      (some (evalEncCfg (some .fixAssign2) none (assign.reverse ++ inp) [] code val out))
+      (assign.length + 1) := by
+  induction assign generalizing inp with
+  | nil =>
+      simpa using evalEnc_evals_one (evalEnc_step_fixAssign1_nil inp code val out)
+  | cons b assign ih =>
+      have h1 := evalEnc_evals_one (evalEnc_step_fixAssign1_cons b assign inp code val out)
+      have h2 := ih (b :: inp)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 1 (assign.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+        using h
+
+noncomputable def evalEnc_evals_fixAssign2 (inp assign code val out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixAssign2) none inp assign code val out)
+      (some (evalEncCfg (some .fixAssign3) none [] assign code (inp.reverse ++ val) out))
+      (inp.length + 1) := by
+  induction inp generalizing val with
+  | nil =>
+      simpa using evalEnc_evals_one (evalEnc_step_fixAssign2_nil assign code val out)
+  | cons b inp ih =>
+      have h1 := evalEnc_evals_one (evalEnc_step_fixAssign2_cons b inp assign code val out)
+      have h2 := ih (b :: val)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 1 (inp.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+        using h
+
+noncomputable def evalEnc_evals_fixAssign3 (val inp assign code out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixAssign3) none inp assign code val out)
+      (some (evalEncCfg (some .fixCode1) none inp (val.reverse ++ assign) code [] out))
+      (val.length + 1) := by
+  induction val generalizing assign with
+  | nil =>
+      simpa using evalEnc_evals_one (evalEnc_step_fixAssign3_nil inp assign code out)
+  | cons b val ih =>
+      have h1 := evalEnc_evals_one (evalEnc_step_fixAssign3_cons b val inp assign code out)
+      have h2 := ih (b :: assign)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 1 (val.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+        using h
+
+noncomputable def evalEnc_evals_fixCode1 (code inp assign val out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixCode1) none inp assign code val out)
+      (some (evalEncCfg (some .fixCode2) none (code.reverse ++ inp) assign [] val out))
+      (code.length + 1) := by
+  induction code generalizing inp with
+  | nil =>
+      simpa using evalEnc_evals_one (evalEnc_step_fixCode1_nil inp assign val out)
+  | cons b code ih =>
+      have h1 := evalEnc_evals_one (evalEnc_step_fixCode1_cons b code inp assign val out)
+      have h2 := ih (b :: inp)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 1 (code.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+        using h
+
+noncomputable def evalEnc_evals_fixCode2 (inp assign code val out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixCode2) none inp assign code val out)
+      (some (evalEncCfg (some .fixCode3) none [] assign code (inp.reverse ++ val) out))
+      (inp.length + 1) := by
+  induction inp generalizing val with
+  | nil =>
+      simpa using evalEnc_evals_one (evalEnc_step_fixCode2_nil assign code val out)
+  | cons b inp ih =>
+      have h1 := evalEnc_evals_one (evalEnc_step_fixCode2_cons b inp assign code val out)
+      have h2 := ih (b :: val)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 1 (inp.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+        using h
+
+noncomputable def evalEnc_evals_fixCode3 (val inp assign code out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixCode3) none inp assign code val out)
+      (some (evalEncCfg (some .parseTag0) none inp assign (val.reverse ++ code) [] out))
+      (val.length + 1) := by
+  induction val generalizing code with
+  | nil =>
+      simpa using evalEnc_evals_one (evalEnc_step_fixCode3_nil inp assign code out)
+  | cons b val ih =>
+      have h1 := evalEnc_evals_one (evalEnc_step_fixCode3_cons b val inp assign code out)
+      have h2 := ih (b :: code)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 1 (val.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+        using h
+
+/-- From loaded reversed stacks, reach `parseTag0` with forward `σ` and `φCode`. -/
+noncomputable def evalEnc_evals_fix (σ φCode : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixAssign1) none [] σ.reverse φCode.reverse [] [])
+      (some (evalEncCfg (some .parseTag0) none [] σ φCode [] []))
+      (3 * σ.length + 3 * φCode.length + 6) := by
+  have h1 := evalEnc_evals_fixAssign1 σ.reverse [] φCode.reverse [] []
+  have h1' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixAssign1) none [] σ.reverse φCode.reverse [] [])
+      (some (evalEncCfg (some .fixAssign2) none σ [] φCode.reverse [] []))
+      (σ.reverse.length + 1) := by
+    simpa [List.reverse_reverse] using h1
+  have h2 := evalEnc_evals_fixAssign2 σ [] φCode.reverse [] []
+  have h2' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixAssign2) none σ [] φCode.reverse [] [])
+      (some (evalEncCfg (some .fixAssign3) none [] [] φCode.reverse σ.reverse []))
+      (σ.length + 1) := by
+    simpa [List.reverse_reverse] using h2
+  have h12 := EvalsToInTime.trans evalEncodedComputer.step (σ.reverse.length + 1) (σ.length + 1)
+    _ _ _ h1' h2'
+  have h3 := evalEnc_evals_fixAssign3 σ.reverse [] [] φCode.reverse []
+  have h3' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixAssign3) none [] [] φCode.reverse σ.reverse [])
+      (some (evalEncCfg (some .fixCode1) none [] σ φCode.reverse [] []))
+      (σ.reverse.length + 1) := by
+    simpa [List.reverse_reverse] using h3
+  have h123 := EvalsToInTime.trans evalEncodedComputer.step
+    ((σ.length + 1) + (σ.reverse.length + 1)) (σ.reverse.length + 1) _ _ _ h12 h3'
+  have h4 := evalEnc_evals_fixCode1 φCode.reverse [] σ [] []
+  have h4' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixCode1) none [] σ φCode.reverse [] [])
+      (some (evalEncCfg (some .fixCode2) none φCode σ [] [] []))
+      (φCode.reverse.length + 1) := by
+    simpa [List.reverse_reverse] using h4
+  have h1234 := EvalsToInTime.trans evalEncodedComputer.step
+    ((σ.reverse.length + 1) + ((σ.length + 1) + (σ.reverse.length + 1)))
+    (φCode.reverse.length + 1) _ _ _ h123 h4'
+  have h5 := evalEnc_evals_fixCode2 φCode σ [] [] []
+  have h5' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixCode2) none φCode σ [] [] [])
+      (some (evalEncCfg (some .fixCode3) none [] σ [] φCode.reverse []))
+      (φCode.length + 1) := by
+    simpa [List.reverse_reverse] using h5
+  have h12345 := EvalsToInTime.trans evalEncodedComputer.step
+    ((φCode.reverse.length + 1) +
+      ((σ.reverse.length + 1) + ((σ.length + 1) + (σ.reverse.length + 1))))
+    (φCode.length + 1) _ _ _ h1234 h5'
+  have h6 := evalEnc_evals_fixCode3 φCode.reverse [] σ [] []
+  have h6' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .fixCode3) none [] σ [] φCode.reverse [])
+      (some (evalEncCfg (some .parseTag0) none [] σ φCode [] []))
+      (φCode.reverse.length + 1) := by
+    simpa [List.reverse_reverse] using h6
+  have h := EvalsToInTime.trans evalEncodedComputer.step
+    ((φCode.length + 1) + ((φCode.reverse.length + 1) +
+      ((σ.reverse.length + 1) + ((σ.length + 1) + (σ.reverse.length + 1)))))
+    (φCode.reverse.length + 1) _ _ _ h12345 h6'
+  refine ⟨h.toEvalsTo, le_trans h.steps_le_m ?_⟩
+  simp [List.length_reverse]; omega
+
+/-- Load `encodePair (σ, φCode)` to `parseTag0` with forward stacks. -/
+noncomputable def evalEnc_evals_load_encodePair (σ φCode : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parse) none (encodePair (σ, φCode)) [] [] [] [])
+      (some (evalEncCfg (some .parseTag0) none [] σ φCode [] []))
+      (2 * σ.length + φCode.length + 2 + 3 * σ.length + 3 * φCode.length + 6) := by
+  have hparse := evalEnc_evals_parse_first σ φCode [] [] [] []
+  have htoLoad := evalEnc_evals_one (evalEnc_step_parse_false φCode σ.reverse [] [] [])
+  have hload := evalEnc_evals_loadCode φCode σ.reverse [] [] []
+  have h1 : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parse) none (encodePair (σ, φCode)) [] [] [] [])
+      (some (evalEncCfg (some .parse) none (false :: φCode) σ.reverse [] [] []))
+      (2 * σ.length) := by
+    simpa [encodePair, List.append_assoc] using hparse
+  have h12 := EvalsToInTime.trans evalEncodedComputer.step (2 * σ.length) 1 _ _ _ h1 htoLoad
+  have h12' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parse) none (encodePair (σ, φCode)) [] [] [] [])
+      (some (evalEncCfg (some .loadCode) none φCode σ.reverse [] [] []))
+      (2 * σ.length + 1) := by
+    simpa [Nat.add_comm] using h12
+  have h123 := EvalsToInTime.trans evalEncodedComputer.step (2 * σ.length + 1) (φCode.length + 1)
+    _ _ _ h12' hload
+  have h123' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parse) none (encodePair (σ, φCode)) [] [] [] [])
+      (some (evalEncCfg (some .fixAssign1) none [] σ.reverse φCode.reverse [] []))
+      (φCode.length + 1 + (2 * σ.length + 1)) := by
+    simpa [List.reverse_reverse, List.append_nil] using h123
+  have hfix := evalEnc_evals_fix σ φCode
+  have h := EvalsToInTime.trans evalEncodedComputer.step
+    (φCode.length + 1 + (2 * σ.length + 1))
+    (3 * σ.length + 3 * φCode.length + 6) _ _ _ h123' hfix
+  refine ⟨h.toEvalsTo, le_trans h.steps_le_m ?_⟩
+  omega
+
+theorem getD_eq_headD_drop (σ : List Bool) (n : ℕ) :
+    σ.getD n false = (σ.drop n).headD false := by
+  induction n generalizing σ with
+  | zero => cases σ <;> simp [List.getD, List.headD]
+  | succ n ih => cases σ <;> simp [List.getD, List.drop, ih]
+
+noncomputable def evalEnc_evals_skip (n : ℕ) (σ rest inp val out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parseNat) none inp σ (encodeNat n ++ rest) val out)
+      (some (evalEncCfg (some .readResult) none inp (σ.drop n) rest val
+        ((σ.take n).reverse ++ out)))
+      (2 * n + 1) := by
+  induction n generalizing σ out with
+  | zero =>
+      change EvalsToInTime _
+        (evalEncCfg (some .parseNat) none inp σ (false :: rest) val out) _ 1
+      simpa [encodeNat, List.take_zero, List.drop_zero, List.reverse_nil] using
+        evalEnc_evals_one (evalEnc_step_parseNat_false rest inp σ val out)
+  | succ n ih =>
+      have hbits : encodeNat (n + 1) ++ rest = true :: (encodeNat n ++ rest) := by
+        simp [encodeNat, List.replicate_succ]
+      rw [hbits]
+      have h1 := evalEnc_evals_one
+        (evalEnc_step_parseNat_true (encodeNat n ++ rest) inp σ val out)
+      cases σ with
+      | nil =>
+          have h2 := evalEnc_evals_one
+            (evalEnc_step_skipOne_nil inp (encodeNat n ++ rest) val out)
+          have h12 := EvalsToInTime.trans evalEncodedComputer.step 1 1 _ _ _ h1 h2
+          have h3 := ih [] out
+          have h := EvalsToInTime.trans evalEncodedComputer.step 2 (2 * n + 1) _ _ _ h12 h3
+          simpa [List.drop_nil, List.take_nil, List.reverse_nil, Nat.mul_succ,
+            Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+      | cons b σ =>
+          have h2 := evalEnc_evals_one
+            (evalEnc_step_skipOne_cons b σ inp (encodeNat n ++ rest) val out)
+          have h12 := EvalsToInTime.trans evalEncodedComputer.step 1 1 _ _ _ h1 h2
+          have h3 := ih σ (b :: out)
+          have h := EvalsToInTime.trans evalEncodedComputer.step 2 (2 * n + 1) _ _ _ h12 h3
+          simpa [List.drop_succ_cons, List.take_succ_cons, List.reverse_cons,
+            List.append_assoc, Nat.mul_succ, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+            using h
+
+noncomputable def evalEnc_evals_restore (skipped inp assign code val : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .restoreAssign) none inp assign code val skipped)
+      (some (evalEncCfg (some .afterSub) none inp (skipped.reverse ++ assign) code val []))
+      (skipped.length + 1) := by
+  induction skipped generalizing assign with
+  | nil =>
+      simpa using evalEnc_evals_one (evalEnc_step_restoreAssign_nil inp assign code val)
+  | cons b skipped ih =>
+      have h1 := evalEnc_evals_one
+        (evalEnc_step_restoreAssign_cons b skipped inp assign code val)
+      have h2 := ih (b :: assign)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 1 (skipped.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+        using h
+
+noncomputable def evalEnc_evals_lookup (n : ℕ) (σ rest inp val : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parseNat) none inp σ (encodeNat n ++ rest) val [])
+      (some (evalEncCfg (some .afterSub) none inp σ rest (σ.getD n false :: val) []))
+      (2 * n + 2 + (σ.take n).length + 1) := by
+  have hskip := evalEnc_evals_skip n σ rest inp val []
+  have hskip' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parseNat) none inp σ (encodeNat n ++ rest) val [])
+      (some (evalEncCfg (some .readResult) none inp (σ.drop n) rest val ((σ.take n).reverse)))
+      (2 * n + 1) := by
+    simpa [List.append_nil] using hskip
+  have hread : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .readResult) none inp (σ.drop n) rest val ((σ.take n).reverse))
+      (some (evalEncCfg (some .restoreAssign) none inp (σ.drop n) rest
+        ((σ.drop n).headD false :: val) ((σ.take n).reverse))) 1 := by
+    cases hdrop : σ.drop n with
+    | nil =>
+        simpa [hdrop] using
+          evalEnc_evals_one (evalEnc_step_readResult_nil inp rest val ((σ.take n).reverse))
+    | cons b t =>
+        simpa [hdrop, List.headD] using
+          evalEnc_evals_one
+            (evalEnc_step_readResult_cons b t inp rest val ((σ.take n).reverse))
+  have h1 := EvalsToInTime.trans evalEncodedComputer.step (2 * n + 1) 1 _ _ _ hskip' hread
+  have hrest := evalEnc_evals_restore (σ.take n).reverse inp (σ.drop n) rest
+    ((σ.drop n).headD false :: val)
+  have hrest' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .restoreAssign) none inp (σ.drop n) rest
+        ((σ.drop n).headD false :: val) ((σ.take n).reverse))
+      (some (evalEncCfg (some .afterSub) none inp σ rest
+        ((σ.drop n).headD false :: val) []))
+      ((σ.take n).reverse.length + 1) := by
+    simpa [List.reverse_reverse, List.take_append_drop] using hrest
+  have h := EvalsToInTime.trans evalEncodedComputer.step (1 + (2 * n + 1))
+    ((σ.take n).reverse.length + 1) _ _ _ h1 hrest'
+  have hget := getD_eq_headD_drop σ n
+  convert h using 1 <;>
+    simp [← hget, List.length_reverse, List.length_take, Nat.add_comm, Nat.add_left_comm,
+      Nat.add_assoc] <;> omega
+
+def evalEncParseCost' (φ : PropFormula) (σ : List Bool) : ℕ :=
+  match φ with
+  | .var n => 2 + (2 * n + 2 + (σ.take n).length + 1)
+  | .not ψ => 2 + evalEncParseCost' ψ σ + 1 + 1
+  | .and ψ χ => 2 + evalEncParseCost' ψ σ + 1 + evalEncParseCost' χ σ + 3
+  | .or ψ χ => 2 + evalEncParseCost' ψ σ + 1 + evalEncParseCost' χ σ + 3
+
+noncomputable def evalEnc_evals_parse_formula (φ : PropFormula) (σ rest inp val : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parseTag0) none inp σ (encodeFormula φ ++ rest) val [])
+      (some (evalEncCfg (some .afterSub) none inp σ rest (φ.evalOn σ :: val) []))
+      (evalEncParseCost' φ σ) := by
+  induction φ generalizing rest inp val with
+  | var n =>
+      have hbits : encodeFormula (.var n) ++ rest =
+          false :: false :: (encodeNat n ++ rest) := by
+        simp [encodeFormula]
+      rw [hbits]
+      have h0 := evalEnc_evals_one
+        (evalEnc_step_parseTag0_false (false :: (encodeNat n ++ rest)) inp σ val [])
+      have h1 := evalEnc_evals_one
+        (evalEnc_step_parseTag1F_var (encodeNat n ++ rest) inp σ val [])
+      have h01 := EvalsToInTime.trans evalEncodedComputer.step 1 1 _ _ _ h0 h1
+      have hlookup := evalEnc_evals_lookup n σ rest inp val
+      have h := EvalsToInTime.trans evalEncodedComputer.step 2
+        (2 * n + 2 + (σ.take n).length + 1) _ _ _ h01 hlookup
+      convert h using 1 <;>
+        simp [PropFormula.evalOn, evalEncParseCost', Nat.add_comm, Nat.add_left_comm,
+          Nat.add_assoc] <;> omega
+  | not ψ ih =>
+      have hbits : encodeFormula (.not ψ) ++ rest =
+          false :: true :: (encodeFormula ψ ++ rest) := by
+        simp [encodeFormula]
+      rw [hbits]
+      have h0 := evalEnc_evals_one
+        (evalEnc_step_parseTag0_false (true :: (encodeFormula ψ ++ rest)) inp σ val [])
+      have h1 := evalEnc_evals_one
+        (evalEnc_step_parseTag1F_not (encodeFormula ψ ++ rest) inp σ val [])
+      have h01 := EvalsToInTime.trans evalEncodedComputer.step 1 1 _ _ _ h0 h1
+      have hψ := ih rest (false :: false :: inp) val
+      have h2 := EvalsToInTime.trans evalEncodedComputer.step 2 (evalEncParseCost' ψ σ)
+        _ _ _ h01 hψ
+      have hpop := evalEnc_evals_one
+        (evalEnc_step_afterSub_not inp σ rest (ψ.evalOn σ :: val) [])
+      have h3 := EvalsToInTime.trans evalEncodedComputer.step
+        (evalEncParseCost' ψ σ + 2) 1 _ _ _ h2 hpop
+      have hdo := evalEnc_evals_one
+        (evalEnc_step_doNot (ψ.evalOn σ) val inp σ rest [])
+      have h := EvalsToInTime.trans evalEncodedComputer.step
+        (1 + (evalEncParseCost' ψ σ + 2)) 1 _ _ _ h3 hdo
+      convert h using 1 <;>
+        simp [PropFormula.evalOn, evalEncParseCost', Nat.add_comm, Nat.add_left_comm,
+          Nat.add_assoc] <;> omega
+  | and ψ χ ihψ ihχ =>
+      have hbits : encodeFormula (.and ψ χ) ++ rest =
+          true :: false :: (encodeFormula ψ ++ (encodeFormula χ ++ rest)) := by
+        simp [encodeFormula, List.append_assoc]
+      rw [hbits]
+      have h0 := evalEnc_evals_one
+        (evalEnc_step_parseTag0_true
+          (false :: (encodeFormula ψ ++ (encodeFormula χ ++ rest))) inp σ val [])
+      have h1 := evalEnc_evals_one
+        (evalEnc_step_parseTag1T_and
+          (encodeFormula ψ ++ (encodeFormula χ ++ rest)) inp σ val [])
+      have h01 := EvalsToInTime.trans evalEncodedComputer.step 1 1 _ _ _ h0 h1
+      have hψ := ihψ (encodeFormula χ ++ rest)
+        (true :: true :: true :: false :: inp) val
+      have h2 := EvalsToInTime.trans evalEncodedComputer.step 2 (evalEncParseCost' ψ σ)
+        _ _ _ h01 hψ
+      have hsib := evalEnc_evals_one
+        (evalEnc_step_afterSub_sibling (true :: false :: inp) σ
+          (encodeFormula χ ++ rest) (ψ.evalOn σ :: val) [])
+      have h3 := EvalsToInTime.trans evalEncodedComputer.step
+        (evalEncParseCost' ψ σ + 2) 1 _ _ _ h2 hsib
+      have hχ := ihχ rest (true :: false :: inp) (ψ.evalOn σ :: val)
+      have h4 := EvalsToInTime.trans evalEncodedComputer.step
+        (1 + (evalEncParseCost' ψ σ + 2)) (evalEncParseCost' χ σ) _ _ _ h3 hχ
+      have hand := evalEnc_evals_one
+        (evalEnc_step_afterSub_and inp σ rest
+          (χ.evalOn σ :: ψ.evalOn σ :: val) [])
+      have h5 := EvalsToInTime.trans evalEncodedComputer.step
+        (evalEncParseCost' χ σ + (1 + (evalEncParseCost' ψ σ + 2))) 1 _ _ _ h4 hand
+      have hsave := evalEnc_evals_one
+        (evalEnc_step_doAndSave (χ.evalOn σ) (ψ.evalOn σ :: val) inp σ rest [])
+      have h6 := EvalsToInTime.trans evalEncodedComputer.step
+        (1 + (evalEncParseCost' χ σ + (1 + (evalEncParseCost' ψ σ + 2)))) 1
+        _ _ _ h5 hsave
+      have hcomb := evalEnc_evals_one
+        (evalEnc_step_doAndCombine (ψ.evalOn σ) (χ.evalOn σ) val inp σ rest)
+      have h := EvalsToInTime.trans evalEncodedComputer.step
+        (1 + (1 + (evalEncParseCost' χ σ + (1 + (evalEncParseCost' ψ σ + 2))))) 1
+        _ _ _ h6 hcomb
+      convert h using 1 <;>
+        simp [PropFormula.evalOn, evalEncParseCost', Nat.add_comm, Nat.add_left_comm,
+          Nat.add_assoc] <;> omega
+  | or ψ χ ihψ ihχ =>
+      have hbits : encodeFormula (.or ψ χ) ++ rest =
+          true :: true :: (encodeFormula ψ ++ (encodeFormula χ ++ rest)) := by
+        simp [encodeFormula, List.append_assoc]
+      rw [hbits]
+      have h0 := evalEnc_evals_one
+        (evalEnc_step_parseTag0_true
+          (true :: (encodeFormula ψ ++ (encodeFormula χ ++ rest))) inp σ val [])
+      have h1 := evalEnc_evals_one
+        (evalEnc_step_parseTag1T_or
+          (encodeFormula ψ ++ (encodeFormula χ ++ rest)) inp σ val [])
+      have h01 := EvalsToInTime.trans evalEncodedComputer.step 1 1 _ _ _ h0 h1
+      have hψ := ihψ (encodeFormula χ ++ rest)
+        (true :: true :: false :: true :: inp) val
+      have h2 := EvalsToInTime.trans evalEncodedComputer.step 2 (evalEncParseCost' ψ σ)
+        _ _ _ h01 hψ
+      have hsib := evalEnc_evals_one
+        (evalEnc_step_afterSub_sibling (false :: true :: inp) σ
+          (encodeFormula χ ++ rest) (ψ.evalOn σ :: val) [])
+      have h3 := EvalsToInTime.trans evalEncodedComputer.step
+        (evalEncParseCost' ψ σ + 2) 1 _ _ _ h2 hsib
+      have hχ := ihχ rest (false :: true :: inp) (ψ.evalOn σ :: val)
+      have h4 := EvalsToInTime.trans evalEncodedComputer.step
+        (1 + (evalEncParseCost' ψ σ + 2)) (evalEncParseCost' χ σ) _ _ _ h3 hχ
+      have hor := evalEnc_evals_one
+        (evalEnc_step_afterSub_or inp σ rest
+          (χ.evalOn σ :: ψ.evalOn σ :: val) [])
+      have h5 := EvalsToInTime.trans evalEncodedComputer.step
+        (evalEncParseCost' χ σ + (1 + (evalEncParseCost' ψ σ + 2))) 1 _ _ _ h4 hor
+      have hsave := evalEnc_evals_one
+        (evalEnc_step_doOrSave (χ.evalOn σ) (ψ.evalOn σ :: val) inp σ rest [])
+      have h6 := EvalsToInTime.trans evalEncodedComputer.step
+        (1 + (evalEncParseCost' χ σ + (1 + (evalEncParseCost' ψ σ + 2)))) 1
+        _ _ _ h5 hsave
+      have hcomb := evalEnc_evals_one
+        (evalEnc_step_doOrCombine (ψ.evalOn σ) (χ.evalOn σ) val inp σ rest)
+      have h := EvalsToInTime.trans evalEncodedComputer.step
+        (1 + (1 + (evalEncParseCost' χ σ + (1 + (evalEncParseCost' ψ σ + 2))))) 1
+        _ _ _ h6 hcomb
+      convert h using 1 <;>
+        simp [PropFormula.evalOn, evalEncParseCost', Nat.add_comm, Nat.add_left_comm,
+          Nat.add_assoc] <;> omega
+
+noncomputable def evalEnc_evals_clearAssign (assign inp code val out : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .clearAssign) none inp assign code val out)
+      (some (evalEncCfg none none inp [] code val out))
+      (assign.length + 1) := by
+  induction assign with
+  | nil =>
+      simpa using evalEnc_evals_one (evalEnc_step_clearAssign_nil inp code val out)
+  | cons b assign ih =>
+      have h1 := evalEnc_evals_one
+        (evalEnc_step_clearAssign_cons b assign inp code val out)
+      have h := EvalsToInTime.trans evalEncodedComputer.step 1 (assign.length + 1)
+        _ _ _ h1 ih
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+/-- Finish: empty markers, single val bit, clear assign, halt with `[b]`. -/
+noncomputable def evalEnc_evals_finish (b : Bool) (σ : List Bool) :
+    EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .afterSub) none [] σ [] [b] [])
+      (some (haltList evalEncodedComputer [b]))
+      (σ.length + 3) := by
+  have h1 := evalEnc_evals_one (evalEnc_step_afterSub_root σ [] [b] [])
+  have h2 := evalEnc_evals_one (evalEnc_step_checkDone b [] σ [])
+  have h12 := EvalsToInTime.trans evalEncodedComputer.step 1 1 _ _ _ h1 h2
+  have h3 := evalEnc_evals_clearAssign σ [] [] [] [b]
+  have h := EvalsToInTime.trans evalEncodedComputer.step 2 (σ.length + 1) _ _ _ h12 h3
+  simpa [evalEnc_haltList, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+/-- Full run on `encodePair (σ, encodeFormula φ)` yields `[φ.evalOn σ]`. -/
+noncomputable def evalEncodedComputer_evals (σ : List Bool) (φ : PropFormula) :
+    TM2OutputsInTime evalEncodedComputer (encodePair (σ, encodeFormula φ))
+      (some [φ.evalOn σ])
+      (2 * σ.length + (encodeFormula φ).length + 2 + 3 * σ.length +
+        3 * (encodeFormula φ).length + 6 + evalEncParseCost' φ σ + σ.length + 3) := by
+  have hload := evalEnc_evals_load_encodePair σ (encodeFormula φ)
+  have hparse := evalEnc_evals_parse_formula φ σ [] [] []
+  have hparse' : EvalsToInTime evalEncodedComputer.step
+      (evalEncCfg (some .parseTag0) none [] σ (encodeFormula φ) [] [])
+      (some (evalEncCfg (some .afterSub) none [] σ [] [φ.evalOn σ] []))
+      (evalEncParseCost' φ σ) := by
+    simpa [List.append_nil] using hparse
+  have h1 := EvalsToInTime.trans evalEncodedComputer.step
+    (2 * σ.length + (encodeFormula φ).length + 2 + 3 * σ.length +
+      3 * (encodeFormula φ).length + 6)
+    (evalEncParseCost' φ σ) _ _ _ hload hparse'
+  have hfin := evalEnc_evals_finish (φ.evalOn σ) σ
+  have h := EvalsToInTime.trans evalEncodedComputer.step
+    (evalEncParseCost' φ σ +
+      (2 * σ.length + (encodeFormula φ).length + 2 + 3 * σ.length +
+        3 * (encodeFormula φ).length + 6))
+    (σ.length + 3) _ _ _ h1 hfin
+  have h' : EvalsToInTime evalEncodedComputer.step
+      (initList evalEncodedComputer (encodePair (σ, encodeFormula φ)))
+      (some (haltList evalEncodedComputer [φ.evalOn σ]))
+      ((σ.length + 3) + (evalEncParseCost' φ σ +
+        (2 * σ.length + (encodeFormula φ).length + 2 + 3 * σ.length +
+          3 * (encodeFormula φ).length + 6))) := by
+    simpa [evalEnc_initList, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+  refine ⟨h'.toEvalsTo, le_trans h'.steps_le_m ?_⟩
+  omega
+
+theorem length_encodeFormula_var (n : ℕ) :
+    (encodeFormula (.var n)).length = n + 3 := by
+  simp [encodeFormula, encodeNat]
+
+/-- Crude step-cost bound used only for polyTime packaging. -/
+theorem evalEncParseCost'_le (φ : PropFormula) (σ : List Bool) :
+    evalEncParseCost' φ σ ≤
+      8 * ((encodeFormula φ).length + 1) * (σ.length + 1) := by
+  induction φ with
+  | var n =>
+      have hlen : (encodeFormula (.var n)).length = n + 3 := length_encodeFormula_var n
+      have htake : (List.take n σ).length ≤ n := by
+        simpa [List.length_take] using Nat.min_le_left n σ.length
+      have hform :
+          evalEncParseCost' (.var n) σ = 5 + 2 * n + (List.take n σ).length := by
+        simp [evalEncParseCost']; ring
+      calc
+        evalEncParseCost' (.var n) σ = 5 + 2 * n + (List.take n σ).length := hform
+        _ ≤ 5 + 2 * n + n := by omega
+        _ = 5 + 3 * n := by ring
+        _ ≤ 8 * (n + 4) * (σ.length + 1) := by
+          have : 1 ≤ σ.length + 1 := by omega
+          nlinarith
+        _ = 8 * ((encodeFormula (.var n)).length + 1) * (σ.length + 1) := by
+          simp [hlen]
+  | not ψ ih =>
+      have hlen := length_encodeFormula_not ψ
+      have hform :
+          evalEncParseCost' (.not ψ) σ = evalEncParseCost' ψ σ + 4 := by
+        simp [evalEncParseCost']; ring
+      calc
+        evalEncParseCost' (.not ψ) σ = evalEncParseCost' ψ σ + 4 := hform
+        _ ≤ 8 * ((encodeFormula ψ).length + 1) * (σ.length + 1) + 4 := by omega
+        _ ≤ 8 * ((encodeFormula ψ).length + 3) * (σ.length + 1) := by
+          have : 4 ≤ 16 * (σ.length + 1) := by omega
+          have :
+              8 * ((encodeFormula ψ).length + 3) * (σ.length + 1) =
+                8 * ((encodeFormula ψ).length + 1) * (σ.length + 1) +
+                  16 * (σ.length + 1) := by ring
+          omega
+        _ = 8 * ((encodeFormula (.not ψ)).length + 1) * (σ.length + 1) := by
+          simp [hlen]
+  | and ψ χ ihψ ihχ =>
+      have hlen := length_encodeFormula_and ψ χ
+      have hform :
+          evalEncParseCost' (.and ψ χ) σ =
+            evalEncParseCost' ψ σ + evalEncParseCost' χ σ + 6 := by
+        simp [evalEncParseCost']; ring
+      calc
+        evalEncParseCost' (.and ψ χ) σ =
+            evalEncParseCost' ψ σ + evalEncParseCost' χ σ + 6 := hform
+        _ ≤ 8 * ((encodeFormula ψ).length + 1) * (σ.length + 1) +
+              8 * ((encodeFormula χ).length + 1) * (σ.length + 1) + 6 := by
+          omega
+        _ ≤ 8 * ((encodeFormula ψ).length + (encodeFormula χ).length + 3) *
+              (σ.length + 1) := by
+          have :
+              8 * ((encodeFormula ψ).length + 1) * (σ.length + 1) +
+                8 * ((encodeFormula χ).length + 1) * (σ.length + 1) + 6 =
+              8 * ((encodeFormula ψ).length + (encodeFormula χ).length + 2) *
+                (σ.length + 1) + 6 := by ring
+          have : 6 ≤ 8 * (σ.length + 1) := by omega
+          have :
+              8 * ((encodeFormula ψ).length + (encodeFormula χ).length + 3) *
+                (σ.length + 1) =
+              8 * ((encodeFormula ψ).length + (encodeFormula χ).length + 2) *
+                (σ.length + 1) + 8 * (σ.length + 1) := by ring
+          omega
+        _ = 8 * ((encodeFormula (.and ψ χ)).length + 1) * (σ.length + 1) := by
+          simp [hlen]
+  | or ψ χ ihψ ihχ =>
+      have hlen := length_encodeFormula_or ψ χ
+      have hform :
+          evalEncParseCost' (.or ψ χ) σ =
+            evalEncParseCost' ψ σ + evalEncParseCost' χ σ + 6 := by
+        simp [evalEncParseCost']; ring
+      calc
+        evalEncParseCost' (.or ψ χ) σ =
+            evalEncParseCost' ψ σ + evalEncParseCost' χ σ + 6 := hform
+        _ ≤ 8 * ((encodeFormula ψ).length + 1) * (σ.length + 1) +
+              8 * ((encodeFormula χ).length + 1) * (σ.length + 1) + 6 := by
+          omega
+        _ ≤ 8 * ((encodeFormula ψ).length + (encodeFormula χ).length + 3) *
+              (σ.length + 1) := by
+          have :
+              8 * ((encodeFormula ψ).length + 1) * (σ.length + 1) +
+                8 * ((encodeFormula χ).length + 1) * (σ.length + 1) + 6 =
+              8 * ((encodeFormula ψ).length + (encodeFormula χ).length + 2) *
+                (σ.length + 1) + 6 := by ring
+          have : 6 ≤ 8 * (σ.length + 1) := by omega
+          have :
+              8 * ((encodeFormula ψ).length + (encodeFormula χ).length + 3) *
+                (σ.length + 1) =
+              8 * ((encodeFormula ψ).length + (encodeFormula χ).length + 2) *
+                (σ.length + 1) + 8 * (σ.length + 1) := by ring
+          omega
+        _ = 8 * ((encodeFormula (.or ψ χ)).length + 1) * (σ.length + 1) := by
+          simp [hlen]
+
+/-- Success packaging on `encodeFormula` images. -/
+noncomputable def evalEncodedComputableInPolyTime :
+    TM2ComputableInPolyTime
+      (fun p : List Bool × PropFormula => encodePair (p.1, encodeFormula p.2))
+      bitEnc
+      (fun p => p.2.evalOn p.1) where
+  tm := evalEncodedComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := evalEncodedTime
+  outputsFun p := by
+    rcases p with ⟨σ, φ⟩
+    change TM2OutputsInTime evalEncodedComputer
+      (List.map id (encodePair (σ, encodeFormula φ)))
+      (some (List.map id (bitEnc (φ.evalOn σ))))
+      (evalEncodedTime.eval (encodePair (σ, encodeFormula φ)).length)
+    simp only [List.map_id, bitEnc, evalEncodedTime_eval]
+    have h := evalEncodedComputer_evals σ φ
+    refine ⟨h.toEvalsTo, le_trans h.steps_le_m ?_⟩
+    have hlen := length_encodePair (σ, encodeFormula φ)
+    have hcost := evalEncParseCost'_le φ σ
+    let N := (encodePair (σ, encodeFormula φ)).length
+    have hN : N = 2 * σ.length + 1 + (encodeFormula φ).length := hlen
+    have hs : σ.length ≤ N := by omega
+    have hp : (encodeFormula φ).length ≤ N := by omega
+    have hc : evalEncParseCost' φ σ ≤ 8 * (N + 1) * (N + 1) := by
+      refine Nat.le_trans hcost ?_
+      exact Nat.mul_le_mul (Nat.mul_le_mul_left 8 (by omega)) (by omega)
+    have hbud :
+        2 * σ.length + (encodeFormula φ).length + 2 + 3 * σ.length +
+          3 * (encodeFormula φ).length + 6 + evalEncParseCost' φ σ + σ.length + 3 ≤
+        6 * N + 11 + 8 * (N + 1) * (N + 1) := by omega
+    have hpoly : 6 * N + 11 + 8 * (N + 1) * (N + 1) ≤ 20 * (N + 1) ^ 3 := by
+      cases N with
+      | zero => decide
+      | succ k => ring_nf; nlinarith
+    have : 2 * σ.length + (encodeFormula φ).length + 2 + 3 * σ.length +
+        3 * (encodeFormula φ).length + 6 + evalEncParseCost' φ σ + σ.length + 3 ≤
+        20 * (N + 1) ^ 3 := hbud.trans hpoly
+    simpa [N] using this
+
+theorem evalEncoded_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime
+      (fun p : List Bool × PropFormula => encodePair (p.1, encodeFormula p.2))
+      bitEnc
+      (fun p => p.2.evalOn p.1)) :=
+  ⟨evalEncodedComputableInPolyTime⟩
+
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
@@ -6097,8 +7594,10 @@ Also certified: `assignmentAt n i = padBitsLE n (natBitsLE i)` when `i < 2^n`,
 `validatesTautology_by_index_pad`, and `padBitsComputer` FinTM2 Stmt plus
 EvalsToInTime / `padBitsComputableInPolyTime` for `padBitsLE` under
 `encodePair (encodeNat n, bs)`.
-Remaining: formula `evalOn` FinTM2, then per index loop sequencer, then TT
-map glue. -/
+Remaining: per index loop sequencer, then TT map glue. Also certified:
+`evalEncodedComputer` FinTM2 Stmt plus EvalsToInTime /
+`evalEncodedComputableInPolyTime` for `evalOn` under
+`encodePair (σ, encodeFormula φ)`. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by
