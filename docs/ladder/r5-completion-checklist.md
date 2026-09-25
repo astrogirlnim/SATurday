@@ -36,6 +36,7 @@ the hard pin first; the soft pin is packaging.
   (`validatesTautology_by_index_pad` path; functional `indexValidate` /
   `indexValidateFuel` + one-iter `indexStepBitsComputer` certified;
   `odometerSucc` / `odometerSucc_assignmentAt` certified;
+  `odometerSuccComputer` EvalsToInTime + `odometerSuccComputableInPolyTime`;
   local `comp_idBitEnc_idBitEnc` available for glue;
   Remaining: `indexValidateComputer` FinTM2 under `|table|` fuel)
 - [ ] Glue decode-pair → decode-formula → length gate → loop →

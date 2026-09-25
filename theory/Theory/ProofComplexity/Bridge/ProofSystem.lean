@@ -8460,6 +8460,338 @@ theorem odometerSucc_haltList (out : List Bool) :
       (⟨(none : Option OdoLabel), none, stk⟩ : odometerSuccComputer.Cfg)) ?_
   funext k; cases k <;> simp [odometerSuccComputer, odoStk]
 
+/-! ### odometerSuccComputer step lemmas -/
+
+theorem odo_step_loop_false (rest work out : List Bool) (v : Option Bool) :
+    TM2.step odometerSuccComputer.m
+      (odoCfg (some .loop) v (false :: rest) work out) =
+      some (odoCfg (some .carry) none rest (true :: work) out) := by
+  simp [odometerSuccComputer, odoCfg, odoStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some OdoLabel.carry, (none : Option Bool), stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, odoStk]
+
+theorem odo_step_loop_true (rest work out : List Bool) (v : Option Bool) :
+    TM2.step odometerSuccComputer.m
+      (odoCfg (some .loop) v (true :: rest) work out) =
+      some (odoCfg (some .loop) none rest (false :: work) out) := by
+  simp [odometerSuccComputer, odoCfg, odoStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some OdoLabel.loop, (none : Option Bool), stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, odoStk]
+
+theorem odo_step_loop_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step odometerSuccComputer.m
+      (odoCfg (some .loop) v [] work out) =
+      some (odoCfg (some .writeFail) none [] work out) := by
+  simp [odometerSuccComputer, odoCfg, odoStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some OdoLabel.writeFail, (none : Option Bool), stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, odoStk]
+
+theorem odo_step_carry_cons (b : Bool) (rest work out : List Bool) (v : Option Bool) :
+    TM2.step odometerSuccComputer.m
+      (odoCfg (some .carry) v (b :: rest) work out) =
+      some (odoCfg (some .carry) none rest (b :: work) out) := by
+  simp [odometerSuccComputer, odoCfg, odoStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some OdoLabel.carry, (none : Option Bool), stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, odoStk]
+
+theorem odo_step_carry_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step odometerSuccComputer.m
+      (odoCfg (some .carry) v [] work out) =
+      some (odoCfg (some .rev) none [] work out) := by
+  simp [odometerSuccComputer, odoCfg, odoStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some OdoLabel.rev, (none : Option Bool), stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, odoStk]
+
+theorem odo_step_rev_cons (b : Bool) (rest out : List Bool) (v : Option Bool) :
+    TM2.step odometerSuccComputer.m
+      (odoCfg (some .rev) v [] (b :: rest) out) =
+      some (odoCfg (some .rev) none [] rest (b :: out)) := by
+  simp [odometerSuccComputer, odoCfg, odoStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some OdoLabel.rev, (none : Option Bool), stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, odoStk]
+
+theorem odo_step_rev_nil (out : List Bool) (v : Option Bool) :
+    TM2.step odometerSuccComputer.m
+      (odoCfg (some .rev) v [] [] out) =
+      some (odoCfg none none [] [] (false :: out)) := by
+  simp [odometerSuccComputer, odoCfg, odoStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option OdoLabel), (none : Option Bool), stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, odoStk]
+
+theorem odo_step_writeFail_cons (b : Bool) (rest out : List Bool) (v : Option Bool) :
+    TM2.step odometerSuccComputer.m
+      (odoCfg (some .writeFail) v [] (b :: rest) out) =
+      some (odoCfg (some .writeFail) none [] rest out) := by
+  simp [odometerSuccComputer, odoCfg, odoStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some OdoLabel.writeFail, (none : Option Bool), stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, odoStk]
+
+theorem odo_step_writeFail_nil (out : List Bool) (v : Option Bool) :
+    TM2.step odometerSuccComputer.m
+      (odoCfg (some .writeFail) v [] [] out) =
+      some (odoCfg none none [] [] (true :: out)) := by
+  simp [odometerSuccComputer, odoCfg, odoStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option OdoLabel), (none : Option Bool), stk⟩ : odometerSuccComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, odoStk]
+
+/-! ### odometerSuccComputer EvalsToInTime -/
+
+def odo_evals_one {l l' : Option OdoLabel} {v v' : Option Bool}
+    {inp work out inp' work' out' : List Bool}
+    (h : TM2.step odometerSuccComputer.m
+      (odoCfg l v inp work out) =
+      some (odoCfg l' v' inp' work' out')) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg l v inp work out)
+      (some (odoCfg l' v' inp' work' out')) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (odoCfg l v inp work out)).bind odometerSuccComputer.step =
+      some (odoCfg l' v' inp' work' out')
+    simp only [FinTM2.step]
+    exact h
+
+def odo_evals_loop_false (rest work out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .loop) v (false :: rest) work out)
+      (some (odoCfg (some .carry) none rest (true :: work) out)) 1 :=
+  odo_evals_one (odo_step_loop_false rest work out v)
+
+def odo_evals_loop_true (rest work out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .loop) v (true :: rest) work out)
+      (some (odoCfg (some .loop) none rest (false :: work) out)) 1 :=
+  odo_evals_one (odo_step_loop_true rest work out v)
+
+def odo_evals_loop_nil (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .loop) v [] work out)
+      (some (odoCfg (some .writeFail) none [] work out)) 1 :=
+  odo_evals_one (odo_step_loop_nil work out v)
+
+def odo_evals_carry_one (b : Bool) (rest work out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .carry) v (b :: rest) work out)
+      (some (odoCfg (some .carry) none rest (b :: work) out)) 1 :=
+  odo_evals_one (odo_step_carry_cons b rest work out v)
+
+def odo_evals_carry_nil (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .carry) v [] work out)
+      (some (odoCfg (some .rev) none [] work out)) 1 :=
+  odo_evals_one (odo_step_carry_nil work out v)
+
+/-- Carry copies the remaining input onto work (reversed onto the stack). -/
+noncomputable def odo_evals_carry (inp work out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .carry) v inp work out)
+      (some (odoCfg (some .rev) none [] (inp.reverse ++ work) out))
+      (inp.length + 1) := by
+  induction inp generalizing work v with
+  | nil =>
+      simpa using odo_evals_carry_nil work out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans odometerSuccComputer.step 1 (bs.length + 1)
+        _ _ _ (odo_evals_carry_one b bs work out v) (ih (b :: work) none)
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+def odo_evals_rev_one (b : Bool) (rest out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .rev) v [] (b :: rest) out)
+      (some (odoCfg (some .rev) none [] rest (b :: out))) 1 :=
+  odo_evals_one (odo_step_rev_cons b rest out v)
+
+def odo_evals_rev_nil (out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .rev) v [] [] out)
+      (some (odoCfg none none [] [] (false :: out))) 1 :=
+  odo_evals_one (odo_step_rev_nil out v)
+
+/-- Reverse work onto out, then prefix with `false` (success tag). -/
+noncomputable def odo_evals_rev (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .rev) v [] work out)
+      (some (odoCfg none none [] [] (false :: (work.reverse ++ out))))
+      (work.length + 1) := by
+  induction work generalizing out v with
+  | nil =>
+      simpa using odo_evals_rev_nil out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans odometerSuccComputer.step 1 (bs.length + 1)
+        _ _ _ (odo_evals_rev_one b bs out v) (ih (b :: out) none)
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+def odo_evals_writeFail_one (b : Bool) (rest out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .writeFail) v [] (b :: rest) out)
+      (some (odoCfg (some .writeFail) none [] rest out)) 1 :=
+  odo_evals_one (odo_step_writeFail_cons b rest out v)
+
+def odo_evals_writeFail_nil (out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .writeFail) v [] [] out)
+      (some (odoCfg none none [] [] (true :: out))) 1 :=
+  odo_evals_one (odo_step_writeFail_nil out v)
+
+/-- Drain work then emit `[true]` (overflow / fail). -/
+noncomputable def odo_evals_writeFail (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .writeFail) v [] work out)
+      (some (odoCfg none none [] [] (true :: out)))
+      (work.length + 1) := by
+  induction work generalizing v with
+  | nil =>
+      simpa using odo_evals_writeFail_nil out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans odometerSuccComputer.step 1 (bs.length + 1)
+        _ _ _ (odo_evals_writeFail_one b bs out v) (ih none)
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+/-- Overflow path: `odometerSucc bs = none`. Time accounts for flipped bits on work. -/
+noncomputable def odo_evals_overflow (bs work out : List Bool)
+    (v : Option Bool) (h : odometerSucc bs = none) :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .loop) v bs work out)
+      (some (odoCfg none none [] [] (true :: out)))
+      (2 * bs.length + work.length + 2) := by
+  induction bs generalizing work v with
+  | nil =>
+      have h1 := odo_evals_loop_nil work out v
+      have h2 := odo_evals_writeFail work out none
+      have h12 := EvalsToInTime.trans odometerSuccComputer.step 1 (work.length + 1)
+        _ _ _ h1 h2
+      exact evalsToInTime_le_mono h12 (by omega)
+  | cons b rest ih =>
+      cases b with
+      | false =>
+          simp [odometerSucc] at h
+      | true =>
+          have hrest : odometerSucc rest = none := by
+            cases hr : odometerSucc rest with
+            | none => rfl
+            | some rest' => simp [odometerSucc, hr] at h
+          have h1 := odo_evals_loop_true rest work out v
+          have h2 := ih (false :: work) none hrest
+          have h12 := EvalsToInTime.trans odometerSuccComputer.step 1
+            (2 * rest.length + (false :: work).length + 2) _ _ _ h1 h2
+          exact evalsToInTime_le_mono h12 (by simp [List.length_cons]; omega)
+
+/-- Success path: `odometerSucc bs = some bs'`. Output is
+`false :: (work.reverse ++ bs' ++ out)`. -/
+noncomputable def odo_evals_success (bs bs' work out : List Bool)
+    (v : Option Bool) (h : odometerSucc bs = some bs') :
+    EvalsToInTime odometerSuccComputer.step
+      (odoCfg (some .loop) v bs work out)
+      (some (odoCfg none none [] [] (false :: (work.reverse ++ bs' ++ out))))
+      (2 * bs.length + work.length + 2) := by
+  induction bs generalizing bs' work v with
+  | nil =>
+      simp [odometerSucc] at h
+  | cons b rest ih =>
+      cases b with
+      | false =>
+          simp [odometerSucc] at h
+          subst h
+          have h1 := odo_evals_loop_false rest work out v
+          have h2 := odo_evals_carry rest (true :: work) out none
+          have h12 := EvalsToInTime.trans odometerSuccComputer.step 1
+            (rest.length + 1) _ _ _ h1 h2
+          have h12' : EvalsToInTime odometerSuccComputer.step
+              (odoCfg (some .loop) v (false :: rest) work out)
+              (some (odoCfg (some .rev) none [] (rest.reverse ++ true :: work) out))
+              (rest.length + 2) :=
+            evalsToInTime_le_mono h12 (by omega)
+          have h3 := odo_evals_rev (rest.reverse ++ true :: work) out none
+          have h123 := EvalsToInTime.trans odometerSuccComputer.step
+            (rest.length + 2)
+            ((rest.reverse ++ true :: work).length + 1) _ _ _ h12' h3
+          have hrev_out :
+              (rest.reverse ++ true :: work).reverse ++ out =
+                work.reverse ++ true :: rest ++ out := by
+            simp [List.reverse_append, List.reverse_cons, List.append_assoc]
+          exact evalsToInTime_le_mono (by simpa [hrev_out] using h123) (by
+            simp only [List.length_append, List.length_reverse, List.length_cons]
+            omega)
+      | true =>
+          cases hrest : odometerSucc rest with
+          | none => simp [odometerSucc, hrest] at h
+          | some rest' =>
+              simp [odometerSucc, hrest] at h
+              subst h
+              have h1 := odo_evals_loop_true rest work out v
+              have h2 := ih rest' (false :: work) none hrest
+              have h12 := EvalsToInTime.trans odometerSuccComputer.step 1
+                (2 * rest.length + (false :: work).length + 2) _ _ _ h1 h2
+              have hrev_out :
+                  (false :: work).reverse ++ rest' ++ out =
+                    work.reverse ++ false :: rest' ++ out := by
+                simp [List.reverse_cons, List.append_assoc]
+              exact evalsToInTime_le_mono (by simpa [hrev_out] using h12) (by
+                simp [List.length_cons]; omega)
+
+/-- Full run: init to halt realizing `odometerSuccResult`. -/
+noncomputable def odometerSucc_evals (bs : List Bool) :
+    TM2OutputsInTime odometerSuccComputer bs
+      (some (odometerSuccResult bs)) (2 * bs.length + 2) := by
+  change EvalsToInTime odometerSuccComputer.step
+    (initList odometerSuccComputer bs)
+    (some (haltList odometerSuccComputer (odometerSuccResult bs)))
+    (2 * bs.length + 2)
+  rw [odometerSucc_initList, odometerSucc_haltList]
+  cases h : odometerSucc bs with
+  | none =>
+      simpa [odometerSuccResult, h, List.length_nil] using
+        odo_evals_overflow bs [] [] none h
+  | some bs' =>
+      simpa [odometerSuccResult, h, List.append_nil, List.reverse_nil,
+        List.length_nil] using
+        odo_evals_success bs bs' [] [] none h
+
+noncomputable def odometerSuccTime : Polynomial ℕ := 2 * Polynomial.X + 2
+
+theorem odometerSuccTime_eval (n : ℕ) :
+    odometerSuccTime.eval n = 2 * n + 2 := by
+  simp [odometerSuccTime, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+    Polynomial.eval_ofNat]
+
+noncomputable def odometerSuccComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc odometerSuccResult where
+  tm := odometerSuccComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := odometerSuccTime
+  outputsFun bs := by
+    change TM2OutputsInTime odometerSuccComputer (List.map id (idBitEnc bs))
+      (some (List.map id (idBitEnc (odometerSuccResult bs))))
+      (odometerSuccTime.eval (idBitEnc bs).length)
+    simp only [idBitEnc, List.map_id, id_eq, odometerSuccTime_eval]
+    exact odometerSucc_evals bs
+
+theorem odometerSucc_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc odometerSuccResult) :=
+  ⟨odometerSuccComputableInPolyTime⟩
+
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
@@ -8484,7 +8816,8 @@ Also certified (Cluster D2): functional `indexValidate` /
 `indexLengthGate`, one-iter `indexStepBitsComputer` with EvalsToInTime /
 `indexStepBitsComputableInPolyTime`, semantic target
 `indexValidateOnTriple` under `encodeIndexValidate`, and `odometerSucc`
-matching `assignmentAt` succession.
+matching `assignmentAt` succession with `odometerSuccComputer` EvalsToInTime /
+`odometerSuccComputableInPolyTime`.
 Also certified: local `comp_idBitEnc_idBitEnc` (Complexity) for Bool-tape
 composition with an output-size bound.
 Remaining: FinTM2 `indexValidateComputer` nesting pad then eval then
