@@ -63,6 +63,9 @@ satday auto
       bounds, family reduction); axiom gate PASS. Item 6 (2026-09-25)
       inhabited `exists_cubic_hasExpansionInv_family` and
       `exists_tseitin_inv_expander_hard_family`. Random CS Frontier secondary.
+      Formalize 2026-09-25: pin still sorry. Density-6 support-failure
+      expectation at `s = n / 16` is exponentially large, and cubic Tseitin
+      does not meet `α = 1`. Do not resume `satday auto` for this pin.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Move R2 from `prose_accepted` to `certified` only after the existence

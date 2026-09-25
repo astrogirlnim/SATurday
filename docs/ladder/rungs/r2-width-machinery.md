@@ -9702,3 +9702,27 @@ end MGGFrontier
   (CS 3-CNF still open). Did not start `satday auto`.
   Most important thing learned: the cubic constant is a charging bound,
   not the measured ratio (about 4 to 5 at small m).
+
+- 2026-09-25 formalize (Block A item 7 CS 3-CNF existence): BLOCKED.
+  Artifacts: `theory/Theory/ProofComplexity/CSExpansion.lean` (doc only),
+  `docs/ladder/r2-block-a-factor2-checklist.md`.
+  Target `CSExpansionFrontier.exists_cs_clause_expanding_3cnf` unchanged
+  (`sorry`). Packaging
+  `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` and
+  `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding` stay
+  accepted and do not fire: no matchable unsat expanding inhabitant at
+  `r = n / 16`, `α = 1`.
+  Occupancy count (not certified in Lean): expected number of index sets of
+  size `s = n / 16` with support below `2 s`, at `m = 6 n`, is about `10^13`
+  at `n = 128` and about `10^{0.12 n}` in general. A uniform width-3 sample
+  at `n = 128`, `m = 768` with distinct variables in each clause is
+  unsatisfiable and still has a 4-clause subset with `clauseSetBoundary`
+  of size 3.
+  Cubic `tseitinCNF` fails the same factor: any two parity clauses on one
+  vertex have empty clause-set boundary, and two clauses from each of
+  `n / 64` vertices form a set of size `n / 32`. `starCNF` only yields
+  `|∂| ≥ |S| / cubicInvK` with `cubicInvK = 164`.
+  Rung status remains `prose_accepted`. Did not start `satday auto`.
+  Most important thing learned: item 7 is not a charging corollary of item 6.
+  The locked equations `α = 1` and `r = n / 16` are stronger than both the
+  cubic Inv family and the density-6 first moment.

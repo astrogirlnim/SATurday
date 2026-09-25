@@ -4973,7 +4973,24 @@ Sufficient accepted route: `Spreads F (n/16) 2` plus
 `hasCSClauseExpansion_one_of_spreads_two`, via packaging
 `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` once
 `exists_spreads_matchable_unsat_random3CNF` lands. Probabilistic counting
-remains open (sorry honest). -/
+remains open (sorry honest).
+
+Cycle 2026-09-25: do not retry the killed routes.
+- Occupancy DP (not a Lean proof): at density `m = 6 n`, the expected number
+  of index sets of size `s = n / 16` with support below `2 s` is already
+  about `10^13` at `n = 128` and grows as `10^{Θ(n)}`. A tighter per-set
+  tail does not push that expectation under 1, so Spreads packaging cannot
+  close.
+- A uniform width-3 sample with distinct variables in each clause, `n = 128`,
+  `m = 768`, can be unsatisfiable and still contain a 4-clause subset whose
+  `clauseSetBoundary` has size 3. That sample is not `HasCSClauseExpansion`
+  at `r = 8`, `α = 1`.
+- `tseitinCNF` on a cubic graph places four clauses on one star. Any two of
+  them have empty clause-set boundary. Taking two clauses from each of
+  `n / 64` vertices yields a medium set of size `n / 32` with empty boundary,
+  so cubic Tseitin does not inhabit `α = 1` at `r = n / 16`.
+- `starCNF` only recovers edge boundary. Certified `cubicInvK = 164` gives
+  `|∂| ≥ |S| / 164`, not `|∂| ≥ |S|`. -/
 theorem exists_cs_clause_expanding_3cnf :
     ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (r α : ℕ),
       N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
