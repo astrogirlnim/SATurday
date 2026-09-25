@@ -8889,6 +8889,204 @@ theorem afterDecodePairResult_length_le_outBound (s : List Bool) :
     (afterDecodePairResult s).length ≤ afterDecodePairResultOutBound.eval s.length := by
   simpa [afterDecodePairResultOutBound_eval] using length_afterDecodePairResult_le s
 
+/-! ## Cluster D3.1 FinTM2: `afterDecodePairResultComputer` (fail-tag path)
+
+Fail tag `[true]` (and drain of a leading `true` with leftover) emits `[true]`.
+Success path `false :: encodePair (φCode, table)` is Stmt-scaffolded toward
+`validatesTautologyResult`; full Evals for the index loop remain with the
+sequencer packaging below. -/
+
+open TM2.Stmt
+
+inductive ADRStack where
+  | inp | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype ADRStack where
+  elems := {.inp, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive ADRLabel where
+  | readTag | drainTrue | writeFail | parsePair
+  deriving DecidableEq, Repr
+
+instance : Fintype ADRLabel where
+  elems := {.readTag, .drainTrue, .writeFail, .parsePair}
+  complete s := by cases s <;> simp
+
+/-- FinTM2 for `afterDecodePairResult` fail-tag cases. Leading `true` drains
+and emits `[true]`. Leading `false` goes to `parsePair` (success scaffold). -/
+def afterDecodePairResultComputer : FinTM2 where
+  K := ADRStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := ADRLabel
+  main := .readTag
+  σ := Option Bool
+  initialState := none
+  m
+    | .readTag =>
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.writeFail)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.drainTrue)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.parsePair))
+    | .drainTrue =>
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.writeFail)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.drainTrue)
+    | .writeFail =>
+        push ADRStack.out (fun _ => true) <|
+          load (fun _ => none) halt
+    | .parsePair =>
+        -- Success scaffold: currently reject until indexValidate FinTM2 lands.
+        -- Correctness on success inputs is not claimed by the fail-tag theorems.
+        load (fun _ => none) <| goto fun _ => ADRLabel.writeFail
+
+def adrStk (inp work out : List Bool) : ADRStack → List Bool
+  | .inp => inp
+  | .work => work
+  | .out => out
+
+def adrCfg (l : Option ADRLabel) (v : Option Bool)
+    (inp work out : List Bool) : afterDecodePairResultComputer.Cfg :=
+  ⟨l, v, adrStk inp work out⟩
+
+theorem afterDecodePairResult_initList (s : List Bool) :
+    initList afterDecodePairResultComputer s =
+      adrCfg (some .readTag) none s [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some ADRLabel.readTag, none, stk⟩ : afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [afterDecodePairResultComputer, adrStk]
+
+theorem afterDecodePairResult_haltList (out : List Bool) :
+    haltList afterDecodePairResultComputer out =
+      adrCfg none none [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option ADRLabel), none, stk⟩ : afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [afterDecodePairResultComputer, adrStk]
+
+theorem adr_step_readTag_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .readTag) v [] work out) =
+      some (adrCfg (some .writeFail) none [] work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.writeFail, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_readTag_true (rest work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .readTag) v (true :: rest) work out) =
+      some (adrCfg (some .drainTrue) none rest work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.drainTrue, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_readTag_false (rest work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .readTag) v (false :: rest) work out) =
+      some (adrCfg (some .parsePair) none rest work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.parsePair, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_drainTrue_cons (b : Bool) (rest work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .drainTrue) v (b :: rest) work out) =
+      some (adrCfg (some .drainTrue) none rest work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.drainTrue, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_drainTrue_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .drainTrue) v [] work out) =
+      some (adrCfg (some .writeFail) none [] work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.writeFail, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_writeFail (inp work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .writeFail) v inp work out) =
+      some (adrCfg none none inp work (true :: out)) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option ADRLabel), (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_parsePair (inp work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .parsePair) v inp work out) =
+      some (adrCfg (some .writeFail) none inp work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.writeFail, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+def adr_evals_one {l l' : Option ADRLabel} {v v' : Option Bool}
+    {inp work out inp' work' out' : List Bool}
+    (h : TM2.step afterDecodePairResultComputer.m
+      (adrCfg l v inp work out) =
+      some (adrCfg l' v' inp' work' out')) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg l v inp work out)
+      (some (adrCfg l' v' inp' work' out')) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (adrCfg l v inp work out)).bind afterDecodePairResultComputer.step =
+      some (adrCfg l' v' inp' work' out')
+    simp only [FinTM2.step]
+    exact h
+
+/-- Fail-tag singleton `[true]` → `[true]` in 3 steps. -/
+noncomputable def afterDecodePairResult_evals_fail_tag :
+    TM2OutputsInTime afterDecodePairResultComputer [true] (some [true]) 3 := by
+  change EvalsToInTime afterDecodePairResultComputer.step
+    (initList afterDecodePairResultComputer [true])
+    (some (haltList afterDecodePairResultComputer [true])) 3
+  rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
+  have h1 := adr_evals_one (adr_step_readTag_true [] [] [] none)
+  have h2 := adr_evals_one (adr_step_drainTrue_nil [] [] none)
+  have h3 := adr_evals_one (adr_step_writeFail [] [] [] none)
+  have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1 _ _ _ h1 h2
+  exact EvalsToInTime.trans afterDecodePairResultComputer.step 2 1 _ _ _ t12 h3
+
+/-- Empty input → `[true]`. -/
+noncomputable def afterDecodePairResult_evals_nil :
+    TM2OutputsInTime afterDecodePairResultComputer [] (some [true]) 2 := by
+  change EvalsToInTime afterDecodePairResultComputer.step
+    (initList afterDecodePairResultComputer [])
+    (some (haltList afterDecodePairResultComputer [true])) 2
+  rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
+  have h1 := adr_evals_one (adr_step_readTag_nil [] [] none)
+  have h2 := adr_evals_one (adr_step_writeFail [] [] [] none)
+  exact EvalsToInTime.trans afterDecodePairResultComputer.step 1 1 _ _ _ h1 h2
+
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode

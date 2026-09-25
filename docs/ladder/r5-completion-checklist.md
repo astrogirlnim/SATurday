@@ -42,8 +42,9 @@ the hard pin first; the soft pin is packaging.
 - [ ] Glue decode-pair → decode-formula → length gate → loop →
   accept / reject into one `FinTM2` + poly `time`
   (via `comp_idBitEnc_idBitEnc` of `decodePairResult` with
-  `afterDecodePairResult`; functional equality certified;
-  Remaining: `afterDecodePairResult` / `indexValidateComputer` FinTM2)
+  `afterDecodePairResult`; functional equality + outBound certified;
+  `afterDecodePairResultComputer` fail-tag Evals certified;
+  Remaining: success-path indexValidate FinTM2 under `|table|` fuel)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)
