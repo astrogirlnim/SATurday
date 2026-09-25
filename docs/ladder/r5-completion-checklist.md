@@ -35,9 +35,11 @@ the hard pin first; the soft pin is packaging.
 - [x] Index-loop sequencer under `|table|` fuel
   (`validatesTautology_by_index_pad` path; functional `indexValidate` /
   `indexValidateFuel` + one-iter `indexStepBitsComputer` certified;
+  local `comp_idBitEnc_idBitEnc` available for glue;
   Remaining: `indexValidateComputer` FinTM2 under `|table|` fuel)
 - [ ] Glue decode-pair → decode-formula → length gate → loop →
   accept / reject into one `FinTM2` + poly `time`
+  (via `comp_idBitEnc_idBitEnc` once `indexValidateComputer` packages)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)

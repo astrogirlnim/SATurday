@@ -7579,6 +7579,661 @@ theorem evalEncoded_computableInPolyTime :
       (fun p => p.2.evalOn p.1)) :=
   ⟨evalEncodedComputableInPolyTime⟩
 
+/-! ## Cluster D2: index-loop sequencer (functional + one-iter FinTM2)
+
+Plan (`validatesTautology_by_index_pad`): length gate
+`table.length = 2^(maxVar+1)` via `bitsEqualPair` / `lengthBitsEqPow2`, then
+for `i` from `0` to `|table|-1`:
+  `σ := padBitsLE (maxVar+1) (natBitsLE i)` (= `assignmentAt`)
+  `b := φ.evalOn σ` (via `evalEncodedComputer`)
+  if `table[i] ≠ b` or `b = false`, reject `[true]`
+After all pass, accept `false :: φCode` (`prefixFalseCopyComputer`).
+
+This cluster certifies the functional loop and a FinTM2 for the per-index
+bit compare (`indexStepBitsComputer`). Remaining sequencer glue: nest
+`padBitsComputer` then `evalEncodedComputer` then `indexStepBitsComputer`
+under `|table|` fuel, then branch to reject / accept slices. -/
+
+/-- One index check: table bit equals `evalOn` of the padded assignment, and
+is `true`. -/
+def indexStepOk (n i : ℕ) (φ : PropFormula) (tableBit : Bool) : Bool :=
+  let b := φ.evalOn (padBitsLE n (natBitsLE i))
+  decide (tableBit = b ∧ b = true)
+
+theorem indexStepOk_iff (n i : ℕ) (φ : PropFormula) (tableBit : Bool) :
+    indexStepOk n i φ tableBit = true ↔
+      tableBit = φ.evalOn (padBitsLE n (natBitsLE i)) ∧
+        φ.evalOn (padBitsLE n (natBitsLE i)) = true := by
+  simp [indexStepOk]
+
+theorem indexStepOk_iff_assignmentAt (n i : ℕ) (φ : PropFormula)
+    (tableBit : Bool) (hi : i < 2 ^ n) :
+    indexStepOk n i φ tableBit = true ↔
+      tableBit = φ.evalOn (assignmentAt n i) ∧
+        φ.evalOn (assignmentAt n i) = true := by
+  simpa [assignmentAt_eq_padBitsLE hi] using indexStepOk_iff n i φ tableBit
+
+/-- Bit-level form of one index check (eval bit already computed). -/
+def indexStepBitsOk (evalBit expected : Bool) : Bool :=
+  decide (expected = evalBit ∧ evalBit = true)
+
+theorem indexStepBitsOk_iff (evalBit expected : Bool) :
+    indexStepBitsOk evalBit expected = true ↔
+      expected = evalBit ∧ evalBit = true := by
+  simp [indexStepBitsOk]
+
+theorem indexStepOk_eq_bits (n i : ℕ) (φ : PropFormula) (tableBit : Bool) :
+    indexStepOk n i φ tableBit =
+      indexStepBitsOk (φ.evalOn (padBitsLE n (natBitsLE i))) tableBit := by
+  simp [indexStepOk, indexStepBitsOk]
+
+/-- Reject `[true]` / step-ok `[false]` tape for a bit pair. -/
+def indexStepBitsResult (evalBit expected : Bool) : List Bool :=
+  if indexStepBitsOk evalBit expected then [false] else [true]
+
+theorem indexStepBitsResult_ok {evalBit expected : Bool}
+    (h : indexStepBitsOk evalBit expected = true) :
+    indexStepBitsResult evalBit expected = [false] := by
+  simp [indexStepBitsResult, h]
+
+theorem indexStepBitsResult_reject {evalBit expected : Bool}
+    (h : indexStepBitsOk evalBit expected = false) :
+    indexStepBitsResult evalBit expected = [true] := by
+  simp [indexStepBitsResult, h]
+
+/-- Fuel-bounded index loop: checks indices `0 .. fuel-1` against `table`. -/
+def indexValidateFuel (n : ℕ) (φ : PropFormula) (table : List Bool) : ℕ → Bool
+  | 0 => true
+  | fuel + 1 =>
+      indexValidateFuel n φ table fuel &&
+        if h : fuel < table.length then
+          indexStepOk n fuel φ table[fuel]
+        else
+          false
+
+theorem indexValidateFuel_zero (n : ℕ) (φ : PropFormula) (table : List Bool) :
+    indexValidateFuel n φ table 0 = true := rfl
+
+theorem indexValidateFuel_succ (n : ℕ) (φ : PropFormula) (table : List Bool)
+    (fuel : ℕ) :
+    indexValidateFuel n φ table (fuel + 1) =
+      (indexValidateFuel n φ table fuel &&
+        if h : fuel < table.length then indexStepOk n fuel φ table[fuel]
+        else false) := rfl
+
+/-- Loop step: extending fuel by one preserves success iff the new index passes. -/
+theorem indexValidateFuel_succ_iff (n : ℕ) (φ : PropFormula) (table : List Bool)
+    (fuel : ℕ) (hfuel : fuel < table.length) :
+    indexValidateFuel n φ table (fuel + 1) = true ↔
+      indexValidateFuel n φ table fuel = true ∧
+        indexStepOk n fuel φ table[fuel] = true := by
+  simp [indexValidateFuel_succ, hfuel]
+
+/-- Prefix characterization of the fuel loop. -/
+theorem indexValidateFuel_iff (n : ℕ) (φ : PropFormula) (table : List Bool)
+    (fuel : ℕ) (hfuel : fuel ≤ table.length) :
+    indexValidateFuel n φ table fuel = true ↔
+      ∀ (i : ℕ) (hi : i < fuel),
+        indexStepOk n i φ (table[i]'(Nat.lt_of_lt_of_le hi hfuel)) = true := by
+  induction fuel with
+  | zero =>
+      constructor
+      · intro _ i hi
+        cases hi
+      · intro
+        simp [indexValidateFuel]
+  | succ fuel ih =>
+      have hfuel' : fuel ≤ table.length := Nat.le_of_succ_le hfuel
+      have hlt : fuel < table.length := Nat.lt_of_succ_le hfuel
+      constructor
+      · intro h i hi
+        have hand := (indexValidateFuel_succ_iff n φ table fuel hlt).mp h
+        rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hi) with hlt_i | rfl
+        · exact (ih hfuel').mp hand.1 i hlt_i
+        · exact hand.2
+      · intro hAll
+        refine (indexValidateFuel_succ_iff n φ table fuel hlt).mpr ⟨?_, ?_⟩
+        · exact (ih hfuel').mpr fun i hi => hAll i (Nat.lt_succ_of_lt hi)
+        · exact hAll fuel (Nat.lt_succ_self fuel)
+
+/-- Length gate plus full `|table|` fuel loop. -/
+def indexValidate (φ : PropFormula) (table : List Bool) : Bool :=
+  lengthGateOk φ table &&
+    indexValidateFuel (φ.maxVar + 1) φ table table.length
+
+theorem indexValidate_iff (φ : PropFormula) (table : List Bool) :
+    indexValidate φ table = true ↔ validatesTautology_by_index φ table := by
+  simp only [indexValidate, Bool.and_eq_true, lengthGateOk_iff]
+  constructor
+  · intro ⟨hlen, hfuel⟩
+    refine (validatesTautology_by_index_pad φ table).mpr ⟨hlen, ?_⟩
+    intro i hi
+    have hprefix :=
+      (indexValidateFuel_iff (φ.maxVar + 1) φ table table.length le_rfl).mp
+        hfuel i hi
+    have hi' : i < 2 ^ (φ.maxVar + 1) := by simpa [hlen] using hi
+    have hstep := (indexStepOk_iff_assignmentAt _ _ φ table[i] hi').mp hprefix
+    -- hstep: table[i] = evalOn(assignmentAt) ∧ evalOn(assignmentAt) = true
+    -- target: table[i] = evalOn(padBitsLE) ∧ table[i] = true
+    have heq : table[i] = φ.evalOn (assignmentAt (φ.maxVar + 1) i) := hstep.1
+    have htrue : table[i] = true := heq.trans hstep.2
+    have heq' : table[i] =
+        φ.evalOn (padBitsLE (φ.maxVar + 1) (natBitsLE i)) := by
+      rwa [assignmentAt_eq_padBitsLE hi'] at heq
+    exact ⟨heq', htrue⟩
+  · intro h
+    have hpad := (validatesTautology_by_index_pad φ table).mp h
+    refine ⟨hpad.1, ?_⟩
+    refine (indexValidateFuel_iff (φ.maxVar + 1) φ table table.length
+      le_rfl).mpr ?_
+    intro i hi
+    have hpair := hpad.2 i hi
+    have hi' : i < 2 ^ (φ.maxVar + 1) := by simpa [hpad.1] using hi
+    -- hpair: table[i] = evalOn(padBitsLE) ∧ table[i] = true
+    -- target indexStepOk via assignmentAt
+    refine (indexStepOk_iff_assignmentAt _ _ φ table[i] hi').mpr ?_
+    have heq : table[i] =
+        φ.evalOn (padBitsLE (φ.maxVar + 1) (natBitsLE i)) := hpair.1
+    have heq' : table[i] = φ.evalOn (assignmentAt (φ.maxVar + 1) i) := by
+      rwa [← assignmentAt_eq_padBitsLE hi'] at heq
+    exact ⟨heq', heq'.symm.trans hpair.2⟩
+
+theorem indexValidate_iff_pad (φ : PropFormula) (table : List Bool) :
+    indexValidate φ table = true ↔
+      table.length = 2 ^ (φ.maxVar + 1) ∧
+        ∀ (i : ℕ) (hi : i < table.length),
+          table[i] =
+              φ.evalOn (padBitsLE (φ.maxVar + 1) (natBitsLE i)) ∧
+            table[i] = true := by
+  rw [indexValidate_iff, validatesTautology_by_index_pad]
+
+/-- Decoded `(φCode, table)` validation via the index fuel loop. -/
+def indexValidateResult (φCode table : List Bool) : List Bool :=
+  match decodeFormula φCode with
+  | none => [true]
+  | some φ =>
+      if indexValidate φ table then false :: φCode else [true]
+
+theorem indexValidateResult_eq_validatesTautologyResult
+    (φCode table : List Bool) :
+    indexValidateResult φCode table =
+      validatesTautologyResult φCode table := by
+  simp only [indexValidateResult, validatesTautologyResult]
+  cases h : decodeFormula φCode with
+  | none => rfl
+  | some φ =>
+      have hiff := indexValidate_iff φ table
+      have hval := validatesTautology_iff_by_index φ table
+      by_cases hidx : indexValidate φ table = true
+      · have : validatesTautology φ table := by
+          exact hval.mpr (hiff.mp hidx)
+        simp [h, hidx, this]
+      · have : ¬ validatesTautology φ table := by
+          intro hv
+          exact hidx (hiff.mpr (hval.mp hv))
+        simp [h, hidx, this]
+
+/-- Length-gate Bool on `(n, table)` via the certified bitsEqualPair path. -/
+def indexLengthGate (n : ℕ) (table : List Bool) : Bool :=
+  bitsEqualPair (lengthBitsLE table, pow2BitsLE n)
+
+theorem indexLengthGate_iff (n : ℕ) (table : List Bool) :
+    indexLengthGate n table = true ↔ table.length = 2 ^ n := by
+  simpa [indexLengthGate] using bitsEqualPair_iff_lengthGate n table
+
+theorem indexLengthGate_eq_lengthGateOk (φ : PropFormula) (table : List Bool) :
+    indexLengthGate (φ.maxVar + 1) table = lengthGateOk φ table := by
+  simp [indexLengthGate, lengthGateOk_eq_lengthBitsEqPow2,
+    lengthBitsEqPow2_eq_bitsEqual, bitsEqualPair]
+
+/-! ### Cluster D2 one-iter FinTM2: `indexStepBitsComputer`
+
+Input `encodePair ([evalBit], [expected])`. Output `[false]` when both bits
+are `true` (step ok), else `[true]` (reject), matching `indexStepBitsResult`. -/
+
+open TM2.Stmt
+
+inductive IdxStepStack where
+  | inp | out
+  deriving DecidableEq, Repr
+
+instance : Fintype IdxStepStack where
+  elems := {.inp, .out}
+  complete s := by cases s <;> simp
+
+inductive IdxStepLabel where
+  | parseL | readEval | sep | readExp | writeOk | writeRej | drain
+  deriving DecidableEq, Repr
+
+instance : Fintype IdxStepLabel where
+  elems :=
+    {.parseL, .readEval, .sep, .readExp, .writeOk, .writeRej, .drain}
+  complete s := by cases s <;> simp
+
+/-- FinTM2 realizing `indexStepBitsResult` on `encodePair ([evalBit], [expected])`. -/
+def indexStepBitsComputer : FinTM2 where
+  K := IdxStepStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := IdxStepLabel
+  main := .parseL
+  σ := Option Bool
+  initialState := none
+  m
+    | .parseL =>
+        pop IdxStepStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = some true))
+            (load (fun _ => none) <| goto fun _ => IdxStepLabel.readEval)
+            (load (fun _ => none) <| goto fun _ => IdxStepLabel.drain)
+    | .readEval =>
+        pop IdxStepStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => IdxStepLabel.drain)
+            (goto fun _ => IdxStepLabel.sep)
+    | .sep =>
+        pop IdxStepStack.inp (fun s o =>
+            match s, o with
+            | some evalBit, some false => some evalBit
+            | _, _ => none) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => IdxStepLabel.drain)
+            (goto fun _ => IdxStepLabel.readExp)
+    | .readExp =>
+        pop IdxStepStack.inp (fun s o =>
+            match s, o with
+            | some true, some true => some true
+            | _, _ => none) <|
+          branch (fun s => decide (s = some true))
+            (load (fun _ => none) <| goto fun _ => IdxStepLabel.writeOk)
+            (load (fun _ => none) <| goto fun _ => IdxStepLabel.writeRej)
+    | .writeOk =>
+        pop IdxStepStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push IdxStepStack.out (fun _ => false) <|
+              load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => IdxStepLabel.writeOk)
+    | .writeRej =>
+        pop IdxStepStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push IdxStepStack.out (fun _ => true) <|
+              load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => IdxStepLabel.writeRej)
+    | .drain =>
+        pop IdxStepStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push IdxStepStack.out (fun _ => true) <|
+              load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => IdxStepLabel.drain)
+
+def idxStepStk (inp out : List Bool) : IdxStepStack → List Bool
+  | .inp => inp
+  | .out => out
+
+def idxStepCfg (l : Option IdxStepLabel) (v : Option Bool)
+    (inp out : List Bool) : indexStepBitsComputer.Cfg :=
+  ⟨l, v, idxStepStk inp out⟩
+
+theorem indexStepBits_initList (s : List Bool) :
+    initList indexStepBitsComputer s =
+      idxStepCfg (some .parseL) none s [] := by
+  refine congrArg (fun stk =>
+      (⟨some IdxStepLabel.parseL, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [indexStepBitsComputer, idxStepStk]
+
+theorem indexStepBits_haltList (out : List Bool) :
+    haltList indexStepBitsComputer out =
+      idxStepCfg none none [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option IdxStepLabel), none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [indexStepBitsComputer, idxStepStk]
+
+/-! ### indexStepBitsComputer step lemmas -/
+
+theorem idxStep_step_parseL_true (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .parseL) none (true :: rest) out) =
+      some (idxStepCfg (some .readEval) none rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.readEval, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_parseL_false (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .parseL) none (false :: rest) out) =
+      some (idxStepCfg (some .drain) none rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.drain, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_parseL_nil (out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .parseL) none [] out) =
+      some (idxStepCfg (some .drain) none [] out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.drain, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_readEval (a : Bool) (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .readEval) none (a :: rest) out) =
+      some (idxStepCfg (some .sep) (some a) rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.sep, some a, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_readEval_nil (v : Option Bool) (out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .readEval) v [] out) =
+      some (idxStepCfg (some .drain) none [] out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.drain, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_sep_false (evalBit : Bool) (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .sep) (some evalBit) (false :: rest) out) =
+      some (idxStepCfg (some .readExp) (some evalBit) rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.readExp, some evalBit, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_sep_true (evalBit : Bool) (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .sep) (some evalBit) (true :: rest) out) =
+      some (idxStepCfg (some .drain) none rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.drain, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_readExp_bothTrue (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .readExp) (some true) (true :: rest) out) =
+      some (idxStepCfg (some .writeOk) none rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.writeOk, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_readExp_evalFalse (exp : Bool) (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .readExp) (some false) (exp :: rest) out) =
+      some (idxStepCfg (some .writeRej) none rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.writeRej, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_readExp_expFalse (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .readExp) (some true) (false :: rest) out) =
+      some (idxStepCfg (some .writeRej) none rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.writeRej, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_writeOk_nil (out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .writeOk) none [] out) =
+      some (idxStepCfg none none [] (false :: out)) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option IdxStepLabel), none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_writeOk_cons (b : Bool) (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .writeOk) none (b :: rest) out) =
+      some (idxStepCfg (some .writeOk) none rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.writeOk, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_writeRej_nil (out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .writeRej) none [] out) =
+      some (idxStepCfg none none [] (true :: out)) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option IdxStepLabel), none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_writeRej_cons (b : Bool) (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .writeRej) none (b :: rest) out) =
+      some (idxStepCfg (some .writeRej) none rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.writeRej, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_drain_nil (out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .drain) none [] out) =
+      some (idxStepCfg none none [] (true :: out)) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option IdxStepLabel), none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+theorem idxStep_step_drain_cons (b : Bool) (rest out : List Bool) :
+    TM2.step indexStepBitsComputer.m
+      (idxStepCfg (some .drain) none (b :: rest) out) =
+      some (idxStepCfg (some .drain) none rest out) := by
+  simp [indexStepBitsComputer, idxStepCfg, idxStepStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some IdxStepLabel.drain, none, stk⟩ : indexStepBitsComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, idxStepStk]
+
+/-! ### indexStepBitsComputer EvalsToInTime -/
+
+def idxStep_evals_one {l l' : Option IdxStepLabel} {v v' : Option Bool}
+    {inp out inp' out' : List Bool}
+    (h : TM2.step indexStepBitsComputer.m
+      (idxStepCfg l v inp out) = some (idxStepCfg l' v' inp' out')) :
+    EvalsToInTime indexStepBitsComputer.step
+      (idxStepCfg l v inp out)
+      (some (idxStepCfg l' v' inp' out')) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (idxStepCfg l v inp out)).bind indexStepBitsComputer.step =
+      some (idxStepCfg l' v' inp' out')
+    simp only [FinTM2.step]
+    exact h
+
+/-- Happy path: both bits true yields step-ok `[false]`. -/
+noncomputable def indexStepBits_evals_ok :
+    EvalsToInTime indexStepBitsComputer.step
+      (initList indexStepBitsComputer (encodePair ([true], [true])))
+      (some (haltList indexStepBitsComputer [false])) 5 := by
+  have h0 : encodePair ([true], [true]) = [true, true, false, true] := by
+    simp [encodePair]
+  rw [indexStepBits_initList, indexStepBits_haltList, h0]
+  have h1 := idxStep_evals_one (idxStep_step_parseL_true [true, false, true] [])
+  have h2 := idxStep_evals_one (idxStep_step_readEval true [false, true] [])
+  have h3 := idxStep_evals_one (idxStep_step_sep_false true [true] [])
+  have h4 := idxStep_evals_one (idxStep_step_readExp_bothTrue [] [])
+  have h5 := idxStep_evals_one (idxStep_step_writeOk_nil [])
+  have t12 := EvalsToInTime.trans indexStepBitsComputer.step 1 1 _ _ _ h1 h2
+  have t34 := EvalsToInTime.trans indexStepBitsComputer.step 1 1 _ _ _ h3 h4
+  have t1234 := EvalsToInTime.trans indexStepBitsComputer.step 2 2 _ _ _ t12 t34
+  exact EvalsToInTime.trans indexStepBitsComputer.step 4 1 _ _ _ t1234 h5
+
+/-- Reject path: eval bit false. -/
+noncomputable def indexStepBits_evals_evalFalse (expected : Bool) :
+    EvalsToInTime indexStepBitsComputer.step
+      (initList indexStepBitsComputer (encodePair ([false], [expected])))
+      (some (haltList indexStepBitsComputer [true])) 5 := by
+  have h0 : encodePair ([false], [expected]) = [true, false, false, expected] := by
+    simp [encodePair]
+  rw [indexStepBits_initList, indexStepBits_haltList, h0]
+  have h1 := idxStep_evals_one (idxStep_step_parseL_true [false, false, expected] [])
+  have h2 := idxStep_evals_one (idxStep_step_readEval false [false, expected] [])
+  have h3 := idxStep_evals_one (idxStep_step_sep_false false [expected] [])
+  have h4 := idxStep_evals_one (idxStep_step_readExp_evalFalse expected [] [])
+  have h5 := idxStep_evals_one (idxStep_step_writeRej_nil [])
+  have t12 := EvalsToInTime.trans indexStepBitsComputer.step 1 1 _ _ _ h1 h2
+  have t34 := EvalsToInTime.trans indexStepBitsComputer.step 1 1 _ _ _ h3 h4
+  have t1234 := EvalsToInTime.trans indexStepBitsComputer.step 2 2 _ _ _ t12 t34
+  exact EvalsToInTime.trans indexStepBitsComputer.step 4 1 _ _ _ t1234 h5
+
+/-- Reject path: expected bit false while eval is true. -/
+noncomputable def indexStepBits_evals_expFalse :
+    EvalsToInTime indexStepBitsComputer.step
+      (initList indexStepBitsComputer (encodePair ([true], [false])))
+      (some (haltList indexStepBitsComputer [true])) 5 := by
+  have h0 : encodePair ([true], [false]) = [true, true, false, false] := by
+    simp [encodePair]
+  rw [indexStepBits_initList, indexStepBits_haltList, h0]
+  have h1 := idxStep_evals_one (idxStep_step_parseL_true [true, false, false] [])
+  have h2 := idxStep_evals_one (idxStep_step_readEval true [false, false] [])
+  have h3 := idxStep_evals_one (idxStep_step_sep_false true [false] [])
+  have h4 := idxStep_evals_one (idxStep_step_readExp_expFalse [] [])
+  have h5 := idxStep_evals_one (idxStep_step_writeRej_nil [])
+  have t12 := EvalsToInTime.trans indexStepBitsComputer.step 1 1 _ _ _ h1 h2
+  have t34 := EvalsToInTime.trans indexStepBitsComputer.step 1 1 _ _ _ h3 h4
+  have t1234 := EvalsToInTime.trans indexStepBitsComputer.step 2 2 _ _ _ t12 t34
+  exact EvalsToInTime.trans indexStepBitsComputer.step 4 1 _ _ _ t1234 h5
+
+/-- Full outputs packaging for the two-bit encodePair domain. -/
+noncomputable def indexStepBits_evals (evalBit expected : Bool) :
+    TM2OutputsInTime indexStepBitsComputer
+      (encodePair ([evalBit], [expected]))
+      (some (indexStepBitsResult evalBit expected)) 5 := by
+  cases evalBit <;> cases expected
+  · simpa [indexStepBitsResult, indexStepBitsOk] using indexStepBits_evals_evalFalse false
+  · simpa [indexStepBitsResult, indexStepBitsOk] using indexStepBits_evals_evalFalse true
+  · simpa [indexStepBitsResult, indexStepBitsOk] using indexStepBits_evals_expFalse
+  · simpa [indexStepBitsResult, indexStepBitsOk] using indexStepBits_evals_ok
+
+noncomputable def indexStepBitsTime : Polynomial ℕ := 5
+
+theorem indexStepBitsTime_eval (t : ℕ) :
+    indexStepBitsTime.eval t = 5 := by
+  simp [indexStepBitsTime]
+
+/-- Pair encoding of two singleton bit lists. -/
+def encodeIndexStepBits (p : Bool × Bool) : List Bool :=
+  encodePair ([p.1], [p.2])
+
+noncomputable def indexStepBitsComputableInPolyTime :
+    TM2ComputableInPolyTime encodeIndexStepBits idBitEnc
+      (fun p => indexStepBitsResult p.1 p.2) where
+  tm := indexStepBitsComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := indexStepBitsTime
+  outputsFun p := by
+    rcases p with ⟨evalBit, expected⟩
+    change TM2OutputsInTime indexStepBitsComputer
+      (List.map id (encodeIndexStepBits (evalBit, expected)))
+      (some (List.map id (idBitEnc (indexStepBitsResult evalBit expected))))
+      (indexStepBitsTime.eval (encodeIndexStepBits (evalBit, expected)).length)
+    simp only [encodeIndexStepBits, idBitEnc, List.map_id, id_eq,
+      indexStepBitsTime_eval]
+    exact indexStepBits_evals evalBit expected
+
+theorem indexStepBits_computableInPolyTime :
+    Nonempty (TM2ComputableInPolyTime encodeIndexStepBits idBitEnc
+      (fun p => indexStepBitsResult p.1 p.2)) :=
+  ⟨indexStepBitsComputableInPolyTime⟩
+
+/-! ### Cluster D2 loop-fuel skeleton (semantic target of full sequencer)
+
+`indexValidateComputer` below is the named semantic target for the eventual
+FinTM2 under `encodePair (encodeNat n, encodePair (φCode, table))` with
+`n = maxVar+1`. The Stmt body that nests pad / eval / bit-step under fuel is
+Remaining; functional correctness is already `indexValidateResult_eq`. -/
+
+/-- Semantic target of the eventual `indexValidateComputer` FinTM2
+(n, φCode, table) with `n = maxVar+1`. -/
+def indexValidateOnTriple (p : ℕ × List Bool × List Bool) : List Bool :=
+  let n := p.1
+  let φCode := p.2.1
+  let table := p.2.2
+  match decodeFormula φCode with
+  | none => [true]
+  | some φ =>
+      if n = φ.maxVar + 1 && indexValidate φ table then false :: φCode
+      else [true]
+
+theorem indexValidateOnTriple_eq_result
+    (φ : PropFormula) (table : List Bool) :
+    indexValidateOnTriple (φ.maxVar + 1, encodeFormula φ, table) =
+      indexValidateResult (encodeFormula φ) table := by
+  simp [indexValidateOnTriple, indexValidateResult, decodeFormula_encodeFormula]
+
+theorem indexValidateOnTriple_eq_validatesTautologyResult
+    (φ : PropFormula) (table : List Bool) :
+    indexValidateOnTriple (φ.maxVar + 1, encodeFormula φ, table) =
+      validatesTautologyResult (encodeFormula φ) table := by
+  rw [indexValidateOnTriple_eq_result,
+    indexValidateResult_eq_validatesTautologyResult]
+
+/-- Encoding for the eventual sequencer input. -/
+def encodeIndexValidate (p : ℕ × List Bool × List Bool) : List Bool :=
+  encodePair (encodeNat p.1, encodePair (p.2.1, p.2.2))
+
+/-- Cost model: length gate O(|table|) plus per-index pad+eval+compare. -/
+def indexValidateCost (n : ℕ) (φCode table : List Bool) : ℕ :=
+  (table.length + 1) + table.length * (φCode.length + n + 1)
+
+theorem indexValidateCost_le (n : ℕ) (φCode table : List Bool) :
+    indexValidateCost n φCode table ≤
+      (table.length + 1) * (φCode.length + n + 2) := by
+  unfold indexValidateCost
+  set L := table.length
+  set C := φCode.length
+  have hL : L * (C + n + 1) ≤ (L + 1) * (C + n + 1) :=
+    Nat.mul_le_mul_right _ (Nat.le_succ L)
+  have hadd :
+      (L + 1) + L * (C + n + 1) ≤ (L + 1) + (L + 1) * (C + n + 1) :=
+    Nat.add_le_add_left hL _
+  have hEq : (L + 1) + (L + 1) * (C + n + 1) = (L + 1) * (C + n + 2) := by
+    ring
+  exact hEq ▸ hadd
+
+/-
+Remaining (Cluster D2 sequencer glue, next formalize):
+1. FinTM2 `indexValidateComputer` Stmt nesting `padBitsComputer` then
+   `evalEncodedComputer` then `indexStepBitsComputer` for one index under
+   stacks holding `(n, i, φCode, tableBit)`.
+2. Fuel loop under `|table|` with counter `i` as `natBitsLE`, step lemmas
+   extending `indexValidateFuel_succ_iff`.
+3. Length gate via `bitsEqualPairComputableInPolyTime` on
+   `(lengthBitsLE table, pow2BitsLE n)` before the loop.
+4. Branch to `constTrueListComputableInPolyTime` / `prefixFalseCopyComputer`.
+5. Package `TM2ComputableInPolyTime encodeIndexValidate idBitEnc
+   indexValidateOnTriple`, then glue into
+   `validatesTautologyResult_computableInPolyTime`.
+-/
+
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
@@ -7594,10 +8249,17 @@ Also certified: `assignmentAt n i = padBitsLE n (natBitsLE i)` when `i < 2^n`,
 `validatesTautology_by_index_pad`, and `padBitsComputer` FinTM2 Stmt plus
 EvalsToInTime / `padBitsComputableInPolyTime` for `padBitsLE` under
 `encodePair (encodeNat n, bs)`.
-Remaining: per index loop sequencer, then TT map glue. Also certified:
-`evalEncodedComputer` FinTM2 Stmt plus EvalsToInTime /
+Also certified: `evalEncodedComputer` FinTM2 Stmt plus EvalsToInTime /
 `evalEncodedComputableInPolyTime` for `evalOn` under
-`encodePair (σ, encodeFormula φ)`. -/
+`encodePair (σ, encodeFormula φ)`.
+Also certified (Cluster D2): functional `indexValidate` /
+`indexValidateFuel` / `indexStepOk` equiv to `validatesTautology_by_index`,
+`indexValidateResult_eq_validatesTautologyResult`, length-gate Bool
+`indexLengthGate`, one-iter `indexStepBitsComputer` with EvalsToInTime /
+`indexStepBitsComputableInPolyTime`, and semantic target
+`indexValidateOnTriple` under `encodeIndexValidate`.
+Remaining: FinTM2 `indexValidateComputer` nesting pad then eval then
+indexStepBits under `|table|` fuel, then TT map glue into this pin. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by
