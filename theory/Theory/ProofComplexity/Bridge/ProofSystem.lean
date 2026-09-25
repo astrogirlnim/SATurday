@@ -8792,6 +8792,79 @@ theorem odometerSucc_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc odometerSuccResult) :=
   ⟨odometerSuccComputableInPolyTime⟩
 
+/-! ## Cluster D3: afterDecodePairResult glue
+
+`decodePairResult` tags success as `false :: π` and failure as `[true]`.
+The map below strips that tag and runs `validatesTautologyResult`, so
+`validatesTautologyResult_on_pair = afterDecodePairResult ∘ decodePairResult`.
+Closing the pin is then `comp_idBitEnc_idBitEnc` of `decodePairResult` with a
+poly-time witness for `afterDecodePairResult` (indexValidate FinTM2). -/
+
+/-- Strip `decodePairResult` tagging and validate the decoded pair. -/
+def afterDecodePairResult (s : List Bool) : List Bool :=
+  match decodeDecodePairResult s with
+  | none => [true]
+  | some none => [true]
+  | some (some (φCode, table)) => validatesTautologyResult φCode table
+
+theorem afterDecodePairResult_fail_tag :
+    afterDecodePairResult [true] = [true] := by
+  simp [afterDecodePairResult, decodeDecodePairResult]
+
+theorem afterDecodePairResult_success (φCode table : List Bool) :
+    afterDecodePairResult (false :: encodePair (φCode, table)) =
+      validatesTautologyResult φCode table := by
+  simp [afterDecodePairResult, decodeDecodePairResult, decodePair_encodePair]
+
+theorem afterDecodePairResult_of_decodePairResult (π : List Bool) :
+    afterDecodePairResult (decodePairResult π) =
+      validatesTautologyResult_on_pair π := by
+  cases h : decodePair π with
+  | none =>
+      simp [decodePairResult_of_none h, validatesTautologyResult_on_pair_of_none h,
+        afterDecodePairResult_fail_tag]
+  | some pw =>
+      rcases pw with ⟨φCode, table⟩
+      have henc := encodePair_of_decodePair h
+      subst henc
+      simp [decodePairResult_encodePair, afterDecodePairResult_success,
+        validatesTautologyResult_on_pair_encodePair]
+
+theorem validatesTautologyResult_on_pair_eq_afterDecodePairResult_comp
+    (π : List Bool) :
+    validatesTautologyResult_on_pair π =
+      (afterDecodePairResult ∘ decodePairResult) π :=
+  (afterDecodePairResult_of_decodePairResult π).symm
+
+theorem length_afterDecodePairResult_le (s : List Bool) :
+    (afterDecodePairResult s).length ≤ s.length + 1 := by
+  simp only [afterDecodePairResult]
+  cases h : decodeDecodePairResult s with
+  | none => simp
+  | some r =>
+      cases r with
+      | none => simp
+      | some pw =>
+          rcases pw with ⟨φCode, table⟩
+          have hout := length_validatesTautologyResult_le φCode table
+          have hφ : φCode.length ≤ s.length := by
+            match s with
+            | [] => simp [decodeDecodePairResult] at h
+            | true :: rest =>
+                cases rest with
+                | nil => simp [decodeDecodePairResult] at h
+                | cons _ _ => simp [decodeDecodePairResult] at h
+            | false :: rest =>
+                simp only [decodeDecodePairResult] at h
+                cases hp : decodePair rest with
+                | none => simp [hp] at h
+                | some p =>
+                    simp [hp] at h
+                    rcases h with ⟨rfl, rfl⟩
+                    exact Nat.le_trans (length_fst_le_of_decodePair hp)
+                      (Nat.le_succ_of_le le_rfl)
+          exact Nat.le_trans hout (Nat.add_le_add_right hφ 1)
+
 namespace ProofSystemFrontier
 
 /-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
