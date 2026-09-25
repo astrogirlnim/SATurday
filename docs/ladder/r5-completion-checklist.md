@@ -25,14 +25,17 @@ the hard pin first; the soft pin is packaging.
 
 ### A. Hard pin — `validatesTautologyResult_computableInPolyTime` (~6102)
 
-- [ ] Inventory reuse: `padBitsComputer` / `padBitsComputableInPolyTime`,
+- [x] Inventory reuse: `padBitsComputer` / `padBitsComputableInPolyTime`,
   `bitsEqualPairComputableInPolyTime`, `pow2BitsLE` / `writePow2Bits`,
   `natBitsLE` / `lengthBitsEqPow2`, `countLengthBits`, leftover drain,
   encodePair load, reject / tautology slices
-- [ ] Build `evalOn` FinTM2 (Stmt + step lemmas + `EvalsToInTime`) for
-  `PropFormula.evalOn`
-- [ ] Index-loop sequencer under `|table|` fuel
-  (`validatesTautology_by_index_pad` path)
+- [x] Build `evalOn` FinTM2 (Stmt + step lemmas + `EvalsToInTime`) for
+  `PropFormula.evalOn` (via `evalEncoded` interpreter:
+  `evalEncodedComputer` / `evalEncoded_computableInPolyTime`)
+- [x] Index-loop sequencer under `|table|` fuel
+  (`validatesTautology_by_index_pad` path; functional `indexValidate` /
+  `indexValidateFuel` + one-iter `indexStepBitsComputer` certified;
+  Remaining: `indexValidateComputer` FinTM2 under `|table|` fuel)
 - [ ] Glue decode-pair → decode-formula → length gate → loop →
   accept / reject into one `FinTM2` + poly `time`
 - [ ] Package

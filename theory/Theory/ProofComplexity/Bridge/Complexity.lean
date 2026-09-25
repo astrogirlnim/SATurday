@@ -3995,6 +3995,144 @@ theorem InP_complement (L : Language) (h : InP L) : InP (complement L) := by
   rcases h with ⟨χ, hχ, hdec⟩
   refine ⟨fun x => Bool.not (χ x), compose_notAfter hχ, not_chi_decides_complement L χ hdec⟩
 
+/-! ## Local `idBitEnc` sequential composition
+
+Mathlib leaves `TM2ComputableInPolyTime.comp` as `proof_wanted`. The Bool-tape
+special case below is enough for R5 proof-system glue: both maps are
+`List Bool → List Bool` under `idBitEnc`, realized by `seqCompComputer` and the
+accepted `seqComp_evals_compose` lemma. An explicit polynomial output-size
+bound for `f` closes the copy and second-stage time budget. -/
+
+/-- Compose two `idBitEnc → idBitEnc` poly-time maps, given `|f x| ≤ p.eval |x|`. -/
+noncomputable def comp_idBitEnc_idBitEnc {f g : List Bool → List Bool}
+    (hf : TM2ComputableInPolyTime idBitEnc idBitEnc f)
+    (hg : TM2ComputableInPolyTime idBitEnc idBitEnc g)
+    (p : Polynomial ℕ)
+    (hf_out : ∀ x, (f x).length ≤ p.eval x.length) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc (g ∘ f) := by
+  let decodeOut : hf.tm.Γ hf.tm.k₁ → Bool := hf.outputAlphabet
+  let encodeIn : Bool → hg.tm.Γ hg.tm.k₀ := hg.inputAlphabet.symm
+  let tm :=
+    seqCompComputer (βΓ := Bool) hf.tm hg.tm decodeOut encodeIn
+  let inA : tm.Γ tm.k₀ ≃ Bool := by
+    let e : tm.Γ tm.k₀ ≃ hf.tm.Γ hf.tm.k₀ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (hf.tm.Γ hf.tm.k₀))
+    exact e.trans hf.inputAlphabet
+  let outA : tm.Γ tm.k₁ ≃ Bool := by
+    let e : tm.Γ tm.k₁ ≃ hg.tm.Γ hg.tm.k₁ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (hg.tm.Γ hg.tm.k₁))
+    exact e.trans hg.outputAlphabet
+  -- Copy ≤ 4*(|f|+1); second stage at |f|; budget via p.
+  let timeBound : Polynomial ℕ :=
+    seqCompTime hf.time (Polynomial.C 0) + (4 * (p + 1)) + (hg.time.comp p)
+  refine
+    { tm := tm
+      inputAlphabet := inA
+      outputAlphabet := outA
+      time := timeBound
+      outputsFun := ?out }
+  case out =>
+    intro x
+    change TM2OutputsInTime tm (List.map inA.invFun (idBitEnc x))
+      (some (List.map outA.invFun (idBitEnc (g (f x)))))
+      (timeBound.eval (idBitEnc x).length)
+    have hin :
+        List.map inA.invFun (idBitEnc x) =
+          List.map hf.inputAlphabet.invFun (idBitEnc x) := by
+      apply congrArg (fun φ : Bool → tm.Γ tm.k₀ => List.map φ (idBitEnc x))
+      funext b
+      simp only [inA]
+      change (Equiv.refl _).symm (hf.inputAlphabet.symm b) = hf.inputAlphabet.symm b
+      rfl
+    have hout :
+        List.map outA.invFun (idBitEnc (g (f x))) =
+          List.map hg.outputAlphabet.invFun (idBitEnc (g (f x))) := by
+      apply congrArg (fun φ : Bool → tm.Γ tm.k₁ =>
+        List.map φ (idBitEnc (g (f x))))
+      funext b
+      simp only [outA]
+      change (Equiv.refl _).symm (hg.outputAlphabet.symm b) = hg.outputAlphabet.symm b
+      rfl
+    have h1 : EvalsToInTime hf.tm.step
+        (initList hf.tm (List.map hf.inputAlphabet.invFun (idBitEnc x)))
+        (some (haltList hf.tm
+          (List.map hf.outputAlphabet.invFun (idBitEnc (f x)))))
+        (hf.time.eval (idBitEnc x).length) :=
+      hf.outputsFun x
+    set mid := List.map hf.outputAlphabet.invFun (idBitEnc (f x)) with hmid_def
+    have hmid_map :
+        mid.map (encodeIn ∘ decodeOut) =
+          List.map hg.inputAlphabet.invFun (idBitEnc (f x)) := by
+      simp only [mid, decodeOut, encodeIn, List.map_map]
+      refine congrArg (List.map · (idBitEnc (f x))) ?_
+      funext b
+      change hg.inputAlphabet.symm (hf.outputAlphabet (hf.outputAlphabet.symm b)) =
+        hg.inputAlphabet.symm b
+      simp
+    have h2 : EvalsToInTime hg.tm.step
+        (initList hg.tm (mid.map (encodeIn ∘ decodeOut)))
+        (some (haltList hg.tm
+          (List.map hg.outputAlphabet.invFun (idBitEnc (g (f x))))))
+        (hg.time.eval (idBitEnc (f x)).length) := by
+      simpa [hmid_map] using hg.outputsFun (f x)
+    have heval :=
+      seqComp_evals_compose (βΓ := Bool) hf.tm hg.tm decodeOut encodeIn
+        (List.map hf.inputAlphabet.invFun (idBitEnc x)) mid
+        (List.map hg.outputAlphabet.invFun (idBitEnc (g (f x))))
+        (hf.time.eval (idBitEnc x).length)
+        (hg.time.eval (idBitEnc (f x)).length) h1 h2
+    have heval' :
+        EvalsToInTime (TM2.step tm.m)
+          (initList tm (List.map inA.invFun (idBitEnc x)))
+          (some (haltList tm (List.map outA.invFun (idBitEnc (g (f x))))))
+          (hf.time.eval (idBitEnc x).length +
+            (2 * mid.length + 1) + (2 * mid.length + 1) +
+            hg.time.eval (idBitEnc (f x)).length) := by
+      rw [hin, hout]
+      exact heval
+    set n := (idBitEnc x).length with hn_def
+    have hn : n = x.length := by simp [hn_def, idBitEnc]
+    have hmid_len : mid.length = (f x).length := by
+      simp [mid, idBitEnc, List.length_map]
+    have hflen : (f x).length ≤ p.eval n := by
+      simpa [hn] using hf_out x
+    have hcopy :
+        (2 * mid.length + 1) + (2 * mid.length + 1) ≤ 4 * (p.eval n + 1) := by
+      simp only [hmid_len]
+      have : 4 * ((f x).length + 1) ≤ 4 * (p.eval n + 1) :=
+        Nat.mul_le_mul_left _ (Nat.add_le_add_right hflen 1)
+      omega
+    have hg_le :
+        hg.time.eval (f x).length ≤ (hg.time.comp p).eval n := by
+      have h1' : hg.time.eval (f x).length ≤ hg.time.eval (p.eval n) :=
+        poly_eval_mono hg.time hflen
+      simpa [Polynomial.eval_comp] using h1'
+    have htime :
+        timeBound.eval n =
+          hf.time.eval n + 4 * (n + 1) + 4 * (p.eval n + 1) +
+            (hg.time.comp p).eval n := by
+      simp only [timeBound, Polynomial.eval_add, seqCompTime_eval,
+        Polynomial.eval_mul, Polynomial.eval_one, Polynomial.eval_ofNat,
+        Polynomial.eval_C]
+      ring
+    have hbound :
+        hf.time.eval n + (2 * mid.length + 1) + (2 * mid.length + 1) +
+            hg.time.eval (f x).length ≤
+          timeBound.eval n := by
+      rw [htime]
+      have hcopy' := hcopy
+      have hg' := hg_le
+      omega
+    have hsteps :
+        hf.time.eval (idBitEnc x).length +
+            (2 * mid.length + 1) + (2 * mid.length + 1) +
+            hg.time.eval (idBitEnc (f x)).length ≤
+          timeBound.eval n := by
+      simpa [idBitEnc, hn_def] using hbound
+    exact ⟨heval'.toEvalsTo, le_trans heval'.steps_le_m (by simpa [hn_def] using hsteps)⟩
+
 /-- Bridge theorem 2: P = NP implies NP = coNP. -/
 theorem classP_eq_classNP_implies_NP_eq_coNP
     (h : ClassP_eq_ClassNP) : ClassNP_eq_ClassCoNP := by
