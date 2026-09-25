@@ -255,16 +255,16 @@ class SaturdayLoopConfig(BaseModel):
     endpoint: str = "http://localhost:11434"
     # ollama = /api/generate; openai_compatible = /v1/chat/completions
     api_style: str = Field("ollama", pattern="^(ollama|openai_compatible)$")
-    timeout_seconds: int = Field(600, gt=0)
+    timeout_seconds: int = Field(1200, gt=0)
     require_local: bool = True
     # Optional weight store path (relative to repo or absolute). Empty means
     # leave Ollama's default alone. Prefer env OLLAMA_MODELS (native) or
     # SATURDAY_MODELS_DIR over baking a volume path into YAML.
     models_dir: str = ""
-    # Ollama context window. Default Ollama is 4096 and truncates our ~14k
-    # formalize prompts, which makes the model invent "missing definitions".
-    # Override with SATURDAY_NUM_CTX.
-    num_ctx: int = Field(16384, ge=2048, le=131072)
+    # Ollama context window. Default Ollama is 4096 and truncates our ~4k to 5k
+    # token formalize prompts. 8192 fits those on 16GB; 16384 often OOMs or
+    # times out. Override with SATURDAY_NUM_CTX.
+    num_ctx: int = Field(8192, ge=2048, le=131072)
     # Role models sized for Apple Silicon 16GB+ unified memory
     prove: SaturdayRoleLLMConfig = SaturdayRoleLLMConfig(
         model="qwen2.5:14b",

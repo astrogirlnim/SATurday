@@ -185,14 +185,14 @@ saturday_loop:
   enabled: true
   endpoint: "http://localhost:11434"
   api_style: "ollama"
-  timeout_seconds: 600
+  timeout_seconds: 1200
   require_local: true
   # Empty: use Ollama default store. Override with OLLAMA_MODELS or
   # SATURDAY_MODELS_DIR (preferred) rather than hardcoding a volume path here.
   models_dir: ""
   # Context tokens for local Ollama (default Ollama 4096 truncates formalize).
-  # Override with SATURDAY_NUM_CTX.
-  num_ctx: 16384
+  # 8192 fits ~4k to 5k token prompts on 16GB; override with SATURDAY_NUM_CTX.
+  num_ctx: 8192
   prove:
     model: "qwen2.5:14b"
     num_predict: 8192
