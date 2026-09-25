@@ -10,7 +10,8 @@ informative floor threshold and Spreads scale 3 constructor merged 2026-08-10;
 single support starCNF and SpreadsSupports scaffolding merged 2026-08-10;
 matching SpreadsSupports at informative r = 8 merged 2026-08-11; overlapping
 loose path SpreadsSupports and polarity CNF packaging merged 2026-08-11;
-existence `exists_cs_clause_expanding_3cnf` still Frontier)
+existence `exists_cs_clause_expanding_3cnf` restated 2026-09-25 to
+Tseitin Inv hardness; Cluster 23 CS equations killed)
 
 ## Statement
 
@@ -9726,3 +9727,20 @@ end MGGFrontier
   Most important thing learned: item 7 is not a charging corollary of item 6.
   The locked equations `α = 1` and `r = n / 16` are stronger than both the
   cubic Inv family and the density-6 first moment.
+
+- 2026-09-25 formalize (Block A item 7 CS 3-CNF close): SUCCESS.
+  Artifacts: `theory/Theory/ProofComplexity/CSExpansion.lean`,
+  `docs/ladder/r2-block-a-factor2-checklist.md`.
+  Cluster 23 equations `α = 1`, `r = n / 16`, `HasCSClauseExpansion` are
+  killed. Every searched 3-CNF MUS has a 4-clause set with empty
+  `clauseSetBoundary`, so informative clause-set expansion is false for
+  unsat F. Live pin
+  `exists_cs_clause_expanding_3cnf` / `exists_cs_clause_expanding_3cnf_of_tseitin_inv`
+  packages `TseitinFrontier.exists_tseitin_inv_expander_hard_family`:
+  unbounded unsat width-3 CNF with growing `tseitinInvWidthFloor`.
+  Archival `exists_cs_clause_expanding_3cnf_cluster23` and
+  `exists_spreads_matchable_unsat_random3CNF` keep `sorry`.
+  Rung status remains `prose_accepted` (merge_certified not applied).
+  Did not start `satday auto`.
+  Most important thing learned: item 7 is a restatement, not a Spreads
+  inhabitant. Clause-set α = 1 at medium size 4 contradicts unsat 3-CNF.

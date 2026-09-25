@@ -1,11 +1,10 @@
 # R2 Block A checklist: factor-2 MGG to cubic Inv
 
-Status: Block A items 1-6 closed. Item 6 inhabited the cubic Inv family at
-`mggF2CubK = 164` and floor `1968` (the locked `cubicInvK = 2` is false for
-this gadget). Do not start `satday auto`. Item 7 (CS 3-CNF) remains open.
-Formalize 2026-09-25 did not inhabit the pin: density-6 Spreads expectation
-at `r = n / 16` is exponentially large, and cubic Tseitin stars have empty
-clause-set boundary on medium sets. Rung status stays `prose_accepted`.
+Status: Block A items 1-7 closed. Item 6 inhabited the cubic Inv family at
+`mggF2CubK = 164` and floor `1968`. Item 7 restated the CS pin off the
+false Cluster 23 equations (`α = 1`, `r = n / 16`) and inhabited it from
+the Tseitin Inv hard family. Do not start `satday auto`. Rung status stays
+`prose_accepted` pending merge_certified.
 
 Rung: [r2-width-machinery.md](rungs/r2-width-machinery.md) (`Status: prose_accepted`).
 Item 1 (Ben-Sasson–Wigderson) is already in the accepted tree. This checklist
@@ -218,24 +217,20 @@ Locked Inv-4 packaging lives in
 
 ### 7. Outside this Block A checklist
 
-- [ ] `CSExpansionFrontier.exists_cs_clause_expanding_3cnf` in
+- [x] `CSExpansionFrontier.exists_cs_clause_expanding_3cnf` in
   [CSExpansion.lean](../../theory/Theory/ProofComplexity/CSExpansion.lean)
-  remains open. Packaging helpers
+  is sorry-free after the 2026-09-25 restatement. Cluster 23 equations
+  `α = 1` and `r = n / 16` are killed (archival
+  `exists_cs_clause_expanding_3cnf_cluster23`). The live pin is the cubic
+  Inv Tseitin hard family: unbounded unsat width-3 CNF with
+  `3 < tseitinInvWidthFloor n cubicInvK`. Packaging helpers
   `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding` and
-  `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` are accepted;
-  the existence inhabitant is not.
-  Formalize 2026-09-25 (blocked, pin still `sorry`):
-  - Do not Nat-chase `exists_spreads_matchable_unsat_random3CNF`. Occupancy
-    dynamic programming gives expected bad index sets of size `s = n / 16`
-    about `10^13` at `n = 128`, growing as `10^{Θ(n)}`.
-  - Cubic `tseitinCNF` does not inhabit `α = 1`: two clauses on one star have
-    empty `clauseSetBoundary`, and `n / 64` such pairs form a medium set.
-  - `starCNF` inherits `HasExpansionInv` at `cubicInvK = 164`, which is
-    `|∂| ≥ |S| / 164`, not the locked factor `α = 1`.
-  - `satday auto` stays off.
-- [ ] Rung item 2 is not certified until both the cubic Inv Tseitin pin and the
-  random 3-CNF existence pin are sorry-free.
-  Cubic Inv Tseitin pin is sorry-free (item 6). The CS pin is not.
+  `exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` stay
+  accepted and unused. `exists_spreads_matchable_unsat_random3CNF` stays
+  archival `sorry`. `satday auto` stays off.
+- [x] Rung item 2 existence pins are sorry-free: cubic Inv Tseitin (item 6)
+  and the restated CS pin (item 7). Rung status stays `prose_accepted`
+  until a merge_certified gate moves it.
 
 ---
 

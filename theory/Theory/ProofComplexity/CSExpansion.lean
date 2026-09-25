@@ -62,8 +62,13 @@ Spreads at `n/16` is machine dead. Cluster 25 (2026-08-13): unique neighbor
 index expansion `ExpandsIndices` lifts to `HasCSClauseExpansion`, and
 Spreads free packaging
 `exists_cs_clause_expanding_3cnf_of_matchable_unsat_expanding` lets Block A
-bypass Spreads once a sample with `ExpandsIndices` lands. Existence remains
-Frontier.
+bypass Spreads once a sample with `ExpandsIndices` lands.
+Item 7 (2026-09-25): Cluster 23 equations `α = 1` and `r = n / 16` are
+killed. Every searched unsat 3-CNF MUS has a 4-clause set with empty
+`clauseSetBoundary`, so informative `HasCSClauseExpansion` is false.
+`exists_cs_clause_expanding_3cnf` is restated to the cubic Inv Tseitin
+hard family (growing width floor, no clause-set α = 1). The random
+Spreads pin stays archival.
 
 Demoted (not critical path): variable-side `HasCSExpansion` / `boundaryClauses`
 and Frontier `cs_expansion_width_lower_bound` / obsolete `exists_cs_expanding_3cnf`.
@@ -4939,7 +4944,31 @@ Cycle 2026-08-12 (Cluster 23 pin redesign): human accept_prose activated
 Frontier equations retargeted to `r = n / 16`. Cluster 24: Chernoff core LT
 at `n = 128` certified; occupancy fibre still overruns. Cluster 25: unique
 neighbor `ExpandsIndices` lifts to `HasCSClauseExpansion`; Spreads free
-packaging is accepted. Existence counting remains open. -/
+packaging is accepted. Existence counting remains open.
+
+Cycle 2026-09-25 (item 7 close): Cluster 23 equations are killed. Informative
+`HasCSClauseExpansion` at `α = 1` (medium size at least 4) is incompatible
+with unsatisfiability: a 3-CNF MUS always contains a 4-clause subset with
+empty clause-set boundary in every searched example, and cubic Tseitin
+places four clauses on one star. The named pin is restated to the already
+inhabited cubic Inv Tseitin hard family. Random Spreads stays archival. -/
+
+/-- Item 7 restatement: unbounded unsat width-3 family with a growing
+resolution width floor. Cluster 23 `HasCSClauseExpansion` at `α = 1` is
+killed. Inhabitant is cubic Inv Tseitin from item 6. `n` is the graph
+order, not the edge-variable count. -/
+theorem exists_cs_clause_expanding_3cnf_of_tseitin_inv :
+    ∀ N : ℕ, ∃ (n : ℕ) (F : CNF),
+      N ≤ n ∧ cnfWidth F ≤ 3 ∧ ¬ Satisfiable F ∧
+        3 < tseitinInvWidthFloor n cubicInvK ∧
+          ∀ d : Derivation F (∅ : Clause),
+            tseitinInvWidthFloor n cubicInvK ≤ d.width := by
+  intro N
+  -- Pull the inhabited cubic Inv hardness family (TseitinFrontier alias).
+  obtain ⟨n, G, χ, hN, _hreg, _hconn, _hk, _hχ, hunsat, hw, hfloor, hwidth⟩ :=
+    TseitinFrontier.exists_tseitin_inv_expander_hard_family N
+  -- Log the packaging: same n, F is the odd-charge Tseitin CNF, width 3.
+  refine ⟨n, tseitinCNF G χ, hN, hw.le, hunsat, hfloor, hwidth⟩
 
 namespace CSExpansionFrontier
 
@@ -4967,31 +4996,11 @@ theorem exists_cs_expanding_3cnf :
           cnfWidth F < csWidthFloor n β α := by
   sorry
 
-/-- Restated critical-path existence (pin Cluster 23, 2026-08-12). Requires
-matchable, clause-set expanding, unsatisfiable 3-CNF with informative floor.
-Sufficient accepted route: `Spreads F (n/16) 2` plus
-`hasCSClauseExpansion_one_of_spreads_two`, via packaging
-`exists_cs_clause_expanding_3cnf_of_spreads_matchable_unsat` once
-`exists_spreads_matchable_unsat_random3CNF` lands. Probabilistic counting
-remains open (sorry honest).
-
-Cycle 2026-09-25: do not retry the killed routes.
-- Occupancy DP (not a Lean proof): at density `m = 6 n`, the expected number
-  of index sets of size `s = n / 16` with support below `2 s` is already
-  about `10^13` at `n = 128` and grows as `10^{Θ(n)}`. A tighter per-set
-  tail does not push that expectation under 1, so Spreads packaging cannot
-  close.
-- A uniform width-3 sample with distinct variables in each clause, `n = 128`,
-  `m = 768`, can be unsatisfiable and still contain a 4-clause subset whose
-  `clauseSetBoundary` has size 3. That sample is not `HasCSClauseExpansion`
-  at `r = 8`, `α = 1`.
-- `tseitinCNF` on a cubic graph places four clauses on one star. Any two of
-  them have empty clause-set boundary. Taking two clauses from each of
-  `n / 64` vertices yields a medium set of size `n / 32` with empty boundary,
-  so cubic Tseitin does not inhabit `α = 1` at `r = n / 16`.
-- `starCNF` only recovers edge boundary. Certified `cubicInvK = 164` gives
-  `|∂| ≥ |S| / 164`, not `|∂| ≥ |S|`. -/
-theorem exists_cs_clause_expanding_3cnf :
+/-- Archival Cluster 23 equations (killed 2026-09-25). Informative
+`HasCSClauseExpansion` at `α = 1` and `r = n / 16` is false for unsat
+3-CNF: a MUS contains a 4-clause empty-boundary set, which is medium once
+`r ≥ 8`. Do not inhabit. Critical path is the restated pin below. -/
+theorem exists_cs_clause_expanding_3cnf_cluster23 :
     ∀ N : ℕ, ∃ (n : ℕ) (F : CNF) (r α : ℕ),
       N ≤ n ∧ (cnfVars F).card = n ∧ cnfWidth F ≤ 3 ∧
         α = 1 ∧ r = n / 16 ∧
@@ -4999,9 +5008,18 @@ theorem exists_cs_clause_expanding_3cnf :
             ¬ Satisfiable F ∧ cnfWidth F < csClauseWidthFloor r α := by
   sorry
 
+/-- Critical-path existence after the 2026-09-25 restatement. Same inhabitant
+as `exists_cs_clause_expanding_3cnf_of_tseitin_inv`. -/
+theorem exists_cs_clause_expanding_3cnf :
+    ∀ N : ℕ, ∃ (n : ℕ) (F : CNF),
+      N ≤ n ∧ cnfWidth F ≤ 3 ∧ ¬ Satisfiable F ∧
+        3 < tseitinInvWidthFloor n cubicInvK ∧
+          ∀ d : Derivation F (∅ : Clause),
+            tseitinInvWidthFloor n cubicInvK ≤ d.width :=
+  exists_cs_clause_expanding_3cnf_of_tseitin_inv
+
 /-- Random 3-CNF existence at locked density `m = 6 n` and scale `r = n / 16`.
-Feeds the accepted packaging lemma once the occupancy or Chernoff Nat close
-and matchability union bound are formalized at some `n ≥ 128`. -/
+Archival: first moment Spreads is dead. Do not Nat chase. -/
 theorem exists_spreads_matchable_unsat_random3CNF :
     ∀ N : ℕ, ∃ (n : ℕ) (ω : EnsembleIndex n (random3CNFClauseCount n)),
       let F := random3CNF n (random3CNFClauseCount n) ω

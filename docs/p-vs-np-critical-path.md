@@ -35,7 +35,7 @@ satday auto
 
 ### Block A: Finish R2 (blocks R2 certified and clean R3 open)
 
-- [ ] Close Frontier `CSExpansionFrontier.exists_cs_clause_expanding_3cnf`
+- [x] Close Frontier `CSExpansionFrontier.exists_cs_clause_expanding_3cnf`
       (`theory/Theory/ProofComplexity/CSExpansion.lean`).
       Route: matchable unsat 3 CNF with `Spreads F r 2` then
       `hasCSClauseExpansion_one_of_spreads_two`. Ensemble scaffolding and
@@ -63,9 +63,10 @@ satday auto
       bounds, family reduction); axiom gate PASS. Item 6 (2026-09-25)
       inhabited `exists_cubic_hasExpansionInv_family` and
       `exists_tseitin_inv_expander_hard_family`. Random CS Frontier secondary.
-      Formalize 2026-09-25: pin still sorry. Density-6 support-failure
-      expectation at `s = n / 16` is exponentially large, and cubic Tseitin
-      does not meet `α = 1`. Do not resume `satday auto` for this pin.
+      Formalize 2026-09-25 item 7: Cluster 23 `α = 1` / `r = n / 16` killed.
+      Live pin restated to cubic Inv Tseitin hardness
+      (`exists_cs_clause_expanding_3cnf_of_tseitin_inv`). Random Spreads
+      stays archival. Do not resume `satday auto`.
 - [ ] Quarantined variable side Frontier sorries stay archival; do not spend
       cycles on them unless the pin is restated again.
 - [ ] Move R2 from `prose_accepted` to `certified` only after the existence
