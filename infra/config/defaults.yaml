@@ -190,6 +190,9 @@ saturday_loop:
   # Empty: use Ollama default store. Override with OLLAMA_MODELS or
   # SATURDAY_MODELS_DIR (preferred) rather than hardcoding a volume path here.
   models_dir: ""
+  # Context tokens for local Ollama (default Ollama 4096 truncates formalize).
+  # Override with SATURDAY_NUM_CTX.
+  num_ctx: 16384
   prove:
     model: "qwen2.5:14b"
     num_predict: 8192

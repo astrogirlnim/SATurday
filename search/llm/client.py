@@ -80,6 +80,7 @@ class LocalLLMClient:
         min_request_interval_seconds: float = 0.0,
         rate_limit_backoff_seconds: float = 30.0,
         rate_limit_retries: int = 0,
+        num_ctx: Optional[int] = None,
     ) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.api_style = api_style
@@ -91,6 +92,7 @@ class LocalLLMClient:
         self.min_request_interval_seconds = float(min_request_interval_seconds)
         self.rate_limit_backoff_seconds = float(rate_limit_backoff_seconds)
         self.rate_limit_retries = int(rate_limit_retries)
+        self.num_ctx = int(num_ctx) if num_ctx is not None else None
         self._last_request_ended_at = 0.0
         print(
             f"[LocalLLMClient] init label={self.label} endpoint={self.endpoint} "
@@ -98,7 +100,8 @@ class LocalLLMClient:
             f"require_local={self.require_local} "
             f"auth={'yes' if self.api_key else 'no'} "
             f"min_interval={self.min_request_interval_seconds}s "
-            f"rate_limit_retries={self.rate_limit_retries}"
+            f"rate_limit_retries={self.rate_limit_retries} "
+            f"num_ctx={self.num_ctx}"
         )
         if self.require_local:
             self._assert_local(self.endpoint)
@@ -164,6 +167,9 @@ class LocalLLMClient:
                 "num_predict": request.num_predict,
             },
         }
+        if self.num_ctx is not None:
+            payload["options"]["num_ctx"] = int(self.num_ctx)
+            print(f"[LocalLLMClient] ollama num_ctx={self.num_ctx}")
         if request.response_format == "json_object":
             payload["format"] = "json"
             print("[LocalLLMClient] ollama format=json")

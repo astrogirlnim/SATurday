@@ -261,6 +261,10 @@ class SaturdayLoopConfig(BaseModel):
     # leave Ollama's default alone. Prefer env OLLAMA_MODELS (native) or
     # SATURDAY_MODELS_DIR over baking a volume path into YAML.
     models_dir: str = ""
+    # Ollama context window. Default Ollama is 4096 and truncates our ~14k
+    # formalize prompts, which makes the model invent "missing definitions".
+    # Override with SATURDAY_NUM_CTX.
+    num_ctx: int = Field(16384, ge=2048, le=131072)
     # Role models sized for Apple Silicon 16GB+ unified memory
     prove: SaturdayRoleLLMConfig = SaturdayRoleLLMConfig(
         model="qwen2.5:14b",
