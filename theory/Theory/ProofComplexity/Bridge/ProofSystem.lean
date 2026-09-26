@@ -9881,9 +9881,11 @@ noncomputable def adr_evals_allTrueScan_to_fail
               (rest.length + (true :: work).length + 1) *
                 (2 * ((true :: work).length + rest.length + 2) + 3) +
               2 * (rest.length + (true :: work).length) + left.length +
-              ((true :: work).length + rest.length) + rest.length + 10) _ _ _ h1 h2
+              ((true :: work).length + rest.length) + rest.length + 10)
+            _ _ _ h1 h2
           exact evalsToInTime_le_mono t (by
-            simp [List.length_cons]
+            simp only [List.length_cons]
+            ring_nf
             omega)
 
 /-- Reverse `left` onto `out`, then enter `writeAcceptFalse`. -/
