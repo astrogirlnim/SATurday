@@ -1586,6 +1586,12 @@ SATurday.Bridge.maxVarSuccBitsOfCode
 SATurday.Bridge.maxVarSuccBitsOfCode_some
 SATurday.Bridge.maxVarSuccBitsOfCode_none
 SATurday.Bridge.maxVarSuccBitsOfCode_encodeFormula
+SATurday.Bridge.adr_step_mvNatRestTake_true
+SATurday.Bridge.adr_step_mvNatRestTake_false
+SATurday.Bridge.adr_step_mvNatRefund_true
+SATurday.Bridge.adr_step_mvNatRefund_false
+SATurday.Bridge.adr_step_mvNatDiscardPark_true
+SATurday.Bridge.adr_step_mvNatDiscardPark_false
 SATurday.Bridge.bitsEqual_pow2BitsLE_iff
 SATurday.Bridge.bitsEqual_pow2BitsLE_maxVarSuccBits
 SATurday.Bridge.lengthGateOk_iff_bitsEqual_maxVarSuccBits

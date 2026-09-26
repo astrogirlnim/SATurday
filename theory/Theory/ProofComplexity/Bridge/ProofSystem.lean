@@ -9015,6 +9015,7 @@ inductive ADRLabel where
   | evOrFirst | evOrCombF | evOrCombT | evDone
   | failDrain | acceptPrep | acceptPrepInp
   | idxInc | idxIncRest
+  | mvNatRestTake | mvNatRefund | mvNatDiscardPark
   deriving DecidableEq, Repr
 
 instance : Fintype ADRLabel where
@@ -9030,7 +9031,8 @@ instance : Fintype ADRLabel where
     .evCount, .evDisp1, .evDisp2, .evDisp3, .evDisp4, .evDisp5, .evDisp6, .evDisp7,
     .evNot, .evAndFirst, .evAndCombF, .evAndCombT,
     .evOrFirst, .evOrCombF, .evOrCombT, .evDone,
-    .failDrain, .acceptPrep, .acceptPrepInp, .idxInc, .idxIncRest}
+    .failDrain, .acceptPrep, .acceptPrepInp, .idxInc, .idxIncRest,
+    .mvNatRestTake, .mvNatRefund, .mvNatDiscardPark}
   complete s := by cases s <;> simp
 
 /-- FinTM2 for `afterDecodePairResult`. Leading `true` drains and emits
@@ -9214,7 +9216,8 @@ def afterDecodePairResultComputer : FinTM2 where
           branch (fun s => decide (s = none))
             (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
             (branch (fun s => decide (s = some false))
-              (load (fun _ => none) <| goto fun _ => ADRLabel.mvNat)
+              (push ADRStack.left (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.mvNat)
               (load (fun _ => none) <| goto fun _ => ADRLabel.mvParse))
     | .mvTagT =>
         pop ADRStack.out (fun _ o => o) <|
@@ -9224,17 +9227,29 @@ def afterDecodePairResultComputer : FinTM2 where
               load (fun _ => none) <| goto fun _ => ADRLabel.mvParse)
     | .mvNat =>
         -- Unary `true^n false` vs current max `true^k` on `work`.
+        -- Consumed max bits are parked on `left` above a `false` delimiter
+        -- so `n > k` can grow the max and `n ≤ k` can refund it.
         pop ADRStack.out (fun _ o => o) <|
           branch (fun s => decide (s = none))
             (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
             (branch (fun s => decide (s = some true))
               (pop ADRStack.work (fun _ o => o) <|
                 branch (fun s => decide (s = none))
-                  (push ADRStack.work (fun _ => true) <|
-                    load (fun _ => none) <| goto fun _ => ADRLabel.mvNatRest)
-                  (push ADRStack.work (fun _ => true) <|
+                  (load (fun _ => none) <| goto fun _ => ADRLabel.mvNatRestTake)
+                  (push ADRStack.left (fun _ => true) <|
                     load (fun _ => none) <| goto fun _ => ADRLabel.mvNat))
-              (load (fun _ => none) <| goto fun _ => ADRLabel.mvAfter))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvNatRefund))
+    | .mvNatRestTake =>
+        -- `n > k`: move parked old max onto `work`, then copy the rest of `n`.
+        pop ADRStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some true))
+              (push ADRStack.work (fun _ => true) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.mvNatRestTake)
+              (push ADRStack.left (fun _ => false) <|
+                push ADRStack.work (fun _ => true) <|
+                  load (fun _ => none) <| goto fun _ => ADRLabel.mvNatRest))
     | .mvNatRest =>
         pop ADRStack.out (fun _ o => o) <|
           branch (fun s => decide (s = none))
@@ -9242,6 +9257,23 @@ def afterDecodePairResultComputer : FinTM2 where
             (branch (fun s => decide (s = some true))
               (push ADRStack.work (fun _ => true) <|
                 load (fun _ => none) <| goto fun _ => ADRLabel.mvNatRest)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvNatDiscardPark))
+    | .mvNatRefund =>
+        -- `n ≤ k`: put consumed max bits back, drop the delimiter.
+        pop ADRStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some true))
+              (push ADRStack.work (fun _ => true) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.mvNatRefund)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvAfter))
+    | .mvNatDiscardPark =>
+        -- `n > k`: drop parked old max and the delimiter.
+        pop ADRStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvNatDiscardPark)
               (load (fun _ => none) <| goto fun _ => ADRLabel.mvAfter))
     | .mvAfter =>
         pop ADRStack.inp (fun _ o => o) <|
@@ -10127,6 +10159,527 @@ theorem adr_step_failDrain_nil (inp left right work : List Bool)
   refine congrArg some <|
     congrArg (fun stk =>
       (⟨some ADRLabel.clearWork, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvParse_nil (inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvParse) v inp left right work []) =
+      some (adrCfg (some .failDrain) none inp left right work []) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvParse_false (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvParse) v inp left right work (false :: rest)) =
+      some (adrCfg (some .mvTagF) none inp left right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvTagF, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvParse_true (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvParse) v inp left right work (true :: rest)) =
+      some (adrCfg (some .mvTagT) none inp left right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvTagT, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvTagF_nil (inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvTagF) v inp left right work []) =
+      some (adrCfg (some .failDrain) none inp left right work []) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvTagF_false (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvTagF) v inp left right work (false :: rest)) =
+      some (adrCfg (some .mvNat) none inp (false :: left) right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNat, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvTagF_true (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvTagF) v inp left right work (true :: rest)) =
+      some (adrCfg (some .mvParse) none inp left right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvParse, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvTagT_nil (inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvTagT) v inp left right work []) =
+      some (adrCfg (some .failDrain) none inp left right work []) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvTagT_cons (b : Bool) (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvTagT) v inp left right work (b :: rest)) =
+      some (adrCfg (some .mvParse) none (true :: inp) left right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvParse, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNat_nil (inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNat) v inp left right work []) =
+      some (adrCfg (some .failDrain) none inp left right work []) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNat_false (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNat) v inp left right work (false :: rest)) =
+      some (adrCfg (some .mvNatRefund) none inp left right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNatRefund, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNat_true_work_nil (rest inp left right : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNat) v inp left right [] (true :: rest)) =
+      some (adrCfg (some .mvNatRestTake) none inp left right [] rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNatRestTake, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNat_true_work_cons (b : Bool) (wrest rest inp left right : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNat) v inp left right (b :: wrest) (true :: rest)) =
+      some (adrCfg (some .mvNat) none inp (true :: left) right wrest rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNat, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNatRest_nil (inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNatRest) v inp left right work []) =
+      some (adrCfg (some .failDrain) none inp left right work []) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNatRest_true (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNatRest) v inp left right work (true :: rest)) =
+      some (adrCfg (some .mvNatRest) none inp left right (true :: work) rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNatRest, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNatRest_false (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNatRest) v inp left right work (false :: rest)) =
+      some (adrCfg (some .mvNatDiscardPark) none inp left right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNatDiscardPark, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNatRestTake_true (lrest inp right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNatRestTake) v inp (true :: lrest) right work out) =
+      some (adrCfg (some .mvNatRestTake) none inp lrest right (true :: work)
+        out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNatRestTake, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNatRestTake_false (lrest inp right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNatRestTake) v inp (false :: lrest) right work out) =
+      some (adrCfg (some .mvNatRest) none inp (false :: lrest) right
+        (true :: work) out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNatRest, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNatRefund_true (lrest inp right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNatRefund) v inp (true :: lrest) right work out) =
+      some (adrCfg (some .mvNatRefund) none inp lrest right (true :: work)
+        out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNatRefund, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNatRefund_false (lrest inp right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNatRefund) v inp (false :: lrest) right work out) =
+      some (adrCfg (some .mvAfter) none inp lrest right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvAfter, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNatDiscardPark_true (lrest inp right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNatDiscardPark) v inp (true :: lrest) right work out) =
+      some (adrCfg (some .mvNatDiscardPark) none inp lrest right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvNatDiscardPark, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvNatDiscardPark_false (lrest inp right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvNatDiscardPark) v inp (false :: lrest) right work out) =
+      some (adrCfg (some .mvAfter) none inp lrest right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvAfter, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvAfter_nil (left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvAfter) v [] left right work out) =
+      some (adrCfg (some .mvFinish) none [] left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvFinish, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvAfter_cons (b : Bool) (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvAfter) v (b :: rest) left right work out) =
+      some (adrCfg (some .mvParse) none rest left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvParse, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvFinish_nil (inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvFinish) v inp left right work []) =
+      some (adrCfg (some .mvToPow2) none inp left right work [true]) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvToPow2, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvFinish_cons (b : Bool) (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvFinish) v inp left right work (b :: rest)) =
+      some (adrCfg (some .failDrain) none inp left right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvToPow2_nil (inp left right out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvToPow2) v inp left right [] out) =
+      some (adrCfg (some .unparkMark) none inp left right []
+        (false :: out)) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.unparkMark, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_mvToPow2_cons (b : Bool) (rest inp left right out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .mvToPow2) v inp left right (b :: rest) out) =
+      some (adrCfg (some .mvToPow2) none inp left right rest (false :: out)) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvToPow2, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_unparkMark_nil (inp left work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .unparkMark) v inp left [] work out) =
+      some (adrCfg (some .failDrain) none inp left [] work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_unparkMark_true (rest inp left work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .unparkMark) v inp left (true :: rest) work out) =
+      some (adrCfg (some .unparkFalses) none (true :: inp) left rest work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.unparkFalses, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_unparkMark_false (rest inp left work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .unparkMark) v inp left (false :: rest) work out) =
+      some (adrCfg (some .failDrain) none inp left rest work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_unparkFalses_nil (inp left work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .unparkFalses) v inp left [] work out) =
+      some (adrCfg (some .eqA) none inp left [] work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.eqA, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_unparkFalses_false (rest inp left work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .unparkFalses) v inp left (false :: rest) work out) =
+      some (adrCfg (some .unparkFalses) none (false :: inp) left rest work
+        out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.unparkFalses, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_unparkFalses_true (rest inp left work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .unparkFalses) v inp left (true :: rest) work out) =
+      some (adrCfg (some .eqA) none inp left (true :: rest) work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.eqA, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqA_nil (left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqA) v [] left right work out) =
+      some (adrCfg (some .failDrain) none [] left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqA_false (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqA) v (false :: rest) left right work out) =
+      some (adrCfg (some .eqB) none rest left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.eqB, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqA_true_true (orest left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqA) v [true] left right work (true :: orest)) =
+      some (adrCfg (some .indexLoop) none [] left right work orest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.indexLoop, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqA_true_false (orest left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqA) v [true] left right work (false :: orest)) =
+      some (adrCfg (some .failDrain) none [] left right work orest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqA_true_nil (left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqA) v [true] left right work []) =
+      some (adrCfg (some .failDrain) none [] left right work []) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqA_true_out_true (irest orest left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqA) v (true :: irest) left right work (true :: orest)) =
+      some (adrCfg (some .indexLoop) none irest left right work orest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.indexLoop, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqA_true_out_false (irest orest left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqA) v (true :: irest) left right work (false :: orest)) =
+      some (adrCfg (some .failDrain) none irest left right work orest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqB_nil (inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqB) v inp left right work []) =
+      some (adrCfg (some .failDrain) none inp left right work []) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqB_false (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqB) v inp left right work (false :: rest)) =
+      some (adrCfg (some .eqA) none inp left right (false :: work) rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.eqA, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_eqB_true (rest inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .eqB) v inp left right work (true :: rest)) =
+      some (adrCfg (some .failDrain) none inp left right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 

@@ -65,10 +65,14 @@ the hard pin first; the soft pin is packaging.
   parkWidth / copyLeft / revCode / failDrain Evals certified;
   `adr_evals_park_to_mvParse` reaches `mvParse` with `out = φCode`
   and parked `reverse(pow2BitsLE n) ++ table`;
-  Remaining: `mvParse` Evals on `encodeFormula`, bitsEqual vs parked
-  width, index loop under `|table|` fuel → `acceptEmit`, then wire
-  `maxVarGate` to `parkWidth` and package
-  `afterDecodePairResultComputableInPolyTime`)
+  `mvNat` lockstep rewritten: delimiter on `left`, refund via
+  `mvNatRefund`, grow via `mvNatRestTake` / `mvNatRest` /
+  `mvNatDiscardPark` (handles `n > k > 0`); step lemmas certified;
+  `maxVarGate` still stub-rejects so the reject scaffold stays green;
+  Remaining: `mvParse` Evals on `encodeFormula` (induction over
+  `adr_evals_mvNat`), bitsEqual vs parked width, index loop under
+  `|table|` fuel → `acceptEmit`, then wire `maxVarGate` to `parkWidth`
+  and package `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)

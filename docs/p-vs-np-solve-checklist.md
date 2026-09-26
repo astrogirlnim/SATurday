@@ -40,7 +40,8 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       Frontier: per index eval loop FinTM2 and TT map sequencer for
       truthTable_is_prop_proof_system;
       Block A 2026-09-26: maxVarOfCode helpers and ADR park-to-mvParse
-      Evals certified; maxVarGate still stub; A sorry still open).
+      Evals certified; mvNat delimiter refund and grow path certified;
+      maxVarGate still stub; A sorry still open).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

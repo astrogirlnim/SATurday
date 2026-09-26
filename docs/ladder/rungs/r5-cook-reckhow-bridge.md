@@ -6823,3 +6823,5 @@ by
 end ProofSystemFrontier
 
 - 2026-09-26 formalize (Block A glue): result=partial; artifacts: theory/Theory/ProofComplexity/Bridge/ProofSystem.lean, docs/ladder/r5-completion-checklist.md; learned: maxVarGate still stub-rejects. Functional `maxVarOfCode` / `maxVarSuccBitsOfCode` / parked-width compare lemmas are certified. ADR Stmt now includes parkWidth, maxVar scan, bitsEqual, index loop, and prefix eval labels, but those labels are not entered yet. `adr_evals_park_to_mvParse` reaches `mvParse` with `out = φCode`. Next is `mvParse` Evals then wire `maxVarGate` and drop the A sorry.
+
+- 2026-09-26 formalize (Block A mvNat): result=partial; artifacts: theory/Theory/ProofComplexity/Bridge/ProofSystem.lean, docs/ladder/r5-completion-checklist.md; learned: old `mvNat` lockstep never grew `|work|` when `n > k > 0`. Machine now parks consumed max bits above a false delimiter on `left`, refunds via `mvNatRefund`, and grows via `mvNatRestTake` then `mvNatRest` then `mvNatDiscardPark`. Step lemmas compile. `maxVarGate` still stub-rejects. Next is `mvParse` Evals on `encodeFormula` then eq, index loop, wire, and drop the A sorry.
