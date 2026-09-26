@@ -68,6 +68,8 @@ the hard pin first; the soft pin is packaging.
   `mvNat` lockstep rewritten: delimiter on `left`, refund via
   `mvNatRefund`, grow via `mvNatRestTake` / `mvNatRest` /
   `mvNatDiscardPark` (handles `n > k > 0`); step lemmas certified;
+  `adr_evals_mvNat` / `_le` / `_gt` / refund / rest / drain Evals
+  certified (`work` becomes `true^{max k n}`);
   `maxVarGate` still stub-rejects so the reject scaffold stays green;
   Remaining: `mvParse` Evals on `encodeFormula` (induction over
   `adr_evals_mvNat`), bitsEqual vs parked width, index loop under

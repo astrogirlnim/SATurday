@@ -11188,6 +11188,367 @@ noncomputable def adr_evals_park_to_mvParse (φCode table : List Bool)
     (2 * φCode.length + n + 6) (2 * φCode.length + 1) _ _ _ t1' hrev
   exact evalsToInTime_le_mono t2 (by omega)
 
+/-- All-true blocks commute past a leading `true`. -/
+theorem replicate_true_append_cons (n : ℕ) (xs : List Bool) :
+    List.replicate n true ++ true :: xs = true :: (List.replicate n true ++ xs) := by
+  induction n with
+  | zero => simp [List.replicate]
+  | succ n ih => simp [List.replicate_succ, ih]
+
+/-- Refund parked unary bits plus the delimiter, restoring `left`. -/
+noncomputable def adr_evals_mvNatRefund (i : ℕ)
+    (left0 inp right work out : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNatRefund) none inp
+        (List.replicate i true ++ false :: left0) right work out)
+      (some (adrCfg (some .mvAfter) none inp left0 right
+        (List.replicate i true ++ work) out))
+      (i + 1) := by
+  induction i generalizing work with
+  | zero =>
+      simpa using adr_evals_one
+        (adr_step_mvNatRefund_false left0 inp right work out none)
+  | succ i ih =>
+      have h1 := adr_evals_one
+        (adr_step_mvNatRefund_true (List.replicate i true ++ false :: left0)
+          inp right work out none)
+      have h2 := ih (true :: work)
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (i + 1)
+        (adrCfg (some .mvNatRefund) none inp
+          (true :: (List.replicate i true ++ false :: left0)) right work out)
+        (adrCfg (some .mvNatRefund) none inp
+          (List.replicate i true ++ false :: left0) right (true :: work) out)
+        (some (adrCfg (some .mvAfter) none inp left0 right
+          (List.replicate i true ++ true :: work) out))
+        h1 h2
+      simpa [List.replicate_succ, List.cons_append, replicate_true_append_cons] using t
+
+/-- Drop parked old max bits plus the delimiter. -/
+noncomputable def adr_evals_mvNatDiscardPark (i : ℕ)
+    (left0 inp right work out : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNatDiscardPark) none inp
+        (List.replicate i true ++ false :: left0) right work out)
+      (some (adrCfg (some .mvAfter) none inp left0 right work out))
+      (i + 1) := by
+  induction i with
+  | zero =>
+      simpa using adr_evals_one
+        (adr_step_mvNatDiscardPark_false left0 inp right work out none)
+  | succ i ih =>
+      have h1 := adr_evals_one
+        (adr_step_mvNatDiscardPark_true (List.replicate i true ++ false :: left0)
+          inp right work out none)
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (i + 1)
+        (adrCfg (some .mvNatDiscardPark) none inp
+          (true :: (List.replicate i true ++ false :: left0)) right work out)
+        (adrCfg (some .mvNatDiscardPark) none inp
+          (List.replicate i true ++ false :: left0) right work out)
+        (some (adrCfg (some .mvAfter) none inp left0 right work out))
+        h1 ih
+      simpa [List.replicate_succ] using t
+
+/-- `n > k`: move parked old max onto `work`, then take the current `n` bit. -/
+noncomputable def adr_evals_mvNatRestTake (k : ℕ)
+    (left0 inp right work out : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNatRestTake) none inp
+        (List.replicate k true ++ false :: left0) right work out)
+      (some (adrCfg (some .mvNatRest) none inp (false :: left0) right
+        (true :: (List.replicate k true ++ work)) out))
+      (k + 1) := by
+  induction k generalizing work with
+  | zero =>
+      simpa using adr_evals_one
+        (adr_step_mvNatRestTake_false left0 inp right work out none)
+  | succ k ih =>
+      have h1 := adr_evals_one
+        (adr_step_mvNatRestTake_true (List.replicate k true ++ false :: left0)
+          inp right work out none)
+      have h2 := ih (true :: work)
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (k + 1)
+        (adrCfg (some .mvNatRestTake) none inp
+          (true :: (List.replicate k true ++ false :: left0)) right work out)
+        (adrCfg (some .mvNatRestTake) none inp
+          (List.replicate k true ++ false :: left0) right (true :: work) out)
+        (some (adrCfg (some .mvNatRest) none inp (false :: left0) right
+          (true :: (List.replicate k true ++ true :: work)) out))
+        h1 h2
+      simpa [List.replicate_succ, List.cons_append, replicate_true_append_cons] using t
+
+/-- Copy remaining unary bits of `n`, then drop the delimiter. -/
+noncomputable def adr_evals_mvNatRest (m : ℕ)
+    (left0 inp right work rest : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNatRest) none inp (false :: left0) right work
+        (List.replicate m true ++ false :: rest))
+      (some (adrCfg (some .mvAfter) none inp left0 right
+        (List.replicate m true ++ work) rest))
+      (m + 2) := by
+  induction m generalizing work with
+  | zero =>
+      have h1 := adr_evals_one
+        (adr_step_mvNatRest_false rest inp (false :: left0) right work none)
+      have h2 := adr_evals_mvNatDiscardPark 0 left0 inp right work rest
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+        (adrCfg (some .mvNatRest) none inp (false :: left0) right work
+          (false :: rest))
+        (adrCfg (some .mvNatDiscardPark) none inp (false :: left0) right work
+          rest)
+        (some (adrCfg (some .mvAfter) none inp left0 right work rest))
+        h1 h2
+      simpa [List.replicate] using t
+  | succ m ih =>
+      have h1 := adr_evals_one
+        (adr_step_mvNatRest_true (List.replicate m true ++ false :: rest)
+          inp (false :: left0) right work none)
+      have h2 := ih (true :: work)
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (m + 2)
+        (adrCfg (some .mvNatRest) none inp (false :: left0) right work
+          (true :: (List.replicate m true ++ false :: rest)))
+        (adrCfg (some .mvNatRest) none inp (false :: left0) right
+          (true :: work) (List.replicate m true ++ false :: rest))
+        (some (adrCfg (some .mvAfter) none inp left0 right
+          (List.replicate m true ++ true :: work) rest))
+        h1 h2
+      simpa [List.replicate_succ, List.cons_append, replicate_true_append_cons] using t
+
+/-- Drain current max off `work` onto the park pile. -/
+noncomputable def adr_evals_mvNat_drain (k i : ℕ)
+    (left0 inp right rest : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNat) none inp
+        (List.replicate i true ++ false :: left0) right
+        (List.replicate k true) (List.replicate k true ++ rest))
+      (some (adrCfg (some .mvNat) none inp
+        (List.replicate (i + k) true ++ false :: left0) right [] rest))
+      k := by
+  induction k generalizing i with
+  | zero =>
+      exact EvalsToInTime.refl afterDecodePairResultComputer.step
+        (adrCfg (some .mvNat) none inp
+          (List.replicate i true ++ false :: left0) right [] rest)
+  | succ k ih =>
+      have h1 := adr_evals_one
+        (adr_step_mvNat_true_work_cons true (List.replicate k true)
+          (List.replicate k true ++ rest) inp
+          (List.replicate i true ++ false :: left0) right none)
+      have h2 := ih (i + 1)
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1 k
+        (adrCfg (some .mvNat) none inp
+          (List.replicate i true ++ false :: left0) right
+          (true :: List.replicate k true)
+          (true :: (List.replicate k true ++ rest)))
+        (adrCfg (some .mvNat) none inp
+          (true :: (List.replicate i true ++ false :: left0)) right
+          (List.replicate k true) (List.replicate k true ++ rest))
+        (some (adrCfg (some .mvNat) none inp
+          (List.replicate (i + 1 + k) true ++ false :: left0) right [] rest))
+        h1 h2
+      have hL : List.replicate (i + 1 + k) true ++ false :: left0 =
+          List.replicate (i + (k + 1)) true ++ false :: left0 := by
+        congr 1; ac_rfl
+      simpa [List.replicate_succ, List.cons_append, hL] using t
+
+/-- Lockstep `n` unary bits when `n ≤ k`. Parked count starts at `i`. -/
+noncomputable def adr_evals_mvNat_le (n k i : ℕ) (hle : n ≤ k)
+    (left0 inp right rest : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNat) none inp
+        (List.replicate i true ++ false :: left0) right
+        (List.replicate k true) (encodeNat n ++ rest))
+      (some (adrCfg (some .mvAfter) none inp left0 right
+        (List.replicate (i + k) true) rest))
+      (2 * n + i + 2) := by
+  induction n generalizing k i with
+  | zero =>
+      have h1 := adr_evals_one
+        (adr_step_mvNat_false rest inp
+          (List.replicate i true ++ false :: left0) right
+          (List.replicate k true) none)
+      have h2 := adr_evals_mvNatRefund i left0 inp right
+        (List.replicate k true) rest
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (i + 1)
+        (adrCfg (some .mvNat) none inp
+          (List.replicate i true ++ false :: left0) right
+          (List.replicate k true) (false :: rest))
+        (adrCfg (some .mvNatRefund) none inp
+          (List.replicate i true ++ false :: left0) right
+          (List.replicate k true) rest)
+        (some (adrCfg (some .mvAfter) none inp left0 right
+          (List.replicate i true ++ List.replicate k true) rest))
+        h1 h2
+      have henc : encodeNat 0 ++ rest = false :: rest := by simp [encodeNat]
+      rw [henc, List.replicate_add]
+      exact evalsToInTime_le_mono t (by omega)
+  | succ n ih =>
+      cases k with
+      | zero => exact (Nat.not_succ_le_zero n hle).elim
+      | succ k' =>
+          have hle' : n ≤ k' := Nat.le_of_succ_le_succ hle
+          have h1 := adr_evals_one
+            (adr_step_mvNat_true_work_cons true (List.replicate k' true)
+              (encodeNat n ++ rest) inp
+              (List.replicate i true ++ false :: left0) right none)
+          have h2 := ih k' (i + 1) hle'
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+            (2 * n + (i + 1) + 2)
+            (adrCfg (some .mvNat) none inp
+              (List.replicate i true ++ false :: left0) right
+              (true :: List.replicate k' true)
+              (true :: (encodeNat n ++ rest)))
+            (adrCfg (some .mvNat) none inp
+              (true :: (List.replicate i true ++ false :: left0)) right
+              (List.replicate k' true) (encodeNat n ++ rest))
+            (some (adrCfg (some .mvAfter) none inp left0 right
+              (List.replicate (i + 1 + k') true) rest))
+            h1 h2
+          have t' : EvalsToInTime afterDecodePairResultComputer.step
+              (adrCfg (some .mvNat) none inp
+                (List.replicate i true ++ false :: left0) right
+                (true :: List.replicate k' true)
+                (true :: (encodeNat n ++ rest)))
+              (some (adrCfg (some .mvAfter) none inp left0 right
+                (List.replicate (i + 1 + k') true) rest))
+              (2 * (n + 1) + i + 2) :=
+            evalsToInTime_le_mono t (by omega)
+          have hE : List.replicate (i + 1 + k') true =
+              List.replicate (i + (k' + 1)) true := by
+            congr 1; ac_rfl
+          simpa [encodeNat, List.replicate_succ, List.cons_append, hE] using t'
+
+/-- Grow the max when `k < n`. -/
+noncomputable def adr_evals_mvNat_gt (n k : ℕ) (hgt : k < n)
+    (left0 inp right rest : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNat) none inp (false :: left0) right
+        (List.replicate k true) (encodeNat n ++ rest))
+      (some (adrCfg (some .mvAfter) none inp left0 right
+        (List.replicate n true) rest))
+      (2 * n + k + 4) := by
+  have hsplit : encodeNat n ++ rest =
+      List.replicate k true ++ true ::
+        (List.replicate (n - k - 1) true ++ false :: rest) := by
+    have hn : n = k + (n - k - 1) + 1 := by omega
+    have hrep : List.replicate n true =
+        List.replicate k true ++ true :: List.replicate (n - k - 1) true := by
+      calc
+        List.replicate n true
+            = List.replicate (k + (n - k - 1) + 1) true := by rw [← hn]
+        _ = List.replicate k true ++
+              List.replicate ((n - k - 1) + 1) true := by
+            simp [List.replicate_add, Nat.add_assoc]
+        _ = List.replicate k true ++ true ::
+              List.replicate (n - k - 1) true := by
+            simp [List.replicate_succ]
+    simp [encodeNat, hrep, List.append_assoc]
+  have hdrain := adr_evals_mvNat_drain k 0 left0 inp right
+    (true :: (List.replicate (n - k - 1) true ++ false :: rest))
+  have hdrain' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNat) none inp (false :: left0) right
+        (List.replicate k true) (encodeNat n ++ rest))
+      (some (adrCfg (some .mvNat) none inp
+        (List.replicate k true ++ false :: left0) right []
+        (true :: (List.replicate (n - k - 1) true ++ false :: rest))))
+      k := by
+    simpa [hsplit] using hdrain
+  have htrig := adr_evals_one
+    (adr_step_mvNat_true_work_nil
+      (List.replicate (n - k - 1) true ++ false :: rest)
+      inp (List.replicate k true ++ false :: left0) right none)
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step k 1
+    (adrCfg (some .mvNat) none inp (false :: left0) right
+      (List.replicate k true) (encodeNat n ++ rest))
+    (adrCfg (some .mvNat) none inp
+      (List.replicate k true ++ false :: left0) right []
+      (true :: (List.replicate (n - k - 1) true ++ false :: rest)))
+    (some (adrCfg (some .mvNatRestTake) none inp
+      (List.replicate k true ++ false :: left0) right []
+      (List.replicate (n - k - 1) true ++ false :: rest)))
+    hdrain' htrig
+  have t1' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNat) none inp (false :: left0) right
+        (List.replicate k true) (encodeNat n ++ rest))
+      (some (adrCfg (some .mvNatRestTake) none inp
+        (List.replicate k true ++ false :: left0) right []
+        (List.replicate (n - k - 1) true ++ false :: rest)))
+      (k + 1) :=
+    evalsToInTime_le_mono t1 (by omega)
+  have htake := adr_evals_mvNatRestTake k left0 inp right []
+    (List.replicate (n - k - 1) true ++ false :: rest)
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step (k + 1)
+    (k + 1)
+    (adrCfg (some .mvNat) none inp (false :: left0) right
+      (List.replicate k true) (encodeNat n ++ rest))
+    (adrCfg (some .mvNatRestTake) none inp
+      (List.replicate k true ++ false :: left0) right []
+      (List.replicate (n - k - 1) true ++ false :: rest))
+    (some (adrCfg (some .mvNatRest) none inp (false :: left0) right
+      (true :: (List.replicate k true ++ []))
+      (List.replicate (n - k - 1) true ++ false :: rest)))
+    t1' htake
+  have hrest := adr_evals_mvNatRest (n - k - 1) left0 inp right
+    (true :: (List.replicate k true ++ [])) rest
+  have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    ((k + 1) + (k + 1)) (n - k - 1 + 2)
+    (adrCfg (some .mvNat) none inp (false :: left0) right
+      (List.replicate k true) (encodeNat n ++ rest))
+    (adrCfg (some .mvNatRest) none inp (false :: left0) right
+      (true :: (List.replicate k true ++ []))
+      (List.replicate (n - k - 1) true ++ false :: rest))
+    (some (adrCfg (some .mvAfter) none inp left0 right
+      (List.replicate (n - k - 1) true ++ (true :: (List.replicate k true ++ [])))
+      rest))
+    t2 hrest
+  have hwork : List.replicate (n - k - 1) true ++
+      (true :: (List.replicate k true ++ [])) = List.replicate n true := by
+    simp only [List.append_nil]
+    rw [replicate_true_append_cons]
+    have hsum : List.replicate (n - k - 1) true ++ List.replicate k true =
+        List.replicate (n - k - 1 + k) true := (List.replicate_add _ _ _).symm
+    rw [hsum, ← List.replicate_succ]
+    congr 1
+    omega
+  have t3' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNat) none inp (false :: left0) right
+        (List.replicate k true) (encodeNat n ++ rest))
+      (some (adrCfg (some .mvAfter) none inp left0 right
+        (List.replicate n true) rest))
+      ((n - k - 1 + 2) + ((k + 1) + (k + 1))) := by
+    rw [← hwork]
+    exact t3
+  exact evalsToInTime_le_mono t3' (by omega)
+
+/-- Compare unary `n` to current max `k` and leave `max k n` on `work`. -/
+noncomputable def adr_evals_mvNat (n k : ℕ)
+    (left0 inp right rest : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNat) none inp (false :: left0) right
+        (List.replicate k true) (encodeNat n ++ rest))
+      (some (adrCfg (some .mvAfter) none inp left0 right
+        (List.replicate (max k n) true) rest))
+      (2 * n + k + 4) := by
+  by_cases hle : n ≤ k
+  · have h := adr_evals_mvNat_le n k 0 hle left0 inp right rest
+    have h' : EvalsToInTime afterDecodePairResultComputer.step
+        (adrCfg (some .mvNat) none inp (false :: left0) right
+          (List.replicate k true) (encodeNat n ++ rest))
+        (some (adrCfg (some .mvAfter) none inp left0 right
+          (List.replicate k true) rest))
+        (2 * n + 2) := by
+      simpa using h
+    have hk : max k n = k := Nat.max_eq_left hle
+    simpa [hk] using evalsToInTime_le_mono h' (by omega)
+  · have hgt : k < n := Nat.lt_of_not_ge hle
+    have h := adr_evals_mvNat_gt n k hgt left0 inp right rest
+    have hk : max k n = n := Nat.max_eq_right (Nat.le_of_lt hgt)
+    simpa [hk] using h
+
 theorem length_bitsInc_le (bs : List Bool) :
     (bitsInc bs).length ≤ bs.length + 1 := by
   induction bs with

@@ -1592,6 +1592,15 @@ SATurday.Bridge.adr_step_mvNatRefund_true
 SATurday.Bridge.adr_step_mvNatRefund_false
 SATurday.Bridge.adr_step_mvNatDiscardPark_true
 SATurday.Bridge.adr_step_mvNatDiscardPark_false
+SATurday.Bridge.replicate_true_append_cons
+SATurday.Bridge.adr_evals_mvNatRefund
+SATurday.Bridge.adr_evals_mvNatDiscardPark
+SATurday.Bridge.adr_evals_mvNatRestTake
+SATurday.Bridge.adr_evals_mvNatRest
+SATurday.Bridge.adr_evals_mvNat_drain
+SATurday.Bridge.adr_evals_mvNat_le
+SATurday.Bridge.adr_evals_mvNat_gt
+SATurday.Bridge.adr_evals_mvNat
 SATurday.Bridge.bitsEqual_pow2BitsLE_iff
 SATurday.Bridge.bitsEqual_pow2BitsLE_maxVarSuccBits
 SATurday.Bridge.lengthGateOk_iff_bitsEqual_maxVarSuccBits
