@@ -8989,8 +8989,8 @@ def afterDecodePairResultComputer : FinTM2 where
               (push ADRStack.work (fun _ => true) <|
                 load (fun _ => none) <| goto fun _ => ADRLabel.allTrueScan))
     | .allTrueOk =>
-        -- Restore scanned trues from work onto right. Length-count Stmt/labels
-        -- are present; entry stays clearLeft until lenLoop Evals land.
+        -- Restore scanned trues from work onto right. Length-count Stmt ready;
+        -- entry stays clearLeft until lenLoop Evals are green.
         pop ADRStack.work (fun _ o => o) <|
           branch (fun s => decide (s = none))
             (load (fun _ => none) <| goto fun _ => ADRLabel.clearLeft)
@@ -9578,7 +9578,7 @@ def adr_evals_one {l l' : Option ADRLabel} {v v' : Option Bool}
     simp only [FinTM2.step]
     exact h
 
-/-- Restore any `work` onto `right` as trues, then enter `lenLoop`. -/
+/-- Restore any `work` onto `right` as trues, then enter `clearLeft`. -/
 noncomputable def adr_evals_allTrueOk_restore_any (work : List Bool)
     (inp left right out : List Bool) (v : Option Bool) :
     EvalsToInTime afterDecodePairResultComputer.step
@@ -9673,7 +9673,7 @@ noncomputable def adr_evals_clear_to_fail (left right : List Bool)
       exact evalsToInTime_le_mono t (by simp [List.length_cons])
 
 /-- From `allTrueScan` with empty `out`, always reach reject halt `[true]`.
-Length-count path Remaining; all-true tables stub-reject via clearLeft. -/
+Length-count Stmt ready; all-true tables stub-reject via clearLeft. -/
 noncomputable def adr_evals_allTrueScan_to_fail
     (left right work : List Bool) (v : Option Bool) :
     EvalsToInTime afterDecodePairResultComputer.step
