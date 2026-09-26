@@ -9921,7 +9921,7 @@ noncomputable def adr_evals_pow2Check_to_fail
               have t := EvalsToInTime.trans afterDecodePairResultComputer.step
                 2 ((true :: inp).length + left.length + right.length + 4)
                 _ _ _ t1 h2
-              exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
+              exact evalsToInTime_le_mono t (by simp [List.length_cons] <;> omega)
           | cons b' rest' =>
               -- Double-pop leaves `rest'` on work, then clearWork + clearInp.
               have h1 := adr_evals_one
