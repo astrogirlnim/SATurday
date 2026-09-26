@@ -9486,7 +9486,7 @@ theorem adr_step_pow2Check_true_cons (inp left right : List Bool) (b : Bool)
     (rest out : List Bool) (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
       (adrCfg (some .pow2Check) v inp left right (true :: b :: rest) out) =
-      some (adrCfg (some .clearWork) none inp left right (b :: rest) out) := by
+      some (adrCfg (some .clearWork) none inp left right rest out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -9826,7 +9826,7 @@ noncomputable def adr_evals_pow2Check_to_fail
           have h2 := ih none
           have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
             (2 * rest.length + left.length + right.length + 4) _ _ _ h1 h2
-          exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
+          exact evalsToInTime_le_mono t (by simp [List.length_cons])
       | true =>
           cases rest with
           | nil =>
@@ -9835,16 +9835,17 @@ noncomputable def adr_evals_pow2Check_to_fail
               have h2 := adr_evals_clear_to_fail left right [] [] none
               have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
                 (left.length + right.length + 3) _ _ _ h1 h2
-              exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
+              exact evalsToInTime_le_mono t (by simp [List.length_cons])
           | cons b' rest' =>
+              -- Double-pop leaves `rest'` on work, then clearWork + reject.
               have h1 := adr_evals_one
                 (adr_step_pow2Check_true_cons [] left right b' rest' [] v)
-              have h2 := adr_evals_clearWork (b' :: rest') [] left right [] none
+              have h2 := adr_evals_clearWork rest' [] left right [] none
               have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1
-                ((b' :: rest').length + 1) _ _ _ h1 h2
+                (rest'.length + 1) _ _ _ h1 h2
               have h3 := adr_evals_clear_to_fail left right [] [] none
               have t := EvalsToInTime.trans afterDecodePairResultComputer.step
-                ((b' :: rest').length + 2)
+                (rest'.length + 2)
                 (left.length + right.length + 3) _ _ _ t12 h3
               exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
 
@@ -9863,7 +9864,7 @@ noncomputable def adr_evals_lenFinish_to_fail
       have h2 := adr_evals_pow2Check_to_fail left right work none
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
         (2 * work.length + left.length + right.length + 4) _ _ _ h1 h2
-      exact evalsToInTime_le_mono t (by simp; omega)
+      exact evalsToInTime_le_mono t (by simp)
   | cons b rest ih =>
       have h1 := adr_evals_one
         (adr_step_lenFinish_cons b rest left right work [] v)
