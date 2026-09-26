@@ -9837,7 +9837,7 @@ noncomputable def adr_evals_allTrueScan_to_fail
         (right.length + work.length + 1) *
           (2 * (work.length + right.length + 2) + 3) +
         2 * (right.length + work.length) + left.length +
-        (work.length + right.length) + 9) := by
+        (work.length + right.length) + right.length + 10) := by
   induction right generalizing work v with
   | nil =>
       have h1 := adr_evals_one (adr_step_allTrueScan_nil [] left work [] v)
@@ -9881,7 +9881,7 @@ noncomputable def adr_evals_allTrueScan_to_fail
               (rest.length + (true :: work).length + 1) *
                 (2 * ((true :: work).length + rest.length + 2) + 3) +
               2 * (rest.length + (true :: work).length) + left.length +
-              ((true :: work).length + rest.length) + 9) _ _ _ h1 h2
+              ((true :: work).length + rest.length) + rest.length + 10) _ _ _ h1 h2
           exact evalsToInTime_le_mono t (by
             simp [List.length_cons]
             omega)
@@ -10141,14 +10141,16 @@ noncomputable def afterDecodePairResult_evals_encodePair_reject
       (2 * φCode.length + table.length + 4 +
         2 * table.length + 2 * (0 : ℕ) +
         (table.length + 0 + 1) * (2 * (0 + table.length + 2) + 3) +
-        2 * (table.length + 0) + φCode.length + (0 + table.length) + 9) := by
+        2 * (table.length + 0) + φCode.length + (0 + table.length) +
+      table.length + 10) := by
   change EvalsToInTime afterDecodePairResultComputer.step
     (initList afterDecodePairResultComputer (false :: encodePair (φCode, table)))
     (some (haltList afterDecodePairResultComputer [true]))
     (2 * φCode.length + table.length + 4 +
       2 * table.length + 2 * (0 : ℕ) +
       (table.length + 0 + 1) * (2 * (0 + table.length + 2) + 3) +
-      2 * (table.length + 0) + φCode.length + (0 + table.length) + 9)
+      2 * (table.length + 0) + φCode.length + (0 + table.length) +
+      table.length + 10)
   rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
   have htag := adr_evals_one
     (adr_step_readTag_false (encodePair (φCode, table)) [] [] [] [] none)
@@ -10176,7 +10178,7 @@ noncomputable def afterDecodePairResult_evals_encodePair_reject
     (2 * table.reverse.length + 2 * (0 : ℕ) +
       (table.reverse.length + 0 + 1) * (2 * (0 + table.reverse.length + 2) + 3) +
       2 * (table.reverse.length + 0) + φCode.reverse.length +
-      (0 + table.reverse.length) + 9)
+      (0 + table.reverse.length) + table.reverse.length + 10)
     _ _ _ t2' hscan
   have _ := h
   exact evalsToInTime_le_mono t3 (by simp [List.length_reverse]; omega)
