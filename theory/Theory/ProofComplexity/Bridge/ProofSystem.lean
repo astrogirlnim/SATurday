@@ -9768,8 +9768,7 @@ noncomputable def adr_evals_lenFinish_to_fail
         (rest.length + work.length + left.length +
           (rest.reverse ++ b :: right).length + 5) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by
-        simp [List.length_cons, List.length_reverse, List.length_append]
-        omega)
+        simp [List.length_cons, List.length_reverse, List.length_append])
 
 /-- One `lenLoop` symbol: park bit on `inp`, `bitsInc` on `work`. -/
 noncomputable def adr_evals_lenLoop_one (b : Bool)
