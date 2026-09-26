@@ -9672,6 +9672,75 @@ noncomputable def adr_evals_clear_to_fail (left right : List Bool)
         1 (bs.length + right.length + 3) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by simp [List.length_cons])
 
+theorem length_bitsInc_le (bs : List Bool) :
+    (bitsInc bs).length ≤ bs.length + 1 := by
+  induction bs with
+  | nil => simp [bitsInc]
+  | cons x xs ih =>
+      cases x <;> simp [bitsInc, List.length_cons]; omega
+
+/-- Restore carry-aux on `out` onto `work`, return to `lenLoop`. -/
+noncomputable def adr_evals_lenRestore (inp left right work out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .lenRestore) v inp left right work out)
+      (some (adrCfg (some .lenLoop) none inp left right
+        (out.reverse ++ work) []))
+      (out.length + 1) := by
+  induction out generalizing work v with
+  | nil =>
+      simpa using adr_evals_one
+        (adr_step_lenRestore_nil inp left right work v)
+  | cons b rest ih =>
+      have h1 := adr_evals_one
+        (adr_step_lenRestore_cons inp left right work b rest v)
+      have h2 := ih (b :: work) none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (rest.length + 1) _ _ _ h1 h2
+      have heq : rest.reverse ++ (b :: work) = (b :: rest).reverse ++ work := by
+        simp [List.reverse_cons, List.append_assoc]
+      simpa [← heq, List.length_cons, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using evalsToInTime_le_mono t (by simp [List.length_cons])
+
+/-- From `lenInc`, return to `lenLoop` with `bitsInc work`. -/
+noncomputable def adr_evals_lenInc (inp left right work out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .lenInc) v inp left right work out)
+      (some (adrCfg (some .lenLoop) none inp left right
+        (out.reverse ++ bitsInc work) []))
+      (2 * work.length + out.length + 2) := by
+  induction work generalizing out v with
+  | nil =>
+      have h1 := adr_evals_one (adr_step_lenInc_nil inp left right out v)
+      have h2 := adr_evals_lenRestore inp left right [true] out none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (out.length + 1) _ _ _ h1 h2
+      simpa [bitsInc] using evalsToInTime_le_mono t (by omega)
+  | cons b rest ih =>
+      cases b with
+      | false =>
+          have h1 := adr_evals_one
+            (adr_step_lenInc_false inp left right rest out v)
+          have h2 := adr_evals_lenRestore inp left right (true :: rest) out none
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+            (out.length + 1) _ _ _ h1 h2
+          simpa [bitsInc, List.length_cons] using
+            evalsToInTime_le_mono t (by simp [List.length_cons])
+      | true =>
+          have h1 := adr_evals_one
+            (adr_step_lenInc_true inp left right rest out v)
+          have h2 := ih (false :: out) none
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+            (2 * rest.length + (false :: out).length + 2) _ _ _ h1 h2
+          have heq :
+              (false :: out).reverse ++ bitsInc rest =
+                out.reverse ++ bitsInc (true :: rest) := by
+            simp [bitsInc, List.reverse_cons, List.append_assoc]
+          simpa [← heq, List.length_cons, Nat.add_comm, Nat.add_left_comm,
+            Nat.add_assoc] using evalsToInTime_le_mono t (by
+              simp [List.length_cons]; omega)
+
 /-- From `allTrueScan` with empty `out`, always reach reject halt `[true]`.
 Length-count Stmt ready; all-true tables stub-reject via clearLeft. -/
 noncomputable def adr_evals_allTrueScan_to_fail
