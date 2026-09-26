@@ -8897,7 +8897,8 @@ Success tag `false :: rest` runs the certified `encodePair` load (as in
 `(φCode.reverse, table.reverse)` then currently drains and rejects (scaffold
 toward `indexValidate` / `validatesTautologyResult`). Certified Evals cover
 fail-tag, parse-fail, and success-tag reject cases where the semantic output
-is `[true]`. Accept `false :: φCode` remains with the indexValidate sequencer. -/
+is `[true]`. Accept `false :: φCode` is certified via `adr_evals_accept_from_stacks`
+on the `acceptEmit` entry (indexValidate wires into it later). -/
 
 open TM2.Stmt
 
@@ -8913,16 +8914,21 @@ inductive ADRLabel where
   | readTag | drainTrue | writeFail
   | parse | expectBit | loadRight
   | clearLeft | clearRight | afterParse
+  | acceptEmit | revLeft | writeAcceptFalse | clearRightAccept
   deriving DecidableEq, Repr
 
 instance : Fintype ADRLabel where
   elems := {.readTag, .drainTrue, .writeFail, .parse, .expectBit, .loadRight,
-    .clearLeft, .clearRight, .afterParse}
+    .clearLeft, .clearRight, .afterParse,
+    .acceptEmit, .revLeft, .writeAcceptFalse, .clearRightAccept}
   complete s := by cases s <;> simp
 
 /-- FinTM2 for `afterDecodePairResult`. Leading `true` drains and emits
 `[true]`. Leading `false` parses `encodePair` into `left`/`right`; parse fail
-or post-load scaffold drains and emits `[true]`. -/
+or post-load scaffold drains and emits `[true]`. Accept path labels
+`acceptEmit`/`revLeft`/`writeAcceptFalse`/`clearRightAccept` reverse
+`left` onto `out`, push `false`, clear `right`, halt with `false :: φCode`
+(entered later from indexValidate; `afterParse` stays reject scaffold). -/
 def afterDecodePairResultComputer : FinTM2 where
   K := ADRStack
   k₀ := .inp
@@ -8982,6 +8988,23 @@ def afterDecodePairResultComputer : FinTM2 where
           branch (fun s => decide (s = none))
             (load (fun _ => none) <| goto fun _ => ADRLabel.writeFail)
             (load (fun _ => none) <| goto fun _ => ADRLabel.clearRight)
+    | .acceptEmit =>
+        -- Entry for accept finisher (wired from indexValidate later).
+        load (fun _ => none) <| goto fun _ => ADRLabel.revLeft
+    | .revLeft =>
+        pop ADRStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.writeAcceptFalse)
+            (push ADRStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.revLeft)
+    | .writeAcceptFalse =>
+        push ADRStack.out (fun _ => false) <|
+          load (fun _ => none) <| goto fun _ => ADRLabel.clearRightAccept
+    | .clearRightAccept =>
+        pop ADRStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearRightAccept)
 
 def adrStk (inp left right work out : List Bool) : ADRStack → List Bool
   | .inp => inp
@@ -9220,6 +9243,77 @@ theorem adr_step_clearRight_nil (work out : List Bool) (v : Option Bool) :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
+theorem adr_step_acceptEmit (inp left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .acceptEmit) v inp left right work out) =
+      some (adrCfg (some .revLeft) none inp left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.revLeft, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_revLeft_cons (b : Bool) (rest right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .revLeft) v [] (b :: rest) right work out) =
+      some (adrCfg (some .revLeft) none [] rest right work (b :: out)) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.revLeft, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_revLeft_nil (right work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .revLeft) v [] [] right work out) =
+      some (adrCfg (some .writeAcceptFalse) none [] [] right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.writeAcceptFalse, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_writeAcceptFalse (inp left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .writeAcceptFalse) v inp left right work out) =
+      some (adrCfg (some .clearRightAccept) none
+        inp left right work (false :: out)) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearRightAccept, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_clearRightAccept_cons (b : Bool) (rest work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .clearRightAccept) v [] [] (b :: rest) work out) =
+      some (adrCfg (some .clearRightAccept) none [] [] rest work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearRightAccept, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_clearRightAccept_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .clearRightAccept) v [] [] [] work out) =
+      some (adrCfg none none [] [] [] work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option ADRLabel), (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
 def adr_evals_one {l l' : Option ADRLabel} {v v' : Option Bool}
     {inp left right work out inp' left' right' work' out' : List Bool}
     (h : TM2.step afterDecodePairResultComputer.m
@@ -9277,6 +9371,81 @@ noncomputable def adr_evals_clear_to_fail (left right : List Bool)
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step
         1 (bs.length + right.length + 3) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by simp [List.length_cons])
+
+/-- Reverse `left` onto `out`, then enter `writeAcceptFalse`. -/
+noncomputable def adr_evals_revLeft (left right work out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .revLeft) v [] left right work out)
+      (some (adrCfg (some .writeAcceptFalse) none [] [] right work
+        (left.reverse ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out v with
+  | nil =>
+      simpa using adr_evals_one (adr_step_revLeft_nil right work out v)
+  | cons b bs ih =>
+      have h1 := adr_evals_one (adr_step_revLeft_cons b bs right work out v)
+      have h2 := ih (b :: out) none
+      have h := EvalsToInTime.trans afterDecodePairResultComputer.step
+        1 (bs.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+/-- Drain `right` then halt (accept finisher; inp and left empty). -/
+noncomputable def adr_evals_clearRightAccept (right : List Bool)
+    (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .clearRightAccept) v [] [] right work out)
+      (some (adrCfg none none [] [] [] work out))
+      (right.length + 1) := by
+  induction right generalizing v with
+  | nil =>
+      simpa using adr_evals_one (adr_step_clearRightAccept_nil work out v)
+  | cons b bs ih =>
+      have h1 := adr_evals_one
+        (adr_step_clearRightAccept_cons b bs work out v)
+      have h2 := ih none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        1 (bs.length + 1) _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by simp [List.length_cons])
+
+/-- From afterParse-equivalent stacks `left = φCode.reverse`,
+`right = table.reverse`, empty `out`: reverse left, push false, clear right,
+halt with `false :: φCode`. Entry is `acceptEmit` (not `afterParse`). -/
+noncomputable def adr_evals_accept_from_stacks (φCode table : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .acceptEmit) none [] φCode.reverse table.reverse [] [])
+      (some (adrCfg none none [] [] [] [] (false :: φCode)))
+      (φCode.length + table.length + 4) := by
+  have henter := adr_evals_one
+    (adr_step_acceptEmit [] φCode.reverse table.reverse [] [] none)
+  have hrev := adr_evals_revLeft φCode.reverse table.reverse [] [] none
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+    (φCode.reverse.length + 1) _ _ _ henter hrev
+  have t1' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .acceptEmit) none [] φCode.reverse table.reverse [] [])
+      (some (adrCfg (some .writeAcceptFalse) none [] [] table.reverse [] φCode))
+      (φCode.length + 2) := by
+    have hout : φCode.reverse.reverse ++ ([] : List Bool) = φCode := by
+      simp [List.reverse_reverse]
+    simpa [List.length_reverse, hout, List.append_nil] using
+      evalsToInTime_le_mono t1 (by simp [List.length_reverse])
+  have hwrite := adr_evals_one
+    (adr_step_writeAcceptFalse [] [] table.reverse [] φCode none)
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (φCode.length + 2) 1 _ _ _ t1' hwrite
+  have t2' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .acceptEmit) none [] φCode.reverse table.reverse [] [])
+      (some (adrCfg (some .clearRightAccept) none [] [] table.reverse []
+        (false :: φCode)))
+      (φCode.length + 3) :=
+    evalsToInTime_le_mono t2 (by omega)
+  have hclear := adr_evals_clearRightAccept table.reverse [] (false :: φCode) none
+  have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (φCode.length + 3) (table.reverse.length + 1) _ _ _ t2' hclear
+  exact evalsToInTime_le_mono t3 (by
+    simp only [List.length_reverse]
+    omega)
 
 /-- Fail-tag singleton `[true]` → `[true]` in 3 steps. -/
 noncomputable def afterDecodePairResult_evals_fail_tag :
