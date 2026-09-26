@@ -1575,6 +1575,21 @@ SATurday.Bridge.not_validatesTautology_by_index_of_lengthGateFail
 SATurday.Bridge.not_validatesTautology_of_lengthGateFail
 SATurday.Bridge.validatesTautologyResult_eq_by_index
 SATurday.Bridge.validatesTautologyResult_of_lengthGateFail
+# R5 ProofSystem Block A maxVar helpers (2026-09-26)
+SATurday.Bridge.maxVarSuccBits
+SATurday.Bridge.maxVarSuccBits_eq
+SATurday.Bridge.maxVarOfCode
+SATurday.Bridge.maxVarOfCode_some
+SATurday.Bridge.maxVarOfCode_none
+SATurday.Bridge.maxVarOfCode_encodeFormula
+SATurday.Bridge.maxVarSuccBitsOfCode
+SATurday.Bridge.maxVarSuccBitsOfCode_some
+SATurday.Bridge.maxVarSuccBitsOfCode_none
+SATurday.Bridge.maxVarSuccBitsOfCode_encodeFormula
+SATurday.Bridge.bitsEqual_pow2BitsLE_iff
+SATurday.Bridge.bitsEqual_pow2BitsLE_maxVarSuccBits
+SATurday.Bridge.lengthGateOk_iff_bitsEqual_maxVarSuccBits
+SATurday.Bridge.lengthGateOk_iff_bitsEqual_parked
 # R5 ProofSystem Cluster C2 writePow2Bits length compare scaffolding (2026-09-08)
 SATurday.Bridge.pow2BitsLE
 SATurday.Bridge.length_pow2BitsLE

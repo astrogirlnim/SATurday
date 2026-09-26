@@ -458,6 +458,46 @@ def maxVarSuccBits (φ : PropFormula) : List Bool :=
 theorem maxVarSuccBits_eq (φ : PropFormula) :
     maxVarSuccBits φ = pow2BitsLE (φ.maxVar + 1) := rfl
 
+/-- Decode then read `maxVar`; `none` means the tape is not a formula. -/
+def maxVarOfCode (φCode : List Bool) : Option ℕ :=
+  match decodeFormula φCode with
+  | some φ => some φ.maxVar
+  | none => none
+
+theorem maxVarOfCode_some {φCode : List Bool} {φ : PropFormula}
+    (h : decodeFormula φCode = some φ) :
+    maxVarOfCode φCode = some φ.maxVar := by
+  simp [maxVarOfCode, h]
+
+theorem maxVarOfCode_none {φCode : List Bool}
+    (h : decodeFormula φCode = none) :
+    maxVarOfCode φCode = none := by
+  simp [maxVarOfCode, h]
+
+theorem maxVarOfCode_encodeFormula (φ : PropFormula) :
+    maxVarOfCode (encodeFormula φ) = some φ.maxVar := by
+  simp [maxVarOfCode, decodeFormula_encodeFormula]
+
+/-- Emit `maxVarSuccBits` from a code tape, or `none` on decode fail. -/
+def maxVarSuccBitsOfCode (φCode : List Bool) : Option (List Bool) :=
+  match decodeFormula φCode with
+  | some φ => some (maxVarSuccBits φ)
+  | none => none
+
+theorem maxVarSuccBitsOfCode_some {φCode : List Bool} {φ : PropFormula}
+    (h : decodeFormula φCode = some φ) :
+    maxVarSuccBitsOfCode φCode = some (maxVarSuccBits φ) := by
+  simp [maxVarSuccBitsOfCode, h]
+
+theorem maxVarSuccBitsOfCode_none {φCode : List Bool}
+    (h : decodeFormula φCode = none) :
+    maxVarSuccBitsOfCode φCode = none := by
+  simp [maxVarSuccBitsOfCode, h]
+
+theorem maxVarSuccBitsOfCode_encodeFormula (φ : PropFormula) :
+    maxVarSuccBitsOfCode (encodeFormula φ) = some (maxVarSuccBits φ) := by
+  simp [maxVarSuccBitsOfCode, decodeFormula_encodeFormula]
+
 /-- Numeric value of a little endian bit list (head is least significant). -/
 def bitsLEValue : List Bool → ℕ
   | [] => 0
@@ -1479,6 +1519,25 @@ theorem bitsEqual_pow2BitsLE_iff (n m : ℕ) :
   constructor
   · exact pow2BitsLE_injective
   · intro h; simp [h]
+
+/-- Parked width `pow2BitsLE n` matches `maxVarSuccBits φ` iff `n = maxVar+1`. -/
+theorem bitsEqual_pow2BitsLE_maxVarSuccBits (n : ℕ) (φ : PropFormula) :
+    bitsEqual (pow2BitsLE n) (maxVarSuccBits φ) = true ↔
+      n = φ.maxVar + 1 := by
+  simpa [maxVarSuccBits] using bitsEqual_pow2BitsLE_iff n (φ.maxVar + 1)
+
+/-- After a successful decode, the length gate is the parked-width compare. -/
+theorem lengthGateOk_iff_bitsEqual_parked (φ : PropFormula) (table : List Bool)
+    (n : ℕ) (hlen : table.length = 2 ^ n) :
+    lengthGateOk φ table = true ↔
+      bitsEqual (pow2BitsLE n) (maxVarSuccBits φ) = true := by
+  rw [lengthGateOk_iff, bitsEqual_pow2BitsLE_maxVarSuccBits]
+  constructor
+  · intro hgate
+    have : 2 ^ n = 2 ^ (φ.maxVar + 1) := by simpa [hlen] using hgate
+    exact Nat.pow_right_injective (by decide : (1 : ℕ) < 2) this
+  · intro hn
+    simpa [hlen, hn]
 
 theorem lengthGateOk_iff_bitsEqual_maxVarSuccBits (φ : PropFormula)
     (table : List Bool) :
@@ -8945,13 +9004,33 @@ inductive ADRLabel where
   | lenLoop | lenInc | lenRestore | lenFinish
   | pow2Check | pow2Ok | maxVarGate | clearInp
   | acceptEmit | revLeft | writeAcceptFalse | clearRightAccept
+  | parkWidth | copyLeft | copyLeftRest | revCode
+  | mvParse | mvTagF | mvTagT | mvNat | mvNatRest | mvAfter | mvFinish
+  | mvToPow2 | unparkMark | unparkFalses
+  | eqA | eqB
+  | indexLoop | idxParkAsg | idxCopyL | idxCopyRest | idxRevCode
+  | evParse | evTagF | evTagT | evNat | evSkip | evRead | evRestore
+  | evCount | evDisp1 | evDisp2 | evDisp3 | evDisp4 | evDisp5 | evDisp6 | evDisp7
+  | evNot | evAndFirst | evAndCombF | evAndCombT
+  | evOrFirst | evOrCombF | evOrCombT | evDone
+  | failDrain | acceptPrep | acceptPrepInp
+  | idxInc | idxIncRest
   deriving DecidableEq, Repr
 
 instance : Fintype ADRLabel where
   elems := {.readTag, .drainTrue, .writeFail, .parse, .expectBit, .loadRight,
     .clearLeft, .clearRight, .afterParse, .allTrueScan, .allTrueOk, .clearWork,
     .lenLoop, .lenInc, .lenRestore, .lenFinish, .pow2Check, .pow2Ok, .maxVarGate,
-    .clearInp, .acceptEmit, .revLeft, .writeAcceptFalse, .clearRightAccept}
+    .clearInp, .acceptEmit, .revLeft, .writeAcceptFalse, .clearRightAccept,
+    .parkWidth, .copyLeft, .copyLeftRest, .revCode,
+    .mvParse, .mvTagF, .mvTagT, .mvNat, .mvNatRest, .mvAfter, .mvFinish,
+    .mvToPow2, .unparkMark, .unparkFalses, .eqA, .eqB,
+    .indexLoop, .idxParkAsg, .idxCopyL, .idxCopyRest, .idxRevCode,
+    .evParse, .evTagF, .evTagT, .evNat, .evSkip, .evRead, .evRestore,
+    .evCount, .evDisp1, .evDisp2, .evDisp3, .evDisp4, .evDisp5, .evDisp6, .evDisp7,
+    .evNot, .evAndFirst, .evAndCombF, .evAndCombT,
+    .evOrFirst, .evOrCombF, .evOrCombT, .evDone,
+    .failDrain, .acceptPrep, .acceptPrepInp, .idxInc, .idxIncRest}
   complete s := by cases s <;> simp
 
 /-- FinTM2 for `afterDecodePairResult`. Leading `true` drains and emits
@@ -9087,10 +9166,367 @@ def afterDecodePairResultComputer : FinTM2 where
         push ADRStack.inp (fun _ => true) <|
           load (fun _ => none) <| goto fun _ => ADRLabel.maxVarGate
     | .maxVarGate =>
-        -- `inp = pow2BitsLE n` with `table.length = 2^n`. Remaining: emit
-        -- `maxVarSuccBits φ` from `left = φCode.reverse` and bitsEqual; stub
-        -- rejects until that compare and the index loop land.
+        -- Wired next: `parkWidth` then maxVar scan, bitsEqual, index loop.
+        -- Stub still rejects so certified reject-scaffold Evals stay green.
         load (fun _ => none) <| goto fun _ => ADRLabel.clearInp
+    | .parkWidth =>
+        -- `right := reverse(pow2BitsLE n) ++ table = [true] ++ n*false ++ table`.
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.copyLeft)
+            (push ADRStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.parkWidth)
+    | .copyLeft =>
+        -- Copy `left` onto `work` using `out` as restore aux.
+        pop ADRStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.copyLeftRest)
+            (push ADRStack.work (fun s => s.getD false) <|
+              push ADRStack.out (fun s => s.getD false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.copyLeft)
+    | .copyLeftRest =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.revCode)
+            (push ADRStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.copyLeftRest)
+    | .revCode =>
+        -- After copy, `work = φCode`. Bounce through empty `inp` so `out = φCode`
+        -- and `work` is free for the max-unary accumulator.
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (pop ADRStack.inp (fun _ o => o) <|
+              branch (fun s => decide (s = none))
+                (load (fun _ => none) <| goto fun _ => ADRLabel.mvParse)
+                (push ADRStack.out (fun s => s.getD false) <|
+                  load (fun _ => none) <| goto fun _ => ADRLabel.revCode))
+            (push ADRStack.inp (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.revCode)
+    | .mvParse =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvTagF)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvTagT))
+    | .mvTagF =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvNat)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvParse))
+    | .mvTagT =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (push ADRStack.inp (fun _ => true) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.mvParse)
+    | .mvNat =>
+        -- Unary `true^n false` vs current max `true^k` on `work`.
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some true))
+              (pop ADRStack.work (fun _ o => o) <|
+                branch (fun s => decide (s = none))
+                  (push ADRStack.work (fun _ => true) <|
+                    load (fun _ => none) <| goto fun _ => ADRLabel.mvNatRest)
+                  (push ADRStack.work (fun _ => true) <|
+                    load (fun _ => none) <| goto fun _ => ADRLabel.mvNat))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvAfter))
+    | .mvNatRest =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some true))
+              (push ADRStack.work (fun _ => true) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.mvNatRest)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.mvAfter))
+    | .mvAfter =>
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.mvFinish)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.mvParse)
+    | .mvFinish =>
+        -- Leftover code rejects. On empty `out`, park terminator `true` then
+        -- convert `work = true^k` into `pow2BitsLE (k+1)`.
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push ADRStack.out (fun _ => true) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.mvToPow2)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+    | .mvToPow2 =>
+        -- `out` already holds `[true]`. Each max bit becomes a false, plus one
+        -- extra false: `false^(k+1) ++ [true]`.
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push ADRStack.out (fun _ => false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.unparkMark)
+            (push ADRStack.out (fun _ => false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.mvToPow2)
+    | .unparkMark =>
+        -- Expect parked `[true] ++ n*false ++ table` on `right`.
+        pop ADRStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some true))
+              (push ADRStack.inp (fun _ => true) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.unparkFalses)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain))
+    | .unparkFalses =>
+        pop ADRStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.eqA)
+            (branch (fun s => decide (s = some false))
+              (push ADRStack.inp (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.unparkFalses)
+              (push ADRStack.right (fun _ => true) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.eqA))
+    | .eqA =>
+        -- Zip `inp = pow2BitsLE n` against `out = maxVarSuccBits`.
+        -- False bits accumulate assignment 0 on `work`; matching trues enter
+        -- the index loop.
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some true))
+              (pop ADRStack.out (fun _ o => o) <|
+                branch (fun s => decide (s = none))
+                  (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+                  (branch (fun s => decide (s = some true))
+                    (load (fun _ => none) <| goto fun _ => ADRLabel.indexLoop)
+                    (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.eqB))
+    | .eqB =>
+        -- Expect `false` on `out` after a parked-width false.
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some false))
+              (push ADRStack.work (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.eqA)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain))
+    | .indexLoop =>
+        -- Fuel is remaining `right` (all-true table bits).
+        pop ADRStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.acceptPrep)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.idxParkAsg)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain))
+    | .idxParkAsg =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.idxCopyL)
+            (push ADRStack.inp (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.idxParkAsg)
+    | .idxCopyL =>
+        pop ADRStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.idxCopyRest)
+            (push ADRStack.work (fun s => s.getD false) <|
+              push ADRStack.out (fun s => s.getD false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.idxCopyL)
+    | .idxCopyRest =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.idxRevCode)
+            (push ADRStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.idxCopyRest)
+    | .idxRevCode =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.evParse)
+            (push ADRStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.idxRevCode)
+    | .evParse =>
+        -- Prefix eval on `out = remaining code`; result lives in state.
+        -- Move code from `out`... after idxRevCode, code is on `out`.
+        -- Shift `out` onto `work` first via evParse pop? We parse `out`.
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.evTagF)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.evTagT))
+    | .evTagF =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.evNat)
+              (push ADRStack.right (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.evParse))
+    | .evTagT =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some false))
+              (push ADRStack.right (fun _ => false) <|
+                push ADRStack.right (fun _ => false) <|
+                  load (fun _ => none) <| goto fun _ => ADRLabel.evParse)
+              (push ADRStack.right (fun _ => false) <|
+                push ADRStack.right (fun _ => false) <|
+                  push ADRStack.right (fun _ => false) <|
+                    push ADRStack.right (fun _ => false) <|
+                      push ADRStack.right (fun _ => false) <|
+                        load (fun _ => none) <| goto fun _ => ADRLabel.evParse))
+    | .evNat =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.evSkip)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.evRead))
+    | .evSkip =>
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.evNat)
+            (push ADRStack.work (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.evNat)
+    | .evRead =>
+        -- Peek current assign bit (default false), park it on `left` so
+        -- restore can use state for skipped bits.
+        peek ADRStack.inp (fun _ o => o) <|
+          push ADRStack.left (fun s => s.getD false) <|
+            load (fun _ => none) <| goto fun _ => ADRLabel.evRestore
+    | .evRestore =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (pop ADRStack.left (fun _ o => o) <|
+              load (fun s => s) <| goto fun _ => ADRLabel.evCount)
+            (push ADRStack.inp (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.evRestore)
+    | .evCount =>
+        -- Count false markers on `right` into `work` as `true^k`.
+        -- Remaining code stays on `out`.
+        pop ADRStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun s => s) <| goto fun _ => ADRLabel.evDisp1)
+            (branch (fun s => decide (s = some false))
+              (push ADRStack.work (fun _ => true) <|
+                load (fun s => s) <| goto fun _ => ADRLabel.evCount)
+              (push ADRStack.right (fun _ => true) <|
+                load (fun s => s) <| goto fun _ => ADRLabel.evDisp1))
+    | .evDisp1 =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun s => s) <| goto fun _ => ADRLabel.evDone)
+            (load (fun s => s) <| goto fun _ => ADRLabel.evDisp2)
+    | .evDisp2 =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun s => s) <| goto fun _ => ADRLabel.evNot)
+            (load (fun s => s) <| goto fun _ => ADRLabel.evDisp3)
+    | .evDisp3 =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun s => s) <| goto fun _ => ADRLabel.evAndFirst)
+            (load (fun s => s) <| goto fun _ => ADRLabel.evDisp4)
+    | .evDisp4 =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun s => s) <| goto fun _ => ADRLabel.evAndCombF)
+            (load (fun s => s) <| goto fun _ => ADRLabel.evDisp5)
+    | .evDisp5 =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun s => s) <| goto fun _ => ADRLabel.evAndCombT)
+            (load (fun s => s) <| goto fun _ => ADRLabel.evDisp6)
+    | .evDisp6 =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun s => s) <| goto fun _ => ADRLabel.evOrFirst)
+            (load (fun s => s) <| goto fun _ => ADRLabel.evDisp7)
+    | .evDisp7 =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun s => s) <| goto fun _ => ADRLabel.evOrCombF)
+            (load (fun _ => some true) <| goto fun _ => ADRLabel.evCount)
+    | .evNot =>
+        branch (fun s => decide (s = some true))
+          (load (fun _ => some false) <| goto fun _ => ADRLabel.evCount)
+          (load (fun _ => some true) <| goto fun _ => ADRLabel.evCount)
+    | .evAndFirst =>
+        branch (fun s => decide (s = some true))
+          (push ADRStack.right (fun _ => false) <|
+            push ADRStack.right (fun _ => false) <|
+              push ADRStack.right (fun _ => false) <|
+                push ADRStack.right (fun _ => false) <|
+                  load (fun _ => none) <| goto fun _ => ADRLabel.evParse)
+          (push ADRStack.right (fun _ => false) <|
+            push ADRStack.right (fun _ => false) <|
+              push ADRStack.right (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.evParse)
+    | .evAndCombF =>
+        load (fun _ => some false) <| goto fun _ => ADRLabel.evCount
+    | .evAndCombT =>
+        load (fun s => s) <| goto fun _ => ADRLabel.evCount
+    | .evOrFirst =>
+        branch (fun s => decide (s = some true))
+          (push ADRStack.right (fun _ => false) <|
+            push ADRStack.right (fun _ => false) <|
+              push ADRStack.right (fun _ => false) <|
+                push ADRStack.right (fun _ => false) <|
+                  push ADRStack.right (fun _ => false) <|
+                    push ADRStack.right (fun _ => false) <|
+                      push ADRStack.right (fun _ => false) <|
+                        load (fun _ => none) <| goto fun _ => ADRLabel.evParse)
+          (push ADRStack.right (fun _ => false) <|
+            push ADRStack.right (fun _ => false) <|
+              push ADRStack.right (fun _ => false) <|
+                push ADRStack.right (fun _ => false) <|
+                  push ADRStack.right (fun _ => false) <|
+                    push ADRStack.right (fun _ => false) <|
+                      load (fun _ => none) <| goto fun _ => ADRLabel.evParse)
+    | .evOrCombF =>
+        load (fun s => s) <| goto fun _ => ADRLabel.evCount
+    | .evOrCombT =>
+        load (fun _ => some true) <| goto fun _ => ADRLabel.evCount
+    | .evDone =>
+        -- Leftover code on `out` rejects without clobbering the eval bit.
+        peek ADRStack.out (fun s o =>
+            match o with
+            | none => s
+            | some _ => none) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+            (branch (fun s => decide (s = some true))
+              (load (fun _ => none) <| goto fun _ => ADRLabel.idxInc)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain))
+    | .failDrain =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearWork)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain)
+    | .acceptPrep =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.acceptPrepInp)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.acceptPrep)
+    | .acceptPrepInp =>
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.acceptEmit)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.acceptPrepInp)
+    | .idxInc =>
+        -- Little endian `bitsInc` on the assignment sitting on `inp`.
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push ADRStack.inp (fun _ => true) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.idxIncRest)
+            (branch (fun s => decide (s = some false))
+              (push ADRStack.inp (fun _ => true) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.idxIncRest)
+              (push ADRStack.out (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.idxInc))
+    | .idxIncRest =>
+        pop ADRStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.indexLoop)
+            (push ADRStack.inp (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.idxIncRest)
     | .clearInp =>
         pop ADRStack.inp (fun _ o => o) <|
           branch (fun s => decide (s = none))
@@ -9562,6 +9998,138 @@ theorem adr_step_maxVarGate (inp left right work out : List Bool)
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
+theorem adr_step_parkWidth_cons (b : Bool) (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .parkWidth) v (b :: rest) left right work out) =
+      some (adrCfg (some .parkWidth) none rest left (b :: right) work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.parkWidth, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_parkWidth_nil (left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .parkWidth) v [] left right work out) =
+      some (adrCfg (some .copyLeft) none [] left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.copyLeft, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_copyLeft_cons (b : Bool) (rest right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .copyLeft) v [] (b :: rest) right work out) =
+      some (adrCfg (some .copyLeft) none [] rest right (b :: work)
+        (b :: out)) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.copyLeft, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_copyLeft_nil (right work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .copyLeft) v [] [] right work out) =
+      some (adrCfg (some .copyLeftRest) none [] [] right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.copyLeftRest, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_copyLeftRest_cons (b : Bool) (left rest right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .copyLeftRest) v [] left right work (b :: rest)) =
+      some (adrCfg (some .copyLeftRest) none [] (b :: left) right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.copyLeftRest, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_copyLeftRest_nil (left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .copyLeftRest) v [] left right work []) =
+      some (adrCfg (some .revCode) none [] left right work []) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.revCode, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_revCode_work_cons (b : Bool) (rest left right inp out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .revCode) v inp left right (b :: rest) out) =
+      some (adrCfg (some .revCode) none (b :: inp) left right rest out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.revCode, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_revCode_bounce (b : Bool) (rest left right out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .revCode) v (b :: rest) left right [] out) =
+      some (adrCfg (some .revCode) none rest left right [] (b :: out)) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.revCode, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_revCode_to_parse (left right out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .revCode) v [] left right [] out) =
+      some (adrCfg (some .mvParse) none [] left right [] out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.mvParse, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_failDrain_cons (b : Bool) (inp left right work rest : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .failDrain) v inp left right work (b :: rest)) =
+      some (adrCfg (some .failDrain) none inp left right work rest) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_failDrain_nil (inp left right work : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .failDrain) v inp left right work []) =
+      some (adrCfg (some .clearWork) none inp left right work []) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearWork, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
 theorem adr_step_clearInp_cons (b : Bool) (rest left right work out : List Bool)
     (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
@@ -9855,6 +10423,217 @@ noncomputable def adr_evals_clearInp_to_fail (inp left right : List Bool)
   have t := EvalsToInTime.trans afterDecodePairResultComputer.step
     (inp.length + 1) (left.length + right.length + 3) _ _ _ h1 h2
   exact evalsToInTime_le_mono t (by omega)
+
+/-- Drain leftover `out`, then `clearWork` / `clearInp` to `[true]`. -/
+noncomputable def adr_evals_failDrain (inp left right work out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .failDrain) v inp left right work out)
+      (some (adrCfg none none [] [] [] [] [true]))
+      (out.length + work.length + inp.length + left.length + right.length + 6) := by
+  induction out generalizing v with
+  | nil =>
+      have h1 := adr_evals_one (adr_step_failDrain_nil inp left right work v)
+      have h2 := adr_evals_clearWork work inp left right [] none
+      have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (work.length + 1) _ _ _ h1 h2
+      have h3 := adr_evals_clearInp_to_fail inp left right [] [] none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        (work.length + 2)
+        (inp.length + left.length + right.length + 4) _ _ _ t12 h3
+      exact evalsToInTime_le_mono t (by omega)
+  | cons b rest ih =>
+      have h1 := adr_evals_one
+        (adr_step_failDrain_cons b inp left right work rest v)
+      have h2 := ih none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (rest.length + work.length + inp.length + left.length +
+          right.length + 6) _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by simp [List.length_cons])
+
+/-- Park `inp` onto `right`, then enter `copyLeft`. -/
+noncomputable def adr_evals_parkWidth (inp left right work out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parkWidth) v inp left right work out)
+      (some (adrCfg (some .copyLeft) none [] left (inp.reverse ++ right)
+        work out))
+      (inp.length + 1) := by
+  induction inp generalizing right v with
+  | nil =>
+      simpa using adr_evals_one (adr_step_parkWidth_nil left right work out v)
+  | cons b rest ih =>
+      have h1 := adr_evals_one
+        (adr_step_parkWidth_cons b rest left right work out v)
+      have h2 := ih (b :: right) none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (rest.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, List.length_cons,
+        Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using t
+
+/-- Copy `left` onto `work` as `left.reverse` and restore `left` from `out`. -/
+noncomputable def adr_evals_copyLeft (left right : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .copyLeft) v [] left right [] [])
+      (some (adrCfg (some .revCode) none [] left right left.reverse []))
+      (2 * left.length + 2) := by
+  have hconsume :
+      ∀ (xs accW accO : List Bool) (v' : Option Bool),
+        EvalsToInTime afterDecodePairResultComputer.step
+          (adrCfg (some .copyLeft) v' [] xs right accW accO)
+          (some (adrCfg (some .copyLeftRest) none [] [] right
+            (xs.reverse ++ accW) (xs.reverse ++ accO)))
+          (xs.length + 1) := by
+    intro xs
+    induction xs with
+    | nil =>
+        intro accW accO v'
+        simpa using adr_evals_one
+          (adr_step_copyLeft_nil right accW accO v')
+    | cons b rest ih =>
+        intro accW accO v'
+        have h1 := adr_evals_one
+          (adr_step_copyLeft_cons b rest right accW accO v')
+        have h2 := ih (b :: accW) (b :: accO) none
+        have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+          (rest.length + 1) _ _ _ h1 h2
+        simpa [List.reverse_cons, List.append_assoc, List.length_cons,
+          Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using t
+  have hrestore :
+      ∀ (ys leftAcc : List Bool) (v' : Option Bool),
+        EvalsToInTime afterDecodePairResultComputer.step
+          (adrCfg (some .copyLeftRest) v' [] leftAcc right
+            left.reverse ys)
+          (some (adrCfg (some .revCode) none []
+            (ys.reverse ++ leftAcc) right left.reverse []))
+          (ys.length + 1) := by
+    intro ys
+    induction ys with
+    | nil =>
+        intro leftAcc v'
+        simpa using adr_evals_one
+          (adr_step_copyLeftRest_nil leftAcc right left.reverse v')
+    | cons b rest ih =>
+        intro leftAcc v'
+        have h1 := adr_evals_one
+          (adr_step_copyLeftRest_cons b leftAcc rest right left.reverse v')
+        have h2 := ih (b :: leftAcc) none
+        have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+          (rest.length + 1) _ _ _ h1 h2
+        simpa [List.reverse_cons, List.append_assoc, List.length_cons,
+          Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using t
+  have h1 := hconsume left [] [] v
+  have h1' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .copyLeft) v [] left right [] [])
+      (some (adrCfg (some .copyLeftRest) none [] [] right
+        left.reverse left.reverse))
+      (left.length + 1) := by
+    simpa [List.append_nil] using h1
+  have h2 := hrestore left.reverse [] none
+  have h2' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .copyLeftRest) none [] [] right
+        left.reverse left.reverse)
+      (some (adrCfg (some .revCode) none [] left right left.reverse []))
+      (left.reverse.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil] using h2
+  have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (left.length + 1) (left.reverse.length + 1) _ _ _ h1' h2'
+  exact evalsToInTime_le_mono t (by simp [List.length_reverse]; omega)
+
+/-- Bounce `work = φCode` through empty `inp` onto `out`. -/
+noncomputable def adr_evals_revCode (φCode left right : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .revCode) none [] left right φCode [])
+      (some (adrCfg (some .mvParse) none [] left right [] φCode))
+      (2 * φCode.length + 1) := by
+  have htoInp :
+      ∀ (xs inp : List Bool),
+        EvalsToInTime afterDecodePairResultComputer.step
+          (adrCfg (some .revCode) none inp left right xs [])
+          (some (adrCfg (some .revCode) none (xs.reverse ++ inp) left right
+            [] []))
+          xs.length := by
+    intro xs
+    induction xs with
+    | nil =>
+        intro inp
+        exact EvalsToInTime.refl afterDecodePairResultComputer.step
+          (adrCfg (some .revCode) none inp left right [] [])
+    | cons b rest ih =>
+        intro inp
+        have h1 := adr_evals_one
+          (adr_step_revCode_work_cons b rest left right inp [] none)
+        have h2 := ih (b :: inp)
+        have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+          rest.length _ _ _ h1 h2
+        simpa [List.reverse_cons, List.append_assoc, List.length_cons,
+          Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using
+          evalsToInTime_le_mono t (by simp [List.length_cons])
+  have hbounce :
+      ∀ (ys out : List Bool),
+        EvalsToInTime afterDecodePairResultComputer.step
+          (adrCfg (some .revCode) none ys left right [] out)
+          (some (adrCfg (some .mvParse) none [] left right []
+            (ys.reverse ++ out)))
+          (ys.length + 1) := by
+    intro ys
+    induction ys with
+    | nil =>
+        intro out
+        simpa using adr_evals_one
+          (adr_step_revCode_to_parse left right out none)
+    | cons b rest ih =>
+        intro out
+        have h1 := adr_evals_one
+          (adr_step_revCode_bounce b rest left right out none)
+        have h2 := ih (b :: out)
+        have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+          (rest.length + 1) _ _ _ h1 h2
+        simpa [List.reverse_cons, List.append_assoc, List.length_cons,
+          Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using t
+  have h1 := htoInp φCode []
+  have h1' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .revCode) none [] left right φCode [])
+      (some (adrCfg (some .revCode) none φCode.reverse left right [] []))
+      φCode.length := by
+    simpa [List.append_nil] using h1
+  have h2 := hbounce φCode.reverse []
+  have h2' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .revCode) none φCode.reverse left right [] [])
+      (some (adrCfg (some .mvParse) none [] left right [] φCode))
+      (φCode.reverse.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil] using h2
+  have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+    φCode.length (φCode.reverse.length + 1) _ _ _ h1' h2'
+  exact evalsToInTime_le_mono t (by simp [List.length_reverse]; omega)
+
+/-- Reach `mvParse` after parking width and copying `φCode`. -/
+noncomputable def adr_evals_park_to_mvParse (φCode table : List Bool)
+    (n : ℕ) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parkWidth) none (pow2BitsLE n) φCode.reverse table [] [])
+      (some (adrCfg (some .mvParse) none [] φCode.reverse
+        ((pow2BitsLE n).reverse ++ table) [] φCode))
+      (4 * (φCode.length + n + 2) + 8) := by
+  have hpark := adr_evals_parkWidth (pow2BitsLE n) φCode.reverse table [] [] none
+  have hcopy := adr_evals_copyLeft φCode.reverse
+    ((pow2BitsLE n).reverse ++ table) none
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    ((pow2BitsLE n).length + 1) (2 * φCode.reverse.length + 2) _ _ _ hpark hcopy
+  have t1' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parkWidth) none (pow2BitsLE n) φCode.reverse table [] [])
+      (some (adrCfg (some .revCode) none [] φCode.reverse
+        ((pow2BitsLE n).reverse ++ table) φCode []))
+      (2 * φCode.length + n + 6) := by
+    simpa [List.reverse_reverse, List.length_reverse, length_pow2BitsLE] using
+      evalsToInTime_le_mono t1 (by
+        simp [List.length_reverse, length_pow2BitsLE]; omega)
+  have hrev := adr_evals_revCode φCode φCode.reverse
+    ((pow2BitsLE n).reverse ++ table)
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (2 * φCode.length + n + 6) (2 * φCode.length + 1) _ _ _ t1' hrev
+  exact evalsToInTime_le_mono t2 (by omega)
 
 theorem length_bitsInc_le (bs : List Bool) :
     (bitsInc bs).length ≤ bs.length + 1 := by

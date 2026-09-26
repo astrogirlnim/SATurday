@@ -38,7 +38,9 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       Cluster C2 bitsEqualPair TM2ComputableInPolyTime under encodePair
       certified 2026-09-09;
       Frontier: per index eval loop FinTM2 and TT map sequencer for
-      truthTable_is_prop_proof_system).
+      truthTable_is_prop_proof_system;
+      Block A 2026-09-26: maxVarOfCode helpers and ADR park-to-mvParse
+      Evals certified; maxVarGate still stub; A sorry still open).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

@@ -56,8 +56,18 @@ the hard pin first; the soft pin is packaging.
   `false* ++ [true]`; success parks `pow2BitsLE n` on `inp` at `pow2Ok` →
   `maxVarGate` (stub-rejects via `clearInp`);
   `maxVarSuccBits` / `bitsEqual_pow2BitsLE_iff` functional certified;
-  Remaining: emit `maxVarSuccBits` from φCode and bitsEqual at `maxVarGate`,
-  indexValidate under `|table|` fuel → `acceptEmit`; package
+  `maxVarOfCode` / `maxVarSuccBitsOfCode` /
+  `bitsEqual_pow2BitsLE_maxVarSuccBits` / `lengthGateOk_iff_bitsEqual_parked`
+  functional certified;
+  ADR labels and Stmt landed for parkWidth, maxVar scan, bitsEqual,
+  index loop, prefix eval, `failDrain`, `acceptPrep`, `idxInc`
+  (`maxVarGate` still stub-rejects so the reject scaffold stays green);
+  parkWidth / copyLeft / revCode / failDrain Evals certified;
+  `adr_evals_park_to_mvParse` reaches `mvParse` with `out = φCode`
+  and parked `reverse(pow2BitsLE n) ++ table`;
+  Remaining: `mvParse` Evals on `encodeFormula`, bitsEqual vs parked
+  width, index loop under `|table|` fuel → `acceptEmit`, then wire
+  `maxVarGate` to `parkWidth` and package
   `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
