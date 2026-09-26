@@ -51,11 +51,10 @@ the hard pin first; the soft pin is packaging.
   (`afterDecodePairResult_evals_encodePair_reject`);
   `afterParse` → `allTrueScan` / `allTrueOk` / `clearWork` certified
   (false-in-table and all-true stub-reject both reach `[true]`);
-  length-count Stmt labels (`lenLoop`/`lenInc`/`lenRestore`/`lenFinish`)
-  and step lemmas present (entry still stub via `clearLeft`);
-  Remaining: wire `allTrueOk` → `lenLoop`, pow2 compare, indexValidate
-  under `|table|` fuel → `acceptEmit`; package
-  `afterDecodePairResultComputableInPolyTime`)
+  `allTrueOk` → `lenLoop` length-count certified (still stub-rejects after
+  count via `lenFinish`/`clearWork`; pow2 compare Remaining);
+  Remaining: pow2 compare vs `maxVar+1`, indexValidate under `|table|`
+  fuel → `acceptEmit`; package `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)
