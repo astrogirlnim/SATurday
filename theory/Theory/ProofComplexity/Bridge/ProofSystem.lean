@@ -9055,9 +9055,11 @@ def afterDecodePairResultComputer : FinTM2 where
                     (load (fun _ => none) <| goto fun _ => ADRLabel.clearWork))
                 (load (fun _ => none) <| goto fun _ => ADRLabel.clearWork)))
     | .pow2Ok =>
-        -- Width `|inp| = n` with `table.length = 2^n`. Stub-reject until
-        -- compared to `maxVar+1` and the index loop runs.
-        load (fun _ => none) <| goto fun _ => ADRLabel.clearInp
+        -- Width `|inp| = n` falses; push the terminating `true` so `inp`
+        -- holds `pow2BitsLE n`. Stub-reject until compared to
+        -- `pow2BitsLE (maxVar+1)` and the index loop runs.
+        push ADRStack.inp (fun _ => true) <|
+          load (fun _ => none) <| goto fun _ => ADRLabel.clearInp
     | .clearInp =>
         pop ADRStack.inp (fun _ o => o) <|
           branch (fun s => decide (s = none))
@@ -9509,7 +9511,7 @@ theorem adr_step_pow2Check_true_cons (inp left right : List Bool) (b : Bool)
 theorem adr_step_pow2Ok (inp left right work out : List Bool) (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
       (adrCfg (some .pow2Ok) v inp left right work out) =
-      some (adrCfg (some .clearInp) none inp left right work out) := by
+      some (adrCfg (some .clearInp) none (true :: inp) left right work out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -9914,10 +9916,12 @@ noncomputable def adr_evals_pow2Check_to_fail
                 (adr_step_pow2Ok inp left right [] [] none)
               have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
                 1 1 _ _ _ h1 hOk
-              have h2 := adr_evals_clearInp_to_fail inp left right [] [] none
+              -- pow2Ok pushes true, so clearInp drains `true :: inp`.
+              have h2 := adr_evals_clearInp_to_fail (true :: inp) left right [] [] none
               have t := EvalsToInTime.trans afterDecodePairResultComputer.step
-                2 (inp.length + left.length + right.length + 4) _ _ _ t1 h2
-              exact evalsToInTime_le_mono t (by simp [List.length_cons])
+                2 ((true :: inp).length + left.length + right.length + 4)
+                _ _ _ t1 h2
+              exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
           | cons b' rest' =>
               -- Double-pop leaves `rest'` on work, then clearWork + clearInp.
               have h1 := adr_evals_one
