@@ -444,6 +444,20 @@ def pow2BitsLE (n : ℕ) : List Bool :=
 theorem length_pow2BitsLE (n : ℕ) : (pow2BitsLE n).length = n + 1 := by
   simp [pow2BitsLE]
 
+theorem pow2BitsLE_injective {n m : ℕ} (h : pow2BitsLE n = pow2BitsLE m) :
+    n = m := by
+  have : n + 1 = m + 1 := by
+    simpa [length_pow2BitsLE] using congrArg List.length h
+  omega
+
+/-- Target bit string for the length gate after a successful pow2 shape check:
+`pow2BitsLE (maxVar + 1)`. -/
+def maxVarSuccBits (φ : PropFormula) : List Bool :=
+  pow2BitsLE (φ.maxVar + 1)
+
+theorem maxVarSuccBits_eq (φ : PropFormula) :
+    maxVarSuccBits φ = pow2BitsLE (φ.maxVar + 1) := rfl
+
 /-- Numeric value of a little endian bit list (head is least significant). -/
 def bitsLEValue : List Bool → ℕ
   | [] => 0
@@ -1458,6 +1472,19 @@ theorem bitsEqual_lengthBitsLE_pow2BitsLE (n : ℕ) (table : List Bool) :
     bitsEqual (lengthBitsLE table) (pow2BitsLE n) = true ↔
       table.length = 2 ^ n := by
   rw [bitsEqual_iff, lengthBitsLE_eq_pow2BitsLE_iff]
+
+theorem bitsEqual_pow2BitsLE_iff (n m : ℕ) :
+    bitsEqual (pow2BitsLE n) (pow2BitsLE m) = true ↔ n = m := by
+  rw [bitsEqual_iff]
+  constructor
+  · exact pow2BitsLE_injective
+  · intro h; simp [h]
+
+theorem lengthGateOk_iff_bitsEqual_maxVarSuccBits (φ : PropFormula)
+    (table : List Bool) :
+    lengthGateOk φ table = true ↔
+      bitsEqual (lengthBitsLE table) (maxVarSuccBits φ) = true := by
+  simp [lengthGateOk_eq_bitsEqual, maxVarSuccBits, bitsEqual_iff]
 
 /-! ## Cluster C2 FinTM2: encodePair load then zip compare
 
@@ -8916,15 +8943,15 @@ inductive ADRLabel where
   | clearLeft | clearRight | afterParse
   | allTrueScan | allTrueOk | clearWork
   | lenLoop | lenInc | lenRestore | lenFinish
-  | pow2Check | pow2Ok | clearInp
+  | pow2Check | pow2Ok | maxVarGate | clearInp
   | acceptEmit | revLeft | writeAcceptFalse | clearRightAccept
   deriving DecidableEq, Repr
 
 instance : Fintype ADRLabel where
   elems := {.readTag, .drainTrue, .writeFail, .parse, .expectBit, .loadRight,
     .clearLeft, .clearRight, .afterParse, .allTrueScan, .allTrueOk, .clearWork,
-    .lenLoop, .lenInc, .lenRestore, .lenFinish, .pow2Check, .pow2Ok, .clearInp,
-    .acceptEmit, .revLeft, .writeAcceptFalse, .clearRightAccept}
+    .lenLoop, .lenInc, .lenRestore, .lenFinish, .pow2Check, .pow2Ok, .maxVarGate,
+    .clearInp, .acceptEmit, .revLeft, .writeAcceptFalse, .clearRightAccept}
   complete s := by cases s <;> simp
 
 /-- FinTM2 for `afterDecodePairResult`. Leading `true` drains and emits
@@ -9056,10 +9083,14 @@ def afterDecodePairResultComputer : FinTM2 where
                 (load (fun _ => none) <| goto fun _ => ADRLabel.clearWork)))
     | .pow2Ok =>
         -- Width `|inp| = n` falses; push the terminating `true` so `inp`
-        -- holds `pow2BitsLE n`. Stub-reject until compared to
-        -- `pow2BitsLE (maxVar+1)` and the index loop runs.
+        -- holds `pow2BitsLE n`, then enter `maxVarGate`.
         push ADRStack.inp (fun _ => true) <|
-          load (fun _ => none) <| goto fun _ => ADRLabel.clearInp
+          load (fun _ => none) <| goto fun _ => ADRLabel.maxVarGate
+    | .maxVarGate =>
+        -- `inp = pow2BitsLE n` with `table.length = 2^n`. Remaining: emit
+        -- `maxVarSuccBits φ` from `left = φCode.reverse` and bitsEqual; stub
+        -- rejects until that compare and the index loop land.
+        load (fun _ => none) <| goto fun _ => ADRLabel.clearInp
     | .clearInp =>
         pop ADRStack.inp (fun _ o => o) <|
           branch (fun s => decide (s = none))
@@ -9511,7 +9542,19 @@ theorem adr_step_pow2Check_true_cons (inp left right : List Bool) (b : Bool)
 theorem adr_step_pow2Ok (inp left right work out : List Bool) (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
       (adrCfg (some .pow2Ok) v inp left right work out) =
-      some (adrCfg (some .clearInp) none (true :: inp) left right work out) := by
+      some (adrCfg (some .maxVarGate) none (true :: inp) left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.maxVarGate, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_maxVarGate (inp left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .maxVarGate) v inp left right work out) =
+      some (adrCfg (some .clearInp) none inp left right work out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -9914,13 +9957,17 @@ noncomputable def adr_evals_pow2Check_to_fail
                 (adr_step_pow2Check_true_nil inp left right [] v)
               have hOk := adr_evals_one
                 (adr_step_pow2Ok inp left right [] [] none)
+              have hGate := adr_evals_one
+                (adr_step_maxVarGate (true :: inp) left right [] [] none)
               have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
                 1 1 _ _ _ h1 hOk
-              -- pow2Ok pushes true, so clearInp drains `true :: inp`.
+              have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+                2 1 _ _ _ t1 hGate
+              -- maxVarGate stub: clearInp drains `true :: inp` (= pow2BitsLE).
               have h2 := adr_evals_clearInp_to_fail (true :: inp) left right [] [] none
               have t := EvalsToInTime.trans afterDecodePairResultComputer.step
-                2 ((true :: inp).length + left.length + right.length + 4)
-                _ _ _ t1 h2
+                3 ((true :: inp).length + left.length + right.length + 4)
+                _ _ _ t2 h2
               exact evalsToInTime_le_mono t (by simp [List.length_cons] <;> omega)
           | cons b' rest' =>
               -- Double-pop leaves `rest'` on work, then clearWork + clearInp.

@@ -53,10 +53,12 @@ the hard pin first; the soft pin is packaging.
   (false-in-table and all-true stub-reject both reach `[true]`);
   `allTrueOk` → `lenLoop` length-count certified;
   `lenFinish` → `pow2Check` shape gate certified (`pow2BitsLE` form
-  `false* ++ [true]`; success parks width `|inp|=n` at `pow2Ok`, then
-  stub-rejects via `clearInp`);
-  Remaining: compare width to `maxVar+1`, indexValidate under `|table|`
-  fuel → `acceptEmit`; package `afterDecodePairResultComputableInPolyTime`)
+  `false* ++ [true]`; success parks `pow2BitsLE n` on `inp` at `pow2Ok` →
+  `maxVarGate` (stub-rejects via `clearInp`);
+  `maxVarSuccBits` / `bitsEqual_pow2BitsLE_iff` functional certified;
+  Remaining: emit `maxVarSuccBits` from φCode and bitsEqual at `maxVarGate`,
+  indexValidate under `|table|` fuel → `acceptEmit`; package
+  `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)
