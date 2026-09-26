@@ -9785,6 +9785,48 @@ noncomputable def adr_evals_lenLoop_one (b : Bool)
     (2 * work.length + 2) _ _ _ h1 h2
   exact evalsToInTime_le_mono t (by omega)
 
+/-- From `lenLoop` with empty `out`, process all of `right` then stub-reject.
+Uses a loose quadratic budget so `bitsInc` growth is absorbed. -/
+noncomputable def adr_evals_lenLoop_to_fail
+    (inp left right work : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .lenLoop) v inp left right work [])
+      (some (adrCfg none none [] [] [] [] [true]))
+      ((right.length + 1) * (2 * (work.length + right.length + 2) + 3) +
+        2 * (inp.length + right.length) + left.length +
+        (work.length + right.length) + 6) := by
+  induction right generalizing inp work v with
+  | nil =>
+      have h1 := adr_evals_one
+        (adr_step_lenLoop_nil inp left work [] v)
+      have h2 := adr_evals_lenFinish_to_fail inp left [] work none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (inp.length + work.length + left.length +
+          (inp.reverse ++ []).length + 5) _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by
+        simp [List.length_reverse, List.length_append]; omega)
+  | cons b rest ih =>
+      have h1 := adr_evals_lenLoop_one b inp left rest work v
+      have h1w : EvalsToInTime afterDecodePairResultComputer.step
+          (adrCfg (some .lenLoop) v inp left (b :: rest) work [])
+          (some (adrCfg (some .lenLoop) none (b :: inp) left rest
+            (bitsInc work) []))
+          (2 * (work.length + rest.length + 2) + 3) :=
+        evalsToInTime_le_mono h1 (by omega)
+      have h2 := ih (b :: inp) (bitsInc work) none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        (2 * (work.length + rest.length + 2) + 3)
+        ((rest.length + 1) * (2 * ((bitsInc work).length + rest.length + 2) + 3) +
+          2 * ((b :: inp).length + rest.length) + left.length +
+          ((bitsInc work).length + rest.length) + 6)
+        _ _ _ h1w h2
+      exact evalsToInTime_le_mono t (by
+        have hlen := length_bitsInc_le work
+        -- Parent: (rest+2)*(2*(work+rest+3)+3) + ...
+        -- vs one-step + IH with bitsInc ≤ work+1
+        simp [List.length_cons]
+        nlinarith)
+
 /-- From `allTrueScan` with empty `out`, always reach reject halt `[true]`.
 Length-count Stmt ready; all-true tables stub-reject via clearLeft. -/
 noncomputable def adr_evals_allTrueScan_to_fail
