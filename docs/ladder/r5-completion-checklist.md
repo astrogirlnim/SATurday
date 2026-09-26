@@ -51,9 +51,11 @@ the hard pin first; the soft pin is packaging.
   (`afterDecodePairResult_evals_encodePair_reject`);
   `afterParse` → `allTrueScan` / `allTrueOk` / `clearWork` certified
   (false-in-table and all-true stub-reject both reach `[true]`);
-  `allTrueOk` → `lenLoop` length-count certified (still stub-rejects after
-  count via `lenFinish`/`clearWork`; pow2 compare Remaining);
-  Remaining: pow2 compare vs `maxVar+1`, indexValidate under `|table|`
+  `allTrueOk` → `lenLoop` length-count certified;
+  `lenFinish` → `pow2Check` shape gate certified (`pow2BitsLE` form
+  `false* ++ [true]`; success parks width `|inp|=n` at `pow2Ok`, then
+  stub-rejects via `clearInp`);
+  Remaining: compare width to `maxVar+1`, indexValidate under `|table|`
   fuel → `acceptEmit`; package `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`

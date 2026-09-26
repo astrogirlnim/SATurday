@@ -8916,14 +8916,14 @@ inductive ADRLabel where
   | clearLeft | clearRight | afterParse
   | allTrueScan | allTrueOk | clearWork
   | lenLoop | lenInc | lenRestore | lenFinish
-  | pow2Check
+  | pow2Check | pow2Ok | clearInp
   | acceptEmit | revLeft | writeAcceptFalse | clearRightAccept
   deriving DecidableEq, Repr
 
 instance : Fintype ADRLabel where
   elems := {.readTag, .drainTrue, .writeFail, .parse, .expectBit, .loadRight,
     .clearLeft, .clearRight, .afterParse, .allTrueScan, .allTrueOk, .clearWork,
-    .lenLoop, .lenInc, .lenRestore, .lenFinish, .pow2Check,
+    .lenLoop, .lenInc, .lenRestore, .lenFinish, .pow2Check, .pow2Ok, .clearInp,
     .acceptEmit, .revLeft, .writeAcceptFalse, .clearRightAccept}
   complete s := by cases s <;> simp
 
@@ -8997,10 +8997,11 @@ def afterDecodePairResultComputer : FinTM2 where
             (push ADRStack.right (fun _ => true) <|
               load (fun _ => none) <| goto fun _ => ADRLabel.allTrueOk)
     | .clearWork =>
-        -- Discard work (scanned prefix) so haltList has empty work.
+        -- Discard work (scanned prefix / leftover) so haltList has empty work;
+        -- then clearInp in case pow2Check parked width bits on inp.
         pop ADRStack.work (fun _ o => o) <|
           branch (fun s => decide (s = none))
-            (load (fun _ => none) <| goto fun _ => ADRLabel.clearLeft)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearInp)
             (load (fun _ => none) <| goto fun _ => ADRLabel.clearWork)
     | .lenLoop =>
         -- Count `|right|` into `work` as LE bits; park popped bits on `inp`.
@@ -9037,20 +9038,31 @@ def afterDecodePairResultComputer : FinTM2 where
             (push ADRStack.right (fun s => s.getD false) <|
               load (fun _ => none) <| goto fun _ => ADRLabel.lenFinish)
     | .pow2Check =>
-        -- `pow2BitsLE n = replicate n false ++ [true]`: pop falses, require
-        -- a final true with empty rest; else reject. On success stub-reject
-        -- until maxVar compare + eval loop land (acceptEmit Remaining).
+        -- `pow2BitsLE n = replicate n false ++ [true]`: pop falses onto `inp`
+        -- (width = |inp|), require a final true with empty rest; else reject.
+        -- On success enter `pow2Ok` (width on `inp`); stub-rejects via
+        -- `clearInp` until maxVar compare + eval loop land.
         pop ADRStack.work (fun _ o => o) <|
           branch (fun s => decide (s = none))
-            (load (fun _ => none) <| goto fun _ => ADRLabel.clearLeft)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearInp)
             (branch (fun s => decide (s = some false))
-              (load (fun _ => none) <| goto fun _ => ADRLabel.pow2Check)
+              (push ADRStack.inp (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.pow2Check)
               (branch (fun s => decide (s = some true))
                 (pop ADRStack.work (fun _ o => o) <|
                   branch (fun s => decide (s = none))
-                    (load (fun _ => none) <| goto fun _ => ADRLabel.clearLeft)
+                    (load (fun _ => none) <| goto fun _ => ADRLabel.pow2Ok)
                     (load (fun _ => none) <| goto fun _ => ADRLabel.clearWork))
                 (load (fun _ => none) <| goto fun _ => ADRLabel.clearWork)))
+    | .pow2Ok =>
+        -- Width `|inp| = n` with `table.length = 2^n`. Stub-reject until
+        -- compared to `maxVar+1` and the index loop runs.
+        load (fun _ => none) <| goto fun _ => ADRLabel.clearInp
+    | .clearInp =>
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearLeft)
+            (load (fun _ => none) <| goto fun _ => ADRLabel.clearInp)
     | .clearLeft =>
         pop ADRStack.left (fun _ o => o) <|
           branch (fun s => decide (s = none))
@@ -9334,11 +9346,11 @@ theorem adr_step_clearWork_nil (inp left right out : List Bool)
     (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
       (adrCfg (some .clearWork) v inp left right [] out) =
-      some (adrCfg (some .clearLeft) none inp left right [] out) := by
+      some (adrCfg (some .clearInp) none inp left right [] out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
-      (⟨some ADRLabel.clearLeft, (none : Option Bool), stk⟩ :
+      (⟨some ADRLabel.clearInp, (none : Option Bool), stk⟩ :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
@@ -9450,11 +9462,11 @@ theorem adr_step_lenFinish_nil (left right work out : List Bool) (v : Option Boo
 theorem adr_step_pow2Check_nil (inp left right out : List Bool) (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
       (adrCfg (some .pow2Check) v inp left right [] out) =
-      some (adrCfg (some .clearLeft) none inp left right [] out) := by
+      some (adrCfg (some .clearInp) none inp left right [] out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
-      (⟨some ADRLabel.clearLeft, (none : Option Bool), stk⟩ :
+      (⟨some ADRLabel.clearInp, (none : Option Bool), stk⟩ :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
@@ -9462,7 +9474,7 @@ theorem adr_step_pow2Check_false (inp left right rest out : List Bool)
     (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
       (adrCfg (some .pow2Check) v inp left right (false :: rest) out) =
-      some (adrCfg (some .pow2Check) none inp left right rest out) := by
+      some (adrCfg (some .pow2Check) none (false :: inp) left right rest out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -9474,11 +9486,11 @@ theorem adr_step_pow2Check_true_nil (inp left right out : List Bool)
     (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
       (adrCfg (some .pow2Check) v inp left right [true] out) =
-      some (adrCfg (some .clearLeft) none inp left right [] out) := by
+      some (adrCfg (some .pow2Ok) none inp left right [] out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
-      (⟨some ADRLabel.clearLeft, (none : Option Bool), stk⟩ :
+      (⟨some ADRLabel.pow2Ok, (none : Option Bool), stk⟩ :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
@@ -9491,6 +9503,40 @@ theorem adr_step_pow2Check_true_cons (inp left right : List Bool) (b : Bool)
   refine congrArg some <|
     congrArg (fun stk =>
       (⟨some ADRLabel.clearWork, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_pow2Ok (inp left right work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .pow2Ok) v inp left right work out) =
+      some (adrCfg (some .clearInp) none inp left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearInp, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_clearInp_cons (b : Bool) (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .clearInp) v (b :: rest) left right work out) =
+      some (adrCfg (some .clearInp) none rest left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearInp, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_clearInp_nil (left right work out : List Bool) (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .clearInp) v [] left right work out) =
+      some (adrCfg (some .clearLeft) none [] left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.clearLeft, (none : Option Bool), stk⟩ :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
@@ -9675,12 +9721,12 @@ noncomputable def adr_evals_allTrueOk_restore_any (work : List Bool)
         simpa [heq, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using t
       simpa [List.length_cons] using t'
 
-/-- Drain `work` then enter `clearLeft`. -/
+/-- Drain `work` then enter `clearInp`. -/
 noncomputable def adr_evals_clearWork (work : List Bool)
     (inp left right out : List Bool) (v : Option Bool) :
     EvalsToInTime afterDecodePairResultComputer.step
       (adrCfg (some .clearWork) v inp left right work out)
-      (some (adrCfg (some .clearLeft) none inp left right [] out))
+      (some (adrCfg (some .clearInp) none inp left right [] out))
       (work.length + 1) := by
   induction work generalizing v with
   | nil =>
@@ -9688,6 +9734,24 @@ noncomputable def adr_evals_clearWork (work : List Bool)
   | cons b bs ih =>
       have h1 := adr_evals_one
         (adr_step_clearWork_cons b inp left right bs out v)
+      have h2 := ih none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        1 (bs.length + 1) _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by simp [List.length_cons])
+
+/-- Drain `inp` then enter `clearLeft`. -/
+noncomputable def adr_evals_clearInp (inp left right work out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .clearInp) v inp left right work out)
+      (some (adrCfg (some .clearLeft) none [] left right work out))
+      (inp.length + 1) := by
+  induction inp generalizing v with
+  | nil =>
+      simpa using adr_evals_one (adr_step_clearInp_nil left right work out v)
+  | cons b bs ih =>
+      have h1 := adr_evals_one
+        (adr_step_clearInp_cons b bs left right work out v)
       have h2 := ih none
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step
         1 (bs.length + 1) _ _ _ h1 h2
@@ -9733,6 +9797,19 @@ noncomputable def adr_evals_clear_to_fail (left right : List Bool)
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step
         1 (bs.length + right.length + 3) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by simp [List.length_cons])
+
+/-- Drain `inp` then `left` then `right` then emit `[true]`. -/
+noncomputable def adr_evals_clearInp_to_fail (inp left right : List Bool)
+    (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .clearInp) v inp left right work out)
+      (some (adrCfg none none [] [] [] work (true :: out)))
+      (inp.length + left.length + right.length + 4) := by
+  have h1 := adr_evals_clearInp inp left right work out v
+  have h2 := adr_evals_clear_to_fail left right work out none
+  have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (inp.length + 1) (left.length + right.length + 3) _ _ _ h1 h2
+  exact evalsToInTime_le_mono t (by omega)
 
 theorem length_bitsInc_le (bs : List Bool) :
     (bitsInc bs).length ≤ bs.length + 1 := by
@@ -9803,50 +9880,55 @@ noncomputable def adr_evals_lenInc (inp left right work out : List Bool)
             Nat.add_assoc] using evalsToInTime_le_mono t (by
               simp [List.length_cons]; omega)
 
-/-- From `pow2Check` with empty `inp`, always reject to `[true]`. -/
+/-- From `pow2Check`, always reject to `[true]`. Parks width falses on `inp`. -/
 noncomputable def adr_evals_pow2Check_to_fail
-    (left right work : List Bool) (v : Option Bool) :
+    (inp left right work : List Bool) (v : Option Bool) :
     EvalsToInTime afterDecodePairResultComputer.step
-      (adrCfg (some .pow2Check) v [] left right work [])
+      (adrCfg (some .pow2Check) v inp left right work [])
       (some (adrCfg none none [] [] [] [] [true]))
-      (2 * work.length + left.length + right.length + 4) := by
-  induction work generalizing v with
+      (2 * work.length + inp.length + left.length + right.length + 6) := by
+  induction work generalizing inp v with
   | nil =>
       have h1 := adr_evals_one
-        (adr_step_pow2Check_nil [] left right [] v)
-      have h2 := adr_evals_clear_to_fail left right [] [] none
+        (adr_step_pow2Check_nil inp left right [] v)
+      have h2 := adr_evals_clearInp_to_fail inp left right [] [] none
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
-        (left.length + right.length + 3) _ _ _ h1 h2
+        (inp.length + left.length + right.length + 4) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by omega)
   | cons b rest ih =>
       cases b with
       | false =>
           have h1 := adr_evals_one
-            (adr_step_pow2Check_false [] left right rest [] v)
-          have h2 := ih none
+            (adr_step_pow2Check_false inp left right rest [] v)
+          have h2 := ih (false :: inp) none
           have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
-            (2 * rest.length + left.length + right.length + 4) _ _ _ h1 h2
-          exact evalsToInTime_le_mono t (by simp [List.length_cons])
+            (2 * rest.length + (false :: inp).length + left.length +
+              right.length + 6) _ _ _ h1 h2
+          exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
       | true =>
           cases rest with
           | nil =>
               have h1 := adr_evals_one
-                (adr_step_pow2Check_true_nil [] left right [] v)
-              have h2 := adr_evals_clear_to_fail left right [] [] none
-              have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
-                (left.length + right.length + 3) _ _ _ h1 h2
+                (adr_step_pow2Check_true_nil inp left right [] v)
+              have hOk := adr_evals_one
+                (adr_step_pow2Ok inp left right [] [] none)
+              have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+                1 1 _ _ _ h1 hOk
+              have h2 := adr_evals_clearInp_to_fail inp left right [] [] none
+              have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+                2 (inp.length + left.length + right.length + 4) _ _ _ t1 h2
               exact evalsToInTime_le_mono t (by simp [List.length_cons])
           | cons b' rest' =>
-              -- Double-pop leaves `rest'` on work, then clearWork + reject.
+              -- Double-pop leaves `rest'` on work, then clearWork + clearInp.
               have h1 := adr_evals_one
-                (adr_step_pow2Check_true_cons [] left right b' rest' [] v)
-              have h2 := adr_evals_clearWork rest' [] left right [] none
+                (adr_step_pow2Check_true_cons inp left right b' rest' [] v)
+              have h2 := adr_evals_clearWork rest' inp left right [] none
               have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1
                 (rest'.length + 1) _ _ _ h1 h2
-              have h3 := adr_evals_clear_to_fail left right [] [] none
+              have h3 := adr_evals_clearInp_to_fail inp left right [] [] none
               have t := EvalsToInTime.trans afterDecodePairResultComputer.step
                 (rest'.length + 2)
-                (left.length + right.length + 3) _ _ _ t12 h3
+                (inp.length + left.length + right.length + 4) _ _ _ t12 h3
               exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
 
 /-- Restore table from `inp` onto `right`, pow2-check length bits, reject. -/
@@ -9856,14 +9938,14 @@ noncomputable def adr_evals_lenFinish_to_fail
       (adrCfg (some .lenFinish) v inp left right work [])
       (some (adrCfg none none [] [] [] [] [true]))
       (inp.length + 2 * work.length + left.length +
-        (inp.reverse ++ right).length + 6) := by
+        (inp.reverse ++ right).length + 8) := by
   induction inp generalizing right v with
   | nil =>
       have h1 := adr_evals_one
         (adr_step_lenFinish_nil left right work [] v)
-      have h2 := adr_evals_pow2Check_to_fail left right work none
+      have h2 := adr_evals_pow2Check_to_fail [] left right work none
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
-        (2 * work.length + left.length + right.length + 4) _ _ _ h1 h2
+        (2 * work.length + 0 + left.length + right.length + 6) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by simp)
   | cons b rest ih =>
       have h1 := adr_evals_one
@@ -9871,7 +9953,7 @@ noncomputable def adr_evals_lenFinish_to_fail
       have h2 := ih (b :: right) none
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
         (rest.length + 2 * work.length + left.length +
-          (rest.reverse ++ b :: right).length + 6) _ _ _ h1 h2
+          (rest.reverse ++ b :: right).length + 8) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by
         simp [List.length_cons, List.length_reverse, List.length_append])
 
@@ -9899,7 +9981,7 @@ noncomputable def adr_evals_lenLoop_to_fail
       (some (adrCfg none none [] [] [] [] [true]))
       ((right.length + 1) * (2 * (work.length + right.length + 2) + 3) +
         2 * (inp.length + right.length) + left.length +
-        2 * (work.length + right.length) + 8) := by
+        2 * (work.length + right.length) + 10) := by
   induction right generalizing inp work v with
   | nil =>
       have h1 := adr_evals_one
@@ -9907,7 +9989,7 @@ noncomputable def adr_evals_lenLoop_to_fail
       have h2 := adr_evals_lenFinish_to_fail inp left [] work none
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
         (inp.length + 2 * work.length + left.length +
-          (inp.reverse ++ []).length + 6) _ _ _ h1 h2
+          (inp.reverse ++ []).length + 8) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by
         simp [List.length_reverse, List.length_append]; omega)
   | cons b rest ih =>
@@ -9923,7 +10005,7 @@ noncomputable def adr_evals_lenLoop_to_fail
         (2 * (work.length + rest.length + 2) + 3)
         ((rest.length + 1) * (2 * ((bitsInc work).length + rest.length + 2) + 3) +
           2 * ((b :: inp).length + rest.length) + left.length +
-          2 * ((bitsInc work).length + rest.length) + 8)
+          2 * ((bitsInc work).length + rest.length) + 10)
         _ _ _ h1w h2
       exact evalsToInTime_le_mono t (by
         have hlen := length_bitsInc_le work
@@ -9941,7 +10023,7 @@ noncomputable def adr_evals_allTrueScan_to_fail
         (right.length + work.length + 1) *
           (2 * (work.length + right.length + 2) + 3) +
         2 * (right.length + work.length) + left.length +
-        2 * (work.length + right.length) + right.length + 12) := by
+        2 * (work.length + right.length) + right.length + 14) := by
   induction right generalizing work v with
   | nil =>
       have h1 := adr_evals_one (adr_step_allTrueScan_nil [] left work [] v)
@@ -9961,7 +10043,7 @@ noncomputable def adr_evals_allTrueScan_to_fail
         (((List.replicate work.length true).length + 1) *
           (2 * (0 + (List.replicate work.length true).length + 2) + 3) +
           2 * (0 + (List.replicate work.length true).length) + left.length +
-          2 * (0 + (List.replicate work.length true).length) + 8)
+          2 * (0 + (List.replicate work.length true).length) + 10)
         _ _ _ t12 h3
       exact evalsToInTime_le_mono t (by simp [List.length_replicate]; omega)
   | cons b rest ih =>
@@ -9972,9 +10054,10 @@ noncomputable def adr_evals_allTrueScan_to_fail
           have h2 := adr_evals_clearWork work [] left rest [] none
           have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step
             1 (work.length + 1) _ _ _ h1 h2
-          have h3 := adr_evals_clear_to_fail left rest [] [] none
+          have h3 := adr_evals_clearInp_to_fail [] left rest [] [] none
           have t := EvalsToInTime.trans afterDecodePairResultComputer.step
-            (work.length + 2) (left.length + rest.length + 3) _ _ _ t12 h3
+            (work.length + 2)
+            ([].length + left.length + rest.length + 4) _ _ _ t12 h3
           exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
       | true =>
           have h1 := adr_evals_one
@@ -9985,7 +10068,7 @@ noncomputable def adr_evals_allTrueScan_to_fail
               (rest.length + (true :: work).length + 1) *
                 (2 * ((true :: work).length + rest.length + 2) + 3) +
               2 * (rest.length + (true :: work).length) + left.length +
-              2 * ((true :: work).length + rest.length) + rest.length + 12)
+              2 * ((true :: work).length + rest.length) + rest.length + 14)
             _ _ _ h1 h2
           exact evalsToInTime_le_mono t (by
             simp only [List.length_cons]
@@ -10248,7 +10331,7 @@ noncomputable def afterDecodePairResult_evals_encodePair_reject
         2 * table.length + 2 * (0 : ℕ) +
         (table.length + 0 + 1) * (2 * (0 + table.length + 2) + 3) +
         2 * (table.length + 0) + φCode.length +
-        2 * (0 + table.length) + table.length + 12) := by
+        2 * (0 + table.length) + table.length + 14) := by
   change EvalsToInTime afterDecodePairResultComputer.step
     (initList afterDecodePairResultComputer (false :: encodePair (φCode, table)))
     (some (haltList afterDecodePairResultComputer [true]))
@@ -10256,7 +10339,7 @@ noncomputable def afterDecodePairResult_evals_encodePair_reject
       2 * table.length + 2 * (0 : ℕ) +
       (table.length + 0 + 1) * (2 * (0 + table.length + 2) + 3) +
       2 * (table.length + 0) + φCode.length +
-      2 * (0 + table.length) + table.length + 12)
+      2 * (0 + table.length) + table.length + 14)
   rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
   have htag := adr_evals_one
     (adr_step_readTag_false (encodePair (φCode, table)) [] [] [] [] none)
@@ -10284,7 +10367,7 @@ noncomputable def afterDecodePairResult_evals_encodePair_reject
     (2 * table.reverse.length + 2 * (0 : ℕ) +
       (table.reverse.length + 0 + 1) * (2 * (0 + table.reverse.length + 2) + 3) +
       2 * (table.reverse.length + 0) + φCode.reverse.length +
-      2 * (0 + table.reverse.length) + table.reverse.length + 12)
+      2 * (0 + table.reverse.length) + table.reverse.length + 14)
     _ _ _ t2' hscan
   have _ := h
   exact evalsToInTime_le_mono t3 (by simp [List.length_reverse]; omega)
