@@ -49,8 +49,10 @@ the hard pin first; the soft pin is packaging.
   success-tag reject scaffold Evals under
   `validatesTautologyResult = [true]`
   (`afterDecodePairResult_evals_encodePair_reject`);
-  Remaining: replace `afterParse` reject scaffold with indexValidate
-  under `|table|` fuel; package `afterDecodePairResultComputableInPolyTime`)
+  `afterParse` → `allTrueScan` / `allTrueOk` / `clearWork` certified
+  (false-in-table and all-true stub-reject both reach `[true]`);
+  Remaining: length gate + indexValidate under `|table|` fuel →
+  `acceptEmit`; package `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)
