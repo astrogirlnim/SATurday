@@ -88,9 +88,10 @@ the hard pin first; the soft pin is packaging.
   all-true table reaches `false :: encodeFormula φ`);
   `afterDecodePairResult_evals_encodePair_accept` certified from the
   success tag through halt;
-  Remaining: leftover true drain and general pair-parse fail are
-  certified; still need decode-formula fail, width mismatch, eval-false,
-  then package `afterDecodePairResultComputableInPolyTime`)
+  Remaining: leftover true drain, general pair-parse fail, and width
+  mismatch zipper (`adr_evals_eq_pow2_ne` / `adr_evals_mvParse_width_ne`)
+  are certified; still need decode-formula fail, eval-false, then package
+  `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)

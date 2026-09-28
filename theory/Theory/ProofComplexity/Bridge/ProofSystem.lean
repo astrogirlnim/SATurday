@@ -13159,6 +13159,183 @@ noncomputable def adr_evals_eq_pow2 (n : ℕ)
           replicate_false_append_cons n work
       simpa [hwork] using evalsToInTime_le_mono t2 (by omega)
 
+/-- Unequal parked widths fail the zipper and emit `[true]`. -/
+noncomputable def adr_evals_eq_pow2_ne (n m : ℕ)
+    (hne : n ≠ m) (left right work : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .eqA) none (pow2BitsLE n) left right work (pow2BitsLE m))
+      (some (adrCfg none none [] [] [] [] [true]))
+      (2 * (n + m) + work.length + left.length + right.length + 8) := by
+  induction n generalizing m work with
+  | zero =>
+      cases m with
+      | zero => exact (hne rfl).elim
+      | succ m =>
+          have hsplit : pow2BitsLE (m + 1) = false :: pow2BitsLE m := by
+            simp [pow2BitsLE, List.replicate_succ]
+          have h1 := adr_evals_one
+            (adr_step_eqA_true_false (pow2BitsLE m) left right work none)
+          have h1' : EvalsToInTime afterDecodePairResultComputer.step
+              (adrCfg (some .eqA) none (pow2BitsLE 0) left right work
+                (pow2BitsLE (m + 1)))
+              (some (adrCfg (some .failDrain) none [] left right work
+                (pow2BitsLE m))) 1 := by
+            simpa [pow2BitsLE, hsplit] using h1
+          have h2 := adr_evals_failDrain [] left right work (pow2BitsLE m) none
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+            _ _ _ _ h1' h2
+          exact evalsToInTime_le_mono t (by simp [length_pow2BitsLE]; omega)
+  | succ n ih =>
+      cases m with
+      | zero =>
+          have hsplit : pow2BitsLE (n + 1) = false :: pow2BitsLE n := by
+            simp [pow2BitsLE, List.replicate_succ]
+          have h1 := adr_evals_one
+            (adr_step_eqA_false (pow2BitsLE n) left right work
+              (pow2BitsLE 0) none)
+          have h1' : EvalsToInTime afterDecodePairResultComputer.step
+              (adrCfg (some .eqA) none (pow2BitsLE (n + 1)) left right work
+                (pow2BitsLE 0))
+              (some (adrCfg (some .eqB) none (pow2BitsLE n) left right work
+                (pow2BitsLE 0))) 1 := by
+            simpa [hsplit, pow2BitsLE] using h1
+          have h2 := adr_evals_one
+            (adr_step_eqB_true [] (pow2BitsLE n) left right work none)
+          have h2' : EvalsToInTime afterDecodePairResultComputer.step
+              (adrCfg (some .eqB) none (pow2BitsLE n) left right work
+                (pow2BitsLE 0))
+              (some (adrCfg (some .failDrain) none (pow2BitsLE n) left right
+                work [])) 1 := by
+            simpa [pow2BitsLE] using h2
+          have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+            _ _ _ h1' h2'
+          have h3 := adr_evals_failDrain (pow2BitsLE n) left right work [] none
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step 2
+            _ _ _ _ t12 h3
+          exact evalsToInTime_le_mono t (by simp [length_pow2BitsLE]; omega)
+      | succ m =>
+          have hne' : n ≠ m := by omega
+          have hsplitn : pow2BitsLE (n + 1) = false :: pow2BitsLE n := by
+            simp [pow2BitsLE, List.replicate_succ]
+          have hsplitm : pow2BitsLE (m + 1) = false :: pow2BitsLE m := by
+            simp [pow2BitsLE, List.replicate_succ]
+          have h1 := adr_evals_one
+            (adr_step_eqA_false (pow2BitsLE n) left right work
+              (false :: pow2BitsLE m) none)
+          have h1' : EvalsToInTime afterDecodePairResultComputer.step
+              (adrCfg (some .eqA) none (pow2BitsLE (n + 1)) left right work
+                (pow2BitsLE (m + 1)))
+              (some (adrCfg (some .eqB) none (pow2BitsLE n) left right work
+                (false :: pow2BitsLE m))) 1 := by
+            simpa [hsplitn, hsplitm] using h1
+          have h2 := adr_evals_one
+            (adr_step_eqB_false (pow2BitsLE m) (pow2BitsLE n) left right
+              work none)
+          have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+            _ _ _ h1' h2
+          have h3 := ih m hne' (false :: work)
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step 2
+            _ _ _ _ t12 h3
+          exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
+
+/-- After a successful parse, convert max to bits and unpark to `eqA`. Width
+need not match: `out` holds `pow2BitsLE (φ.maxVar+1)` and `inp` holds
+`pow2BitsLE n`. -/
+noncomputable def adr_evals_mvParse_to_eqA (φ : PropFormula)
+    (table : List Bool) (n : ℕ)
+    (ht : table.head? ≠ some false) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvParse) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table) [] (encodeFormula φ))
+      (some (adrCfg (some .eqA) none (pow2BitsLE n)
+        (encodeFormula φ).reverse table [] (pow2BitsLE (φ.maxVar + 1))))
+      (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2) +
+        φ.maxVar + n + 5) := by
+  have hk : (0 : ℕ) ≤ φ.maxVar := Nat.zero_le _
+  have hM : φ.maxVar ≤ φ.maxVar := le_rfl
+  have hparse := adr_evals_mvParse_formula φ 0 φ.maxVar hk hM []
+    (encodeFormula φ).reverse ((pow2BitsLE n).reverse ++ table) []
+  have hparse' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvParse) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table) [] (encodeFormula φ))
+      (some (adrCfg (some .mvAfter) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table)
+        (List.replicate φ.maxVar true) []))
+      (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2)) := by
+    simpa [List.append_nil] using hparse
+  have hafter := adr_evals_one
+    (adr_step_mvAfter_nil (encodeFormula φ).reverse
+      ((pow2BitsLE n).reverse ++ table) (List.replicate φ.maxVar true) [] none)
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2)) 1 _ _ _ hparse' hafter
+  have t1' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvParse) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table) [] (encodeFormula φ))
+      (some (adrCfg (some .mvFinish) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table)
+        (List.replicate φ.maxVar true) []))
+      (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2) + 1) :=
+    evalsToInTime_le_mono t1 (by omega)
+  have hfinish := adr_evals_one
+    (adr_step_mvFinish_nil [] (encodeFormula φ).reverse
+      ((pow2BitsLE n).reverse ++ table) (List.replicate φ.maxVar true) none)
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2) + 1) 1 _ _ _ t1' hfinish
+  have t2' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvParse) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table) [] (encodeFormula φ))
+      (some (adrCfg (some .mvToPow2) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table)
+        (List.replicate φ.maxVar true) [true]))
+      (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2) + 2) :=
+    evalsToInTime_le_mono t2 (by omega)
+  have hpow := adr_evals_mvToPow2 φ.maxVar [] (encodeFormula φ).reverse
+    ((pow2BitsLE n).reverse ++ table) [true]
+  have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2) + 2)
+    (φ.maxVar + 1) _ _ _ t2' hpow
+  have t3' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvParse) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table) [] (encodeFormula φ))
+      (some (adrCfg (some .unparkMark) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table) []
+        (List.replicate (φ.maxVar + 1) false ++ [true])))
+      (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2) +
+        φ.maxVar + 3) :=
+    evalsToInTime_le_mono t3 (by omega)
+  have hunpark := adr_evals_unpark n table [] (encodeFormula φ).reverse []
+    (List.replicate (φ.maxVar + 1) false ++ [true]) ht
+  have t4 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2) + φ.maxVar + 3)
+    (n + 2) _ _ _ t3' hunpark
+  have hout : List.replicate (φ.maxVar + 1) false ++ [true] =
+      pow2BitsLE (φ.maxVar + 1) := by
+    simp [pow2BitsLE]
+  simpa [hout] using evalsToInTime_le_mono t4 (by omega)
+
+/-- Width mismatch at `eqA` emits `[true]`. -/
+noncomputable def adr_evals_mvParse_width_ne (φ : PropFormula)
+    (table : List Bool) (n : ℕ)
+    (hne : n ≠ φ.maxVar + 1)
+    (ht : table.head? ≠ some false) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvParse) none [] (encodeFormula φ).reverse
+        ((pow2BitsLE n).reverse ++ table) [] (encodeFormula φ))
+      (some (adrCfg none none [] [] [] [] [true]))
+      (32 * ((encodeFormula φ).length + 1) * (φ.maxVar + 2) +
+        φ.maxVar + n + 5 +
+        2 * (n + (φ.maxVar + 1)) + (encodeFormula φ).reverse.length +
+          table.length + 8) := by
+  have h1 := adr_evals_mvParse_to_eqA φ table n ht
+  have h2 := adr_evals_eq_pow2_ne n (φ.maxVar + 1) hne
+    (encodeFormula φ).reverse table []
+  have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ h1 h2
+  exact evalsToInTime_le_mono t (le_of_eq (by
+    simp [List.length_reverse]
+    ring))
+
+
 /-- After a successful parse, finish, convert max to bits, unpark, and match width. -/
 noncomputable def adr_evals_mvParse_to_indexLoop (φ : PropFormula)
     (table : List Bool) (n : ℕ)

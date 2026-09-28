@@ -1671,6 +1671,9 @@ SATurday.Bridge.afterDecodePairResult_evals_true
 SATurday.Bridge.adr_step_parse_true_any
 SATurday.Bridge.adr_evals_parse_none
 SATurday.Bridge.afterDecodePairResult_evals_false_decode_fail
+SATurday.Bridge.adr_evals_eq_pow2_ne
+SATurday.Bridge.adr_evals_mvParse_to_eqA
+SATurday.Bridge.adr_evals_mvParse_width_ne
 SATurday.Bridge.bitsEqual_pow2BitsLE_iff
 SATurday.Bridge.bitsEqual_pow2BitsLE_maxVarSuccBits
 SATurday.Bridge.lengthGateOk_iff_bitsEqual_maxVarSuccBits
