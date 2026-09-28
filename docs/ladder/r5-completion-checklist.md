@@ -82,9 +82,10 @@ the hard pin first; the soft pin is packaging.
   `maxVarGate` wired to `parkWidth` via `maxVarDump` (`pow2BitsLE n` on
   `inp`); reject scaffold split: malformed `pow2Check`, false-in-table,
   and non-power-of-two length still emit `[true]`;
-  Remaining: all-true power-of-two continue through `park_to_mvParse`
-  plus `indexLoop_allTrue` to `acceptEmit`, then package
-  `afterDecodePairResultComputableInPolyTime`)
+  `adr_evals_allTrue_pow2_to_parkWidth` certified (all-true length `2^n`
+  reaches `parkWidth` with `pow2BitsLE n`);
+  Remaining: `parkWidth` through `indexLoop_allTrue` to `acceptEmit`,
+  then package `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)

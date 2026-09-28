@@ -14501,6 +14501,70 @@ noncomputable def adr_evals_lenLoop_one (b : Bool)
     (2 * work.length + 2) _ _ _ h1 h2
   exact evalsToInTime_le_mono t (by omega)
 
+/-- Restore table from `inp` onto `right`, then enter `pow2Check`. -/
+noncomputable def adr_evals_lenFinish_to_pow2Check
+    (inp left right work : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .lenFinish) v inp left right work [])
+      (some (adrCfg (some .pow2Check) none [] left
+        (inp.reverse ++ right) work []))
+      (inp.length + 1) := by
+  induction inp generalizing right v with
+  | nil =>
+      simpa using adr_evals_one
+        (adr_step_lenFinish_nil left right work [] v)
+  | cons b rest ih =>
+      have h1 := adr_evals_one
+        (adr_step_lenFinish_cons b rest left right work [] v)
+      have h2 := ih (b :: right) none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (rest.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc] using t
+
+/-- Count `|right|` into `work` via `bitsInc`, restore the table, reach
+`pow2Check`. -/
+noncomputable def adr_evals_lenLoop_to_pow2Check
+    (inp left right work : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .lenLoop) v inp left right work [])
+      (some (adrCfg (some .pow2Check) none [] left
+        (inp.reverse ++ right) (bitsIncIter right.length work) []))
+      ((right.length + 1) * (2 * (work.length + right.length + 2) + 3) +
+        (inp.length + right.length) + 2) := by
+  induction right generalizing inp work v with
+  | nil =>
+      have h1 := adr_evals_one
+        (adr_step_lenLoop_nil inp left work [] v)
+      have h2 := adr_evals_lenFinish_to_pow2Check inp left [] work none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (inp.length + 1) _ _ _ h1 h2
+      simpa [bitsIncIter_zero, List.append_nil] using
+        evalsToInTime_le_mono t (by omega)
+  | cons b rest ih =>
+      have h1 := adr_evals_lenLoop_one b inp left rest work v
+      have h1w : EvalsToInTime afterDecodePairResultComputer.step
+          (adrCfg (some .lenLoop) v inp left (b :: rest) work [])
+          (some (adrCfg (some .lenLoop) none (b :: inp) left rest
+            (bitsInc work) []))
+          (2 * (work.length + rest.length + 2) + 3) :=
+        evalsToInTime_le_mono h1 (by omega)
+      have h2 := ih (b :: inp) (bitsInc work) none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        (2 * (work.length + rest.length + 2) + 3)
+        ((rest.length + 1) * (2 * ((bitsInc work).length + rest.length + 2) + 3) +
+          ((b :: inp).length + rest.length) + 2)
+        _ _ _ h1w h2
+      have hbits : bitsIncIter rest.length (bitsInc work) =
+          bitsIncIter (rest.length + 1) work := by
+        simp [bitsIncIter_succ]
+      have hinp : (b :: inp).reverse ++ rest = inp.reverse ++ b :: rest := by
+        simp [List.reverse_cons, List.append_assoc]
+      refine evalsToInTime_le_mono (by
+        simpa [hbits, hinp, List.length_cons] using t) ?_
+      have hlen := length_bitsInc_le work
+      simp [List.length_cons]
+      nlinarith
+
 /-- From `lenLoop` with empty `out`, process all of `right` then reject when
 the counted bits are not `pow2BitsLE` shape. -/
 noncomputable def adr_evals_lenLoop_to_fail
@@ -14649,6 +14713,89 @@ noncomputable def adr_evals_allTrueScan_to_fail
             simp only [List.length_cons]
             ring_nf
             omega)
+
+/-- All-true scan restores `right ++ work` as trues and enters `lenLoop`. -/
+noncomputable def adr_evals_allTrueScan_allTrue
+    (left right work : List Bool) (v : Option Bool)
+    (hall : ∀ b ∈ right, b = true) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .allTrueScan) v [] left right work [])
+      (some (adrCfg (some .lenLoop) none [] left
+        (List.replicate (right.length + work.length) true) [] []))
+      (2 * right.length + work.length + 2) := by
+  induction right generalizing work v with
+  | nil =>
+      have h1 := adr_evals_one (adr_step_allTrueScan_nil [] left work [] v)
+      have h2 := adr_evals_allTrueOk_restore_any work [] left [] [] none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (work.length + 1) _ _ _ h1 h2
+      simpa [List.append_nil, Nat.zero_add] using
+        evalsToInTime_le_mono t (by omega)
+  | cons b rest ih =>
+      have hb : b = true := hall b (by simp)
+      subst hb
+      have hall' : ∀ x ∈ rest, x = true := fun x hx =>
+        hall x (List.mem_cons_of_mem _ hx)
+      have h1 := adr_evals_one
+        (adr_step_allTrueScan_true [] left rest work [] v)
+      have h2 := ih (true :: work) none hall'
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (2 * rest.length + (true :: work).length + 2) _ _ _ h1 h2
+      have hlen : rest.length + (work.length + 1) =
+          rest.length + 1 + work.length := by
+        rw [Nat.add_comm work.length 1, Nat.add_assoc]
+      have htime : 2 * rest.length + (true :: work).length + 2 + 1 =
+          2 * (true :: rest).length + work.length + 2 := by
+        simp only [List.length_cons]
+        omega
+      simpa [List.length_cons, hlen] using
+        evalsToInTime_le_mono t (le_of_eq htime)
+
+/-- All-true table of length `2^n` reaches `parkWidth` with `pow2BitsLE n`. -/
+noncomputable def adr_evals_allTrue_pow2_to_parkWidth
+    (left table : List Bool) (n : ℕ)
+    (hall : ∀ b ∈ table, b = true)
+    (hlen : table.length = 2 ^ n) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .allTrueScan) none [] left table [] [])
+      (some (adrCfg (some .parkWidth) none (pow2BitsLE n) left table [] []))
+      ((table.length + 1) * (2 * (table.length + 2) + 3) +
+        3 * table.length + 3 * n + 8) := by
+  have hscan := adr_evals_allTrueScan_allTrue left table [] none hall
+  have hscan' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .allTrueScan) none [] left table [] [])
+      (some (adrCfg (some .lenLoop) none [] left
+        (List.replicate table.length true) [] []))
+      (2 * table.length + 2) := by
+    simpa using hscan
+  have hcount := adr_evals_lenLoop_to_pow2Check [] left
+    (List.replicate table.length true) [] none
+  have hcount' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .lenLoop) none [] left
+        (List.replicate table.length true) [] [])
+      (some (adrCfg (some .pow2Check) none [] left
+        (List.replicate table.length true) (natBitsLE table.length) []))
+      ((table.length + 1) * (2 * (table.length + 2) + 3) + table.length + 2) := by
+    simpa [List.length_replicate, bitsIncIter_nil, List.reverse_nil,
+      List.append_nil, List.length_nil] using hcount
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ hscan' hcount'
+  have hpow : natBitsLE table.length = pow2BitsLE n := by
+    simp [hlen, natBitsLE_pow2]
+  have hok := adr_evals_pow2Check_ok n left
+    (List.replicate table.length true) none
+  have hok' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .pow2Check) none [] left
+        (List.replicate table.length true) (natBitsLE table.length) [])
+      (some (adrCfg (some .parkWidth) none (pow2BitsLE n) left
+        (List.replicate table.length true) [] []))
+      (3 * n + 4) := by
+    simpa [hpow] using hok
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t1 hok'
+  have htab : List.replicate table.length true = table :=
+    (List.eq_replicate_iff.mpr ⟨rfl, hall⟩).symm
+  simpa [htab] using evalsToInTime_le_mono t2 (by omega)
 
 /-- Reverse `left` onto `out`, then enter `writeAcceptFalse`. -/
 noncomputable def adr_evals_revLeft (left right work out : List Bool)
