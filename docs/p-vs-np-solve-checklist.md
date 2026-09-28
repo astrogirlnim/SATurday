@@ -47,6 +47,7 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       adr_evals_evParse_formula and adr_evals_indexLoop_allTrue
       certified to acceptEmit; maxVarGate wired to parkWidth via dump;
       reject scaffold split; all-true pow2 reaches parkWidth;
+      park-to-accept and encodePair accept Evals certified;
       A sorry still open).
 
 ## 1) Pick One Main Attack

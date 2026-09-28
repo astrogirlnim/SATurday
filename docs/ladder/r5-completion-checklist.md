@@ -84,7 +84,12 @@ the hard pin first; the soft pin is packaging.
   and non-power-of-two length still emit `[true]`;
   `adr_evals_allTrue_pow2_to_parkWidth` certified (all-true length `2^n`
   reaches `parkWidth` with `pow2BitsLE n`);
-  Remaining: `parkWidth` through `indexLoop_allTrue` to `acceptEmit`,
+  `adr_evals_park_to_accept` certified (matching width tautology plus
+  all-true table reaches `false :: encodeFormula φ`);
+  `afterDecodePairResult_evals_encodePair_accept` certified from the
+  success tag through halt;
+  Remaining: leftover true drain and general pair-parse fail are
+  certified; still need decode-formula fail, width mismatch, eval-false,
   then package `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
