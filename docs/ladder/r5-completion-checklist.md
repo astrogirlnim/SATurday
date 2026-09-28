@@ -79,8 +79,11 @@ the hard pin first; the soft pin is packaging.
   index loop Evals certified: `adr_evals_evParse_formula`,
   `adr_evals_index_one_true`, `adr_evals_indexLoop_allTrue`
   (all-true table plus tautology reaches `acceptEmit`);
-  `maxVarGate` still stub-rejects so the reject scaffold stays green;
-  Remaining: wire `maxVarGate` to `parkWidth` and package
+  `maxVarGate` wired to `parkWidth` via `maxVarDump` (`pow2BitsLE n` on
+  `inp`); reject scaffold split: malformed `pow2Check`, false-in-table,
+  and non-power-of-two length still emit `[true]`;
+  Remaining: all-true power-of-two continue through `park_to_mvParse`
+  plus `indexLoop_allTrue` to `acceptEmit`, then package
   `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`

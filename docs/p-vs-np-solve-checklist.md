@@ -45,7 +45,8 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       certified with shared width budget M;
       adr_evals_mvParse_to_indexLoop certified;
       adr_evals_evParse_formula and adr_evals_indexLoop_allTrue
-      certified to acceptEmit; maxVarGate still stub; A sorry still open).
+      certified to acceptEmit; maxVarGate wired to parkWidth via dump;
+      reject scaffold split; A sorry still open).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

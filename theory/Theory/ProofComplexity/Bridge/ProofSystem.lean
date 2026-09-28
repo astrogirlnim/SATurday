@@ -444,6 +444,22 @@ def pow2BitsLE (n : ℕ) : List Bool :=
 theorem length_pow2BitsLE (n : ℕ) : (pow2BitsLE n).length = n + 1 := by
   simp [pow2BitsLE]
 
+theorem pow2BitsLE_ne_nil (n : ℕ) : pow2BitsLE n ≠ [] := by
+  simp [pow2BitsLE]
+
+theorem pow2BitsLE_zero : pow2BitsLE 0 = [true] := by
+  simp [pow2BitsLE]
+
+theorem pow2BitsLE_succ (n : ℕ) :
+    pow2BitsLE (n + 1) = false :: pow2BitsLE n := by
+  simp [pow2BitsLE, List.replicate_succ]
+
+theorem replicate_false_concat (n : ℕ) (acc : List Bool) :
+    List.replicate n false ++ false :: acc =
+      List.replicate (n + 1) false ++ acc := by
+  rw [List.replicate_succ', List.append_assoc]
+  rfl
+
 theorem pow2BitsLE_injective {n m : ℕ} (h : pow2BitsLE n = pow2BitsLE m) :
     n = m := by
   have : n + 1 = m + 1 := by
@@ -1017,7 +1033,6 @@ theorem length_natBitsLE_le (n : ℕ) : (natBitsLE n).length ≤ n := by
             simp [Nat.bit_val]; omega
           exact le_trans hle this
 
-/-- Incrementing little endian bits of `n` yields bits of `n + 1`. -/
 theorem bitsInc_natBitsLE (n : ℕ) :
     bitsInc (natBitsLE n) = natBitsLE (n + 1) := by
   induction n using Nat.binaryRec' with
@@ -1038,6 +1053,46 @@ theorem bitsInc_natBitsLE (n : ℕ) :
           have hbit : Nat.bit true n + 1 = Nat.bit false (n + 1) := by
             simp [Nat.bit_val]; omega
           rw [hbit, natBitsLE_bit false (n + 1) (fun h => (Nat.succ_ne_zero n h).elim)]
+
+/-- Iterate `bitsInc` `t` times. Counting `|table|` symbols from `[]` yields
+`natBitsLE t`. -/
+def bitsIncIter : ℕ → List Bool → List Bool
+  | 0, acc => acc
+  | t + 1, acc => bitsIncIter t (bitsInc acc)
+
+theorem bitsIncIter_zero (acc : List Bool) : bitsIncIter 0 acc = acc := rfl
+
+theorem bitsIncIter_succ (t : ℕ) (acc : List Bool) :
+    bitsIncIter (t + 1) acc = bitsIncIter t (bitsInc acc) := rfl
+
+theorem bitsIncIter_natBitsLE (t w : ℕ) :
+    bitsIncIter t (natBitsLE w) = natBitsLE (w + t) := by
+  induction t generalizing w with
+  | zero => simp [bitsIncIter]
+  | succ t ih =>
+      rw [bitsIncIter_succ, bitsInc_natBitsLE, ih]
+      ac_rfl
+
+theorem bitsIncIter_nil (t : ℕ) : bitsIncIter t [] = natBitsLE t := by
+  have h1 : bitsIncIter 0 [] = natBitsLE 0 := by simp [bitsIncIter, natBitsLE_zero]
+  have h2 : bitsInc [] = natBitsLE 1 := by simp [bitsInc, natBitsLE_one]
+  cases t with
+  | zero => exact h1
+  | succ t =>
+      rw [bitsIncIter_succ, h2, bitsIncIter_natBitsLE, Nat.one_add]
+
+theorem natBitsLE_eq_pow2BitsLE_iff (t n : ℕ) :
+    natBitsLE t = pow2BitsLE n ↔ t = 2 ^ n := by
+  constructor
+  · intro h
+    have := congrArg bitsLEValue h
+    simpa [bitsLEValue_natBitsLE, bitsLEValue_pow2BitsLE] using this
+  · intro h
+    simp [h, natBitsLE_pow2]
+
+theorem bitsIncIter_nil_eq_pow2BitsLE_iff (t n : ℕ) :
+    bitsIncIter t [] = pow2BitsLE n ↔ t = 2 ^ n := by
+  rw [bitsIncIter_nil, natBitsLE_eq_pow2BitsLE_iff]
 
 /-! ## Cluster C2 index assignment = padded `natBitsLE`
 
@@ -9002,7 +9057,7 @@ inductive ADRLabel where
   | clearLeft | clearRight | afterParse
   | allTrueScan | allTrueOk | clearWork
   | lenLoop | lenInc | lenRestore | lenFinish
-  | pow2Check | pow2Ok | maxVarGate | clearInp
+  | pow2Check | pow2Ok | maxVarGate | maxVarDump | clearInp
   | acceptEmit | revLeft | writeAcceptFalse | clearRightAccept
   | parkWidth | copyLeft | copyLeftRest | revCode
   | mvParse | mvTagF | mvTagT | mvNat | mvNatRest | mvAfter | mvFinish
@@ -9023,7 +9078,7 @@ instance : Fintype ADRLabel where
   elems := {.readTag, .drainTrue, .writeFail, .parse, .expectBit, .loadRight,
     .clearLeft, .clearRight, .afterParse, .allTrueScan, .allTrueOk, .clearWork,
     .lenLoop, .lenInc, .lenRestore, .lenFinish, .pow2Check, .pow2Ok, .maxVarGate,
-    .clearInp, .acceptEmit, .revLeft, .writeAcceptFalse, .clearRightAccept,
+    .maxVarDump, .clearInp, .acceptEmit, .revLeft, .writeAcceptFalse, .clearRightAccept,
     .parkWidth, .copyLeft, .copyLeftRest, .revCode,
     .mvParse, .mvTagF, .mvTagT, .mvNat, .mvNatRest, .mvAfter, .mvFinish,
     .mvToPow2, .unparkMark, .unparkFalses, .eqA, .eqB,
@@ -9150,8 +9205,8 @@ def afterDecodePairResultComputer : FinTM2 where
     | .pow2Check =>
         -- `pow2BitsLE n = replicate n false ++ [true]`: pop falses onto `inp`
         -- (width = |inp|), require a final true with empty rest; else reject.
-        -- On success enter `pow2Ok` (width on `inp`); stub-rejects via
-        -- `clearInp` until maxVar compare + eval loop land.
+        -- On success enter `pow2Ok` (width falses on `inp`); `maxVarGate`
+        -- forms `pow2BitsLE n` and continues to `parkWidth`.
         pop ADRStack.work (fun _ o => o) <|
           branch (fun s => decide (s = none))
             (load (fun _ => none) <| goto fun _ => ADRLabel.clearInp)
@@ -9165,14 +9220,26 @@ def afterDecodePairResultComputer : FinTM2 where
                     (load (fun _ => none) <| goto fun _ => ADRLabel.clearWork))
                 (load (fun _ => none) <| goto fun _ => ADRLabel.clearWork)))
     | .pow2Ok =>
-        -- Width `|inp| = n` falses; push the terminating `true` so `inp`
-        -- holds `pow2BitsLE n`, then enter `maxVarGate`.
-        push ADRStack.inp (fun _ => true) <|
-          load (fun _ => none) <| goto fun _ => ADRLabel.maxVarGate
+        -- Width `|inp| = n` falses. `maxVarGate` appends the terminator so
+        -- `inp` becomes `pow2BitsLE n`, then `parkWidth`.
+        load (fun _ => none) <| goto fun _ => ADRLabel.maxVarGate
     | .maxVarGate =>
-        -- Wired next: `parkWidth` then maxVar scan, bitsEqual, index loop.
-        -- Stub still rejects so certified reject-scaffold Evals stay green.
-        load (fun _ => none) <| goto fun _ => ADRLabel.clearInp
+        -- Park width falses on `work`, push terminator `true`, dump so
+        -- `inp = n*false ++ [true] = pow2BitsLE n`.
+        pop ADRStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push ADRStack.inp (fun _ => true) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.maxVarDump)
+            (branch (fun s => decide (s = some false))
+              (push ADRStack.work (fun _ => false) <|
+                load (fun _ => none) <| goto fun _ => ADRLabel.maxVarGate)
+              (load (fun _ => none) <| goto fun _ => ADRLabel.failDrain))
+    | .maxVarDump =>
+        pop ADRStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => ADRLabel.parkWidth)
+            (push ADRStack.inp (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => ADRLabel.maxVarDump)
     | .parkWidth =>
         -- `right := reverse(pow2BitsLE n) ++ table = [true] ++ n*false ++ table`.
         pop ADRStack.inp (fun _ o => o) <|
@@ -10052,7 +10119,7 @@ theorem adr_step_pow2Check_true_cons (inp left right : List Bool) (b : Bool)
 theorem adr_step_pow2Ok (inp left right work out : List Bool) (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
       (adrCfg (some .pow2Ok) v inp left right work out) =
-      some (adrCfg (some .maxVarGate) none (true :: inp) left right work out) := by
+      some (adrCfg (some .maxVarGate) none inp left right work out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
@@ -10060,15 +10127,64 @@ theorem adr_step_pow2Ok (inp left right work out : List Bool) (v : Option Bool) 
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
-theorem adr_step_maxVarGate (inp left right work out : List Bool)
+theorem adr_step_maxVarGate_nil (left right work out : List Bool)
     (v : Option Bool) :
     TM2.step afterDecodePairResultComputer.m
-      (adrCfg (some .maxVarGate) v inp left right work out) =
-      some (adrCfg (some .clearInp) none inp left right work out) := by
+      (adrCfg (some .maxVarGate) v [] left right work out) =
+      some (adrCfg (some .maxVarDump) none [true] left right work out) := by
   simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
-      (⟨some ADRLabel.clearInp, (none : Option Bool), stk⟩ :
+      (⟨some ADRLabel.maxVarDump, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_maxVarGate_false (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .maxVarGate) v (false :: rest) left right work out) =
+      some (adrCfg (some .maxVarGate) none rest left right
+        (false :: work) out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.maxVarGate, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_maxVarGate_true (rest left right work out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .maxVarGate) v (true :: rest) left right work out) =
+      some (adrCfg (some .failDrain) none rest left right work out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.failDrain, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_maxVarDump_nil (inp left right out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .maxVarDump) v inp left right [] out) =
+      some (adrCfg (some .parkWidth) none inp left right [] out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.parkWidth, (none : Option Bool), stk⟩ :
+        afterDecodePairResultComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, adrStk]
+
+theorem adr_step_maxVarDump_cons (b : Bool) (rest inp left right out : List Bool)
+    (v : Option Bool) :
+    TM2.step afterDecodePairResultComputer.m
+      (adrCfg (some .maxVarDump) v inp left right (b :: rest) out) =
+      some (adrCfg (some .maxVarDump) none (b :: inp) left right rest out) := by
+  simp [afterDecodePairResultComputer, adrCfg, adrStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ADRLabel.maxVarDump, (none : Option Bool), stk⟩ :
         afterDecodePairResultComputer.Cfg)) ?_
   funext k; cases k <;> simp [Function.update, adrStk]
 
@@ -11900,6 +12016,123 @@ noncomputable def adr_evals_failDrain (inp left right work out : List Bool)
         (rest.length + work.length + inp.length + left.length +
           right.length + 6) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by simp [List.length_cons])
+
+/-- Dump parked width bits from `work` onto `inp`, then enter `parkWidth`. -/
+noncomputable def adr_evals_maxVarDump (acc inp left right out : List Bool)
+    (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .maxVarDump) v inp left right acc out)
+      (some (adrCfg (some .parkWidth) none (acc.reverse ++ inp) left right
+        [] out))
+      (acc.length + 1) := by
+  induction acc generalizing inp v with
+  | nil =>
+      simpa using adr_evals_one
+        (adr_step_maxVarDump_nil inp left right out v)
+  | cons b rest ih =>
+      have h1 := adr_evals_one
+        (adr_step_maxVarDump_cons b rest inp left right out v)
+      have h2 := ih (b :: inp) none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (rest.length + 1) _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc] using t
+
+/-- Park `n` width falses onto `work`, then push the terminator. -/
+noncomputable def adr_evals_maxVarGate_park (n : ℕ)
+    (acc left right out : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .maxVarGate) v (List.replicate n false) left right acc out)
+      (some (adrCfg (some .maxVarDump) none [true] left right
+        (List.replicate n false ++ acc) out))
+      (n + 1) := by
+  induction n generalizing acc v with
+  | zero =>
+      simpa [List.replicate, List.append_nil] using adr_evals_one
+        (adr_step_maxVarGate_nil left right acc out v)
+  | succ n ih =>
+      have h1 := adr_evals_one
+        (adr_step_maxVarGate_false (List.replicate n false) left right acc
+          out v)
+      have h2 := ih (false :: acc) none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (n + 1) _ _ _ h1 h2
+      simpa [replicate_false_concat n acc] using t
+
+/-- Width `n` falses and empty work form `pow2BitsLE n` on `inp` at `parkWidth`. -/
+noncomputable def adr_evals_maxVarGate_to_parkWidth (n : ℕ)
+    (left right out : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .maxVarGate) v (List.replicate n false) left right [] out)
+      (some (adrCfg (some .parkWidth) none (pow2BitsLE n) left right [] out))
+      (2 * n + 2) := by
+  have h1 := adr_evals_maxVarGate_park n [] left right out v
+  have h1' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .maxVarGate) v (List.replicate n false) left right [] out)
+      (some (adrCfg (some .maxVarDump) none [true] left right
+        (List.replicate n false) out))
+      (n + 1) := by
+    simpa using h1
+  have h2 := adr_evals_maxVarDump (List.replicate n false) [true] left right
+    out none
+  have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ h1' h2
+  have hinp : (List.replicate n false).reverse ++ [true] = pow2BitsLE n := by
+    simp [pow2BitsLE, List.reverse_replicate]
+  simpa [hinp] using evalsToInTime_le_mono t (by
+    simp [List.length_replicate]; omega)
+
+/-- Well-formed `pow2BitsLE n` on `work` walks to `maxVarGate` with
+`n` width falses parked on `inp`. -/
+noncomputable def adr_evals_pow2Check_to_maxVarGate (n : ℕ)
+    (inp left right : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .pow2Check) v inp left right (pow2BitsLE n) [])
+      (some (adrCfg (some .maxVarGate) none
+        (List.replicate n false ++ inp) left right [] []))
+      (n + 2) := by
+  induction n generalizing inp v with
+  | zero =>
+      have h1 := adr_evals_one
+        (adr_step_pow2Check_true_nil inp left right [] v)
+      have h2 := adr_evals_one
+        (adr_step_pow2Ok inp left right [] [] none)
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+        _ _ _ h1 h2
+      simpa [pow2BitsLE_zero, List.replicate, List.append_nil] using
+        evalsToInTime_le_mono t (by omega)
+  | succ n ih =>
+      have h1 := adr_evals_one
+        (adr_step_pow2Check_false inp left right (pow2BitsLE n) [] v)
+      have h1' : EvalsToInTime afterDecodePairResultComputer.step
+          (adrCfg (some .pow2Check) v inp left right (pow2BitsLE (n + 1)) [])
+          (some (adrCfg (some .pow2Check) none (false :: inp) left right
+            (pow2BitsLE n) [])) 1 := by
+        simpa [pow2BitsLE_succ] using h1
+      have h2 := ih (false :: inp) none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+        (n + 2) _ _ _ h1' h2
+      simpa [replicate_false_concat n inp] using
+        evalsToInTime_le_mono t (by omega)
+
+/-- Well-formed `pow2BitsLE n` on `work` (empty `inp`) reaches `parkWidth`
+with `pow2BitsLE n` on `inp`. -/
+noncomputable def adr_evals_pow2Check_ok (n : ℕ)
+    (left right : List Bool) (v : Option Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .pow2Check) v [] left right (pow2BitsLE n) [])
+      (some (adrCfg (some .parkWidth) none (pow2BitsLE n) left right [] []))
+      (3 * n + 4) := by
+  have h1 := adr_evals_pow2Check_to_maxVarGate n [] left right v
+  have h1' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .pow2Check) v [] left right (pow2BitsLE n) [])
+      (some (adrCfg (some .maxVarGate) none (List.replicate n false)
+        left right [] []))
+      (n + 2) := by
+    simpa using h1
+  have h2 := adr_evals_maxVarGate_to_parkWidth n left right [] none
+  have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+    (n + 2) (2 * n + 2) _ _ _ h1' h2
+  exact evalsToInTime_le_mono t (by omega)
 
 /-- Park `inp` onto `right`, then enter `copyLeft`. -/
 noncomputable def adr_evals_parkWidth (inp left right work out : List Bool)
@@ -14180,9 +14413,10 @@ noncomputable def adr_evals_lenInc (inp left right work out : List Bool)
             Nat.add_assoc] using evalsToInTime_le_mono t (by
               simp [List.length_cons]; omega)
 
-/-- From `pow2Check`, always reject to `[true]`. Parks width falses on `inp`. -/
+/-- From `pow2Check`, reject to `[true]` when `work` is not `pow2BitsLE` shape. -/
 noncomputable def adr_evals_pow2Check_to_fail
-    (inp left right work : List Bool) (v : Option Bool) :
+    (inp left right work : List Bool) (v : Option Bool)
+    (hmal : ∀ n, work ≠ pow2BitsLE n) :
     EvalsToInTime afterDecodePairResultComputer.step
       (adrCfg (some .pow2Check) v inp left right work [])
       (some (adrCfg none none [] [] [] [] [true]))
@@ -14198,9 +14432,12 @@ noncomputable def adr_evals_pow2Check_to_fail
   | cons b rest ih =>
       cases b with
       | false =>
+          have hmal' : ∀ n, rest ≠ pow2BitsLE n := by
+            intro n hn
+            exact hmal (n + 1) (by simp [pow2BitsLE_succ, hn])
           have h1 := adr_evals_one
             (adr_step_pow2Check_false inp left right rest [] v)
-          have h2 := ih (false :: inp) none
+          have h2 := ih (false :: inp) none hmal'
           have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
             (2 * rest.length + (false :: inp).length + left.length +
               right.length + 6) _ _ _ h1 h2
@@ -14208,24 +14445,8 @@ noncomputable def adr_evals_pow2Check_to_fail
       | true =>
           cases rest with
           | nil =>
-              have h1 := adr_evals_one
-                (adr_step_pow2Check_true_nil inp left right [] v)
-              have hOk := adr_evals_one
-                (adr_step_pow2Ok inp left right [] [] none)
-              have hGate := adr_evals_one
-                (adr_step_maxVarGate (true :: inp) left right [] [] none)
-              have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
-                1 1 _ _ _ h1 hOk
-              have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
-                2 1 _ _ _ t1 hGate
-              -- maxVarGate stub: clearInp drains `true :: inp` (= pow2BitsLE).
-              have h2 := adr_evals_clearInp_to_fail (true :: inp) left right [] [] none
-              have t := EvalsToInTime.trans afterDecodePairResultComputer.step
-                3 ((true :: inp).length + left.length + right.length + 4)
-                _ _ _ t2 h2
-              exact evalsToInTime_le_mono t (by simp [List.length_cons] <;> omega)
+              exact (hmal 0 (by simp [pow2BitsLE_zero])).elim
           | cons b' rest' =>
-              -- Double-pop leaves `rest'` on work, then clearWork + clearInp.
               have h1 := adr_evals_one
                 (adr_step_pow2Check_true_cons inp left right b' rest' [] v)
               have h2 := adr_evals_clearWork rest' inp left right [] none
@@ -14237,9 +14458,11 @@ noncomputable def adr_evals_pow2Check_to_fail
                 (inp.length + left.length + right.length + 4) _ _ _ t12 h3
               exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
 
-/-- Restore table from `inp` onto `right`, pow2-check length bits, reject. -/
+/-- Restore table from `inp` onto `right`, pow2-check length bits, reject
+when `work` is not `pow2BitsLE` shape. -/
 noncomputable def adr_evals_lenFinish_to_fail
-    (inp left right work : List Bool) (v : Option Bool) :
+    (inp left right work : List Bool) (v : Option Bool)
+    (hmal : ∀ n, work ≠ pow2BitsLE n) :
     EvalsToInTime afterDecodePairResultComputer.step
       (adrCfg (some .lenFinish) v inp left right work [])
       (some (adrCfg none none [] [] [] [] [true]))
@@ -14249,7 +14472,7 @@ noncomputable def adr_evals_lenFinish_to_fail
   | nil =>
       have h1 := adr_evals_one
         (adr_step_lenFinish_nil left right work [] v)
-      have h2 := adr_evals_pow2Check_to_fail [] left right work none
+      have h2 := adr_evals_pow2Check_to_fail [] left right work none hmal
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
         (2 * work.length + 0 + left.length + right.length + 6) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by simp)
@@ -14278,10 +14501,11 @@ noncomputable def adr_evals_lenLoop_one (b : Bool)
     (2 * work.length + 2) _ _ _ h1 h2
   exact evalsToInTime_le_mono t (by omega)
 
-/-- From `lenLoop` with empty `out`, process all of `right` then stub-reject.
-Uses a loose quadratic budget so `bitsInc` growth is absorbed. -/
+/-- From `lenLoop` with empty `out`, process all of `right` then reject when
+the counted bits are not `pow2BitsLE` shape. -/
 noncomputable def adr_evals_lenLoop_to_fail
-    (inp left right work : List Bool) (v : Option Bool) :
+    (inp left right work : List Bool) (v : Option Bool)
+    (hmal : ∀ n, bitsIncIter right.length work ≠ pow2BitsLE n) :
     EvalsToInTime afterDecodePairResultComputer.step
       (adrCfg (some .lenLoop) v inp left right work [])
       (some (adrCfg none none [] [] [] [] [true]))
@@ -14290,15 +14514,22 @@ noncomputable def adr_evals_lenLoop_to_fail
         2 * (work.length + right.length) + 10) := by
   induction right generalizing inp work v with
   | nil =>
+      have hmalW : ∀ n, work ≠ pow2BitsLE n := by
+        intro n hn
+        exact hmal n (by simpa [bitsIncIter_zero] using hn)
       have h1 := adr_evals_one
         (adr_step_lenLoop_nil inp left work [] v)
-      have h2 := adr_evals_lenFinish_to_fail inp left [] work none
+      have h2 := adr_evals_lenFinish_to_fail inp left [] work none hmalW
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
         (inp.length + 2 * work.length + left.length +
           (inp.reverse ++ []).length + 8) _ _ _ h1 h2
       exact evalsToInTime_le_mono t (by
         simp [List.length_reverse, List.length_append]; omega)
   | cons b rest ih =>
+      have hmal' : ∀ n, bitsIncIter rest.length (bitsInc work) ≠ pow2BitsLE n := by
+        intro n hn
+        exact hmal n (by
+          simpa [List.length_cons, bitsIncIter_succ] using hn)
       have h1 := adr_evals_lenLoop_one b inp left rest work v
       have h1w : EvalsToInTime afterDecodePairResultComputer.step
           (adrCfg (some .lenLoop) v inp left (b :: rest) work [])
@@ -14306,7 +14537,7 @@ noncomputable def adr_evals_lenLoop_to_fail
             (bitsInc work) []))
           (2 * (work.length + rest.length + 2) + 3) :=
         evalsToInTime_le_mono h1 (by omega)
-      have h2 := ih (b :: inp) (bitsInc work) none
+      have h2 := ih (b :: inp) (bitsInc work) none hmal'
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step
         (2 * (work.length + rest.length + 2) + 3)
         ((rest.length + 1) * (2 * ((bitsInc work).length + rest.length + 2) + 3) +
@@ -14318,10 +14549,12 @@ noncomputable def adr_evals_lenLoop_to_fail
         simp [List.length_cons]
         nlinarith)
 
-/-- From `allTrueScan` with empty `out`, always reach reject halt `[true]`.
-All-true path: restore then `lenLoop` stub-reject; false path: clearWork. -/
+/-- From `allTrueScan` with empty `out`, reject when the table has a false bit
+or the restored length is not a power of two. -/
 noncomputable def adr_evals_allTrueScan_to_fail
-    (left right work : List Bool) (v : Option Bool) :
+    (left right work : List Bool) (v : Option Bool)
+    (hrej : (∃ b ∈ right, b = false) ∨
+      (∀ n, right.length + work.length ≠ 2 ^ n)) :
     EvalsToInTime afterDecodePairResultComputer.step
       (adrCfg (some .allTrueScan) v [] left right work [])
       (some (adrCfg none none [] [] [] [] [true]))
@@ -14332,6 +14565,24 @@ noncomputable def adr_evals_allTrueScan_to_fail
         2 * (work.length + right.length) + right.length + 14) := by
   induction right generalizing work v with
   | nil =>
+      have hlen : ∀ n, work.length ≠ 2 ^ n := by
+        intro n hn
+        cases hrej with
+        | inl hex =>
+            rcases hex with ⟨b, hb, _⟩
+            exact absurd hb List.not_mem_nil
+        | inr hpow =>
+            exact hpow n (by simpa using hn)
+      have hmal : ∀ n, bitsIncIter (List.replicate work.length true).length [] ≠
+          pow2BitsLE n := by
+        intro n hn
+        have hlenT : (List.replicate work.length true).length = work.length :=
+          List.length_replicate
+        have : bitsIncIter work.length [] = pow2BitsLE n := by
+          simpa [hlenT] using hn
+        have ht : work.length = 2 ^ n :=
+          (bitsIncIter_nil_eq_pow2BitsLE_iff _ _).mp this
+        exact hlen n ht
       have h1 := adr_evals_one (adr_step_allTrueScan_nil [] left work [] v)
       have h2 := adr_evals_allTrueOk_restore_any work [] left [] [] none
       have h2' : EvalsToInTime afterDecodePairResultComputer.step
@@ -14343,7 +14594,7 @@ noncomputable def adr_evals_allTrueScan_to_fail
       have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step
         1 (work.length + 1) _ _ _ h1 h2'
       have h3 := adr_evals_lenLoop_to_fail [] left
-        (List.replicate work.length true) [] none
+        (List.replicate work.length true) [] none hmal
       have t := EvalsToInTime.trans afterDecodePairResultComputer.step
         (work.length + 2)
         (((List.replicate work.length true).length + 1) *
@@ -14366,9 +14617,27 @@ noncomputable def adr_evals_allTrueScan_to_fail
             ([].length + left.length + rest.length + 4) _ _ _ t12 h3
           exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
       | true =>
+          have hrej' : (∃ b ∈ rest, b = false) ∨
+              (∀ n, rest.length + (true :: work).length ≠ 2 ^ n) := by
+            cases hrej with
+            | inl hex =>
+                rcases hex with ⟨x, hx, hxF⟩
+                have hx' : x ∈ rest := by
+                  have hxmem := List.mem_cons.mp hx
+                  cases hxmem with
+                  | inl heq =>
+                      simp [heq] at hxF
+                  | inr hrest => exact hrest
+                exact Or.inl ⟨x, hx', hxF⟩
+            | inr hpow =>
+                refine Or.inr ?_
+                intro n hn
+                exact hpow n (by
+                  simp [List.length_cons] at hn ⊢
+                  omega)
           have h1 := adr_evals_one
             (adr_step_allTrueScan_true [] left rest work [] v)
-          have h2 := ih (true :: work) none
+          have h2 := ih (true :: work) none hrej'
           have t := EvalsToInTime.trans afterDecodePairResultComputer.step
             1 (2 * rest.length + 2 * (true :: work).length +
               (rest.length + (true :: work).length + 1) *
@@ -14624,13 +14893,13 @@ noncomputable def afterDecodePairResult_evals_false_true :
   have t123 := EvalsToInTime.trans afterDecodePairResultComputer.step 2 1 _ _ _ t12 h3
   exact EvalsToInTime.trans afterDecodePairResultComputer.step 3 3 _ _ _ t123 h4
 
-/-- Success-tag reject scaffold: after loading `encodePair`, allTrue scan then
-emit `[true]`. Semantically matches `afterDecodePairResult` whenever
-`validatesTautologyResult φCode table = [true]` (decodeFormula fail, length-gate
-fail, or non-tautology table). Accept path Remaining. -/
+/-- Success-tag reject when the table has a false bit or length is not a
+power of two. Remaining reject cases (decode fail, width mismatch, eval
+false on a well-formed all-true power-of-two table) go through `parkWidth`. -/
 noncomputable def afterDecodePairResult_evals_encodePair_reject
     (φCode table : List Bool)
-    (h : validatesTautologyResult φCode table = [true]) :
+    (h : validatesTautologyResult φCode table = [true])
+    (hrej : (∃ b ∈ table, b = false) ∨ (∀ n, table.length ≠ 2 ^ n)) :
     TM2OutputsInTime afterDecodePairResultComputer
       (false :: encodePair (φCode, table)) (some [true])
       (2 * φCode.length + table.length + 4 +
@@ -14653,7 +14922,15 @@ noncomputable def afterDecodePairResult_evals_encodePair_reject
   have hafter := adr_evals_one
     (adr_step_afterParse [] φCode.reverse table.reverse [] [] none)
   have hscan := adr_evals_allTrueScan_to_fail
-    φCode.reverse table.reverse [] none
+    φCode.reverse table.reverse [] none (by
+      cases hrej with
+      | inl hex =>
+          rcases hex with ⟨b, hb, hbF⟩
+          refine Or.inl ⟨b, List.mem_reverse.mpr hb, hbF⟩
+      | inr hpow =>
+          refine Or.inr ?_
+          intro n
+          simpa [List.length_reverse] using hpow n)
   have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step 1
     (2 * φCode.length + table.length + 2) _ _ _ htag hload
   have t1' : EvalsToInTime afterDecodePairResultComputer.step
