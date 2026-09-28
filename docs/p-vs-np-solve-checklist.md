@@ -41,8 +41,11 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       truthTable_is_prop_proof_system;
       Block A 2026-09-26: maxVarOfCode helpers and ADR park-to-mvParse
       Evals certified; mvNat delimiter refund and grow path certified;
-      adr_evals_mvNat Evals certified; maxVarGate still stub; A sorry
-      still open).
+      adr_evals_mvNat Evals certified; adr_evals_mvParse_formula
+      certified with shared width budget M;
+      adr_evals_mvParse_to_indexLoop certified;
+      adr_evals_evParse_formula and adr_evals_indexLoop_allTrue
+      certified to acceptEmit; maxVarGate still stub; A sorry still open).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

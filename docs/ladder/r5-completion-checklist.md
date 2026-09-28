@@ -70,11 +70,18 @@ the hard pin first; the soft pin is packaging.
   `mvNatDiscardPark` (handles `n > k > 0`); step lemmas certified;
   `adr_evals_mvNat` / `_le` / `_gt` / refund / rest / drain Evals
   certified (`work` becomes `true^{max k n}`);
+  `adr_evals_mvParse_formula` certified on `encodeFormula` with shared
+  width budget `M` (`k ≤ M`, `φ.maxVar ≤ M`, time
+  `32 * (L+1) * (M+2)`);
+  `adr_evals_mvToPow2` / `adr_evals_unpark` / `adr_evals_eq_pow2` /
+  `adr_evals_mvParse_to_indexLoop` certified (matching width
+  `n = φ.maxVar + 1` enters `indexLoop` with assignment `false^n`);
+  index loop Evals certified: `adr_evals_evParse_formula`,
+  `adr_evals_index_one_true`, `adr_evals_indexLoop_allTrue`
+  (all-true table plus tautology reaches `acceptEmit`);
   `maxVarGate` still stub-rejects so the reject scaffold stays green;
-  Remaining: `mvParse` Evals on `encodeFormula` (induction over
-  `adr_evals_mvNat`), bitsEqual vs parked width, index loop under
-  `|table|` fuel → `acceptEmit`, then wire `maxVarGate` to `parkWidth`
-  and package `afterDecodePairResultComputableInPolyTime`)
+  Remaining: wire `maxVarGate` to `parkWidth` and package
+  `afterDecodePairResultComputableInPolyTime`)
 - [ ] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
   (local composition; no mathlib `.comp`)
