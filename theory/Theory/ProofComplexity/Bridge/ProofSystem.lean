@@ -14371,6 +14371,44 @@ noncomputable def adr_evals_index_one_true (φ : PropFormula)
     simp [φCode, σ, List.length_nil]
     omega)
 
+/-- One fuel bit whose assignment evaluates to false: drain and emit `[true]`. -/
+noncomputable def adr_evals_index_one_false (φ : PropFormula)
+    (inp work rest : List Bool)
+    (heval : φ.evalOn (work.reverse ++ inp) = false)
+    (hsuf : rest.head? ≠ some false) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .indexLoop) none inp (encodeFormula φ).reverse
+        (true :: rest) work [])
+      (some (adrCfg none none [] [] [] [] [true]))
+      (work.length + 2 * (encodeFormula φ).length + 16 +
+        64 * ((encodeFormula φ).length + 1) *
+          ((work.reverse ++ inp).length + 2) +
+        (work.reverse ++ inp).length + rest.length +
+        (encodeFormula φ).length) := by
+  set φCode := encodeFormula φ
+  set σ := work.reverse ++ inp
+  have hto := adr_evals_indexLoop_to_evParse φCode inp work rest
+  have hparse := adr_evals_evParse_formula φ σ [] rest φCode.reverse
+  have hparse' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .evParse) none σ φCode.reverse rest [] φCode)
+      (some (adrCfg (some .evCount) (some false) σ φCode.reverse rest [] []))
+      (64 * (φCode.length + 1) * (σ.length + 2)) := by
+    simpa [φCode, σ, heval, List.append_nil] using hparse
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ hto hparse'
+  have hk0 := adr_evals_evCount_k0 false rest σ φCode.reverse [] hsuf
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t1 hk0
+  have hdone := adr_evals_one (adr_step_evDone_false_empty σ φCode.reverse rest [])
+  have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t2 hdone
+  have hfail := adr_evals_failDrain σ φCode.reverse rest [] [] none
+  have t4 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t3 hfail
+  simpa [φCode, σ] using evalsToInTime_le_mono t4 (by
+    simp [φCode, σ, List.length_nil, List.length_reverse]
+    omega)
+
 /-- Empty fuel: drain and enter `acceptEmit`. -/
 noncomputable def adr_evals_indexLoop_empty (φ : PropFormula)
     (inp work : List Bool) :
