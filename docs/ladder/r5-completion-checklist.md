@@ -2,10 +2,10 @@
 
 Status: active (diverted from `satday auto`; sticky formalize force cleared)
 
-**Constraint:** one Bridge sorry left, in
-`theory/Theory/ProofComplexity/Bridge/ProofSystem.lean` (soft pin B).
-Do not invent `Turing.*` names; reuse certified helpers named in the pin
-comments. Hard pin A is closed. The soft pin is packaging.
+**Constraint:** Bridge pins A and B are closed. No `sorry` remains in
+`theory/Theory/ProofComplexity/Bridge/ProofSystem.lean`. Do not invent
+`Turing.*` names. Block C (`CookReckhow.lean`) is next. Do not restart
+`satday auto` until C is certified.
 
 ## Files
 
@@ -16,9 +16,7 @@ comments. Hard pin A is closed. The soft pin is packaging.
 
 ## Open Frontier pins
 
-- `truthTable_is_prop_proof_system` (~3707) —
-  `Nonempty (IsPropProofSystem truthTableProofSystem)`
-  (blocked on wrapping A's poly witness as the TT map)
+- none in `ProofSystem.lean` (soft pin B closed 2026-09-29)
 
 ## Checklist
 
@@ -105,15 +103,22 @@ comments. Hard pin A is closed. The soft pin is packaging.
   `afterDecodePairResult`; no mathlib `.comp`)
 - [x] Remove sorry; commit
 
-### B. Soft pin — `truthTable_is_prop_proof_system` (~3707)
+### B. Soft pin — `truthTable_is_prop_proof_system`
 
-- [ ] Derive TT-map poly witness from A (or thin wrapper over
+- [x] Derive TT-map poly witness from A (or thin wrapper over
   `validatesTautologyResult_on_pair` + seed emits)
-- [ ] Package
+  (`liftValidationToTT` strips `false :: φCode` and otherwise emits
+  `encodeFormula tautSeed`; `truthTableProofSystem_eq_liftValidationToTT`;
+  `liftValidationToTTComputer` in `2|s| + 11` steps;
+  `comp_idBitEnc_idBitEnc` with
+  `validatesTautologyResult_on_pairComputableInPolyTime`)
+- [x] Package
   `⟨{ poly := …, sound := truthTableProofSystem_sound,
   complete := truthTableProofSystem_complete }⟩`
-- [ ] Confirm `truthTable_not_poly_bounded` still green
-- [ ] Remove sorry; commit
+  (`truthTableProofSystemComputableInPolyTime` as `poly`)
+- [x] Confirm `truthTable_not_poly_bounded` still green
+  (`lake build Theory.ProofComplexity.Bridge.ProofSystem`)
+- [x] Remove sorry; commit
 
 ### C. R5 finish (after A+B)
 

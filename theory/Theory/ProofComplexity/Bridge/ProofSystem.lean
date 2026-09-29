@@ -13,8 +13,9 @@ predicate.
 
 Cluster 1 (2026-08-21): structure definitions, finite truth table machinery,
 and the semantic truth table proof map (sound and complete for `TAUT`).
-The TM2 poly time witness for that map, and the exponential size lower bound,
-remain Frontier.
+The exponential size lower bound is `truthTable_not_poly_bounded`.
+The TM2 poly time witness is `truthTableProofSystemComputableInPolyTime`:
+Block A `validatesTautologyResult_on_pair` composed with `liftValidationToTT`.
 
 LOG: R5 Bridge ProofSystem cluster 1 (defs and TT semantic map)
 -/
@@ -3841,15 +3842,8 @@ theorem truthTable_not_poly_bounded :
     simpa [length_encodeFormula_tautSeedAt k] using hlen
   omega
 
-namespace ProofSystemFrontier
-
-/-- Full `IsPropProofSystem` instance once a TM2 poly time witness for
-`truthTableProofSystem` is certified (verification is poly in the proof length). -/
-theorem truthTable_is_prop_proof_system :
-    Nonempty (IsPropProofSystem truthTableProofSystem) := by
-  sorry
-
-end ProofSystemFrontier
+/- The `IsPropProofSystem` witness is `truthTable_is_prop_proof_system`,
+proved after the pair validator is packaged with `liftValidationToTT`. -/
 
 /-! ## Cluster C/D prep: emit fixed `encodeFormula tautSeed` (TT fail branches) -/
 
@@ -17853,5 +17847,748 @@ end ProofSystemFrontier
 
 
 
+
+
+/-! ## Soft pin: truth table map from the Block A validator
+
+`validatesTautologyResult_on_pair` accepts with `false :: φCode` and rejects
+with `[true]`. `truthTableProofSystem` accepts with `φCode` and rejects with
+`encodeFormula tautSeed`. `liftValidationToTT` is that post-processing:
+drop a leading `false`, otherwise emit the seed. -/
+
+/-- Drop a leading accept bit. Every other tape is the seed tautology encoding. -/
+def liftValidationToTT : List Bool → List Bool
+  | false :: rest => rest
+  | _ => encodeFormula tautSeed
+
+@[simp] theorem liftValidationToTT_false (rest : List Bool) :
+    liftValidationToTT (false :: rest) = rest := rfl
+
+@[simp] theorem liftValidationToTT_nil :
+    liftValidationToTT [] = encodeFormula tautSeed := rfl
+
+@[simp] theorem liftValidationToTT_true (rest : List Bool) :
+    liftValidationToTT (true :: rest) = encodeFormula tautSeed := rfl
+
+/-- The semantic truth table map is the Block A validator post-processed. -/
+theorem truthTableProofSystem_eq_liftValidationToTT (π : List Bool) :
+    truthTableProofSystem π =
+      liftValidationToTT (validatesTautologyResult_on_pair π) := by
+  cases hpair : decodePair π with
+  | none =>
+      rw [validatesTautologyResult_on_pair_of_none hpair, liftValidationToTT_true]
+      simp [truthTableProofSystem, hpair]
+  | some pw =>
+      rcases pw with ⟨φCode, table⟩
+      rw [validatesTautologyResult_on_pair_of_some hpair]
+      cases hφ : decodeFormula φCode with
+      | none =>
+          rw [validatesTautologyResult_of_decode_fail hφ, liftValidationToTT_true]
+          simp [truthTableProofSystem, hpair, hφ]
+      | some φ =>
+          by_cases hval : validatesTautology φ table
+          · rw [validatesTautologyResult_of_valid hφ hval, liftValidationToTT_false,
+              truthTableProofSystem_output_φCode hpair hφ hval]
+          · rw [validatesTautologyResult_of_invalid_table hφ hval, liftValidationToTT_true]
+            simp [truthTableProofSystem, hpair, hφ, hval]
+
+/-- Pair validator output is at most one bit longer than the input. -/
+theorem length_validatesTautologyResult_on_pair_le_outBound (π : List Bool) :
+    (validatesTautologyResult_on_pair π).length ≤
+      afterDecodePairResultOutBound.eval π.length := by
+  simpa [afterDecodePairResultOutBound_eval] using
+    length_validatesTautologyResult_on_pair_le π
+
+inductive LiftTTStack where
+  | inp | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype LiftTTStack where
+  elems := {.inp, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive LiftTTLabel where
+  | read
+  | copy | rev
+  | drain
+  | e0 | e1 | e2 | e3 | e4 | e5 | e6 | e7 | e8 | e9
+  deriving DecidableEq, Repr
+
+instance : Fintype LiftTTLabel where
+  elems := {.read, .copy, .rev, .drain,
+    .e0, .e1, .e2, .e3, .e4, .e5, .e6, .e7, .e8, .e9}
+  complete s := by cases s <;> simp
+
+/-- Strip a leading `false` and copy the rest, or clear the tape and write
+`encodeFormula tautSeed`. Realizes `liftValidationToTT` in `2|s| + 11` steps. -/
+def liftValidationToTTComputer : FinTM2 where
+  K := LiftTTStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := LiftTTLabel
+  main := .read
+  σ := Option Bool
+  initialState := none
+  m
+    | .read =>
+        pop LiftTTStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => LiftTTLabel.e0)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <|
+                goto fun _ => LiftTTLabel.copy)
+              (load (fun _ => none) <|
+                goto fun _ => LiftTTLabel.drain))
+    | .copy =>
+        pop LiftTTStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => LiftTTLabel.rev)
+            (push LiftTTStack.work (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => LiftTTLabel.copy)
+    | .rev =>
+        pop LiftTTStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            halt
+            (push LiftTTStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <|
+                goto fun _ => LiftTTLabel.rev)
+    | .drain =>
+        pop LiftTTStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (goto fun _ => LiftTTLabel.e0)
+            (load (fun _ => none) <|
+              goto fun _ => LiftTTLabel.drain)
+    | .e0 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 9 false) <|
+          goto fun _ => LiftTTLabel.e1
+    | .e1 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 8 false) <|
+          goto fun _ => LiftTTLabel.e2
+    | .e2 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 7 false) <|
+          goto fun _ => LiftTTLabel.e3
+    | .e3 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 6 false) <|
+          goto fun _ => LiftTTLabel.e4
+    | .e4 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 5 false) <|
+          goto fun _ => LiftTTLabel.e5
+    | .e5 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 4 false) <|
+          goto fun _ => LiftTTLabel.e6
+    | .e6 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 3 false) <|
+          goto fun _ => LiftTTLabel.e7
+    | .e7 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 2 false) <|
+          goto fun _ => LiftTTLabel.e8
+    | .e8 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 1 false) <|
+          goto fun _ => LiftTTLabel.e9
+    | .e9 =>
+        push LiftTTStack.out (fun _ =>
+            (encodeFormula tautSeed).getD 0 false) <|
+          load (fun _ => none) halt
+
+def liftStk (inp work out : List Bool) : LiftTTStack → List Bool
+  | .inp => inp
+  | .work => work
+  | .out => out
+
+def liftCfg (l : Option LiftTTLabel) (v : Option Bool)
+    (inp work out : List Bool) : liftValidationToTTComputer.Cfg :=
+  ⟨l, v, liftStk inp work out⟩
+
+theorem lift_step_read_false (rest work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .read) v (false :: rest) work out) =
+      some (liftCfg (some .copy) none rest work out) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.copy, (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_read_true (rest work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .read) v (true :: rest) work out) =
+      some (liftCfg (some .drain) none rest work out) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.drain, (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_read_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .read) v [] work out) =
+      some (liftCfg (some .e0) none [] work out) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e0, (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_copy_cons (b : Bool) (rest work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .copy) v (b :: rest) work out) =
+      some (liftCfg (some .copy) none rest (b :: work) out) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.copy, (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_copy_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .copy) v [] work out) =
+      some (liftCfg (some .rev) none [] work out) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.rev, (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_rev_cons (b : Bool) (rest inp out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .rev) v inp (b :: rest) out) =
+      some (liftCfg (some .rev) none inp rest (b :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.rev, (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_rev_nil (inp out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .rev) v inp [] out) =
+      some (liftCfg none none inp [] out) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option LiftTTLabel), (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_drain_cons (b : Bool) (rest work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .drain) v (b :: rest) work out) =
+      some (liftCfg (some .drain) none rest work out) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.drain, (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_drain_nil (work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .drain) v [] work out) =
+      some (liftCfg (some .e0) none [] work out) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e0, (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e0 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e0) v inp work out) =
+      some (liftCfg (some .e1) v inp work
+        ((encodeFormula tautSeed).getD 9 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e1, v, stk⟩ : liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e1 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e1) v inp work out) =
+      some (liftCfg (some .e2) v inp work
+        ((encodeFormula tautSeed).getD 8 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e2, v, stk⟩ : liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e2 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e2) v inp work out) =
+      some (liftCfg (some .e3) v inp work
+        ((encodeFormula tautSeed).getD 7 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e3, v, stk⟩ : liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e3 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e3) v inp work out) =
+      some (liftCfg (some .e4) v inp work
+        ((encodeFormula tautSeed).getD 6 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e4, v, stk⟩ : liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e4 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e4) v inp work out) =
+      some (liftCfg (some .e5) v inp work
+        ((encodeFormula tautSeed).getD 5 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e5, v, stk⟩ : liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e5 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e5) v inp work out) =
+      some (liftCfg (some .e6) v inp work
+        ((encodeFormula tautSeed).getD 4 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e6, v, stk⟩ : liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e6 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e6) v inp work out) =
+      some (liftCfg (some .e7) v inp work
+        ((encodeFormula tautSeed).getD 3 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e7, v, stk⟩ : liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e7 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e7) v inp work out) =
+      some (liftCfg (some .e8) v inp work
+        ((encodeFormula tautSeed).getD 2 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e8, v, stk⟩ : liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e8 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e8) v inp work out) =
+      some (liftCfg (some .e9) v inp work
+        ((encodeFormula tautSeed).getD 1 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LiftTTLabel.e9, v, stk⟩ : liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem lift_step_e9 (inp work out : List Bool) (v : Option Bool) :
+    TM2.step liftValidationToTTComputer.m
+      (liftCfg (some .e9) v inp work out) =
+      some (liftCfg none none inp work
+        ((encodeFormula tautSeed).getD 0 false :: out)) := by
+  simp [liftValidationToTTComputer, liftCfg, liftStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option LiftTTLabel), (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, liftStk]
+
+theorem liftValidationToTT_initList (s : List Bool) :
+    initList liftValidationToTTComputer s =
+      liftCfg (some .read) none s [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some LiftTTLabel.read, (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [liftValidationToTTComputer, liftStk]
+
+theorem liftValidationToTT_haltList (s : List Bool) :
+    haltList liftValidationToTTComputer s =
+      liftCfg none none [] [] s := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option LiftTTLabel), (none : Option Bool), stk⟩ :
+        liftValidationToTTComputer.Cfg)) ?_
+  funext k; cases k <;> simp [liftValidationToTTComputer, liftStk]
+
+def lift_evals_read_false (rest : List Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .read) none (false :: rest) [] [])
+      (some (liftCfg (some .copy) none rest [] [])) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .read) none (false :: rest) [] [])).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg (some .copy) none rest [] [])
+    simp only [FinTM2.step]
+    exact lift_step_read_false rest [] [] none
+
+def lift_evals_read_true (rest : List Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .read) none (true :: rest) [] [])
+      (some (liftCfg (some .drain) none rest [] [])) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .read) none (true :: rest) [] [])).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg (some .drain) none rest [] [])
+    simp only [FinTM2.step]
+    exact lift_step_read_true rest [] [] none
+
+def lift_evals_read_nil :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .read) none [] [] [])
+      (some (liftCfg (some .e0) none [] [] [])) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .read) none [] [] [])).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg (some .e0) none [] [] [])
+    simp only [FinTM2.step]
+    exact lift_step_read_nil [] [] none
+
+def lift_evals_copy_one (b : Bool) (rest work out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .copy) v (b :: rest) work out)
+      (some (liftCfg (some .copy) none rest (b :: work) out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .copy) v (b :: rest) work out)).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg (some .copy) none rest (b :: work) out)
+    simp only [FinTM2.step]
+    exact lift_step_copy_cons b rest work out v
+
+def lift_evals_copy_nil (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .copy) v [] work out)
+      (some (liftCfg (some .rev) none [] work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .copy) v [] work out)).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg (some .rev) none [] work out)
+    simp only [FinTM2.step]
+    exact lift_step_copy_nil work out v
+
+noncomputable def lift_evals_copy (inp work out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .copy) v inp work out)
+      (some (liftCfg (some .rev) none [] (inp.reverse ++ work) out))
+      (inp.length + 1) := by
+  induction inp generalizing work v with
+  | nil =>
+      simpa using lift_evals_copy_nil work out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans liftValidationToTTComputer.step 1 (bs.length + 1)
+        _ _ _ (lift_evals_copy_one b bs work out v) (ih (b :: work) none)
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+def lift_evals_rev_one (b : Bool) (rest out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .rev) v [] (b :: rest) out)
+      (some (liftCfg (some .rev) none [] rest (b :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .rev) v [] (b :: rest) out)).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg (some .rev) none [] rest (b :: out))
+    simp only [FinTM2.step]
+    exact lift_step_rev_cons b rest [] out v
+
+def lift_evals_rev_nil (out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .rev) v [] [] out)
+      (some (liftCfg none none [] [] out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .rev) v [] [] out)).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg none none [] [] out)
+    simp only [FinTM2.step]
+    exact lift_step_rev_nil [] out v
+
+noncomputable def lift_evals_rev (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .rev) v [] work out)
+      (some (liftCfg none none [] [] (work.reverse ++ out)))
+      (work.length + 1) := by
+  induction work generalizing out v with
+  | nil =>
+      simpa using lift_evals_rev_nil out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans liftValidationToTTComputer.step 1 (bs.length + 1)
+        _ _ _ (lift_evals_rev_one b bs out v) (ih (b :: out) none)
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h
+
+def lift_evals_drain_one (b : Bool) (rest work out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .drain) v (b :: rest) work out)
+      (some (liftCfg (some .drain) none rest work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .drain) v (b :: rest) work out)).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg (some .drain) none rest work out)
+    simp only [FinTM2.step]
+    exact lift_step_drain_cons b rest work out v
+
+def lift_evals_drain_nil (work out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .drain) v [] work out)
+      (some (liftCfg (some .e0) none [] work out)) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .drain) v [] work out)).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg (some .e0) none [] work out)
+    simp only [FinTM2.step]
+    exact lift_step_drain_nil work out v
+
+noncomputable def lift_evals_drain (inp work out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .drain) v inp work out)
+      (some (liftCfg (some .e0) none [] work out))
+      (inp.length + 1) := by
+  induction inp generalizing v with
+  | nil =>
+      simpa using lift_evals_drain_nil work out v
+  | cons b bs ih =>
+      have h := EvalsToInTime.trans liftValidationToTTComputer.step 1 (bs.length + 1)
+        _ _ _ (lift_evals_drain_one b bs work out v) (ih none)
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+def lift_evals_ei (lab next : LiftTTLabel) (bit : Bool)
+    (hstep : ∀ inp work out v,
+      TM2.step liftValidationToTTComputer.m
+        (liftCfg (some lab) v inp work out) =
+        some (liftCfg (some next) v inp work (bit :: out)))
+    (inp work out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some lab) v inp work out)
+      (some (liftCfg (some next) v inp work (bit :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some lab) v inp work out)).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg (some next) v inp work (bit :: out))
+    simp only [FinTM2.step]
+    exact hstep inp work out v
+
+def lift_evals_e9 (inp work out : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .e9) v inp work out)
+      (some (liftCfg none none inp work
+        ((encodeFormula tautSeed).getD 0 false :: out))) 1 where
+  steps := 1
+  steps_le_m := by decide
+  evals_in_steps := by
+    change (some (liftCfg (some .e9) v inp work out)).bind
+        liftValidationToTTComputer.step =
+      some (liftCfg none none inp work
+        ((encodeFormula tautSeed).getD 0 false :: out))
+    simp only [FinTM2.step]
+    exact lift_step_e9 inp work out v
+
+/-- Write the ten seed bits. High index is pushed first, so the head is bit 0. -/
+noncomputable def lift_evals_emit (inp work : List Bool) (v : Option Bool) :
+    EvalsToInTime liftValidationToTTComputer.step
+      (liftCfg (some .e0) v inp work [])
+      (some (liftCfg none none inp work (encodeFormula tautSeed)))
+      10 := by
+  simp only [encodeFormula_tautSeed]
+  have s0 := lift_evals_ei .e0 .e1 false lift_step_e0 inp work [] v
+  have s1 := lift_evals_ei .e1 .e2 false lift_step_e1 inp work [false] v
+  have t1 := EvalsToInTime.trans liftValidationToTTComputer.step 1 1 _ _ _ s0
+    (by simpa [encodeFormula_tautSeed] using s1)
+  have s2 := lift_evals_ei .e2 .e3 false lift_step_e2 inp work
+    [false, false] v
+  have t2 := EvalsToInTime.trans liftValidationToTTComputer.step 2 1 _ _ _ t1
+    (by simpa [encodeFormula_tautSeed] using s2)
+  have s3 := lift_evals_ei .e3 .e4 true lift_step_e3 inp work
+    [false, false, false] v
+  have t3 := EvalsToInTime.trans liftValidationToTTComputer.step 3 1 _ _ _ t2
+    (by simpa [encodeFormula_tautSeed] using s3)
+  have s4 := lift_evals_ei .e4 .e5 false lift_step_e4 inp work
+    [true, false, false, false] v
+  have t4 := EvalsToInTime.trans liftValidationToTTComputer.step 4 1 _ _ _ t3
+    (by simpa [encodeFormula_tautSeed] using s4)
+  have s5 := lift_evals_ei .e5 .e6 false lift_step_e5 inp work
+    [false, true, false, false, false] v
+  have t5 := EvalsToInTime.trans liftValidationToTTComputer.step 5 1 _ _ _ t4
+    (by simpa [encodeFormula_tautSeed] using s5)
+  have s6 := lift_evals_ei .e6 .e7 false lift_step_e6 inp work
+    [false, false, true, false, false, false] v
+  have t6 := EvalsToInTime.trans liftValidationToTTComputer.step 6 1 _ _ _ t5
+    (by simpa [encodeFormula_tautSeed] using s6)
+  have s7 := lift_evals_ei .e7 .e8 false lift_step_e7 inp work
+    [false, false, false, true, false, false, false] v
+  have t7 := EvalsToInTime.trans liftValidationToTTComputer.step 7 1 _ _ _ t6
+    (by simpa [encodeFormula_tautSeed] using s7)
+  have s8 := lift_evals_ei .e8 .e9 true lift_step_e8 inp work
+    [false, false, false, false, true, false, false, false] v
+  have t8 := EvalsToInTime.trans liftValidationToTTComputer.step 8 1 _ _ _ t7
+    (by simpa [encodeFormula_tautSeed] using s8)
+  have s9 := lift_evals_e9 inp work
+    [true, false, false, false, false, true, false, false, false] v
+  have t9 := EvalsToInTime.trans liftValidationToTTComputer.step 9 1 _ _ _ t8
+    (by simpa [encodeFormula_tautSeed] using s9)
+  simpa [encodeFormula_tautSeed] using t9
+
+/-- Full run of the accept-bit stripper and seed emitter. -/
+noncomputable def liftValidationToTT_evals (s : List Bool) :
+    TM2OutputsInTime liftValidationToTTComputer s
+      (some (liftValidationToTT s)) (2 * s.length + 11) := by
+  cases s with
+  | nil =>
+      have hread := lift_evals_read_nil
+      have hemit := lift_evals_emit [] [] none
+      have h := EvalsToInTime.trans liftValidationToTTComputer.step 1 10
+        _ _ _ hread hemit
+      have h' : EvalsToInTime liftValidationToTTComputer.step
+          (initList liftValidationToTTComputer [])
+          (some (haltList liftValidationToTTComputer (encodeFormula tautSeed)))
+          11 := by
+        rw [liftValidationToTT_initList, liftValidationToTT_haltList]
+        simpa [liftValidationToTT] using h
+      exact h'
+  | cons b rest =>
+      cases b with
+      | false =>
+          have hread := lift_evals_read_false rest
+          have hcopy : EvalsToInTime liftValidationToTTComputer.step
+              (liftCfg (some .copy) none rest [] [])
+              (some (liftCfg (some .rev) none [] rest.reverse []))
+              (rest.length + 1) := by
+            simpa [List.append_nil] using lift_evals_copy rest [] [] none
+          have h01 := EvalsToInTime.trans liftValidationToTTComputer.step 1
+            (rest.length + 1) _ _ _ hread hcopy
+          have hrev : EvalsToInTime liftValidationToTTComputer.step
+              (liftCfg (some .rev) none [] rest.reverse [])
+              (some (liftCfg none none [] [] rest))
+              (rest.length + 1) := by
+            simpa [List.reverse_reverse, List.length_reverse, List.append_nil] using
+              lift_evals_rev rest.reverse [] none
+          have h := EvalsToInTime.trans liftValidationToTTComputer.step
+            ((rest.length + 1) + 1) (rest.length + 1) _ _ _ h01 hrev
+          have hbound :=
+            evalsToInTime_le_mono (n := 2 * (false :: rest).length + 11) h
+              (by simp [List.length_cons]; omega)
+          have h' : EvalsToInTime liftValidationToTTComputer.step
+              (initList liftValidationToTTComputer (false :: rest))
+              (some (haltList liftValidationToTTComputer rest))
+              (2 * (false :: rest).length + 11) := by
+            rw [liftValidationToTT_initList, liftValidationToTT_haltList]
+            exact hbound
+          simpa [liftValidationToTT] using h'
+      | true =>
+          have hread := lift_evals_read_true rest
+          have hdrain := lift_evals_drain rest [] [] none
+          have h01 := EvalsToInTime.trans liftValidationToTTComputer.step 1
+            (rest.length + 1) _ _ _ hread hdrain
+          have hemit := lift_evals_emit [] [] none
+          have h := EvalsToInTime.trans liftValidationToTTComputer.step
+            ((rest.length + 1) + 1) 10 _ _ _ h01 hemit
+          have hbound :=
+            evalsToInTime_le_mono (n := 2 * (true :: rest).length + 11) h
+              (by simp [List.length_cons]; omega)
+          have h' : EvalsToInTime liftValidationToTTComputer.step
+              (initList liftValidationToTTComputer (true :: rest))
+              (some (haltList liftValidationToTTComputer (encodeFormula tautSeed)))
+              (2 * (true :: rest).length + 11) := by
+            rw [liftValidationToTT_initList, liftValidationToTT_haltList]
+            exact hbound
+          simpa [liftValidationToTT] using h'
+
+noncomputable def liftValidationToTTTime : Polynomial ℕ := 2 * Polynomial.X + 11
+
+theorem liftValidationToTTTime_eval (n : ℕ) :
+    liftValidationToTTTime.eval n = 2 * n + 11 := by
+  simp [liftValidationToTTTime, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_X, Polynomial.eval_ofNat]
+
+/-- Accept-bit strip or seed emit is poly time. -/
+noncomputable def liftValidationToTTComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc liftValidationToTT where
+  tm := liftValidationToTTComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := liftValidationToTTTime
+  outputsFun s := by
+    change TM2OutputsInTime liftValidationToTTComputer
+      (List.map id (idBitEnc s))
+      (some (List.map id (idBitEnc (liftValidationToTT s))))
+      (liftValidationToTTTime.eval (idBitEnc s).length)
+    simp only [idBitEnc, List.map_id, id_eq, liftValidationToTTTime_eval]
+    exact liftValidationToTT_evals s
+
+/-- Concrete Block A witness, for composition with `liftValidationToTT`. -/
+noncomputable def validatesTautologyResult_on_pairComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      validatesTautologyResult_on_pair := by
+  have hfun : validatesTautologyResult_on_pair =
+      afterDecodePairResult ∘ decodePairResult :=
+    funext validatesTautologyResult_on_pair_eq_afterDecodePairResult_comp
+  rw [hfun]
+  exact comp_idBitEnc_idBitEnc decodePairResultComputableInPolyTime
+    afterDecodePairResultComputableInPolyTime decodePairResultOutBound
+    decodePairResult_length_le_outBound
+
+/-- Truth table map is poly time: Block A validator, then the seed wrapper. -/
+noncomputable def truthTableProofSystemComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc truthTableProofSystem := by
+  have hfun : truthTableProofSystem =
+      liftValidationToTT ∘ validatesTautologyResult_on_pair :=
+    funext truthTableProofSystem_eq_liftValidationToTT
+  rw [hfun]
+  exact comp_idBitEnc_idBitEnc
+    validatesTautologyResult_on_pairComputableInPolyTime
+    liftValidationToTTComputableInPolyTime
+    afterDecodePairResultOutBound
+    length_validatesTautologyResult_on_pair_le_outBound
+
+/-- The truth table map is a propositional proof system. -/
+theorem truthTable_is_prop_proof_system :
+    Nonempty (IsPropProofSystem truthTableProofSystem) :=
+  ⟨{ poly := truthTableProofSystemComputableInPolyTime
+     sound := truthTableProofSystem_sound
+     complete := truthTableProofSystem_complete }⟩
 
 end SATurday.Bridge

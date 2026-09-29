@@ -37,8 +37,8 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       certified 2026-09-09;
       Cluster C2 bitsEqualPair TM2ComputableInPolyTime under encodePair
       certified 2026-09-09;
-      Frontier: per index eval loop FinTM2 and TT map sequencer for
-      truthTable_is_prop_proof_system;
+      per index eval loop FinTM2 and TT map sequencer landed inside
+      validatesTautologyResult_computableInPolyTime;
       Block A 2026-09-26: maxVarOfCode helpers and ADR park-to-mvParse
       Evals certified; mvNat delimiter refund and grow path certified;
       adr_evals_mvNat Evals certified; adr_evals_mvParse_formula
@@ -49,7 +49,9 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       reject scaffold split; all-true pow2 reaches parkWidth;
       park-to-accept and encodePair accept Evals certified;
       afterDecodePairResultComputableInPolyTime packaged;
-      validatesTautologyResult_computableInPolyTime certified 2026-09-29).
+      validatesTautologyResult_computableInPolyTime certified 2026-09-29;
+      truthTable_is_prop_proof_system certified 2026-09-29 via
+      liftValidationToTT composed with the pair validator).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.
