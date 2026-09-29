@@ -1360,6 +1360,178 @@ theorem proofSystemOfNPVerifier_polyBounded (p : Polynomial ℕ)
       Polynomial.eval_X, Polynomial.eval_one, Polynomial.eval_ofNat]
     omega
 
+/-! ## Easy direction FinTM2 scaffolding: strip decode tag, then accept or seed
+
+`decodePairResult` tags success as `false :: π` and failure as `[true]`.
+The post map below mirrors `afterDecodePairResult`: fail tags and reject
+branches emit `encodeFormula tautSeed`; an accepting short witness emits `φ`.
+Packaging `proofSystemOfNPVerifier` is then
+`comp_idBitEnc_idBitEnc` of `decodePairResult` with this post map. -/
+
+/-- Length gate used by the NP verifier proof map. -/
+def lengthOk (p : Polynomial ℕ) (φ w : List Bool) : Bool :=
+  decide (w.length ≤ p.eval φ.length)
+
+theorem lengthOk_iff (p : Polynomial ℕ) (φ w : List Bool) :
+    lengthOk p φ w = true ↔ w.length ≤ p.eval φ.length := by
+  simp [lengthOk]
+
+/-- Combined accept bit: short witness and `V` both succeed. -/
+def acceptWitness (p : Polynomial ℕ) (V : List Bool → List Bool → Bool)
+    (φ w : List Bool) : Bool :=
+  lengthOk p φ w && V φ w
+
+theorem acceptWitness_iff (p : Polynomial ℕ) (V : List Bool → List Bool → Bool)
+    (φ w : List Bool) :
+    acceptWitness p V φ w = true ↔
+      w.length ≤ p.eval φ.length ∧ V φ w = true := by
+  simp [acceptWitness, lengthOk_iff, Bool.and_eq_true]
+
+/-- Post decode map: tagged `decodePairResult` tape to proof system output. -/
+def afterDecodeProofSystem (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool) (s : List Bool) : List Bool :=
+  match decodeDecodePairResult s with
+  | none => encodeFormula tautSeed
+  | some none => encodeFormula tautSeed
+  | some (some (φ, w)) =>
+      if acceptWitness p V φ w then φ else encodeFormula tautSeed
+
+theorem afterDecodeProofSystem_fail_tag (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool) :
+    afterDecodeProofSystem p V [true] = encodeFormula tautSeed := by
+  simp [afterDecodeProofSystem, decodeDecodePairResult]
+
+theorem afterDecodeProofSystem_success (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool) (φ w : List Bool) :
+    afterDecodeProofSystem p V (false :: encodePair (φ, w)) =
+      (if acceptWitness p V φ w then φ else encodeFormula tautSeed) := by
+  simp [afterDecodeProofSystem, decodeDecodePairResult, decodePair_encodePair]
+
+theorem afterDecodeProofSystem_of_decodePairResult (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool) (π : List Bool) :
+    afterDecodeProofSystem p V (decodePairResult π) =
+      proofSystemOfNPVerifier p V π := by
+  cases h : decodePair π with
+  | none =>
+      simp [decodePairResult_of_none h, proofSystemOfNPVerifier, h,
+        afterDecodeProofSystem_fail_tag]
+  | some pw =>
+      rcases pw with ⟨φ, w⟩
+      have henc := encodePair_of_decodePair h
+      subst henc
+      simp [decodePairResult_of_some (decodePair_encodePair (φ, w)),
+        afterDecodeProofSystem_success, proofSystemOfNPVerifier, acceptWitness,
+        lengthOk, decodePair_encodePair]
+
+theorem proofSystemOfNPVerifier_eq_afterDecode_comp (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool) (π : List Bool) :
+    proofSystemOfNPVerifier p V π =
+      (afterDecodeProofSystem p V ∘ decodePairResult) π :=
+  (afterDecodeProofSystem_of_decodePairResult p V π).symm
+
+/-- Output length of `afterDecodeProofSystem` is at most the input length
+(plus a constant seed of length 10). -/
+theorem length_afterDecodeProofSystem_le (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool) (s : List Bool) :
+    (afterDecodeProofSystem p V s).length ≤ s.length + 10 := by
+  unfold afterDecodeProofSystem
+  cases h : decodeDecodePairResult s with
+  | none =>
+      simp [h, length_encodeFormula_tautSeed]
+  | some r =>
+      cases r with
+      | none =>
+          simp [h, length_encodeFormula_tautSeed]
+      | some pw =>
+          rcases pw with ⟨φ, w⟩
+          have hφ : φ.length ≤ s.length := by
+            match s with
+            | [] => simp [decodeDecodePairResult] at h
+            | true :: rest =>
+                cases rest with
+                | nil => simp [decodeDecodePairResult] at h
+                | cons _ _ => simp [decodeDecodePairResult] at h
+            | false :: rest =>
+                simp only [decodeDecodePairResult] at h
+                cases hp : decodePair rest with
+                | none => simp [hp] at h
+                | some p' =>
+                    simp [hp] at h
+                    rcases h with ⟨rfl, rfl⟩
+                    exact Nat.le_trans (length_fst_le_of_decodePair hp)
+                      (Nat.le_succ_of_le le_rfl)
+          cases hacc : acceptWitness p V φ w with
+          | false =>
+              simp [h, hacc, length_encodeFormula_tautSeed]
+          | true =>
+              simp [h, hacc]
+              exact Nat.le_trans hφ (Nat.le_add_right _ 10)
+
+/-- Polynomial out bound for `comp_idBitEnc_idBitEnc` of `decodePairResult`. -/
+noncomputable def afterDecodeProofSystemOutBound : Polynomial ℕ :=
+  Polynomial.X + 10
+
+theorem afterDecodeProofSystemOutBound_eval (n : ℕ) :
+    afterDecodeProofSystemOutBound.eval n = n + 10 := by
+  simp [afterDecodeProofSystemOutBound, Polynomial.eval_add, Polynomial.eval_X,
+    Polynomial.eval_ofNat]
+
+theorem length_afterDecodeProofSystem_le_outBound (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool) (s : List Bool) :
+    (afterDecodeProofSystem p V s).length ≤
+      afterDecodeProofSystemOutBound.eval s.length := by
+  simpa [afterDecodeProofSystemOutBound_eval] using
+    length_afterDecodeProofSystem_le p V s
+
+/-! ## Unary length compare (FinTM2 target for `lengthOk`)
+
+Represent a Nat as a list of `true` bits. Comparing `|w| ≤ B` is lockstep
+consumption of `w` against a unary budget of length `B = p.eval |φ|`. -/
+
+/-- Unary encoding of a natural: `n` copies of `true`. -/
+def unaryNat (n : ℕ) : List Bool := List.replicate n true
+
+theorem length_unaryNat (n : ℕ) : (unaryNat n).length = n := by
+  simp [unaryNat]
+
+theorem unaryNat_succ (n : ℕ) : unaryNat (n + 1) = true :: unaryNat n := by
+  simp [unaryNat, List.replicate_succ]
+
+/-- Lockstep unary compare: `|xs| ≤ |ys|`. -/
+def unaryLE (xs ys : List Bool) : Bool :=
+  match xs, ys with
+  | [], _ => true
+  | _ :: _, [] => false
+  | _ :: xs', _ :: ys' => unaryLE xs' ys'
+
+theorem unaryLE_nil_left (ys : List Bool) : unaryLE [] ys = true := by
+  cases ys <;> rfl
+
+theorem unaryLE_cons_nil (x : Bool) (xs : List Bool) :
+    unaryLE (x :: xs) [] = false := rfl
+
+theorem unaryLE_cons_cons (x y : Bool) (xs ys : List Bool) :
+    unaryLE (x :: xs) (y :: ys) = unaryLE xs ys := rfl
+
+theorem unaryLE_iff (xs ys : List Bool) :
+    unaryLE xs ys = true ↔ xs.length ≤ ys.length := by
+  induction xs generalizing ys with
+  | nil =>
+      cases ys with
+      | nil => simp [unaryLE]
+      | cons y ys => simp [unaryLE]
+  | cons x xs ih =>
+      cases ys with
+      | nil => simp [unaryLE]
+      | cons y ys =>
+          simp only [unaryLE_cons_cons, List.length_cons]
+          rw [ih, Nat.succ_le_succ_iff]
+
+theorem lengthOk_eq_unaryLE (p : Polynomial ℕ) (φ w : List Bool) :
+    lengthOk p φ w = unaryLE w (unaryNat (p.eval φ.length)) := by
+  refine Bool.eq_iff_iff.mpr ?_
+  rw [lengthOk_iff, unaryLE_iff, length_unaryNat]
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
