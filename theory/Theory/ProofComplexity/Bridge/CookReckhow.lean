@@ -1532,6 +1532,322 @@ theorem lengthOk_eq_unaryLE (p : Polynomial ℕ) (φ w : List Bool) :
   refine Bool.eq_iff_iff.mpr ?_
   rw [lengthOk_iff, unaryLE_iff, length_unaryNat]
 
+/-- Unary image of a polynomial evaluation (budget tape for `lengthOk`). -/
+def polyEvalUnary (p : Polynomial ℕ) (n : ℕ) : List Bool :=
+  unaryNat (p.eval n)
+
+theorem length_polyEvalUnary (p : Polynomial ℕ) (n : ℕ) :
+    (polyEvalUnary p n).length = p.eval n := by
+  simp [polyEvalUnary, length_unaryNat]
+
+theorem lengthOk_eq_unaryLE_poly (p : Polynomial ℕ) (φ w : List Bool) :
+    lengthOk p φ w = unaryLE w (polyEvalUnary p φ.length) :=
+  lengthOk_eq_unaryLE p φ w
+
+/-! ## FinTM2: unary length compare under `encodePair`
+
+Load `encodePair (xs, ys)` onto compare stacks (same parse as `bitsEqualComputer`),
+then lockstep pop. If `xs` empties first, emit `true`. If `ys` empties while
+`xs` remains, emit `false`. Realizes `unaryLE xs ys`. -/
+
+open TM2.Stmt
+
+inductive UnaryLEStack where
+  | inp | left | right | out
+  deriving DecidableEq, Repr
+
+instance : Fintype UnaryLEStack where
+  elems := {.inp, .left, .right, .out}
+  complete s := by cases s <;> simp
+
+inductive UnaryLELabel where
+  | parse | expectBit | loadRight | loop | takeRight
+  | acceptDrain | reject | drainRight
+  deriving DecidableEq, Repr
+
+instance : Fintype UnaryLELabel where
+  elems := {.parse, .expectBit, .loadRight, .loop, .takeRight,
+    .acceptDrain, .reject, .drainRight}
+  complete s := by cases s <;> simp
+
+/-- FinTM2 realizing `unaryLE` on `encodePair` inputs. -/
+def unaryLEComputer : FinTM2 where
+  K := UnaryLEStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := UnaryLELabel
+  main := .parse
+  σ := Option Bool
+  initialState := none
+  m
+    | .parse =>
+        pop UnaryLEStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.reject)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => UnaryLELabel.loadRight)
+              (load (fun _ => none) <| goto fun _ => UnaryLELabel.expectBit))
+    | .expectBit =>
+        pop UnaryLEStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.reject)
+            (push UnaryLEStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => UnaryLELabel.parse)
+    | .loadRight =>
+        pop UnaryLEStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.loop)
+            (push UnaryLEStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => UnaryLELabel.loadRight)
+    | .loop =>
+        pop UnaryLEStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.acceptDrain)
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.takeRight)
+    | .takeRight =>
+        pop UnaryLEStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.reject)
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.loop)
+    | .acceptDrain =>
+        pop UnaryLEStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push UnaryLEStack.out (fun _ => true) <|
+              load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.acceptDrain)
+    | .reject =>
+        pop UnaryLEStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.drainRight)
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.reject)
+    | .drainRight =>
+        pop UnaryLEStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (push UnaryLEStack.out (fun _ => false) <|
+              load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => UnaryLELabel.drainRight)
+
+def unaryLEStk (inp left right out : List Bool) : UnaryLEStack → List Bool
+  | .inp => inp
+  | .left => left
+  | .right => right
+  | .out => out
+
+def unaryLECfg (l : Option UnaryLELabel) (v : Option Bool)
+    (left right out : List Bool) : unaryLEComputer.Cfg :=
+  ⟨l, v, unaryLEStk [] left right out⟩
+
+def unaryLECfgInp (l : Option UnaryLELabel) (v : Option Bool)
+    (inp left right out : List Bool) : unaryLEComputer.Cfg :=
+  ⟨l, v, unaryLEStk inp left right out⟩
+
+theorem unaryLE_step_loop_nil (right out : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .loop) none [] right out) =
+      some (unaryLECfg (some .acceptDrain) none [] right out) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.acceptDrain, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_loop_cons (b : Bool) (xs right out : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .loop) none (b :: xs) right out) =
+      some (unaryLECfg (some .takeRight) none xs right out) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.takeRight, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_takeRight_nil (left out : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .takeRight) none left [] out) =
+      some (unaryLECfg (some .reject) none left [] out) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.reject, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_takeRight_cons (left : List Bool) (c : Bool) (ys out : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .takeRight) none left (c :: ys) out) =
+      some (unaryLECfg (some .loop) none left ys out) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.loop, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_acceptDrain_nil :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .acceptDrain) none [] [] []) =
+      some (unaryLECfg none none [] [] [true]) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨none, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_acceptDrain_cons (c : Bool) (ys : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .acceptDrain) none [] (c :: ys) []) =
+      some (unaryLECfg (some .acceptDrain) none [] ys []) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.acceptDrain, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_reject_nil (right : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .reject) none [] right []) =
+      some (unaryLECfg (some .drainRight) none [] right []) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.drainRight, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_reject_cons (b : Bool) (xs right : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .reject) none (b :: xs) right []) =
+      some (unaryLECfg (some .reject) none xs right []) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.reject, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_drainRight_nil :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .drainRight) none [] [] []) =
+      some (unaryLECfg none none [] [] [false]) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨none, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_drainRight_cons (c : Bool) (ys : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfg (some .drainRight) none [] (c :: ys) []) =
+      some (unaryLECfg (some .drainRight) none [] ys []) := by
+  simp [unaryLEComputer, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.drainRight, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_haltList (b : Bool) :
+    haltList unaryLEComputer [b] = unaryLECfg none none [] [] [b] := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option UnaryLELabel), (none : Option Bool), stk⟩ :
+        unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [haltList, unaryLEComputer, unaryLEStk]
+
+/-- One-step eval helper. -/
+def unaryLE_evals_one {c c' : unaryLEComputer.Cfg}
+    (h : TM2.step unaryLEComputer.m c = some c') :
+    EvalsToInTime unaryLEComputer.step c (some c') 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change (some c).bind unaryLEComputer.step = some c'
+    simpa [FinTM2.step] using h
+
+/-- Drain leftover right stack then emit `false`. -/
+def unaryLE_evals_drain (ys : List Bool) :
+    EvalsToInTime unaryLEComputer.step
+      (unaryLECfg (some .drainRight) none [] ys [])
+      (some (haltList unaryLEComputer [false]))
+      (ys.length + 1) := by
+  induction ys with
+  | nil =>
+      have h := unaryLE_evals_one (unaryLE_step_drainRight_nil)
+      simpa [unaryLE_haltList] using h
+  | cons c ys ih =>
+      have h1 := unaryLE_evals_one (unaryLE_step_drainRight_cons c ys)
+      exact EvalsToInTime.trans unaryLEComputer.step 1 (ys.length + 1)
+        _ _ _ h1 ih
+
+/-- Drain leftover right stack then emit `true`. -/
+def unaryLE_evals_acceptDrain (ys : List Bool) :
+    EvalsToInTime unaryLEComputer.step
+      (unaryLECfg (some .acceptDrain) none [] ys [])
+      (some (haltList unaryLEComputer [true]))
+      (ys.length + 1) := by
+  induction ys with
+  | nil =>
+      have h := unaryLE_evals_one (unaryLE_step_acceptDrain_nil)
+      simpa [unaryLE_haltList] using h
+  | cons c ys ih =>
+      have h1 := unaryLE_evals_one (unaryLE_step_acceptDrain_cons c ys)
+      exact EvalsToInTime.trans unaryLEComputer.step 1 (ys.length + 1)
+        _ _ _ h1 ih
+
+/-- Drain leftover left then right, emit `false`. -/
+def unaryLE_evals_reject (xs ys : List Bool) :
+    EvalsToInTime unaryLEComputer.step
+      (unaryLECfg (some .reject) none xs ys [])
+      (some (haltList unaryLEComputer [false]))
+      (xs.length + ys.length + 2) := by
+  induction xs generalizing ys with
+  | nil =>
+      have h0 := unaryLE_evals_one (unaryLE_step_reject_nil ys)
+      have h1 := unaryLE_evals_drain ys
+      have h := EvalsToInTime.trans unaryLEComputer.step 1 (ys.length + 1)
+        _ _ _ h0 h1
+      exact evalsToInTime_le_mono h (by omega)
+  | cons b xs ih =>
+      have h1 := unaryLE_evals_one (unaryLE_step_reject_cons b xs ys)
+      have h2 := ih ys
+      have h := EvalsToInTime.trans unaryLEComputer.step 1
+        (xs.length + ys.length + 2) _ _ _ h1 h2
+      convert h using 1
+      simp [List.length_cons]
+      ring
+
+/-- Lockstep compare from `loop`. -/
+def unaryLE_evals_loop (xs ys : List Bool) :
+    EvalsToInTime unaryLEComputer.step
+      (unaryLECfg (some .loop) none xs ys [])
+      (some (haltList unaryLEComputer [unaryLE xs ys]))
+      (2 * xs.length + ys.length + 2) := by
+  induction xs generalizing ys with
+  | nil =>
+      have h0 := unaryLE_evals_one (unaryLE_step_loop_nil ys [])
+      have h1 := unaryLE_evals_acceptDrain ys
+      have h := EvalsToInTime.trans unaryLEComputer.step 1 (ys.length + 1)
+        _ _ _ h0 h1
+      simpa [unaryLE_nil_left] using evalsToInTime_le_mono h (by omega)
+  | cons b xs ih =>
+      have h1 := unaryLE_evals_one (unaryLE_step_loop_cons b xs ys [])
+      cases ys with
+      | nil =>
+          have h2 := unaryLE_evals_one (unaryLE_step_takeRight_nil xs [])
+          have h01 := EvalsToInTime.trans unaryLEComputer.step 1 1 _ _ _ h1 h2
+          have h3 := unaryLE_evals_reject xs []
+          have h := EvalsToInTime.trans unaryLEComputer.step 2
+            (xs.length + 2) _ _ _ h01 h3
+          have hle : xs.length + 2 + 2 ≤ 2 * (b :: xs).length + 2 := by
+            simp [List.length_cons]; omega
+          simpa [unaryLE_cons_nil] using evalsToInTime_le_mono h hle
+      | cons c ys =>
+          have h2 := unaryLE_evals_one (unaryLE_step_takeRight_cons xs c ys [])
+          have h01 := EvalsToInTime.trans unaryLEComputer.step 1 1 _ _ _ h1 h2
+          have h3 := ih ys
+          have h := EvalsToInTime.trans unaryLEComputer.step 2
+            (2 * xs.length + ys.length + 2) _ _ _ h01 h3
+          have hle :
+              2 * xs.length + ys.length + 2 + 2 ≤
+                2 * (b :: xs).length + (c :: ys).length + 2 := by
+            simp [List.length_cons]; omega
+          simpa [unaryLE_cons_cons] using evalsToInTime_le_mono h hle
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
