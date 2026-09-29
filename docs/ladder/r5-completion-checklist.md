@@ -1,10 +1,13 @@
 # R5 completion plan (manual)
 
-Status: active (diverted from `satday auto`; sticky formalize force cleared)
+Status: active (Block C in progress; diverted from `satday auto`)
 
 **Constraint:** Bridge pins A and B are closed. No `sorry` remains in
 `theory/Theory/ProofComplexity/Bridge/ProofSystem.lean`. Do not invent
-`Turing.*` names. Block C (`CookReckhow.lean`) is next. Do not restart
+`Turing.*` names. Block C (`CookReckhow.lean`) is open: theorem 2 and
+`TAUT ∈ coNP` are certified; the FinTM2 packaging of
+`proofSystemOfNPVerifier` (easy direction of theorem 1) and the
+Cook Levin reduction (hard direction) remain. Do not restart
 `satday auto` until C is certified.
 
 ## Files
@@ -122,12 +125,18 @@ Status: active (diverted from `satday auto`; sticky formalize force cleared)
 
 ### C. R5 finish (after A+B)
 
-- [ ] Add `CookReckhow.lean`: bridge theorems 1–2 + summit corollary from
-  pinned Complexity + ProofSystem
-- [ ] Wire into `Theory.lean`; axiom gate PASS; zero Bridge sorries
-- [ ] Update rung memory; mark R5 certified
+- [x] Add `CookReckhow.lean` with bridge theorem 2 and `TAUT_in_coNP`
+  (`sanitizeComputer` lifted decode + eval + notBit; axiom gate PASS)
+- [ ] Easy direction of theorem 1: package `proofSystemOfNPVerifier` as
+  `TM2ComputableInPolyTime idBitEnc idBitEnc` (functional sound,
+  complete, and polyBound lemmas are certified;
+  `summit_corollary_of_easy` waits on this packaging)
+- [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
+  (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
+  certified; class equality needs the reduction)
+- [x] Wire into `Theory.lean`; axiom gate PASS; zero Bridge sorries
+- [ ] Update rung memory; mark R5 certified (blocked on theorem 1)
 - [ ] Only then consider `satday auto` again
-
 ## Order rule
 
 A → B → C. Soft pin is blocked on A's poly witness. One micro-lemma commit

@@ -2365,3 +2365,21 @@ SATurday.ProofComplexity.TseitinFrontier.exists_cubic_hasExpansionInv_family
 SATurday.ProofComplexity.TseitinFrontier.exists_tseitin_inv_expander_hard_family
 SATurday.ProofComplexity.exists_cs_clause_expanding_3cnf_of_tseitin_inv
 SATurday.ProofComplexity.CSExpansionFrontier.exists_cs_clause_expanding_3cnf
+# R5 Block C CookReckhow (2026-09-29)
+SATurday.Bridge.bridge_theorem_2
+SATurday.Bridge.tautComplV
+SATurday.Bridge.sanitizeInput
+SATurday.Bridge.tautComplV_witness
+SATurday.Bridge.sanitizeComputableInPolyTime
+SATurday.Bridge.tautComplComputableInPolyTime
+SATurday.Bridge.tautComplWitnessBound
+SATurday.Bridge.TAUT_in_coNP
+SATurday.Bridge.proofCheck
+SATurday.Bridge.proofCheck_iff
+SATurday.Bridge.TAUT_short_proofs_of_polyBounded
+SATurday.Bridge.TAUT_short_proofs_of_polyBounded'
+SATurday.Bridge.proofSystemOfNPVerifier
+SATurday.Bridge.proofSystemOfNPVerifier_sound
+SATurday.Bridge.proofSystemOfNPVerifier_complete
+SATurday.Bridge.proofSystemOfNPVerifier_polyBounded
+SATurday.Bridge.summit_corollary_of_easy

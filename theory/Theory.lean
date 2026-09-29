@@ -17,6 +17,7 @@ import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding
 import Theory.ProofComplexity.Bridge.ProofSystem
+import Theory.ProofComplexity.Bridge.CookReckhow
 
 /-!
 # SATurday Theory Library
