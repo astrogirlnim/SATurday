@@ -2295,6 +2295,576 @@ noncomputable def toUnaryComputableInPolyTime :
     simp only [idBitEnc, List.map_id, id_eq, toUnaryTime_eval]
     exact toUnary_evals s
 
+/-! ## FinTM2: `unaryMul` under `encodePair`
+
+For each bit of the right tape, copy the left tape onto `out` (restoring left
+via `work`). Realizes `n.flatMap (fun _ => acc)`. -/
+
+inductive UnaryMulStack where
+  | inp | left | right | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype UnaryMulStack where
+  elems := {.inp, .left, .right, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive UnaryMulLabel where
+  | parse | expectBit | loadRight | loop | moveWork | writeOut | haltDrain
+  deriving DecidableEq, Repr
+
+instance : Fintype UnaryMulLabel where
+  elems := {.parse, .expectBit, .loadRight, .loop, .moveWork, .writeOut, .haltDrain}
+  complete s := by cases s <;> simp
+
+/-- FinTM2 realizing `unaryMul` on `encodePair (acc, n)`. -/
+def unaryMulComputer : FinTM2 where
+  K := UnaryMulStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := UnaryMulLabel
+  main := .parse
+  σ := Option Bool
+  initialState := none
+  m
+    | .parse =>
+        pop UnaryMulStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryMulLabel.haltDrain)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => UnaryMulLabel.loadRight)
+              (load (fun _ => none) <| goto fun _ => UnaryMulLabel.expectBit))
+    | .expectBit =>
+        pop UnaryMulStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryMulLabel.haltDrain)
+            (push UnaryMulStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => UnaryMulLabel.parse)
+    | .loadRight =>
+        pop UnaryMulStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryMulLabel.loop)
+            (push UnaryMulStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => UnaryMulLabel.loadRight)
+    | .loop =>
+        pop UnaryMulStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryMulLabel.haltDrain)
+            (load (fun _ => none) <| goto fun _ => UnaryMulLabel.moveWork)
+    | .moveWork =>
+        pop UnaryMulStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryMulLabel.writeOut)
+            (push UnaryMulStack.work (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => UnaryMulLabel.moveWork)
+    | .writeOut =>
+        pop UnaryMulStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => UnaryMulLabel.loop)
+            (push UnaryMulStack.left (fun s => s.getD false) <|
+              push UnaryMulStack.out (fun s => s.getD false) <|
+                load (fun _ => none) <| goto fun _ => UnaryMulLabel.writeOut)
+    | .haltDrain =>
+        -- discard leftover left/work/right; leave `out` as the product
+        pop UnaryMulStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (pop UnaryMulStack.work (fun _ o => o) <|
+              branch (fun s => decide (s = none))
+                (pop UnaryMulStack.right (fun _ o => o) <|
+                  branch (fun s => decide (s = none))
+                    (load (fun _ => none) halt)
+                    (load (fun _ => none) <| goto fun _ => UnaryMulLabel.haltDrain))
+                (load (fun _ => none) <| goto fun _ => UnaryMulLabel.haltDrain))
+            (load (fun _ => none) <| goto fun _ => UnaryMulLabel.haltDrain)
+
+def unaryMulStk (inp left right work out : List Bool) : UnaryMulStack → List Bool
+  | .inp => inp
+  | .left => left
+  | .right => right
+  | .work => work
+  | .out => out
+
+def unaryMulCfg (l : Option UnaryMulLabel) (v : Option Bool)
+    (left right work out : List Bool) : unaryMulComputer.Cfg :=
+  ⟨l, v, unaryMulStk [] left right work out⟩
+
+def unaryMulCfgInp (l : Option UnaryMulLabel) (v : Option Bool)
+    (inp left right work out : List Bool) : unaryMulComputer.Cfg :=
+  ⟨l, v, unaryMulStk inp left right work out⟩
+
+theorem unaryMul_step_loop_nil (left work out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfg (some .loop) none left [] work out) =
+      some (unaryMulCfg (some .haltDrain) none left [] work out) := by
+  simp [unaryMulComputer, unaryMulCfg, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.haltDrain, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_loop_cons (c : Bool) (ys left work out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfg (some .loop) none left (c :: ys) work out) =
+      some (unaryMulCfg (some .moveWork) none left ys work out) := by
+  simp [unaryMulComputer, unaryMulCfg, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.moveWork, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_moveWork_nil (right work out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfg (some .moveWork) none [] right work out) =
+      some (unaryMulCfg (some .writeOut) none [] right work out) := by
+  simp [unaryMulComputer, unaryMulCfg, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.writeOut, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_moveWork_cons (b : Bool) (xs right work out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfg (some .moveWork) none (b :: xs) right work out) =
+      some (unaryMulCfg (some .moveWork) none xs right (b :: work) out) := by
+  simp [unaryMulComputer, unaryMulCfg, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.moveWork, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_writeOut_nil (left right out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfg (some .writeOut) none left right [] out) =
+      some (unaryMulCfg (some .loop) none left right [] out) := by
+  simp [unaryMulComputer, unaryMulCfg, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.loop, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_writeOut_cons (b : Bool) (ws left right out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfg (some .writeOut) none left right (b :: ws) out) =
+      some (unaryMulCfg (some .writeOut) none (b :: left) right ws (b :: out)) := by
+  simp [unaryMulComputer, unaryMulCfg, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.writeOut, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_haltDrain_all_nil (out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfg (some .haltDrain) none [] [] [] out) =
+      some (unaryMulCfg none none [] [] [] out) := by
+  simp [unaryMulComputer, unaryMulCfg, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option UnaryMulLabel), none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+def unaryMul_evals_one {c c' : unaryMulComputer.Cfg}
+    (h : TM2.step unaryMulComputer.m c = some c') :
+    EvalsToInTime unaryMulComputer.step c (some c') 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change (some c).bind unaryMulComputer.step = some c'
+    simpa [FinTM2.step] using h
+
+/-- Move all of `left` onto `work` (reversing). -/
+def unaryMul_evals_moveWork (left right work out : List Bool) :
+    EvalsToInTime unaryMulComputer.step
+      (unaryMulCfg (some .moveWork) none left right work out)
+      (some (unaryMulCfg (some .writeOut) none [] right
+        (List.reverse left ++ work) out))
+      (left.length + 1) := by
+  induction left generalizing work with
+  | nil =>
+      simpa using unaryMul_evals_one (unaryMul_step_moveWork_nil right work out)
+  | cons b xs ih =>
+      have h1 := unaryMul_evals_one
+        (unaryMul_step_moveWork_cons b xs right work out)
+      have h2 := ih (b :: work)
+      have h := EvalsToInTime.trans unaryMulComputer.step 1 (xs.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, List.length_cons,
+        Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+/-- Restore `work` onto `left` while copying each bit to `out`. -/
+def unaryMul_evals_writeOut (left right work out : List Bool) :
+    EvalsToInTime unaryMulComputer.step
+      (unaryMulCfg (some .writeOut) none left right work out)
+      (some (unaryMulCfg (some .loop) none
+        (List.reverse work ++ left) right []
+        (List.reverse work ++ out)))
+      (work.length + 1) := by
+  induction work generalizing left out with
+  | nil =>
+      simpa using unaryMul_evals_one
+        (unaryMul_step_writeOut_nil left right out)
+  | cons b ws ih =>
+      have h1 := unaryMul_evals_one
+        (unaryMul_step_writeOut_cons b ws left right out)
+      have h2 := ih (b :: left) (b :: out)
+      have h := EvalsToInTime.trans unaryMulComputer.step 1 (ws.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, List.length_cons,
+        Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+/-- One right-bit: copy `left` onto `out` (left restored). -/
+def unaryMul_evals_one_right (left : List Bool) (c : Bool) (ys out : List Bool) :
+    EvalsToInTime unaryMulComputer.step
+      (unaryMulCfg (some .loop) none left (c :: ys) [] out)
+      (some (unaryMulCfg (some .loop) none left ys []
+        (left ++ out)))
+      (2 * left.length + 3) := by
+  have h1 := unaryMul_evals_one
+    (unaryMul_step_loop_cons c ys left [] out)
+  have h2 := unaryMul_evals_moveWork left ys [] out
+  have h12 := EvalsToInTime.trans unaryMulComputer.step 1 (left.length + 1)
+    _ _ _ h1 h2
+  have h12' : EvalsToInTime unaryMulComputer.step
+      (unaryMulCfg (some .loop) none left (c :: ys) [] out)
+      (some (unaryMulCfg (some .writeOut) none [] ys (List.reverse left) out))
+      (left.length + 1 + 1) := by
+    simpa [List.append_nil] using h12
+  have h3 := unaryMul_evals_writeOut [] ys (List.reverse left) out
+  have h := EvalsToInTime.trans unaryMulComputer.step
+    (left.length + 1 + 1) ((List.reverse left).length + 1)
+    _ _ _ h12' h3
+  have hrev : List.reverse (List.reverse left) = left := List.reverse_reverse left
+  simpa [hrev, List.append_nil, List.length_reverse, two_mul, Nat.succ_eq_add_one,
+    Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using
+    evalsToInTime_le_mono h (by simp [List.length_reverse]; omega)
+
+/-- `foldr` copy-blocks commute past a leading `left ++`. -/
+theorem foldr_left_append_comm (left ys out : List Bool) :
+    List.foldr (fun _ acc => left ++ acc) (left ++ out) ys =
+      left ++ List.foldr (fun _ acc => left ++ acc) out ys := by
+  induction ys generalizing out with
+  | nil => simp [List.foldr]
+  | cons _ ys ih =>
+      simp only [List.foldr]
+      rw [ih]
+
+/-- Drain right tape, copying left once per right bit. -/
+def unaryMul_evals_loop (left right out : List Bool) :
+    EvalsToInTime unaryMulComputer.step
+      (unaryMulCfg (some .loop) none left right [] out)
+      (some (unaryMulCfg (some .haltDrain) none left [] []
+        (List.foldr (fun _ acc => left ++ acc) out right)))
+      (right.length * (2 * left.length + 3) + 1) := by
+  induction right generalizing out with
+  | nil =>
+      simpa [List.foldr] using
+        unaryMul_evals_one (unaryMul_step_loop_nil left [] out)
+  | cons c ys ih =>
+      have h1 := unaryMul_evals_one_right left c ys out
+      have h2 := ih (left ++ out)
+      have h2' : EvalsToInTime unaryMulComputer.step
+          (unaryMulCfg (some .loop) none left ys [] (left ++ out))
+          (some (unaryMulCfg (some .haltDrain) none left [] []
+            (left ++ List.foldr (fun _ acc => left ++ acc) out ys)))
+          (ys.length * (2 * left.length + 3) + 1) := by
+        simpa [foldr_left_append_comm left ys out] using h2
+      have h := EvalsToInTime.trans unaryMulComputer.step
+        (2 * left.length + 3)
+        (ys.length * (2 * left.length + 3) + 1)
+        _ _ _ h1 h2'
+      have htime :
+          (ys.length * (2 * left.length + 3) + 1) + (2 * left.length + 3) =
+            (c :: ys).length * (2 * left.length + 3) + 1 := by
+        simp [List.length_cons]; ring
+      simpa [List.foldr] using evalsToInTime_le_mono h (le_of_eq htime)
+
+theorem foldr_left_append_eq_flatMap (left right out : List Bool) :
+    List.foldr (fun _ acc => left ++ acc) out right =
+      right.flatMap (fun _ => left) ++ out := by
+  induction right generalizing out with
+  | nil => simp [List.flatMap]
+  | cons _ ys ih =>
+      simp [List.foldr, List.flatMap_cons, ih, List.append_assoc]
+
+theorem unaryMul_step_halt_clean (out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfg (some .haltDrain) none [] [] [] out) =
+      some (unaryMulCfg none none [] [] [] out) :=
+  unaryMul_step_haltDrain_all_nil out
+
+/-- After loop, haltDrain with empty aux stacks finishes in one step. -/
+def unaryMul_evals_halt (left out : List Bool) :
+    EvalsToInTime unaryMulComputer.step
+      (unaryMulCfg (some .haltDrain) none left [] [] out)
+      (some (unaryMulCfg none none [] [] [] out))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      exact unaryMul_evals_one (unaryMul_step_halt_clean out)
+  | cons b xs ih =>
+      have h1 : EvalsToInTime unaryMulComputer.step
+          (unaryMulCfg (some .haltDrain) none (b :: xs) [] [] out)
+          (some (unaryMulCfg (some .haltDrain) none xs [] [] out)) 1 := by
+        refine unaryMul_evals_one ?_
+        simp [unaryMulComputer, unaryMulCfg, unaryMulStk, TM2.step, TM2.stepAux]
+        refine congrArg some <|
+          congrArg (fun stk =>
+            (⟨some UnaryMulLabel.haltDrain, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+        funext k; cases k <;> simp [Function.update, unaryMulStk]
+      have h := EvalsToInTime.trans unaryMulComputer.step 1 (xs.length + 1)
+        _ _ _ h1 (ih out)
+      simpa [List.length_cons, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+/-! ### encodePair load for unaryMul (mirror unaryLE load) -/
+
+theorem unaryMul_step_parse_false (rest left right work out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfgInp (some .parse) none (false :: rest) left right work out) =
+      some (unaryMulCfgInp (some .loadRight) none rest left right work out) := by
+  simp [unaryMulComputer, unaryMulCfgInp, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.loadRight, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_parse_true (b : Bool) (rest left right work out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfgInp (some .parse) none (true :: b :: rest) left right work out) =
+      some (unaryMulCfgInp (some .expectBit) none (b :: rest) left right work out) := by
+  simp [unaryMulComputer, unaryMulCfgInp, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.expectBit, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_expectBit (b : Bool) (rest left right work out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfgInp (some .expectBit) none (b :: rest) left right work out) =
+      some (unaryMulCfgInp (some .parse) none rest (b :: left) right work out) := by
+  simp [unaryMulComputer, unaryMulCfgInp, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.parse, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_loadRight_cons (b : Bool) (rest left right work out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfgInp (some .loadRight) none (b :: rest) left right work out) =
+      some (unaryMulCfgInp (some .loadRight) none rest left (b :: right) work out) := by
+  simp [unaryMulComputer, unaryMulCfgInp, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.loadRight, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_step_loadRight_nil (left right work out : List Bool) :
+    TM2.step unaryMulComputer.m
+      (unaryMulCfgInp (some .loadRight) none [] left right work out) =
+      some (unaryMulCfg (some .loop) none left right work out) := by
+  simp [unaryMulComputer, unaryMulCfgInp, unaryMulCfg, unaryMulStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryMulLabel.loop, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryMulStk]
+
+theorem unaryMul_initList (s : List Bool) :
+    initList unaryMulComputer s =
+      unaryMulCfgInp (some .parse) none s [] [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some UnaryMulLabel.parse, none, stk⟩ : unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [unaryMulComputer, unaryMulStk]
+
+theorem unaryMul_haltList (out : List Bool) :
+    haltList unaryMulComputer out =
+      unaryMulCfg none none [] [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option UnaryMulLabel), (none : Option Bool), stk⟩ :
+        unaryMulComputer.Cfg)) ?_
+  funext k; cases k <;> simp [haltList, unaryMulComputer, unaryMulStk]
+
+def unaryMul_evals_parse_one (b : Bool) (rest left right work out : List Bool) :
+    EvalsToInTime unaryMulComputer.step
+      (unaryMulCfgInp (some .parse) none (true :: b :: rest) left right work out)
+      (some (unaryMulCfgInp (some .parse) none rest (b :: left) right work out))
+      2 := by
+  have h1 := unaryMul_evals_one
+    (unaryMul_step_parse_true b rest left right work out)
+  have h2 := unaryMul_evals_one
+    (unaryMul_step_expectBit b rest left right work out)
+  exact EvalsToInTime.trans unaryMulComputer.step 1 1 _ _ _ h1 h2
+
+noncomputable def unaryMul_evals_parse (xs rest left right work out : List Bool) :
+    EvalsToInTime unaryMulComputer.step
+      (unaryMulCfgInp (some .parse) none
+        ((xs.flatMap fun b => [true, b]) ++ rest) left right work out)
+      (some (unaryMulCfgInp (some .parse) none rest
+        (xs.reverse ++ left) right work out))
+      (2 * xs.length) := by
+  induction xs generalizing left with
+  | nil =>
+      simpa using EvalsToInTime.refl unaryMulComputer.step
+        (unaryMulCfgInp (some .parse) none rest left right work out)
+  | cons b xs ih =>
+      have h1 := unaryMul_evals_parse_one b
+        ((xs.flatMap fun c => [true, c]) ++ rest) left right work out
+      have h2 := ih (b :: left)
+      have h := EvalsToInTime.trans unaryMulComputer.step 2 (2 * xs.length)
+        _ _ _ h1 (by simpa [List.append_assoc] using h2)
+      simpa [List.length_cons, List.reverse_cons, two_mul, Nat.succ_eq_add_one]
+        using evalsToInTime_le_mono h (by omega)
+
+noncomputable def unaryMul_evals_loadRight (ys left right work out : List Bool) :
+    EvalsToInTime unaryMulComputer.step
+      (unaryMulCfgInp (some .loadRight) none ys left right work out)
+      (some (unaryMulCfg (some .loop) none left (ys.reverse ++ right) work out))
+      (ys.length + 1) := by
+  induction ys generalizing right with
+  | nil =>
+      exact unaryMul_evals_one
+        (unaryMul_step_loadRight_nil left right work out)
+  | cons y ys ih =>
+      have h1 := unaryMul_evals_one
+        (unaryMul_step_loadRight_cons y ys left right work out)
+      have h2 := ih (y :: right)
+      exact EvalsToInTime.trans unaryMulComputer.step 1 (ys.length + 1)
+        _ _ _ h1 (by simpa [List.reverse_cons] using h2)
+
+/-- Parse load lands in loop with reversed stacks. -/
+noncomputable def unaryMul_evals_load_encodePair (xs ys : List Bool) :
+    EvalsToInTime unaryMulComputer.step
+      (unaryMulCfgInp (some .parse) none (encodePair (xs, ys)) [] [] [] [])
+      (some (unaryMulCfg (some .loop) none xs.reverse ys.reverse [] []))
+      (2 * xs.length + ys.length + 2) := by
+  have hparse := unaryMul_evals_parse xs (false :: ys) [] [] [] []
+  have h1 : EvalsToInTime unaryMulComputer.step
+      (unaryMulCfgInp (some .parse) none (encodePair (xs, ys)) [] [] [] [])
+      (some (unaryMulCfgInp (some .parse) none (false :: ys) xs.reverse [] [] []))
+      (2 * xs.length) := by
+    simpa [encodePair, List.append_assoc] using hparse
+  have hfalse := unaryMul_evals_one
+    (unaryMul_step_parse_false ys xs.reverse [] [] [])
+  have h12 :=
+    EvalsToInTime.trans unaryMulComputer.step (2 * xs.length) 1 _ _ _ h1 hfalse
+  have h12' : EvalsToInTime unaryMulComputer.step
+      (unaryMulCfgInp (some .parse) none (encodePair (xs, ys)) [] [] [] [])
+      (some (unaryMulCfgInp (some .loadRight) none ys xs.reverse [] [] []))
+      (2 * xs.length + 1) := by
+    simpa [Nat.add_comm] using h12
+  have hload := unaryMul_evals_loadRight ys xs.reverse [] [] []
+  have h :=
+    EvalsToInTime.trans unaryMulComputer.step (2 * xs.length + 1) (ys.length + 1)
+      _ _ _ h12' hload
+  refine ⟨⟨h.steps, ?_⟩, ?_⟩
+  · simpa [List.append_nil] using h.evals_in_steps
+  · refine le_trans h.steps_le_m ?_
+    omega
+
+/-- Parse reverses both tapes; machine then emits `(unaryMul xs ys).reverse`. -/
+theorem unaryMul_reverse (xs ys : List Bool) :
+    unaryMul xs.reverse ys.reverse = (unaryMul xs ys).reverse := by
+  simp only [unaryMul]
+  induction ys with
+  | nil => simp [List.flatMap]
+  | cons _ ys ih =>
+      simp [List.reverse_cons, List.flatMap_cons, List.reverse_append, ih]
+
+/-- Full run: emit `(unaryMul xs ys).reverse` under `encodePair`. -/
+noncomputable def unaryMul_evals (xs ys : List Bool) :
+    TM2OutputsInTime unaryMulComputer (encodePair (xs, ys))
+      (some (unaryMul xs ys).reverse)
+      ((xs.length + 1) +
+        ((ys.length * (2 * xs.length + 3) + 1) + (2 * xs.length + ys.length + 2))) := by
+  have hload := unaryMul_evals_load_encodePair xs ys
+  have hloop0 := unaryMul_evals_loop xs.reverse ys.reverse []
+  have hout :
+      List.foldr (fun _ acc => xs.reverse ++ acc) [] ys.reverse =
+        (unaryMul xs ys).reverse := by
+    rw [foldr_left_append_eq_flatMap, List.append_nil, ← unaryMul,
+      unaryMul_reverse]
+  have hloop : EvalsToInTime unaryMulComputer.step
+      (unaryMulCfg (some .loop) none xs.reverse ys.reverse [] [])
+      (some (unaryMulCfg (some .haltDrain) none xs.reverse [] []
+        (unaryMul xs ys).reverse))
+      (ys.length * (2 * xs.length + 3) + 1) := by
+    simpa [List.length_reverse, hout] using hloop0
+  have hhalt0 := unaryMul_evals_halt xs.reverse (unaryMul xs ys).reverse
+  have hhalt : EvalsToInTime unaryMulComputer.step
+      (unaryMulCfg (some .haltDrain) none xs.reverse [] []
+        (unaryMul xs ys).reverse)
+      (some (haltList unaryMulComputer (unaryMul xs ys).reverse))
+      (xs.length + 1) := by
+    simpa [List.length_reverse, unaryMul_haltList] using hhalt0
+  have h1 : EvalsToInTime unaryMulComputer.step
+      (initList unaryMulComputer (encodePair (xs, ys)))
+      (some (unaryMulCfg (some .loop) none xs.reverse ys.reverse [] []))
+      (2 * xs.length + ys.length + 2) := by
+    simpa [unaryMul_initList] using hload
+  have h12 := EvalsToInTime.trans unaryMulComputer.step
+    (2 * xs.length + ys.length + 2)
+    (ys.length * (2 * xs.length + 3) + 1)
+    _ _ _ h1 hloop
+  have h := EvalsToInTime.trans unaryMulComputer.step
+    ((ys.length * (2 * xs.length + 3) + 1) + (2 * xs.length + ys.length + 2))
+    (xs.length + 1)
+    _ _ _ h12 hhalt
+  exact ⟨⟨h.steps, h.evals_in_steps⟩, h.steps_le_m⟩
+
+/-- Quadratic time bound in `|encodePair|`. -/
+noncomputable def unaryMulTime : Polynomial ℕ :=
+  2 * Polynomial.X ^ 2 + 7 * Polynomial.X + 4
+
+theorem unaryMulTime_eval (n : ℕ) :
+    unaryMulTime.eval n = 2 * n ^ 2 + 7 * n + 4 := by
+  simp [unaryMulTime, pow_two, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_X, Polynomial.eval_ofNat]
+
+theorem unaryMulTime_bound (xs ys : List Bool) :
+    (xs.length + 1) +
+      ((ys.length * (2 * xs.length + 3) + 1) + (2 * xs.length + ys.length + 2)) ≤
+      unaryMulTime.eval (encodePair (xs, ys)).length := by
+  simp [unaryMulTime_eval, length_encodePair]
+  have hxs : xs.length ≤ 2 * xs.length + ys.length + 1 := by omega
+  have hys : ys.length ≤ 2 * xs.length + ys.length + 1 := by omega
+  have hprod : xs.length * ys.length ≤
+      (2 * xs.length + ys.length + 1) * (2 * xs.length + ys.length + 1) :=
+    Nat.mul_le_mul hxs hys
+  nlinarith
+
+/-- `unaryMul` under `encodePair`, emitting the reverse (identity on unary tapes). -/
+noncomputable def unaryMulRevComputableInPolyTime :
+    TM2ComputableInPolyTime encodePair idBitEnc
+      (fun p => (unaryMul p.1 p.2).reverse) where
+  tm := unaryMulComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := unaryMulTime
+  outputsFun p := by
+    rcases p with ⟨xs, ys⟩
+    change TM2OutputsInTime unaryMulComputer (List.map id (encodePair (xs, ys)))
+      (some (List.map id (idBitEnc (unaryMul xs ys).reverse)))
+      (unaryMulTime.eval (encodePair (xs, ys)).length)
+    simp only [List.map_id, id_eq, idBitEnc]
+    exact evalsToInTime_le_mono (unaryMul_evals xs ys) (unaryMulTime_bound xs ys)
+
+theorem flatMap_replicate_true (m n : ℕ) :
+    (List.replicate n true).flatMap (fun _ => List.replicate m true) =
+      List.replicate (m * n) true := by
+  induction n with
+  | zero => simp [List.flatMap]
+  | succ n ih =>
+      simp [List.replicate_succ, List.flatMap_cons, ih, Nat.mul_succ,
+        List.replicate_append_replicate, Nat.add_comm]
+
+theorem unaryMul_of_replicate (m n : ℕ) :
+    unaryMul (List.replicate m true) (List.replicate n true) =
+      List.replicate (m * n) true := by
+  simpa [unaryMul] using flatMap_replicate_true m n
+
+theorem unaryMul_reverse_eq_of_unary (xs ys : List Bool)
+    (hxs : xs = List.replicate xs.length true)
+    (hys : ys = List.replicate ys.length true) :
+    (unaryMul xs ys).reverse = unaryMul xs ys := by
+  rw [hxs, hys, unaryMul_of_replicate, List.reverse_replicate]
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
