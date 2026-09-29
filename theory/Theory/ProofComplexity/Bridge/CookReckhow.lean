@@ -1,4 +1,5 @@
 import Theory.ProofComplexity.Bridge.ProofSystem
+import Mathlib.Algebra.Polynomial.Inductions
 import Mathlib.Tactic
 
 /-!
@@ -3333,6 +3334,31 @@ noncomputable def polyEvalUnaryLinearComputableInPolyTime (a b : ℕ) :
   convert scaleAppendComputableInPolyTime a b using 1
   funext s
   exact polyEvalUnary_linear a b s.length
+
+/-! ## Exact polyEval via divX (semantic Horner step)
+
+`p.eval n = n * (divX p).eval n + p.coeff 0`. Exact unary budgets reduce to
+recursive scale-append once `polyEvalUnary` for `divX p` is packaged. -/
+
+theorem polyEvalUnary_divX (p : Polynomial ℕ) (n : ℕ) :
+    polyEvalUnary p n =
+      List.replicate (n * (Polynomial.divX p).eval n + p.coeff 0) true := by
+  unfold polyEvalUnary unaryNat
+  congr 1
+  calc
+    p.eval n
+        = (Polynomial.X * Polynomial.divX p + Polynomial.C (p.coeff 0)).eval n := by
+          rw [Polynomial.X_mul_divX_add]
+    _ = n * (Polynomial.divX p).eval n + p.coeff 0 := by
+          simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+            Polynomial.eval_C]
+
+theorem length_dupEncodePair (s : List Bool) :
+    (encodePair (s, s)).length = 3 * s.length + 1 := by
+  simp [length_encodePair]; omega
+
+theorem unaryPow_succ_eq_mul (u : List Bool) (k : ℕ) :
+    unaryPow u (k + 1) = unaryMul (unaryPow u k) u := rfl
 
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 

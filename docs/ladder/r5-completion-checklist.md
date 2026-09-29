@@ -136,7 +136,8 @@ Cook Levin reduction (hard direction) remain. Do not restart
   (nested push Stmt; time `|s|+1`); `polyDomBound` / `lengthOkDom` semantic;
   `scaleAppendComputableInPolyTime` / `polyEvalUnaryLinearComputableInPolyTime`
   certified (degree ≤ 1 exact unary poly-eval; time `|s|+2`);
-  remaining: Horner `polyEvalUnary` for arbitrary `p`, `unaryPow` FinTM2,
+  `polyEvalUnary_divX` Horner identity certified;
+  remaining: recursive FinTM2 for arbitrary `p` via divX, `unaryPow` FinTM2,
   polyDomUnary host, compose with `V`, `afterDecodeProofSystem` FinTM2;
   `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
