@@ -48,7 +48,8 @@ Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
       certified to acceptEmit; maxVarGate wired to parkWidth via dump;
       reject scaffold split; all-true pow2 reaches parkWidth;
       park-to-accept and encodePair accept Evals certified;
-      A sorry still open).
+      afterDecodePairResultComputableInPolyTime packaged;
+      validatesTautologyResult_computableInPolyTime certified 2026-09-29).
 
 ## 1) Pick One Main Attack
 - [x] Choose one primary framework only: proof complexity ladder.

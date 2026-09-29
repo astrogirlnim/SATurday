@@ -14878,20 +14878,35 @@ noncomputable def adr_evals_index_one_false (φ : PropFormula)
     simp [φCode, σ, List.length_nil, List.length_reverse]
     omega)
 
-/-- Empty fuel: drain and enter `acceptEmit`. -/
-noncomputable def adr_evals_indexLoop_empty (φ : PropFormula)
-    (inp work : List Bool) :
-    EvalsToInTime afterDecodePairResultComputer.step
-      (adrCfg (some .indexLoop) none inp (encodeFormula φ).reverse [] work [])
-      (some (adrCfg (some .acceptEmit) none [] (encodeFormula φ).reverse
-        [] [] []))
-      (work.length + inp.length + 3) := by
-  have h1 := adr_evals_one
-    (adr_step_indexLoop_nil inp (encodeFormula φ).reverse work [] none)
-  have h2 := adr_evals_acceptPrep inp (encodeFormula φ).reverse work
-  have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
-    (work.length + inp.length + 2) _ _ _ h1 h2
-  exact evalsToInTime_le_mono t (by omega)
+theorem bitsInc_eq_of_odometerSucc {σ σ' : List Bool}
+    (h : odometerSucc σ = some σ') : bitsInc σ = σ' := by
+  induction σ generalizing σ' with
+  | nil => simp [odometerSucc] at h
+  | cons b rest ih =>
+      cases b with
+      | false =>
+          simp [odometerSucc] at h
+          subst h
+          simp [bitsInc]
+      | true =>
+          simp only [odometerSucc] at h
+          cases hrest : odometerSucc rest with
+          | none => simp [hrest] at h
+          | some rest' =>
+              simp [hrest] at h
+              subst h
+              simp [bitsInc, ih hrest]
+
+theorem bitsInc_assignmentAt (n i : ℕ) (hi : i + 1 < 2 ^ n) :
+    bitsInc (assignmentAt n i) = assignmentAt n (i + 1) :=
+  bitsInc_eq_of_odometerSucc (odometerSucc_assignmentAt n i hi)
+
+theorem assignmentAt_zero_replicate (n : ℕ) :
+    assignmentAt n 0 = List.replicate n false := by
+  induction n with
+  | zero => simp [assignmentAt]
+  | succ n ih =>
+      simp [assignmentAt, Nat.zero_mod, ih, List.replicate_succ]
 
 theorem adr_index_one_time_le (L W I : ℕ) :
     W + 2 * L + 11 + 64 * (L + 1) * (W + I + 2) + 2 * (W + I) ≤
@@ -14943,6 +14958,257 @@ theorem adr_index_one_time_le (L W I : ℕ) :
     rw [h2, h11, h64, h80]
     omega
   exact hsum.trans_eq heq
+
+theorem adr_index_false_time_le (L W I R : ℕ) :
+    W + 2 * L + 16 + 64 * (L + 1) * (W + I + 2) + (W + I) + R + L ≤
+      1024 * (R + 2) * (L + 1) * (W + I + R + 3) := by
+  have hP : 0 < L + 1 := Nat.succ_pos _
+  have hQ : 0 < R + 2 := Nat.succ_pos _
+  have hS : 0 < W + I + R + 3 := by omega
+  have hPS : 0 < (L + 1) * (W + I + R + 3) := Nat.mul_pos hP hS
+  have hQPS : 0 < (R + 2) * ((L + 1) * (W + I + R + 3)) := Nat.mul_pos hQ hPS
+  have htoS : W + I + R + 3 ≤ (L + 1) * (W + I + R + 3) :=
+    Nat.le_mul_of_pos_left (W + I + R + 3) hP
+  have htoQPS : (L + 1) * (W + I + R + 3) ≤
+      (R + 2) * ((L + 1) * (W + I + R + 3)) :=
+    Nat.le_mul_of_pos_left ((L + 1) * (W + I + R + 3)) hQ
+  have hS_QPS : W + I + R + 3 ≤ (R + 2) * ((L + 1) * (W + I + R + 3)) :=
+    htoS.trans htoQPS
+  have hW : W ≤ (R + 2) * ((L + 1) * (W + I + R + 3)) :=
+    (by omega : W ≤ W + I + R + 3).trans hS_QPS
+  have hWI : W + I ≤ (R + 2) * ((L + 1) * (W + I + R + 3)) :=
+    (by omega : W + I ≤ W + I + R + 3).trans hS_QPS
+  have hR : R ≤ (R + 2) * ((L + 1) * (W + I + R + 3)) :=
+    (by omega : R ≤ W + I + R + 3).trans hS_QPS
+  have hL : L ≤ (R + 2) * ((L + 1) * (W + I + R + 3)) := by
+    have h1 : L ≤ L + 1 := Nat.le_succ L
+    have h2 : L + 1 ≤ (L + 1) * (W + I + R + 3) :=
+      Nat.le_mul_of_pos_right (L + 1) hS
+    exact h1.trans (h2.trans htoQPS)
+  have h2L : 2 * L ≤ 2 * ((R + 2) * ((L + 1) * (W + I + R + 3))) :=
+    Nat.mul_le_mul_left 2 hL
+  have h16 : 16 ≤ 16 * ((R + 2) * ((L + 1) * (W + I + R + 3))) :=
+    Nat.le_mul_of_pos_right 16 hQPS
+  have h64 : 64 * (L + 1) * (W + I + 2) ≤
+      64 * ((R + 2) * ((L + 1) * (W + I + R + 3))) := by
+    have hSR : W + I + 2 ≤ W + I + R + 3 := by omega
+    have h1 : 64 * (L + 1) * (W + I + 2) ≤ 64 * (L + 1) * (W + I + R + 3) :=
+      Nat.mul_le_mul_left (64 * (L + 1)) hSR
+    have h1' : 64 * (L + 1) * (W + I + R + 3) =
+        64 * ((L + 1) * (W + I + R + 3)) := Nat.mul_assoc _ _ _
+    have h2 : 64 * ((L + 1) * (W + I + R + 3)) ≤
+        64 * ((R + 2) * ((L + 1) * (W + I + R + 3))) :=
+      Nat.mul_le_mul_left 64 htoQPS
+    exact h1.trans (h1'.trans_le h2)
+  have hsum :
+      W + 2 * L + 16 + 64 * (L + 1) * (W + I + 2) + (W + I) + R + L ≤
+        (R + 2) * ((L + 1) * (W + I + R + 3)) +
+          2 * ((R + 2) * ((L + 1) * (W + I + R + 3))) +
+          16 * ((R + 2) * ((L + 1) * (W + I + R + 3))) +
+          64 * ((R + 2) * ((L + 1) * (W + I + R + 3))) +
+          (R + 2) * ((L + 1) * (W + I + R + 3)) +
+          (R + 2) * ((L + 1) * (W + I + R + 3)) +
+          (R + 2) * ((L + 1) * (W + I + R + 3)) :=
+    add_le_add (add_le_add (add_le_add (add_le_add (add_le_add (add_le_add
+      hW h2L) h16) h64) hWI) hR) hL
+  have h86 :
+      (R + 2) * ((L + 1) * (W + I + R + 3)) +
+        2 * ((R + 2) * ((L + 1) * (W + I + R + 3))) +
+        16 * ((R + 2) * ((L + 1) * (W + I + R + 3))) +
+        64 * ((R + 2) * ((L + 1) * (W + I + R + 3))) +
+        (R + 2) * ((L + 1) * (W + I + R + 3)) +
+        (R + 2) * ((L + 1) * (W + I + R + 3)) +
+        (R + 2) * ((L + 1) * (W + I + R + 3)) =
+      86 * ((R + 2) * ((L + 1) * (W + I + R + 3))) := by
+    ring
+  have h1024 :
+      86 * ((R + 2) * ((L + 1) * (W + I + R + 3))) ≤
+        1024 * ((R + 2) * ((L + 1) * (W + I + R + 3))) :=
+    Nat.mul_le_mul_right ((R + 2) * ((L + 1) * (W + I + R + 3)))
+      (by decide : 86 ≤ 1024)
+  have hQeq : 1024 * ((R + 2) * ((L + 1) * (W + I + R + 3))) =
+      1024 * (R + 2) * (L + 1) * (W + I + R + 3) := by
+    rw [← Nat.mul_assoc, ← Nat.mul_assoc]
+  exact hsum.trans ((h86.trans_le h1024).trans_eq hQeq)
+
+theorem adr_index_notTaut_step_le (L W I T : ℕ) :
+    W + 2 * L + 11 + 64 * (L + 1) * (W + I + 2) + 2 * (W + I) +
+      1024 * (T + 1) * (L + 1) * (W + I + T + 2) ≤
+    1024 * (T + 2) * (L + 1) * (W + I + T + 3) := by
+  have hSR : W + I + 2 ≤ W + I + T + 3 := by omega
+  have hQR : W + I + T + 2 ≤ W + I + T + 3 := by omega
+  have hone := (adr_index_one_time_le L W I).trans
+    (Nat.mul_le_mul_left (80 * (L + 1)) hSR)
+  have hrest : 1024 * (T + 1) * (L + 1) * (W + I + T + 2) ≤
+      1024 * (T + 1) * (L + 1) * (W + I + T + 3) :=
+    Nat.mul_le_mul_left (1024 * (T + 1) * (L + 1)) hQR
+  have h80 : 80 * (L + 1) * (W + I + T + 3) ≤
+      1024 * (L + 1) * (W + I + T + 3) :=
+    Nat.mul_le_mul_right (W + I + T + 3)
+      (Nat.mul_le_mul_right (L + 1) (by decide : 80 ≤ 1024))
+  have hsum := add_le_add (hone.trans h80) hrest
+  have hC : 1024 * (L + 1) * (W + I + T + 3) +
+      1024 * (T + 1) * (L + 1) * (W + I + T + 3) =
+      1024 * (T + 2) * (L + 1) * (W + I + T + 3) := by
+    have h1 : 1024 * (L + 1) * (W + I + T + 3) =
+        1024 * ((L + 1) * (W + I + T + 3)) := Nat.mul_assoc _ _ _
+    have h2 : 1024 * (T + 1) * (L + 1) * (W + I + T + 3) =
+        (1024 * (T + 1)) * ((L + 1) * (W + I + T + 3)) := by
+      rw [Nat.mul_assoc]
+    have h3 : 1024 * ((L + 1) * (W + I + T + 3)) +
+        (1024 * (T + 1)) * ((L + 1) * (W + I + T + 3)) =
+        (1024 + 1024 * (T + 1)) * ((L + 1) * (W + I + T + 3)) :=
+      (Nat.add_mul 1024 (1024 * (T + 1))
+        ((L + 1) * (W + I + T + 3))).symm
+    have h4 : 1024 + 1024 * (T + 1) = 1024 * (T + 2) := by
+      rw [← Nat.mul_one 1024, ← Nat.mul_add, Nat.add_comm 1 (T + 1)]
+    have h5 : (1024 * (T + 2)) * ((L + 1) * (W + I + T + 3)) =
+        1024 * (T + 2) * (L + 1) * (W + I + T + 3) := by
+      rw [← Nat.mul_assoc]
+    rw [h1, h2, h3, h4, h5]
+  exact hsum.trans_eq hC
+
+theorem tautology_of_evalOn_assignmentAt (φ : PropFormula)
+    (h : ∀ i, i < 2 ^ (φ.maxVar + 1) →
+      φ.evalOn (assignmentAt (φ.maxVar + 1) i) = true) :
+    φ.Tautology := by
+  intro σ
+  have heq := eval_eq_evalOn φ σ
+  rw [heq]
+  set τ := (List.range (φ.maxVar + 1)).map σ
+  have hlen : τ.length = φ.maxVar + 1 := by simp [τ]
+  have hmem : τ ∈ allBitstrings (φ.maxVar + 1) := by
+    simpa [hlen] using mem_allBitstrings_of_length τ
+  obtain ⟨i, hi, hget⟩ := List.mem_iff_getElem.mp hmem
+  have hi' : i < 2 ^ (φ.maxVar + 1) := by
+    simpa [length_allBitstrings] using hi
+  have hτ : τ = assignmentAt (φ.maxVar + 1) i := by
+    rw [← allBitstrings_get_eq_assignmentAt _ _ hi, hget]
+  simpa [hτ] using h i hi'
+
+/-- All-true remaining fuel plus a non-tautology: hit the first false eval. -/
+noncomputable def adr_evals_indexLoop_notTaut (φ : PropFormula)
+    (n i : ℕ) (inp work table : List Bool)
+    (hn : n = φ.maxVar + 1)
+    (hσ : work.reverse ++ inp = assignmentAt n i)
+    (hi : i + table.length = 2 ^ n)
+    (hprev : ∀ j < i, φ.evalOn (assignmentAt n j) = true)
+    (hnt : ¬ φ.Tautology)
+    (hall : ∀ b ∈ table, b = true) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .indexLoop) none inp (encodeFormula φ).reverse table
+        work [])
+      (some (adrCfg none none [] [] [] [] [true]))
+      (1024 * (table.length + 1) * ((encodeFormula φ).length + 1) *
+        (work.length + inp.length + table.length + 2)) := by
+  revert work inp i hσ hi hprev hall
+  induction table with
+  | nil =>
+      intro i inp work hσ hi hprev hall
+      have halli : ∀ j, j < 2 ^ n →
+          φ.evalOn (assignmentAt n j) = true := by
+        intro j hj
+        have : j < i := by
+          simpa [List.length_nil] using hj.trans_eq hi.symm
+        exact hprev j this
+      have htaut : φ.Tautology := by
+        apply tautology_of_evalOn_assignmentAt
+        simpa [hn] using halli
+      exact (hnt htaut).elim
+  | cons b rest ih =>
+      intro i inp work hσ hi hprev hall
+      have hb : b = true := hall b (by simp)
+      subst hb
+      have hall' : ∀ x ∈ rest, x = true := fun x hx =>
+        hall x (List.mem_cons_of_mem _ hx)
+      have hsuf : rest.head? ≠ some false := by
+        cases hrest : rest with
+        | nil => simp
+        | cons x xs =>
+            have hx : x = true := hall x (by simp [hrest])
+            simp [hrest, hx]
+      by_cases hev : φ.evalOn (assignmentAt n i) = true
+      · cases rest with
+        | nil =>
+            have halli : ∀ j, j < 2 ^ n →
+                φ.evalOn (assignmentAt n j) = true := by
+              intro j hj
+              have hj' : j ≤ i := by
+                have : i + 1 = 2 ^ n := by
+                  simpa [List.length_cons, List.length_nil] using hi
+                omega
+              cases Nat.lt_or_eq_of_le hj' with
+              | inl hlt => exact hprev j hlt
+              | inr heq => simpa [heq] using hev
+            have htaut : φ.Tautology := by
+              apply tautology_of_evalOn_assignmentAt
+              simpa [hn] using halli
+            exact (hnt htaut).elim
+        | cons b' rest' =>
+            have hb' : b' = true := hall b' (by simp)
+            subst hb'
+            have hi' : i + 1 < 2 ^ n := by
+              simp [List.length_cons] at hi
+              omega
+            have hinc := bitsInc_assignmentAt n i hi'
+            have hone := adr_evals_index_one_true φ inp work (true :: rest')
+              (by simpa [hσ] using hev)
+              (by
+                cases hrest : rest' with
+                | nil => simp
+                | cons x xs =>
+                    have hx : x = true := hall x (by simp [hrest])
+                    simp [hrest, hx])
+            have hσ' :
+                [].reverse ++ bitsInc (work.reverse ++ inp) =
+                  assignmentAt n (i + 1) := by
+              simpa [hσ] using hinc
+            have hprev' : ∀ j < i + 1, φ.evalOn (assignmentAt n j) = true := by
+              intro j hj
+              cases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hj) with
+              | inl hlt => exact hprev j hlt
+              | inr heq => simpa [heq] using hev
+            have hi2 : i + 1 + (true :: rest').length = 2 ^ n := by
+              simp [List.length_cons] at hi ⊢
+              omega
+            have ih' := ih (i + 1) (bitsInc (work.reverse ++ inp)) []
+              hσ' hi2 hprev' hall'
+            have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+              _ _ _ _ _ hone ih'
+            refine evalsToInTime_le_mono t ?_
+            have hlenInc : (bitsInc (work.reverse ++ inp)).length =
+                work.length + inp.length := by
+              have hi0 : i < 2 ^ n := Nat.lt_of_succ_lt hi'
+              rw [hσ, bitsInc_assignmentAt n i hi', assignmentAt_length n (i + 1) hi']
+              rw [← assignmentAt_length n i hi0, ← hσ, List.length_append,
+                List.length_reverse]
+            simp [List.length_cons, List.length_nil, List.length_append,
+              List.length_reverse, hlenInc]
+            exact (le_of_eq (Nat.add_comm _ _)).trans
+              (adr_index_notTaut_step_le (encodeFormula φ).length
+                work.length inp.length (true :: rest').length)
+      · have heval : φ.evalOn (work.reverse ++ inp) = false := by
+          simpa [hσ] using hev
+        have hfalse := adr_evals_index_one_false φ inp work rest heval hsuf
+        refine evalsToInTime_le_mono hfalse ?_
+        simp [List.length_cons, List.length_reverse, List.length_append]
+        exact adr_index_false_time_le (encodeFormula φ).length
+          work.length inp.length rest.length
+
+/-- Empty fuel: drain and enter `acceptEmit`. -/
+noncomputable def adr_evals_indexLoop_empty (φ : PropFormula)
+    (inp work : List Bool) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .indexLoop) none inp (encodeFormula φ).reverse [] work [])
+      (some (adrCfg (some .acceptEmit) none [] (encodeFormula φ).reverse
+        [] [] []))
+      (work.length + inp.length + 3) := by
+  have h1 := adr_evals_one
+    (adr_step_indexLoop_nil inp (encodeFormula φ).reverse work [] none)
+  have h2 := adr_evals_acceptPrep inp (encodeFormula φ).reverse work
+  have t := EvalsToInTime.trans afterDecodePairResultComputer.step 1
+    (work.length + inp.length + 2) _ _ _ h1 h2
+  exact evalsToInTime_le_mono t (by omega)
 
 theorem adr_index_allTrue_time_le (L W I T inc : ℕ)
     (hinc : inc ≤ W + I + 1) :
@@ -15714,6 +15980,69 @@ theorem adr_park_to_accept_time_le (L n T M : ℕ) (hn : n = M + 1) :
     ac_rfl
   exact hLHS.trans_le (hsum.trans_eq (h512.trans hR))
 
+/-- Park plus parse plus non-tautology index walk sits under `2048` copies of the cubic. -/
+theorem adr_park_to_notTaut_time_le (L n T M : ℕ) (hn : n = M + 1) :
+    4 * (L + n + 2) + 8 +
+      32 * (L + 1) * (M + 2) + 4 * n + 4 * M + 16 +
+      1024 * (T + 1) * (L + 1) * (n + T + 2) ≤
+    2048 * (T + 1) * (L + 1) * (n + T + 2) := by
+  have hM : M + 2 = n + 1 := by omega
+  have hMn : M ≤ n := by omega
+  rw [hM]
+  let Q : ℕ := (T + 1) * (L + 1) * (n + T + 2)
+  have hQpos : 0 < Q :=
+    Nat.mul_pos (Nat.mul_pos (Nat.succ_pos _) (Nat.succ_pos _)) (by omega)
+  have hL : L ≤ Q := (Nat.le_succ L).trans (adr_le_Q_L T L n)
+  have hnQ : n ≤ Q := adr_le_Q_n T L n
+  have hA : 4 * (L + n + 2) + 8 ≤ 24 * Q := by
+    have heq : 4 * (L + n + 2) + 8 = 4 * L + 4 * n + 16 := by omega
+    have h4L : 4 * L ≤ 4 * Q := Nat.mul_le_mul_left 4 hL
+    have h4n : 4 * n ≤ 4 * Q := Nat.mul_le_mul_left 4 hnQ
+    have h16 : 16 ≤ 16 * Q := Nat.le_mul_of_pos_right 16 hQpos
+    have hsum : 4 * L + 4 * n + 16 ≤ 4 * Q + 4 * Q + 16 * Q :=
+      add_le_add (add_le_add h4L h4n) h16
+    have h24 : 4 * Q + 4 * Q + 16 * Q = 24 * Q := by omega
+    exact heq.trans_le (hsum.trans_eq h24)
+  have hB32 : 32 * (L + 1) * (n + 1) ≤ 32 * Q := by
+    have h := adr_32_Ln1_le_Q T L n
+    have hr : 32 * (T + 1) * (L + 1) * (n + T + 2) = 32 * Q :=
+      (adr_mulQ_eq 32 T L n).symm
+    exact h.trans_eq hr
+  have hBn : 4 * n + 4 * M + 16 ≤ 24 * Q := by
+    have h4n : 4 * n ≤ 4 * Q := Nat.mul_le_mul_left 4 hnQ
+    have h4M : 4 * M ≤ 4 * Q :=
+      Nat.mul_le_mul_left 4 (hMn.trans hnQ)
+    have h16 : 16 ≤ 16 * Q := Nat.le_mul_of_pos_right 16 hQpos
+    have hsum : 4 * n + 4 * M + 16 ≤ 4 * Q + 4 * Q + 16 * Q :=
+      add_le_add (add_le_add h4n h4M) h16
+    have : 4 * Q + 4 * Q + 16 * Q = 24 * Q := by omega
+    exact hsum.trans_eq this
+  have hpre :
+      (4 * (L + n + 2) + 8 + 32 * (L + 1) * (n + 1)) +
+        (4 * n + 4 * M + 16) ≤ 80 * Q := by
+    have hsum := add_le_add (add_le_add hA hB32) hBn
+    have : 24 * Q + 32 * Q + 24 * Q = 80 * Q := by omega
+    exact hsum.trans_eq this
+  have hpre1024 :
+      (4 * (L + n + 2) + 8 + 32 * (L + 1) * (n + 1)) +
+        (4 * n + 4 * M + 16) ≤ 1024 * Q :=
+    hpre.trans (Nat.mul_le_mul_right Q (by decide : 80 ≤ 1024))
+  have hloop : 1024 * (T + 1) * (L + 1) * (n + T + 2) = 1024 * Q :=
+    (adr_mulQ_eq 1024 T L n).symm
+  have h2048 : 1024 * Q + 1024 * Q = 2048 * Q := by
+    rw [← Nat.add_mul 1024 1024 Q]
+  have hR : 2048 * Q = 2048 * (T + 1) * (L + 1) * (n + T + 2) :=
+    adr_mulQ_eq 2048 T L n
+  have hsum := add_le_add hpre1024 (le_of_eq hloop)
+  have hLHS :
+      4 * (L + n + 2) + 8 + 32 * (L + 1) * (n + 1) + 4 * n + 4 * M + 16 +
+        1024 * (T + 1) * (L + 1) * (n + T + 2) =
+      ((4 * (L + n + 2) + 8 + 32 * (L + 1) * (n + 1)) +
+        (4 * n + 4 * M + 16)) +
+        1024 * (T + 1) * (L + 1) * (n + T + 2) := by
+    ac_rfl
+  exact hLHS.trans_le (hsum.trans_eq (h2048.trans hR))
+
 /-- All-true nonempty tables never start with `false`. -/
 theorem allTrue_head_ne_false {table : List Bool}
     (hall : ∀ b ∈ table, b = true) (hne : table ≠ []) :
@@ -15775,6 +16104,50 @@ noncomputable def adr_evals_park_to_accept (φ : PropFormula)
   refine evalsToInTime_le_mono t3 (le_trans (le_of_eq ?eq) hbound)
   case eq =>
     simp only [List.length_nil]
+    ac_rfl
+
+/-- From `parkWidth` with matching width, a non-tautology and all-true table
+halt as `[true]`. -/
+noncomputable def adr_evals_park_to_notTaut (φ : PropFormula)
+    (table : List Bool) (n : ℕ)
+    (hn : n = φ.maxVar + 1)
+    (hnt : ¬ φ.Tautology)
+    (hall : ∀ b ∈ table, b = true)
+    (ht : table.head? ≠ some false)
+    (hlen : table.length = 2 ^ n) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parkWidth) none (pow2BitsLE n)
+        (encodeFormula φ).reverse table [] [])
+      (some (adrCfg none none [] [] [] [] [true]))
+      (2048 * (table.length + 1) * ((encodeFormula φ).length + 1) *
+        (n + table.length + 2)) := by
+  have hpark := adr_evals_park_to_mvParse (encodeFormula φ) table n
+  have hparse := adr_evals_mvParse_to_indexLoop φ table n hn ht
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ hpark hparse
+  have hσ : (List.replicate n false).reverse ++ ([] : List Bool) =
+      assignmentAt n 0 := by
+    simp [List.reverse_replicate, assignmentAt_zero_replicate]
+  have hi : (0 : ℕ) + table.length = 2 ^ n := by
+    simpa using hlen
+  have hprev : ∀ j : ℕ, j < 0 → φ.evalOn (assignmentAt n j) = true := by
+    intro j hj
+    exact (Nat.not_lt_zero j hj).elim
+  have hloop := adr_evals_indexLoop_notTaut φ n 0 [] (List.replicate n false)
+    table hn hσ hi hprev hnt hall
+  have hloop' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .indexLoop) none [] (encodeFormula φ).reverse table
+        (List.replicate n false) [])
+      (some (adrCfg none none [] [] [] [] [true]))
+      (1024 * (table.length + 1) * ((encodeFormula φ).length + 1) *
+        (n + table.length + 2)) := by
+    simpa [List.length_nil, List.length_replicate, Nat.zero_add] using hloop
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t1 hloop'
+  have hbound := adr_park_to_notTaut_time_le
+    (encodeFormula φ).length n table.length φ.maxVar hn
+  refine evalsToInTime_le_mono t2 (le_trans (le_of_eq ?eq) hbound)
+  case eq =>
     ac_rfl
 
 /-- Fail-tag singleton `[true]` → `[true]` in 3 steps. -/
@@ -16198,6 +16571,71 @@ theorem adr_encodePair_accept_time_le (L n T M : ℕ) (hn : n = M + 1) :
   have _ := hn
   exact hLHS.trans_le (hsum.trans_eq (h1024.trans hR))
 
+/-- Load, scan, and park-to-notTaut sit under `4096` copies of the cubic. -/
+theorem adr_encodePair_notTaut_time_le (L n T M : ℕ) (hn : n = M + 1) :
+    2 * L + T + 4 +
+      ((T + 1) * (2 * (T + 2) + 3) + 3 * T + 3 * n + 8) +
+      2048 * (T + 1) * (L + 1) * (n + T + 2) ≤
+    4096 * (T + 1) * (L + 1) * (n + T + 2) := by
+  let Q : ℕ := (T + 1) * (L + 1) * (n + T + 2)
+  have hQpos : 0 < Q :=
+    Nat.mul_pos (Nat.mul_pos (Nat.succ_pos _) (Nat.succ_pos _)) (by omega)
+  have hL : L ≤ Q := (Nat.le_succ L).trans (adr_le_Q_L T L n)
+  have hnQ : n ≤ Q := adr_le_Q_n T L n
+  have hTle : T ≤ Q := by
+    have h1 : T ≤ n + T + 2 := by omega
+    have h2 : n + T + 2 ≤ (L + 1) * (n + T + 2) :=
+      Nat.le_mul_of_pos_left (n + T + 2) (Nat.succ_pos _)
+    have h3 : (L + 1) * (n + T + 2) ≤ Q := by
+      have : (L + 1) * (n + T + 2) ≤
+          (T + 1) * ((L + 1) * (n + T + 2)) :=
+        Nat.le_mul_of_pos_left ((L + 1) * (n + T + 2)) (Nat.succ_pos _)
+      exact this.trans_eq (Nat.mul_assoc (T + 1) (L + 1) (n + T + 2)).symm
+    exact h1.trans (h2.trans h3)
+  have hscan : (T + 1) * (2 * (T + 2) + 3) ≤ 8 * Q := by
+    have h := adr_scan_time_le_Q T L n
+    have hr : 8 * (T + 1) * (L + 1) * (n + T + 2) = 8 * Q :=
+      (adr_mulQ_eq 8 T L n).symm
+    exact h.trans_eq hr
+  have hpre : 2 * L + T + 4 +
+      ((T + 1) * (2 * (T + 2) + 3) + 3 * T + 3 * n + 8) ≤ 32 * Q := by
+    have h2L : 2 * L ≤ 2 * Q := Nat.mul_le_mul_left 2 hL
+    have h3T : 3 * T ≤ 3 * Q := Nat.mul_le_mul_left 3 hTle
+    have h3n : 3 * n ≤ 3 * Q := Nat.mul_le_mul_left 3 hnQ
+    have h4 : 4 ≤ 4 * Q := Nat.le_mul_of_pos_right 4 hQpos
+    have h8 : 8 ≤ 8 * Q := Nat.le_mul_of_pos_right 8 hQpos
+    have hleft : 2 * L + T + 4 ≤ 2 * Q + Q + 4 * Q :=
+      add_le_add (add_le_add h2L hTle) h4
+    have hright :
+        (T + 1) * (2 * (T + 2) + 3) + 3 * T + 3 * n + 8 ≤
+          8 * Q + 3 * Q + 3 * Q + 8 * Q :=
+      add_le_add (add_le_add (add_le_add hscan h3T) h3n) h8
+    have hsum := add_le_add hleft hright
+    have : 2 * Q + Q + 4 * Q + (8 * Q + 3 * Q + 3 * Q + 8 * Q) = 29 * Q := by
+      omega
+    exact hsum.trans_eq this |>.trans
+      (Nat.mul_le_mul_right Q (by decide : 29 ≤ 32))
+  have hpre2048 : 2 * L + T + 4 +
+      ((T + 1) * (2 * (T + 2) + 3) + 3 * T + 3 * n + 8) ≤ 2048 * Q :=
+    hpre.trans (Nat.mul_le_mul_right Q (by decide : 32 ≤ 2048))
+  have hpark : 2048 * (T + 1) * (L + 1) * (n + T + 2) = 2048 * Q :=
+    (adr_mulQ_eq 2048 T L n).symm
+  have h4096 : 2048 * Q + 2048 * Q = 4096 * Q := by
+    rw [← Nat.add_mul 2048 2048 Q]
+  have hR : 4096 * Q = 4096 * (T + 1) * (L + 1) * (n + T + 2) :=
+    adr_mulQ_eq 4096 T L n
+  have hsum := add_le_add hpre2048 (le_of_eq hpark)
+  have hLHS :
+      2 * L + T + 4 +
+        ((T + 1) * (2 * (T + 2) + 3) + 3 * T + 3 * n + 8) +
+        2048 * (T + 1) * (L + 1) * (n + T + 2) =
+      (2 * L + T + 4 +
+        ((T + 1) * (2 * (T + 2) + 3) + 3 * T + 3 * n + 8)) +
+        2048 * (T + 1) * (L + 1) * (n + T + 2) := by
+    ac_rfl
+  have _ := hn
+  exact hLHS.trans_le (hsum.trans_eq (h4096.trans hR))
+
 /-- Success-tag accept: tautology plus all-true table of length `2^(maxVar+1)`. -/
 noncomputable def afterDecodePairResult_evals_encodePair_accept
     (φ : PropFormula) (table : List Bool)
@@ -16249,6 +16687,62 @@ noncomputable def afterDecodePairResult_evals_encodePair_accept
     _ _ _ _ _ t3 hpark
   refine evalsToInTime_le_mono t4 (le_trans (le_of_eq ?eq)
     (adr_encodePair_accept_time_le (encodeFormula φ).length n table.length
+      φ.maxVar hn))
+  case eq =>
+    simp only [n]
+    ring
+
+/-- Success-tag reject: non-tautology plus all-true table of length `2^(maxVar+1)`. -/
+noncomputable def afterDecodePairResult_evals_encodePair_notTaut
+    (φ : PropFormula) (table : List Bool)
+    (hnt : ¬ φ.Tautology)
+    (hall : ∀ b ∈ table, b = true)
+    (hlen : table.length = 2 ^ (φ.maxVar + 1)) :
+    TM2OutputsInTime afterDecodePairResultComputer
+      (false :: encodePair (encodeFormula φ, table)) (some [true])
+      (4096 * (table.length + 1) * ((encodeFormula φ).length + 1) *
+        ((φ.maxVar + 1) + table.length + 2)) := by
+  change EvalsToInTime afterDecodePairResultComputer.step
+    (initList afterDecodePairResultComputer
+      (false :: encodePair (encodeFormula φ, table)))
+    (some (haltList afterDecodePairResultComputer [true]))
+    (4096 * (table.length + 1) * ((encodeFormula φ).length + 1) *
+      ((φ.maxVar + 1) + table.length + 2))
+  rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
+  let n : ℕ := φ.maxVar + 1
+  have hn : n = φ.maxVar + 1 := rfl
+  have hne : table ≠ [] := by
+    intro hnil
+    subst hnil
+    have hz : (0 : ℕ) = 2 ^ (φ.maxVar + 1) := hlen
+    have hpos : 0 < 2 ^ (φ.maxVar + 1) := Nat.two_pow_pos _
+    exact absurd hz (Nat.ne_of_lt hpos)
+  have ht := allTrue_head_ne_false hall hne
+  have hrev := reverse_eq_of_allTrue hall
+  have htag := adr_evals_one
+    (adr_step_readTag_false (encodePair (encodeFormula φ, table)) [] [] [] [] none)
+  have hload := adr_evals_load_encodePair (encodeFormula φ) table
+  have hload' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parse) none (encodePair (encodeFormula φ, table)) [] [] [] [])
+      (some (adrCfg (some .afterParse) none [] (encodeFormula φ).reverse table [] []))
+      (2 * (encodeFormula φ).length + table.length + 2) := by
+    simpa [hrev] using hload
+  have hafter := adr_evals_one
+    (adr_step_afterParse [] (encodeFormula φ).reverse table [] [] none)
+  have hpow := adr_evals_allTrue_pow2_to_parkWidth
+    (encodeFormula φ).reverse table n hall (by simpa [n] using hlen)
+  have hpark := adr_evals_park_to_notTaut φ table n hn hnt hall ht
+    (by simpa [n] using hlen)
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    1 (2 * (encodeFormula φ).length + table.length + 2) _ _ _ htag hload'
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ 1 _ _ _ t1 hafter
+  have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t2 hpow
+  have t4 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t3 hpark
+  refine evalsToInTime_le_mono t4 (le_trans (le_of_eq ?eq)
+    (adr_encodePair_notTaut_time_le (encodeFormula φ).length n table.length
       φ.maxVar hn))
   case eq =>
     simp only [n]
@@ -16454,50 +16948,346 @@ noncomputable def afterDecodePairResult_evals_encodePair_width_ne
       (encodeFormula φ).length n table.length
     nlinarith [htime])
 
-namespace ProofSystemFrontier
+/-! ### Cluster D3.1 package: `afterDecodePairResult` poly-time witness -/
 
-/-- Full FinTM2 for `validatesTautologyResult_on_pair`: decode pair, decode
-formula, length gate `table.length = 2^(maxVar+1)`, then index loop under
-`|table|` fuel, then branch to the reject or accept slices above.
+theorem afterDecodePairResult_nil :
+    afterDecodePairResult [] = [true] := by
+  simp [afterDecodePairResult, decodeDecodePairResult]
 
-Certified: length gate Bool, reject lemmas, `pow2BitsLE` plus writePow2Bits
-FinTM2, `natBitsLE`/`lengthBitsEqPow2` compare, `countLengthBits` polyTime,
-`bitsEqual`/`bitsEqualZip` lengthGate rewrites, `bitsEqualComputer` Stmt,
-leftover drain, encodePair load, unequal zipper Evals, and
-`bitsEqualPair` TM2ComputableInPolyTime under encodePair.
-Also certified: `assignmentAt n i = padBitsLE n (natBitsLE i)` when `i < 2^n`,
-`validatesTautology_by_index_pad`, and `padBitsComputer` FinTM2 Stmt plus
-EvalsToInTime / `padBitsComputableInPolyTime` for `padBitsLE` under
-`encodePair (encodeNat n, bs)`.
-Also certified: `evalEncodedComputer` FinTM2 Stmt plus EvalsToInTime /
-`evalEncodedComputableInPolyTime` for `evalOn` under
-`encodePair (σ, encodeFormula φ)`.
-Also certified (Cluster D2): functional `indexValidate` /
-`indexValidateFuel` / `indexStepOk` equiv to `validatesTautology_by_index`,
-`indexValidateResult_eq_validatesTautologyResult`, length-gate Bool
-`indexLengthGate`, one-iter `indexStepBitsComputer` with EvalsToInTime /
-`indexStepBitsComputableInPolyTime`, semantic target
-`indexValidateOnTriple` under `encodeIndexValidate`, and `odometerSucc`
-matching `assignmentAt` succession with `odometerSuccComputer` EvalsToInTime /
-`odometerSuccComputableInPolyTime`.
-Also certified: local `comp_idBitEnc_idBitEnc` (Complexity) for Bool-tape
-composition with an output-size bound.
-Also certified: `afterDecodePairResult` with
-`validatesTautologyResult_on_pair = afterDecodePairResult ∘ decodePairResult`
-and a length bound.
-Also certified (Cluster D3.1): `afterDecodePairResultComputer` encodePair
-parse (bitsEqual load pattern), fail-tag / parse-fail Evals, and success-tag
-reject scaffold Evals under `validatesTautologyResult = [true]`.
-Remaining: replace `afterParse` reject scaffold with indexValidate under
-`|table|` fuel (pad/eval/indexStepBits/odometer), package
-`afterDecodePairResultComputableInPolyTime`, then
-`comp_idBitEnc_idBitEnc` closes this pin. -/
+theorem afterDecodePairResult_true (rest : List Bool) :
+    afterDecodePairResult (true :: rest) = [true] := by
+  cases rest <;> simp [afterDecodePairResult, decodeDecodePairResult]
+
+theorem afterDecodePairResult_of_decodePair_none {rest : List Bool}
+    (h : decodePair rest = none) :
+    afterDecodePairResult (false :: rest) = [true] := by
+  simp [afterDecodePairResult, decodeDecodePairResult, h]
+
+theorem validatesTautologyResult_of_malformed (φCode table : List Bool)
+    (hrej : (∃ b ∈ table, b = false) ∨ (∀ n, table.length ≠ 2 ^ n)) :
+    validatesTautologyResult φCode table = [true] := by
+  cases hφ : decodeFormula φCode with
+  | none =>
+      exact validatesTautologyResult_of_decode_fail hφ
+  | some φ =>
+      have hval : ¬ validatesTautology φ table := by
+        intro hvt
+        rcases hvt with ⟨htab, hallTT⟩
+        cases hrej with
+        | inl hex =>
+            rcases hex with ⟨b, hb, hbF⟩
+            have hbTT : b ∈ truthTableOf φ := by simpa [htab] using hb
+            have hbT : b = true := hallTT b hbTT
+            exact Bool.false_ne_true (hbF.symm.trans hbT)
+        | inr hpow =>
+            have hlen := length_truthTableOf φ
+            rw [← htab] at hlen
+            exact hpow (φ.maxVar + 1) hlen
+      exact validatesTautologyResult_of_invalid_table hφ hval
+
+theorem eq_of_allTrue_of_length_eq {l₁ l₂ : List Bool}
+    (h₁ : ∀ b ∈ l₁, b = true) (h₂ : ∀ b ∈ l₂, b = true)
+    (hlen : l₁.length = l₂.length) : l₁ = l₂ := by
+  have hl1 : l₁ = List.replicate l₁.length true :=
+    List.eq_replicate_iff.mpr ⟨rfl, h₁⟩
+  have hl2 : l₂ = List.replicate l₂.length true :=
+    List.eq_replicate_iff.mpr ⟨rfl, h₂⟩
+  rw [hl1, hl2, hlen]
+
+theorem validatesTautology_of_allTrue_pow2_taut (φ : PropFormula)
+    (table : List Bool) (htaut : φ.Tautology)
+    (hall : ∀ b ∈ table, b = true)
+    (hlen : table.length = 2 ^ (φ.maxVar + 1)) :
+    validatesTautology φ table := by
+  have htt := validatesTautology_truthTableOf_of_tautology φ htaut
+  have hlen' : table.length = (truthTableOf φ).length := by
+    rw [hlen, length_truthTableOf]
+  exact ⟨eq_of_allTrue_of_length_eq hall htt.2 hlen', htt.2⟩
+
+theorem adr_n_le_two_pow (n : ℕ) : n ≤ 2 ^ n := by
+  induction n with
+  | zero => omega
+  | succ n ih =>
+      have h1 : 1 ≤ 2 ^ n := Nat.one_le_two_pow
+      rw [Nat.pow_succ, Nat.mul_two]
+      omega
+
+noncomputable def afterDecodePairResultTime : Polynomial ℕ :=
+  Polynomial.C 8192 * (Polynomial.X + 1) ^ 4
+
+theorem afterDecodePairResultTime_eval (n : ℕ) :
+    afterDecodePairResultTime.eval n = 8192 * (n + 1) ^ 4 := by
+  simp [afterDecodePairResultTime, Polynomial.eval_mul, Polynomial.eval_pow,
+    Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one, Polynomial.eval_C]
+
+noncomputable def adr_outputs_le {s out : List Bool} {m n : ℕ}
+    (h : TM2OutputsInTime afterDecodePairResultComputer s (some out) m)
+    (hle : m ≤ n) :
+    TM2OutputsInTime afterDecodePairResultComputer s (some out) n :=
+  ⟨h.toEvalsTo, le_trans h.steps_le_m hle⟩
+
+theorem adr_bound_const (c X : ℕ) (hc : c ≤ 8192) :
+    c ≤ 8192 * (X + 1) ^ 4 := by
+  have hpos : 0 < (X + 1) ^ 4 := Nat.pow_pos (Nat.succ_pos X)
+  exact hc.trans (Nat.le_mul_of_pos_right 8192 hpos)
+
+theorem adr_bound_lin (k X : ℕ) (h : k ≤ 8192 * (X + 1)) :
+    k ≤ 8192 * (X + 1) ^ 4 := by
+  have hpow : X + 1 ≤ (X + 1) ^ 4 :=
+    Nat.le_self_pow (by decide : 4 ≠ 0) (X + 1)
+  exact h.trans (Nat.mul_le_mul_left 8192 hpow)
+
+theorem adr_bound_cubicL (L n T X : ℕ)
+    (hX : 2 * L + T + 2 ≤ X) (hn : n ≤ T) :
+    4096 * (T + 1) * (L + 1) * (L + n + T + 2) ≤ 8192 * (X + 1) ^ 4 := by
+  have hT : T ≤ X := by omega
+  have hL : L ≤ X := by omega
+  let Q : ℕ := X + 1
+  have hT1 : T + 1 ≤ Q := Nat.succ_le_succ hT
+  have hL1 : L + 1 ≤ Q := Nat.succ_le_succ hL
+  have hS : L + n + T + 2 ≤ 3 * Q := by omega
+  have h1 : 4096 * (T + 1) ≤ 4096 * Q := Nat.mul_le_mul_left _ hT1
+  have h2 : 4096 * (T + 1) * (L + 1) ≤ 4096 * Q * Q :=
+    Nat.mul_le_mul h1 hL1
+  have h3 : 4096 * (T + 1) * (L + 1) * (L + n + T + 2) ≤
+      4096 * Q * Q * (3 * Q) := Nat.mul_le_mul h2 hS
+  have hEq : 4096 * Q * Q * (3 * Q) = 12288 * Q ^ 3 := by ring
+  have hQ : 2 ≤ Q := by omega
+  have h122 : 12288 ≤ 8192 * Q := by
+    have h2Q : 8192 * 2 ≤ 8192 * Q := Nat.mul_le_mul_left 8192 hQ
+    exact (by decide : 12288 ≤ 8192 * 2).trans h2Q
+  have hmul : 12288 * Q ^ 3 ≤ 8192 * Q * Q ^ 3 :=
+    Nat.mul_le_mul_right (Q ^ 3) h122
+  have hpow : 8192 * Q * Q ^ 3 = 8192 * Q ^ 4 := by
+    rw [Nat.pow_succ]
+    ring
+  have hQeq : Q = X + 1 := rfl
+  calc
+    4096 * (T + 1) * (L + 1) * (L + n + T + 2) ≤ 4096 * Q * Q * (3 * Q) := h3
+    _ = 12288 * Q ^ 3 := hEq
+    _ ≤ 8192 * Q * Q ^ 3 := hmul
+    _ = 8192 * Q ^ 4 := hpow
+    _ = 8192 * (X + 1) ^ 4 := by rw [hQeq]
+
+theorem adr_bound_reject (L T X : ℕ) (hX : 2 * L + T + 2 ≤ X) :
+    2 * L + T + 4 + 2 * T + 2 * 0 +
+      (T + 0 + 1) * (2 * (0 + T + 2) + 3) +
+      2 * (T + 0) + L + 2 * (0 + T) + T + 14 ≤
+    8192 * (X + 1) ^ 4 := by
+  have hT : T ≤ X := by omega
+  have hL : L ≤ X := by omega
+  have hLHS :
+      2 * L + T + 4 + 2 * T + 2 * 0 +
+        (T + 0 + 1) * (2 * (0 + T + 2) + 3) +
+        2 * (T + 0) + L + 2 * (0 + T) + T + 14 =
+      3 * L + 8 * T + 18 + (T + 1) * (2 * T + 7) := by ring
+  have hq : (T + 1) * (2 * T + 7) ≤ (X + 1) * (2 * X + 7) :=
+    Nat.mul_le_mul (Nat.succ_le_succ hT) (by omega)
+  have hlin : 3 * L + 8 * T + 18 ≤ 3 * X + 8 * X + 18 := by omega
+  have hsum : 3 * L + 8 * T + 18 + (T + 1) * (2 * T + 7) ≤
+      3 * X + 8 * X + 18 + (X + 1) * (2 * X + 7) :=
+    Nat.add_le_add hlin hq
+  have hform : 3 * X + 8 * X + 18 + (X + 1) * (2 * X + 7) =
+      2 * X ^ 2 + 20 * X + 25 := by ring
+  have hexp : (X + 1) ^ 4 =
+      X ^ 4 + 4 * X ^ 3 + 6 * X ^ 2 + 4 * X + 1 := by ring
+  have hpoly : 2 * X ^ 2 + 20 * X + 25 ≤ 8192 * (X + 1) ^ 4 := by
+    rw [hexp]
+    nlinarith
+  calc
+    2 * L + T + 4 + 2 * T + 2 * 0 +
+        (T + 0 + 1) * (2 * (0 + T + 2) + 3) +
+        2 * (T + 0) + L + 2 * (0 + T) + T + 14 =
+      3 * L + 8 * T + 18 + (T + 1) * (2 * T + 7) := hLHS
+    _ ≤ 3 * X + 8 * X + 18 + (X + 1) * (2 * X + 7) := hsum
+    _ = 2 * X ^ 2 + 20 * X + 25 := hform
+    _ ≤ 8192 * (X + 1) ^ 4 := hpoly
+
+theorem adr_pow2_to_unified (L n T : ℕ) :
+    1024 * (T + 1) * (L + 1) * (n + T + 2) ≤
+      4096 * (T + 1) * (L + 1) * (L + n + T + 2) := by
+  have hA : 1024 * (T + 1) ≤ 4096 * (T + 1) :=
+    Nat.mul_le_mul_right _ (by decide : 1024 ≤ 4096)
+  have hB : 1024 * (T + 1) * (L + 1) ≤ 4096 * (T + 1) * (L + 1) :=
+    Nat.mul_le_mul_right _ hA
+  exact Nat.mul_le_mul hB (by omega)
+
+theorem adr_notTaut_to_unified (L n T : ℕ) :
+    4096 * (T + 1) * (L + 1) * (n + T + 2) ≤
+      4096 * (T + 1) * (L + 1) * (L + n + T + 2) :=
+  Nat.mul_le_mul_left _ (by omega)
+
+theorem adr_decode_fail_to_unified (L n T : ℕ) :
+    2048 * (T + 1) * (L + 1) * (L + n + T + 2) ≤
+      4096 * (T + 1) * (L + 1) * (L + n + T + 2) := by
+  have hA : 2048 * (T + 1) ≤ 4096 * (T + 1) :=
+    Nat.mul_le_mul_right _ (by decide : 2048 ≤ 4096)
+  have hB : 2048 * (T + 1) * (L + 1) ≤ 4096 * (T + 1) * (L + 1) :=
+    Nat.mul_le_mul_right _ hA
+  exact Nat.mul_le_mul_right _ hB
+
+/-- All-true power-of-two success tag: decode fail, width mismatch, accept, or
+non-tautology reject, under one cubic. -/
+noncomputable def afterDecodePairResult_evals_encodePair_pow2
+    (φCode table : List Bool) (n : ℕ)
+    (hall : ∀ b ∈ table, b = true)
+    (hlen : table.length = 2 ^ n) :
+    TM2OutputsInTime afterDecodePairResultComputer
+      (false :: encodePair (φCode, table))
+      (some (validatesTautologyResult φCode table))
+      (4096 * (table.length + 1) * (φCode.length + 1) *
+        (φCode.length + n + table.length + 2)) := by
+  cases hdec : decodeFormula φCode with
+  | none =>
+      rw [validatesTautologyResult_of_decode_fail hdec]
+      exact adr_outputs_le
+        (afterDecodePairResult_evals_encodePair_decode_fail φCode table n
+          hdec hall hlen)
+        (adr_decode_fail_to_unified φCode.length n table.length)
+  | some φ =>
+      have henc : encodeFormula φ = φCode :=
+        encodeFormula_of_decodeFormula hdec
+      subst henc
+      by_cases hn : n = φ.maxVar + 1
+      · subst hn
+        by_cases hval : validatesTautology φ table
+        · have htaut := tautology_of_validatesTautology φ table hval
+          rw [validatesTautologyResult_of_valid (decodeFormula_encodeFormula φ) hval]
+          exact adr_outputs_le
+            (afterDecodePairResult_evals_encodePair_accept φ table htaut hall
+              hlen)
+            (adr_pow2_to_unified (encodeFormula φ).length (φ.maxVar + 1)
+              table.length)
+        · have hnt : ¬ φ.Tautology := by
+            intro ht
+            exact hval (validatesTautology_of_allTrue_pow2_taut φ table ht hall
+              hlen)
+          rw [validatesTautologyResult_of_invalid_table
+            (decodeFormula_encodeFormula φ) hval]
+          exact adr_outputs_le
+            (afterDecodePairResult_evals_encodePair_notTaut φ table hnt hall
+              hlen)
+            (adr_notTaut_to_unified (encodeFormula φ).length (φ.maxVar + 1)
+              table.length)
+      · have hval : ¬ validatesTautology φ table := by
+          intro hvt
+          rcases hvt with ⟨htab, _⟩
+          have hlenTT := length_truthTableOf φ
+          have : n = φ.maxVar + 1 := by
+            have hpow : 2 ^ n = 2 ^ (φ.maxVar + 1) := by
+              rw [← hlen, htab, hlenTT]
+            exact Nat.pow_right_injective (by decide : 1 < 2) hpow
+          exact hn this
+        rw [validatesTautologyResult_of_invalid_table
+          (decodeFormula_encodeFormula φ) hval]
+        exact adr_outputs_le
+          (afterDecodePairResult_evals_encodePair_width_ne φ table n hall hlen
+            hn)
+          (adr_decode_fail_to_unified (encodeFormula φ).length n table.length)
+
+/-- `afterDecodePairResult` is TM2 poly-time on tagged pair encodings. -/
+noncomputable def afterDecodePairResultComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc afterDecodePairResult where
+  tm := afterDecodePairResultComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := afterDecodePairResultTime
+  outputsFun s := by
+    change TM2OutputsInTime afterDecodePairResultComputer
+      (List.map id (idBitEnc s))
+      (some (List.map id (idBitEnc (afterDecodePairResult s))))
+      (afterDecodePairResultTime.eval (idBitEnc s).length)
+    simp only [idBitEnc, List.map_id, id_eq, afterDecodePairResultTime_eval]
+    classical
+    cases s with
+    | nil =>
+        rw [afterDecodePairResult_nil]
+        exact adr_outputs_le afterDecodePairResult_evals_nil
+          (adr_bound_const 2 0 (by decide))
+    | cons b rest =>
+        cases b with
+        | true =>
+            rw [afterDecodePairResult_true]
+            exact adr_outputs_le (afterDecodePairResult_evals_true rest)
+              (adr_bound_lin (rest.length + 3) (rest.length + 1) (by omega))
+        | false =>
+            cases hdp : decodePair rest with
+            | none =>
+                rw [afterDecodePairResult_of_decodePair_none hdp]
+                exact adr_outputs_le
+                  (afterDecodePairResult_evals_false_decode_fail rest hdp)
+                  (adr_bound_lin (3 * rest.length + 6) (rest.length + 1)
+                    (by omega))
+            | some pw =>
+                rcases pw with ⟨φCode, table⟩
+                have hrest : encodePair (φCode, table) = rest :=
+                  encodePair_of_decodePair hdp
+                subst hrest
+                rw [afterDecodePairResult_success]
+                have hslen :
+                    (false :: encodePair (φCode, table)).length =
+                      2 * φCode.length + table.length + 2 := by
+                  simp [length_encodePair]
+                  omega
+                by_cases hex : ∃ b ∈ table, b = false
+                · have hmal :=
+                    validatesTautologyResult_of_malformed φCode table
+                      (Or.inl hex)
+                  rw [hmal]
+                  exact adr_outputs_le
+                    (afterDecodePairResult_evals_encodePair_reject φCode table
+                      hmal (Or.inl hex))
+                    (by
+                      simpa [hslen] using
+                        adr_bound_reject φCode.length table.length
+                          (false :: encodePair (φCode, table)).length
+                          (le_of_eq hslen.symm))
+                · have hall : ∀ b ∈ table, b = true := by
+                    intro b hb
+                    match b with
+                    | true => rfl
+                    | false => exact (hex ⟨false, hb, rfl⟩).elim
+                  by_cases hpow : ∃ n, table.length = 2 ^ n
+                  · let n := Classical.choose hpow
+                    have hn : table.length = 2 ^ n := Classical.choose_spec hpow
+                    have hnle : n ≤ table.length := by
+                      rw [hn]
+                      exact adr_n_le_two_pow n
+                    exact adr_outputs_le
+                      (afterDecodePairResult_evals_encodePair_pow2 φCode table
+                        n hall hn)
+                      (by
+                        simpa [hslen] using
+                          adr_bound_cubicL φCode.length n table.length
+                            (false :: encodePair (φCode, table)).length
+                            (le_of_eq hslen.symm) hnle)
+                  · have hnpow : ∀ n, table.length ≠ 2 ^ n := by
+                      intro n hn
+                      exact hpow ⟨n, hn⟩
+                    have hmal :=
+                      validatesTautologyResult_of_malformed φCode table
+                        (Or.inr hnpow)
+                    rw [hmal]
+                    exact adr_outputs_le
+                      (afterDecodePairResult_evals_encodePair_reject φCode table
+                        hmal (Or.inr hnpow))
+                      (by
+                        simpa [hslen] using
+                          adr_bound_reject φCode.length table.length
+                            (false :: encodePair (φCode, table)).length
+                            (le_of_eq hslen.symm))
+
+/-- Pair decode then validate is poly time via local Bool-tape composition. -/
 theorem validatesTautologyResult_computableInPolyTime :
     Nonempty (TM2ComputableInPolyTime idBitEnc idBitEnc
       validatesTautologyResult_on_pair) := by
-  sorry
-
-end ProofSystemFrontier
+  have hfun : validatesTautologyResult_on_pair =
+      afterDecodePairResult ∘ decodePairResult :=
+    funext validatesTautologyResult_on_pair_eq_afterDecodePairResult_comp
+  rw [hfun]
+  exact ⟨comp_idBitEnc_idBitEnc decodePairResultComputableInPolyTime
+    afterDecodePairResultComputableInPolyTime decodePairResultOutBound
+    decodePairResult_length_le_outBound⟩
 
 
 

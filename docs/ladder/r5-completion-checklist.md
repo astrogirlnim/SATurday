@@ -2,10 +2,10 @@
 
 Status: active (diverted from `satday auto`; sticky formalize force cleared)
 
-**Constraint:** only two Bridge sorries left, both in
-`theory/Theory/ProofComplexity/Bridge/ProofSystem.lean`. Do not invent
-`Turing.*` names; reuse certified helpers named in the pin comments. Close
-the hard pin first; the soft pin is packaging.
+**Constraint:** one Bridge sorry left, in
+`theory/Theory/ProofComplexity/Bridge/ProofSystem.lean` (soft pin B).
+Do not invent `Turing.*` names; reuse certified helpers named in the pin
+comments. Hard pin A is closed. The soft pin is packaging.
 
 ## Files
 
@@ -18,8 +18,7 @@ the hard pin first; the soft pin is packaging.
 
 - `truthTable_is_prop_proof_system` (~3707) —
   `Nonempty (IsPropProofSystem truthTableProofSystem)`
-- `validatesTautologyResult_computableInPolyTime` (~6102) —
-  needs formula `evalOn` FinTM2, index-loop sequencer, TT map glue
+  (blocked on wrapping A's poly witness as the TT map)
 
 ## Checklist
 
@@ -39,7 +38,7 @@ the hard pin first; the soft pin is packaging.
   `odometerSuccComputer` EvalsToInTime + `odometerSuccComputableInPolyTime`;
   local `comp_idBitEnc_idBitEnc` available for glue;
   Remaining: `indexValidateComputer` FinTM2 under `|table|` fuel)
-- [ ] Glue decode-pair → decode-formula → length gate → loop →
+- [x] Glue decode-pair → decode-formula → length gate → loop →
   accept / reject into one `FinTM2` + poly `time`
   (via `comp_idBitEnc_idBitEnc` of `decodePairResult` with
   `afterDecodePairResult`; functional equality + outBound certified;
@@ -94,12 +93,17 @@ the hard pin first; the soft pin is packaging.
   `afterDecodePairResult_evals_encodePair_decode_fail`), and width
   mismatch encodePair glue
   (`afterDecodePairResult_evals_encodePair_width_ne`) are certified;
-  Remaining: non-tautology index walk, encodePair glue for that reject,
-  then package `afterDecodePairResultComputableInPolyTime`)
-- [ ] Package
+  non-tautology index walk (`adr_evals_indexLoop_notTaut`),
+  park-to-reject (`adr_evals_park_to_notTaut`), and encodePair glue
+  (`afterDecodePairResult_evals_encodePair_notTaut`) are certified;
+  `afterDecodePairResultComputableInPolyTime` packaged with `outputsFun`
+  covering fail-tag, parse-fail, malformed table, decode-formula fail,
+  width mismatch, non-tautology, and tautology accept)
+- [x] Package
   `TM2ComputableInPolyTime idBitEnc idBitEnc validatesTautologyResult_on_pair`
-  (local composition; no mathlib `.comp`)
-- [ ] Remove sorry; commit
+  (local `comp_idBitEnc_idBitEnc` of `decodePairResult` with
+  `afterDecodePairResult`; no mathlib `.comp`)
+- [x] Remove sorry; commit
 
 ### B. Soft pin — `truthTable_is_prop_proof_system` (~3707)
 
