@@ -2037,6 +2037,264 @@ noncomputable def unaryLEComputableInPolyTime :
     simp only [List.map_id, id_eq, bitEnc]
     exact evalsToInTime_le_mono (unaryLE_evals xs ys) (unaryLETime_bound xs ys)
 
+/-! ## Unary helpers for dominating length gates
+
+`toUnary s = true^{|s|}`. Together with `unaryMul` and `unaryLE`, a fixed
+polynomial length bound becomes a FinTM2 circuit: raise `|φ|+1` to the
+degree, scale by a coefficient sum, then compare to `|w|`. -/
+
+/-- Map any bit string to unary of the same length. -/
+def toUnary (s : List Bool) : List Bool := unaryNat s.length
+
+theorem length_toUnary (s : List Bool) : (toUnary s).length = s.length := by
+  simp [toUnary, length_unaryNat]
+
+theorem toUnary_eq_replicate (s : List Bool) :
+    toUnary s = List.replicate s.length true := rfl
+
+/-- Unary multiply: length `|acc| * |n|`. -/
+def unaryMul (acc n : List Bool) : List Bool :=
+  n.flatMap (fun _ => acc)
+
+theorem length_unaryMul (acc n : List Bool) :
+    (unaryMul acc n).length = acc.length * n.length := by
+  induction n with
+  | nil => simp [unaryMul]
+  | cons _ n ih =>
+      simp [unaryMul, List.flatMap, ih, Nat.mul_succ]
+      ring
+
+/-- Unary power by iterating multiply. `unaryPow u 0 = [true]` (one). -/
+def unaryPow (u : List Bool) : ℕ → List Bool
+  | 0 => [true]
+  | k + 1 => unaryMul (unaryPow u k) u
+
+theorem length_unaryPow (u : List Bool) (k : ℕ) :
+    (unaryPow u k).length = u.length ^ k := by
+  induction k with
+  | zero => simp [unaryPow]
+  | succ k ih =>
+      simp [unaryPow, length_unaryMul, ih, Nat.pow_succ]
+
+/-- Scale unary length by a constant `k`. -/
+def unaryScale (k : ℕ) (u : List Bool) : List Bool :=
+  unaryMul u (unaryNat k)
+
+theorem length_unaryScale (k : ℕ) (u : List Bool) :
+    (unaryScale k u).length = u.length * k := by
+  simp [unaryScale, length_unaryMul, length_unaryNat]
+
+open Polynomial
+
+/-- Sum of coefficients `coeff 0 + ... + coeff natDegree`. -/
+noncomputable def polyCoeffSum (p : Polynomial ℕ) : ℕ :=
+  ∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i
+
+/-- Dominating constant and degree for a length gate. -/
+noncomputable def polyDomK (p : Polynomial ℕ) : ℕ :=
+  (p.natDegree + 1) * (polyCoeffSum p + 1)
+
+noncomputable def polyDomD (p : Polynomial ℕ) : ℕ := p.natDegree
+
+/-- Dominating unary budget: `K * (|φ| + 1) ^ D`. -/
+noncomputable def polyDomUnary (p : Polynomial ℕ) (φ : List Bool) : List Bool :=
+  unaryScale (polyDomK p) (unaryPow (true :: toUnary φ) (polyDomD p))
+
+theorem length_polyDomUnary (p : Polynomial ℕ) (φ : List Bool) :
+    (polyDomUnary p φ).length =
+      polyDomK p * (φ.length + 1) ^ polyDomD p := by
+  simp [polyDomUnary, length_unaryScale, length_unaryPow, toUnary,
+    length_unaryNat, List.length_cons]
+  ring
+
+theorem poly_eval_le_dom (p : Polynomial ℕ) (n : ℕ) :
+    p.eval n ≤ polyDomK p * (n + 1) ^ polyDomD p := by
+  classical
+  have heval :
+      p.eval n = ∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i * n ^ i :=
+    Polynomial.eval_eq_sum_range (R := ℕ) (p := p) n
+  rw [heval]
+  have hpoint (i : ℕ) (hi : i ∈ Finset.range (p.natDegree + 1)) :
+      p.coeff i * n ^ i ≤ p.coeff i * (n + 1) ^ p.natDegree := by
+    have hi' : i < p.natDegree + 1 := Finset.mem_range.mp hi
+    have hile : i ≤ p.natDegree := Nat.le_of_lt_succ hi'
+    refine Nat.mul_le_mul_left _ ?_
+    calc
+      n ^ i ≤ (n + 1) ^ i := Nat.pow_le_pow_left (Nat.le_succ n) i
+      _ ≤ (n + 1) ^ p.natDegree :=
+        Nat.pow_le_pow_right (Nat.succ_pos n) hile
+  have hsum :
+      ∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i * n ^ i ≤
+        ∑ i ∈ Finset.range (p.natDegree + 1),
+          p.coeff i * (n + 1) ^ p.natDegree :=
+    Finset.sum_le_sum fun i hi => hpoint i hi
+  refine le_trans hsum ?_
+  have hfac :
+      ∑ i ∈ Finset.range (p.natDegree + 1),
+          p.coeff i * (n + 1) ^ p.natDegree =
+        (∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i) *
+          ((n + 1) ^ p.natDegree) := by
+    simp [Finset.sum_mul]
+  rw [hfac]
+  simp only [polyDomK, polyDomD, polyCoeffSum]
+  have hcs :
+      ∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i ≤
+        (∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i) + 1 := by
+    omega
+  calc
+    (∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i) * (n + 1) ^ p.natDegree ≤
+        ((∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i) + 1) *
+          (n + 1) ^ p.natDegree :=
+      Nat.mul_le_mul_right _ hcs
+    _ ≤ (p.natDegree + 1) *
+          ((∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i) + 1) *
+          (n + 1) ^ p.natDegree := by
+      have h1 : 1 ≤ p.natDegree + 1 := Nat.succ_pos _
+      have hmul :=
+        Nat.mul_le_mul_right
+          (((∑ i ∈ Finset.range (p.natDegree + 1), p.coeff i) + 1) *
+            (n + 1) ^ p.natDegree) h1
+      convert hmul using 1
+      · ring
+      · ring
+
+/-- Looser length gate still implied by the tight `lengthOk`. -/
+theorem lengthOk_implies_dom (p : Polynomial ℕ) (φ w : List Bool)
+    (h : lengthOk p φ w = true) :
+    unaryLE w (polyDomUnary p φ) = true := by
+  rw [lengthOk_iff] at h
+  rw [unaryLE_iff, length_polyDomUnary]
+  exact le_trans h (poly_eval_le_dom p φ.length)
+
+/-! ## FinTM2: `toUnary` (drain input, write that many `true`s) -/
+
+inductive ToUnaryStack where
+  | inp | out
+  deriving DecidableEq, Repr
+
+instance : Fintype ToUnaryStack where
+  elems := {.inp, .out}
+  complete s := by cases s <;> simp
+
+/-- Single label loop: pop inp, push true to out. -/
+def toUnaryComputer : FinTM2 where
+  K := ToUnaryStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := Unit
+  main := ()
+  σ := Option Bool
+  initialState := none
+  m _ :=
+    pop ToUnaryStack.inp (fun _ o => o) <|
+      branch (fun s => decide (s = none))
+        halt
+        (push ToUnaryStack.out (fun _ => true) <|
+          load (fun _ => none) <|
+            goto fun _ => ())
+
+def toUnaryStk (inp out : List Bool) : ToUnaryStack → List Bool
+  | .inp => inp
+  | .out => out
+
+def toUnaryCfg (l : Option Unit) (inp out : List Bool) : toUnaryComputer.Cfg :=
+  ⟨l, none, toUnaryStk inp out⟩
+
+theorem toUnary_step_cons (b : Bool) (rest out : List Bool) :
+    TM2.step toUnaryComputer.m
+      (toUnaryCfg (some ()) (b :: rest) out) =
+      some (toUnaryCfg (some ()) rest (true :: out)) := by
+  simp [toUnaryComputer, toUnaryCfg, toUnaryStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk => (⟨some (), none, stk⟩ : toUnaryComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, toUnaryStk]
+
+theorem toUnary_step_nil (out : List Bool) :
+    TM2.step toUnaryComputer.m
+      (toUnaryCfg (some ()) [] out) =
+      some (toUnaryCfg none [] out) := by
+  simp [toUnaryComputer, toUnaryCfg, toUnaryStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk => (⟨none, none, stk⟩ : toUnaryComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, toUnaryStk]
+
+theorem toUnary_initList (s : List Bool) :
+    initList toUnaryComputer s = toUnaryCfg (some ()) s [] := by
+  refine congrArg (fun stk => (⟨some (), none, stk⟩ : toUnaryComputer.Cfg)) ?_
+  funext k; cases k <;> simp [toUnaryComputer, toUnaryStk]
+
+theorem toUnary_haltList (out : List Bool) :
+    haltList toUnaryComputer out = toUnaryCfg none [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option Unit), none, stk⟩ : toUnaryComputer.Cfg)) ?_
+  funext k; cases k <;> simp [toUnaryComputer, toUnaryStk]
+
+def toUnary_evals_one {c c' : toUnaryComputer.Cfg}
+    (h : TM2.step toUnaryComputer.m c = some c') :
+    EvalsToInTime toUnaryComputer.step c (some c') 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change (some c).bind toUnaryComputer.step = some c'
+    simpa [FinTM2.step] using h
+
+/-- Drain writing `true` onto out (reversed unary). -/
+def toUnary_evals_loop (s out : List Bool) :
+    EvalsToInTime toUnaryComputer.step
+      (toUnaryCfg (some ()) s out)
+      (some (toUnaryCfg none [] (List.replicate s.length true ++ out)))
+      (s.length + 1) := by
+  induction s generalizing out with
+  | nil =>
+      have h := toUnary_evals_one (toUnary_step_nil out)
+      simpa [List.replicate_zero] using h
+  | cons b s ih =>
+      have h1 := toUnary_evals_one (toUnary_step_cons b s out)
+      have h2 := ih (true :: out)
+      have h := EvalsToInTime.trans toUnaryComputer.step 1 (s.length + 1)
+        _ _ _ h1 h2
+      -- machine writes replicate s.length ++ true :: out; reorder to replicate (s.length+1)
+      have h' : EvalsToInTime toUnaryComputer.step
+          (toUnaryCfg (some ()) (b :: s) out)
+          (some (toUnaryCfg none []
+            (List.replicate (b :: s).length true ++ out)))
+          ((b :: s).length + 1) := by
+        simpa [List.replicate_succ, List.cons_append, List.length_cons,
+          Nat.add_comm, Nat.add_left_comm, Nat.add_assoc,
+          replicate_true_append_cons] using h
+      exact h'
+
+noncomputable def toUnary_evals (s : List Bool) :
+    TM2OutputsInTime toUnaryComputer s (some (toUnary s)) (s.length + 1) := by
+  have h := toUnary_evals_loop s []
+  -- loop writes reverse unary onto out; reverse of true^n is true^n
+  have hrev : List.replicate s.length true ++ [] = toUnary s := by
+    simp [toUnary, unaryNat]
+  refine ⟨⟨h.steps, ?_⟩, ?_⟩
+  · simpa [toUnary_initList, toUnary_haltList, hrev, List.append_nil] using
+      h.evals_in_steps
+  · exact h.steps_le_m
+
+noncomputable def toUnaryTime : Polynomial ℕ := Polynomial.X + 1
+
+theorem toUnaryTime_eval (n : ℕ) : toUnaryTime.eval n = n + 1 := by
+  simp [toUnaryTime, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
+
+/-- Converting a string to unary of equal length is poly time. -/
+noncomputable def toUnaryComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc idBitEnc toUnary where
+  tm := toUnaryComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := toUnaryTime
+  outputsFun s := by
+    change TM2OutputsInTime toUnaryComputer (List.map id (idBitEnc s))
+      (some (List.map id (idBitEnc (toUnary s))))
+      (toUnaryTime.eval (idBitEnc s).length)
+    simp only [idBitEnc, List.map_id, id_eq, toUnaryTime_eval]
+    exact toUnary_evals s
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
