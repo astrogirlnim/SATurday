@@ -3101,6 +3101,239 @@ noncomputable def unaryScaleComputableInPolyTime (k : ℕ) :
     simp only [idBitEnc, List.map_id, id_eq, unaryScaleTime_eval]
     exact unaryScale_evals k s
 
+/-! ## Exact unary poly-eval for degree ≤ 1
+
+`polyEvalUnary (C a * X + C b) n = true^(a*n + b)`. Built from scale-then-append. -/
+
+theorem polyEvalUnary_linear (a b n : ℕ) :
+    polyEvalUnary (Polynomial.C a * Polynomial.X + Polynomial.C b) n =
+      List.replicate (a * n + b) true := by
+  simp [polyEvalUnary, unaryNat, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_C, Polynomial.eval_X]
+
+/-- Nested push of `k` trues then `goto cont` (Bool labels). -/
+def writeKTruesStmtBool (k : ℕ) (cont : Bool) :
+    TM2.Stmt (fun _ : ScaleStack => Bool) Bool (Option Bool) :=
+  match k with
+  | 0 => load (fun _ => none) <| goto fun _ => cont
+  | n + 1 =>
+      push ScaleStack.out (fun _ => true) <| writeKTruesStmtBool n cont
+
+theorem writeKTruesStmtBool_stepAux (k : ℕ) (cont : Bool) (v : Option Bool)
+    (inp out : List Bool) :
+    TM2.stepAux (writeKTruesStmtBool k cont) v (scaleStk inp out) =
+      ⟨some cont, none, scaleStk inp (List.replicate k true ++ out)⟩ := by
+  induction k generalizing out with
+  | zero =>
+      simp [writeKTruesStmtBool, TM2.stepAux, List.replicate_zero, scaleStk]
+  | succ n ih =>
+      simp only [writeKTruesStmtBool, TM2.stepAux]
+      have hstk :
+          Function.update (scaleStk inp out) ScaleStack.out
+              (true :: scaleStk inp out ScaleStack.out) =
+            scaleStk inp (true :: out) := by
+        funext s; cases s <;> simp [Function.update, scaleStk]
+      rw [hstk]
+      simpa [List.replicate_succ, replicate_true_append_cons] using ih (true :: out)
+
+/-- Append exactly `b` trues then halt. -/
+def appendKTruesStmt (b : ℕ) :
+    TM2.Stmt (fun _ : ScaleStack => Bool) Bool (Option Bool) :=
+  match b with
+  | 0 => halt
+  | n + 1 =>
+      push ScaleStack.out (fun _ => true) <| appendKTruesStmt n
+
+theorem appendKTruesStmt_stepAux (b : ℕ) (v : Option Bool) (inp out : List Bool) :
+    TM2.stepAux (appendKTruesStmt b) v (scaleStk inp out) =
+      ⟨none, v, scaleStk inp (List.replicate b true ++ out)⟩ := by
+  induction b generalizing out with
+  | zero =>
+      simp [appendKTruesStmt, TM2.stepAux, List.replicate_zero, scaleStk]
+  | succ n ih =>
+      simp only [appendKTruesStmt, TM2.stepAux]
+      have hstk :
+          Function.update (scaleStk inp out) ScaleStack.out
+              (true :: scaleStk inp out ScaleStack.out) =
+            scaleStk inp (true :: out) := by
+        funext s; cases s <;> simp [Function.update, scaleStk]
+      rw [hstk]
+      simpa [List.replicate_succ, replicate_true_append_cons] using ih (true :: out)
+
+/-- Scale by `a` per input bit, then append `b` trues. -/
+def scaleAppendComputer (a b : ℕ) : FinTM2 where
+  K := ScaleStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := Bool
+  main := false
+  σ := Option Bool
+  initialState := none
+  m
+    | false =>
+        pop ScaleStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => true)
+            (writeKTruesStmtBool a false)
+    | true =>
+        appendKTruesStmt b
+
+def scaleAppendCfg (a b : ℕ) (l : Option Bool) (v : Option Bool)
+    (inp out : List Bool) : (scaleAppendComputer a b).Cfg :=
+  ⟨l, v, scaleStk inp out⟩
+
+theorem scaleAppend_step_scale_nil (a b : ℕ) (out : List Bool) :
+    TM2.step (scaleAppendComputer a b).m
+      (scaleAppendCfg a b (some false) none [] out) =
+      some (scaleAppendCfg a b (some true) none [] out) := by
+  simp [scaleAppendComputer, scaleAppendCfg, scaleStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some true, none, stk⟩ : (scaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, scaleStk]
+
+theorem scaleAppend_step_scale_cons (a b : ℕ) (c : Bool) (rest out : List Bool) :
+    TM2.step (scaleAppendComputer a b).m
+      (scaleAppendCfg a b (some false) none (c :: rest) out) =
+      some (scaleAppendCfg a b (some false) none rest
+        (List.replicate a true ++ out)) := by
+  simp [scaleAppendComputer, scaleAppendCfg, scaleStk, TM2.step, TM2.stepAux]
+  have hstk :
+      Function.update (scaleStk (c :: rest) out) ScaleStack.inp rest =
+        scaleStk rest out := by
+    funext s; cases s <;> simp [Function.update, scaleStk]
+  have h := writeKTruesStmtBool_stepAux a false (some c) rest out
+  exact congrArg some
+    (Eq.trans (congrArg (TM2.stepAux (writeKTruesStmtBool a false) (some c)) hstk) h)
+
+theorem scaleAppend_step_append (a b : ℕ) (inp out : List Bool) :
+    TM2.step (scaleAppendComputer a b).m
+      (scaleAppendCfg a b (some true) none inp out) =
+      some (scaleAppendCfg a b none none inp
+        (List.replicate b true ++ out)) := by
+  simp [scaleAppendComputer, scaleAppendCfg, scaleStk, TM2.step]
+  exact congrArg some (appendKTruesStmt_stepAux b none inp out)
+
+def scaleAppend_evals_one {a b : ℕ} {c c' : (scaleAppendComputer a b).Cfg}
+    (h : TM2.step (scaleAppendComputer a b).m c = some c') :
+    EvalsToInTime (scaleAppendComputer a b).step c (some c') 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change (some c).bind (scaleAppendComputer a b).step = some c'
+    simpa [FinTM2.step] using h
+
+/-- Scale loop then one append transition. -/
+def scaleAppend_evals_loop (a b : ℕ) (s out : List Bool) :
+    EvalsToInTime (scaleAppendComputer a b).step
+      (scaleAppendCfg a b (some false) none s out)
+      (some (scaleAppendCfg a b none none []
+        (List.replicate b true ++
+          List.foldr (fun _ acc => List.replicate a true ++ acc) out s)))
+      (s.length + 2) := by
+  induction s generalizing out with
+  | nil =>
+      have h1 := scaleAppend_evals_one (scaleAppend_step_scale_nil a b out)
+      have h2 := scaleAppend_evals_one (scaleAppend_step_append a b [] out)
+      have h := EvalsToInTime.trans (scaleAppendComputer a b).step 1 1 _ _ _ h1 h2
+      simpa [List.foldr] using h
+  | cons c s ih =>
+      have h1 := scaleAppend_evals_one
+        (scaleAppend_step_scale_cons a b c s out)
+      have h2 := ih (List.replicate a true ++ out)
+      have h2' : EvalsToInTime (scaleAppendComputer a b).step
+          (scaleAppendCfg a b (some false) none s
+            (List.replicate a true ++ out))
+          (some (scaleAppendCfg a b none none []
+            (List.replicate b true ++
+              (List.replicate a true ++
+                List.foldr (fun _ acc => List.replicate a true ++ acc) out s))))
+          (s.length + 2) := by
+        simpa [foldr_replicate_comm a s out, List.append_assoc] using h2
+      have h := EvalsToInTime.trans (scaleAppendComputer a b).step 1
+        (s.length + 2) _ _ _ h1 h2'
+      have htime : (s.length + 2) + 1 = (c :: s).length + 2 := by
+        simp [List.length_cons]
+      simpa [List.foldr, List.append_assoc] using
+        evalsToInTime_le_mono h (le_of_eq htime)
+
+theorem scaleAppend_initList (a b : ℕ) (s : List Bool) :
+    initList (scaleAppendComputer a b) s =
+      scaleAppendCfg a b (some false) none s [] := by
+  refine congrArg (fun stk =>
+      (⟨some false, none, stk⟩ : (scaleAppendComputer a b).Cfg)) ?_
+  funext t; cases t <;> simp [scaleAppendComputer, scaleStk]
+
+theorem scaleAppend_haltList (a b : ℕ) (out : List Bool) :
+    haltList (scaleAppendComputer a b) out =
+      scaleAppendCfg a b none none [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option Bool), none, stk⟩ : (scaleAppendComputer a b).Cfg)) ?_
+  funext t; cases t <;> simp [scaleAppendComputer, scaleStk]
+
+/-- Output of scale-append on input length `n` is `true^(a*n + b)`. -/
+theorem scaleAppend_foldr_eq (a b : ℕ) (s : List Bool) :
+    List.replicate b true ++
+        List.foldr (fun _ acc => List.replicate a true ++ acc) ([] : List Bool) s =
+      List.replicate (b + a * s.length) true := by
+  rw [foldr_replicate_scale, List.append_nil, List.replicate_append_replicate]
+
+theorem scaleAppend_replicate_comm (a b : ℕ) (n : ℕ) :
+    List.replicate (b + a * n) true = List.replicate (a * n + b) true := by
+  rw [Nat.add_comm]
+
+noncomputable def scaleAppend_evals (a b : ℕ) (s : List Bool) :
+    TM2OutputsInTime (scaleAppendComputer a b) s
+      (some
+        (List.replicate b true ++
+          List.foldr (fun _ acc => List.replicate a true ++ acc) ([] : List Bool) s))
+      (s.length + 2) := by
+  have h := scaleAppend_evals_loop a b s []
+  refine ⟨⟨h.steps, ?_⟩, ?_⟩
+  · simpa [scaleAppend_initList, scaleAppend_haltList] using h.evals_in_steps
+  · exact h.steps_le_m
+
+noncomputable def scaleAppendTime (_a _b : ℕ) : Polynomial ℕ :=
+  Polynomial.X + 2
+
+theorem scaleAppendTime_eval (_a _b n : ℕ) :
+    (scaleAppendTime _a _b).eval n = n + 2 := by
+  simp [scaleAppendTime, Polynomial.eval_add, Polynomial.eval_X,
+    Polynomial.eval_ofNat]
+
+/-- `s ↦ true^(a*|s| + b)` in linear time (degree-1 unary poly-eval). -/
+noncomputable def scaleAppendComputableInPolyTime (a b : ℕ) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => List.replicate (a * s.length + b) true) where
+  tm := scaleAppendComputer a b
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := scaleAppendTime a b
+  outputsFun s := by
+    change TM2OutputsInTime (scaleAppendComputer a b) (List.map id (idBitEnc s))
+      (some (List.map id (idBitEnc (List.replicate (a * s.length + b) true))))
+      ((scaleAppendTime a b).eval (idBitEnc s).length)
+    simp only [idBitEnc, List.map_id, id_eq, scaleAppendTime_eval]
+    have h := scaleAppend_evals a b s
+    convert h using 1
+    refine congrArg some ?_
+    calc
+      List.replicate (a * s.length + b) true =
+          List.replicate (b + a * s.length) true := (scaleAppend_replicate_comm a b s.length).symm
+      _ = List.replicate b true ++
+            List.foldr (fun _ acc => List.replicate a true ++ acc) ([] : List Bool) s :=
+          (scaleAppend_foldr_eq a b s).symm
+
+/-- Degree-1 exact `polyEvalUnary` is poly-time on the length of `s`. -/
+noncomputable def polyEvalUnaryLinearComputableInPolyTime (a b : ℕ) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s =>
+        polyEvalUnary (Polynomial.C a * Polynomial.X + Polynomial.C b) s.length) := by
+  convert scaleAppendComputableInPolyTime a b using 1
+  funext s
+  exact polyEvalUnary_linear a b s.length
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
