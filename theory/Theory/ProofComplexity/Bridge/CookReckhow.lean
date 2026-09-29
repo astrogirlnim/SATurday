@@ -1848,6 +1848,195 @@ def unaryLE_evals_loop (xs ys : List Bool) :
             simp [List.length_cons]; omega
           simpa [unaryLE_cons_cons] using evalsToInTime_le_mono h hle
 
+/-! ### encodePair load for unaryLE (mirror bitsEqual load) -/
+
+theorem unaryLE_step_parse_false (rest left right out : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfgInp (some .parse) none (false :: rest) left right out) =
+      some (unaryLECfgInp (some .loadRight) none rest left right out) := by
+  simp [unaryLEComputer, unaryLECfgInp, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.loadRight, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_parse_true (b : Bool) (rest left right out : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfgInp (some .parse) none (true :: b :: rest) left right out) =
+      some (unaryLECfgInp (some .expectBit) none (b :: rest) left right out) := by
+  simp [unaryLEComputer, unaryLECfgInp, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.expectBit, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_expectBit (b : Bool) (rest left right out : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfgInp (some .expectBit) none (b :: rest) left right out) =
+      some (unaryLECfgInp (some .parse) none rest (b :: left) right out) := by
+  simp [unaryLEComputer, unaryLECfgInp, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.parse, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_loadRight_cons (b : Bool) (rest left right out : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfgInp (some .loadRight) none (b :: rest) left right out) =
+      some (unaryLECfgInp (some .loadRight) none rest left (b :: right) out) := by
+  simp [unaryLEComputer, unaryLECfgInp, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.loadRight, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_step_loadRight_nil (left right out : List Bool) :
+    TM2.step unaryLEComputer.m
+      (unaryLECfgInp (some .loadRight) none [] left right out) =
+      some (unaryLECfg (some .loop) none left right out) := by
+  simp [unaryLEComputer, unaryLECfgInp, unaryLECfg, unaryLEStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some UnaryLELabel.loop, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, unaryLEStk]
+
+theorem unaryLE_initList (s : List Bool) :
+    initList unaryLEComputer s =
+      unaryLECfgInp (some .parse) none s [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some UnaryLELabel.parse, none, stk⟩ : unaryLEComputer.Cfg)) ?_
+  funext k; cases k <;> simp [unaryLEComputer, unaryLEStk]
+
+def unaryLE_evals_parse_one (b : Bool) (rest left right out : List Bool) :
+    EvalsToInTime unaryLEComputer.step
+      (unaryLECfgInp (some .parse) none (true :: b :: rest) left right out)
+      (some (unaryLECfgInp (some .parse) none rest (b :: left) right out))
+      2 := by
+  have h1 := unaryLE_evals_one (unaryLE_step_parse_true b rest left right out)
+  have h2 := unaryLE_evals_one (unaryLE_step_expectBit b rest left right out)
+  exact EvalsToInTime.trans unaryLEComputer.step 1 1 _ _ _ h1 h2
+
+noncomputable def unaryLE_evals_parse (xs rest left right out : List Bool) :
+    EvalsToInTime unaryLEComputer.step
+      (unaryLECfgInp (some .parse) none
+        ((xs.flatMap fun b => [true, b]) ++ rest) left right out)
+      (some (unaryLECfgInp (some .parse) none rest (xs.reverse ++ left) right out))
+      (2 * xs.length) := by
+  induction xs generalizing left with
+  | nil =>
+      simpa using EvalsToInTime.refl unaryLEComputer.step
+        (unaryLECfgInp (some .parse) none rest left right out)
+  | cons b xs ih =>
+      have h1 := unaryLE_evals_parse_one b
+        ((xs.flatMap fun c => [true, c]) ++ rest) left right out
+      have h2 := ih (b :: left)
+      have h := EvalsToInTime.trans unaryLEComputer.step 2 (2 * xs.length)
+        _ _ _ h1 (by simpa [List.append_assoc] using h2)
+      simpa [List.length_cons, List.reverse_cons, two_mul, Nat.succ_eq_add_one]
+        using evalsToInTime_le_mono h (by omega)
+
+noncomputable def unaryLE_evals_loadRight (ys left right out : List Bool) :
+    EvalsToInTime unaryLEComputer.step
+      (unaryLECfgInp (some .loadRight) none ys left right out)
+      (some (unaryLECfg (some .loop) none left (ys.reverse ++ right) out))
+      (ys.length + 1) := by
+  induction ys generalizing right with
+  | nil =>
+      exact unaryLE_evals_one (unaryLE_step_loadRight_nil left right out)
+  | cons y ys ih =>
+      have h1 := unaryLE_evals_one
+        (unaryLE_step_loadRight_cons y ys left right out)
+      have h2 := ih (y :: right)
+      exact EvalsToInTime.trans unaryLEComputer.step 1 (ys.length + 1)
+        _ _ _ h1 (by simpa [List.reverse_cons] using h2)
+
+theorem unaryLE_reverse (xs ys : List Bool) :
+    unaryLE xs.reverse ys.reverse = unaryLE xs ys := by
+  refine Bool.eq_iff_iff.mpr ?_
+  simp [unaryLE_iff, List.length_reverse]
+
+noncomputable def unaryLE_evals_load_encodePair (xs ys : List Bool) :
+    EvalsToInTime unaryLEComputer.step
+      (unaryLECfgInp (some .parse) none (encodePair (xs, ys)) [] [] [])
+      (some (unaryLECfg (some .loop) none xs.reverse ys.reverse []))
+      (2 * xs.length + ys.length + 2) := by
+  have hparse := unaryLE_evals_parse xs (false :: ys) [] [] []
+  have h1 : EvalsToInTime unaryLEComputer.step
+      (unaryLECfgInp (some .parse) none (encodePair (xs, ys)) [] [] [])
+      (some (unaryLECfgInp (some .parse) none (false :: ys) xs.reverse [] []))
+      (2 * xs.length) := by
+    simpa [encodePair, List.append_assoc] using hparse
+  have hfalse := unaryLE_evals_one
+    (unaryLE_step_parse_false ys xs.reverse [] [])
+  have h12 :=
+    EvalsToInTime.trans unaryLEComputer.step (2 * xs.length) 1 _ _ _ h1 hfalse
+  have h12' : EvalsToInTime unaryLEComputer.step
+      (unaryLECfgInp (some .parse) none (encodePair (xs, ys)) [] [] [])
+      (some (unaryLECfgInp (some .loadRight) none ys xs.reverse [] []))
+      (2 * xs.length + 1) := by
+    simpa [Nat.add_comm] using h12
+  have hload := unaryLE_evals_loadRight ys xs.reverse [] []
+  have h :=
+    EvalsToInTime.trans unaryLEComputer.step (2 * xs.length + 1) (ys.length + 1)
+      _ _ _ h12' hload
+  refine ⟨⟨h.steps, ?_⟩, ?_⟩
+  · simpa [List.append_nil] using h.evals_in_steps
+  · refine le_trans h.steps_le_m ?_
+    omega
+
+noncomputable def unaryLE_evals (xs ys : List Bool) :
+    TM2OutputsInTime unaryLEComputer (encodePair (xs, ys))
+      (some [unaryLE xs ys])
+      (4 * xs.length + 2 * ys.length + 4) := by
+  have hload := unaryLE_evals_load_encodePair xs ys
+  have hloop0 := unaryLE_evals_loop xs.reverse ys.reverse
+  have hloop : EvalsToInTime unaryLEComputer.step
+      (unaryLECfg (some .loop) none xs.reverse ys.reverse [])
+      (some (haltList unaryLEComputer [unaryLE xs ys]))
+      (2 * xs.length + ys.length + 2) := by
+    simpa [List.length_reverse, unaryLE_reverse] using hloop0
+  have h1 : EvalsToInTime unaryLEComputer.step
+      (initList unaryLEComputer (encodePair (xs, ys)))
+      (some (unaryLECfg (some .loop) none xs.reverse ys.reverse []))
+      (2 * xs.length + ys.length + 2) := by
+    simpa [unaryLE_initList] using hload
+  have h := EvalsToInTime.trans unaryLEComputer.step
+    (2 * xs.length + ys.length + 2)
+    (2 * xs.length + ys.length + 2)
+    _ _ _ h1 hloop
+  refine ⟨⟨h.steps, ?_⟩, ?_⟩
+  · simpa [bitEnc] using h.evals_in_steps
+  · refine le_trans h.steps_le_m ?_
+    omega
+
+noncomputable def unaryLETime : Polynomial ℕ := 4 * Polynomial.X + 4
+
+theorem unaryLETime_eval (n : ℕ) : unaryLETime.eval n = 4 * n + 4 := by
+  simp [unaryLETime, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+    Polynomial.eval_ofNat]
+
+theorem unaryLETime_bound (xs ys : List Bool) :
+    4 * xs.length + 2 * ys.length + 4 ≤
+      unaryLETime.eval (encodePair (xs, ys)).length := by
+  simp [unaryLETime, length_encodePair, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_X, Polynomial.eval_ofNat]
+  omega
+
+/-- Unary length compare under `encodePair` is poly time. -/
+noncomputable def unaryLEComputableInPolyTime :
+    TM2ComputableInPolyTime encodePair bitEnc (fun p => unaryLE p.1 p.2) where
+  tm := unaryLEComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := unaryLETime
+  outputsFun p := by
+    rcases p with ⟨xs, ys⟩
+    change TM2OutputsInTime unaryLEComputer (List.map id (encodePair (xs, ys)))
+      (some (List.map id (bitEnc (unaryLE xs ys))))
+      (unaryLETime.eval (encodePair (xs, ys)).length)
+    simp only [List.map_id, id_eq, bitEnc]
+    exact evalsToInTime_le_mono (unaryLE_evals xs ys) (unaryLETime_bound xs ys)
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then

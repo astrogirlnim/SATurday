@@ -129,9 +129,10 @@ Cook Levin reduction (hard direction) remain. Do not restart
   (`sanitizeComputer` lifted decode + eval + notBit; axiom gate PASS)
 - [ ] Easy direction of theorem 1: package `proofSystemOfNPVerifier` as
   `TM2ComputableInPolyTime idBitEnc idBitEnc` (functional sound,
-  complete, and polyBound lemmas are certified;
-  `afterDecodeProofSystem` composition and `unaryLE` FinTM2 loop phase
-  in progress; `summit_corollary_of_easy` waits on full packaging)
+  complete, polyBound, and `afterDecodeProofSystem` composition certified;
+  `unaryLEComputableInPolyTime` certified under `encodePair`;
+  remaining: poly-eval unary budget machine, compose with `V`, host
+  `afterDecodeProofSystem` FinTM2; `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
   certified; class equality needs the reduction)
