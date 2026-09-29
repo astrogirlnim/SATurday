@@ -2865,6 +2865,51 @@ theorem unaryMul_reverse_eq_of_unary (xs ys : List Bool)
     (unaryMul xs ys).reverse = unaryMul xs ys := by
   rw [hxs, hys, unaryMul_of_replicate, List.reverse_replicate]
 
+/-! ## Unary scale / dominating length gate (semantic packaging)
+
+`unaryScale k (toUnary s)` is the dominating building block for
+`polyDomUnary`. FinTM2 packaging reuses `unaryMulComputer` once a
+constant-right `encodePair (-, true^k)` adapter is certified; until then the
+semantic equalities below close the length-arithmetic side of Block C. -/
+
+theorem unaryScale_eq_mul_toUnary (k : ℕ) (s : List Bool) :
+    unaryScale k (toUnary s) = unaryMul (toUnary s) (unaryNat k) := rfl
+
+theorem unaryScale_length (k : ℕ) (s : List Bool) :
+    (unaryScale k (toUnary s)).length = k * s.length := by
+  simp [unaryScale, toUnary, length_unaryMul, length_unaryNat, Nat.mul_comm]
+
+theorem unaryScale_eq_replicate (k : ℕ) (s : List Bool) :
+    unaryScale k (toUnary s) = List.replicate (k * s.length) true := by
+  simpa [unaryScale, toUnary, unaryNat, Nat.mul_comm] using
+    unaryMul_of_replicate s.length k
+
+/-- Dominating length gate as a Boolean. -/
+noncomputable def lengthOkDom (p : Polynomial ℕ) (φ w : List Bool) : Bool :=
+  unaryLE w (polyDomUnary p φ)
+
+theorem lengthOkDom_iff (p : Polynomial ℕ) (φ w : List Bool) :
+    lengthOkDom p φ w = true ↔
+      w.length ≤ polyDomK p * (φ.length + 1) ^ polyDomD p := by
+  simp [lengthOkDom, unaryLE_iff, length_polyDomUnary]
+
+theorem lengthOk_implies_lengthOkDom (p : Polynomial ℕ) (φ w : List Bool)
+    (h : lengthOk p φ w = true) : lengthOkDom p φ w = true :=
+  lengthOk_implies_dom p φ w h
+
+/-- Polynomial realizing the dominating length bound. -/
+noncomputable def polyDomBound (p : Polynomial ℕ) : Polynomial ℕ :=
+  Polynomial.C (polyDomK p) * (Polynomial.X + 1) ^ polyDomD p
+
+theorem polyDomBound_eval (p : Polynomial ℕ) (n : ℕ) :
+    (polyDomBound p).eval n = polyDomK p * (n + 1) ^ polyDomD p := by
+  simp [polyDomBound, Polynomial.eval_mul, Polynomial.eval_pow,
+    Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
+
+theorem poly_eval_le_polyDomBound (p : Polynomial ℕ) (n : ℕ) :
+    p.eval n ≤ (polyDomBound p).eval n := by
+  simpa [polyDomBound_eval] using poly_eval_le_dom p n
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
