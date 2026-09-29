@@ -132,8 +132,9 @@ Cook Levin reduction (hard direction) remain. Do not restart
   complete, polyBound, and `afterDecodeProofSystem` composition certified;
   `unaryLEComputableInPolyTime` certified under `encodePair`;
   `toUnaryComputableInPolyTime` certified; `unaryMulRevComputableInPolyTime`
-  certified under `encodePair` (reverse identity on unary tapes);
-  remaining: unaryPow/unaryScale polyDom budget, compose with `V`, host
+  certified under `encodePair`; `unaryScaleComputableInPolyTime` certified
+  (nested push Stmt; time `|s|+1`); `polyDomBound` / `lengthOkDom` semantic;
+  remaining: `unaryPow` FinTM2, polyDomUnary host, compose with `V`,
   `afterDecodeProofSystem` FinTM2; `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
