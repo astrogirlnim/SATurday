@@ -13010,6 +13010,475 @@ noncomputable def adr_evals_mvParse_formula (φ : PropFormula) (k M : ℕ)
             (encodeFormula χ).length M)
       simpa [hmax] using t4'
 
+theorem maxVar_le_encodeFormula_length (φ : PropFormula) :
+    φ.maxVar ≤ (encodeFormula φ).length := by
+  induction φ with
+  | var n =>
+      simp [PropFormula.maxVar, length_encodeFormula_var]
+  | not ψ ih =>
+      simpa [PropFormula.maxVar, length_encodeFormula_not] using
+        (ih.trans (Nat.le_add_right _ 2))
+  | and ψ χ ihψ ihχ =>
+      have hψ : ψ.maxVar ≤ (encodeFormula (.and ψ χ)).length := by
+        rw [length_encodeFormula_and]
+        exact ihψ.trans (by omega)
+      have hχ : χ.maxVar ≤ (encodeFormula (.and ψ χ)).length := by
+        rw [length_encodeFormula_and]
+        exact ihχ.trans (by omega)
+      simpa [PropFormula.maxVar] using max_le hψ hχ
+  | or ψ χ ihψ ihχ =>
+      have hψ : ψ.maxVar ≤ (encodeFormula (.or ψ χ)).length := by
+        rw [length_encodeFormula_or]
+        exact ihψ.trans (by omega)
+      have hχ : χ.maxVar ≤ (encodeFormula (.or ψ χ)).length := by
+        rw [length_encodeFormula_or]
+        exact ihχ.trans (by omega)
+      simpa [PropFormula.maxVar] using max_le hψ hχ
+
+theorem adr_fail_bound_mono {rest out k : ℕ} (h : rest ≤ out) :
+    128 * (rest + 1) * (rest + 2) + 32 * (k + 1) * (rest + 2) ≤
+      128 * (out + 1) * (out + 2) + 32 * (k + 1) * (out + 2) := by
+  have h1 := Nat.mul_le_mul (Nat.mul_le_mul_left 128 (Nat.succ_le_succ h))
+    (Nat.add_le_add_right h 2)
+  have h2 := Nat.mul_le_mul_left (32 * (k + 1)) (Nat.add_le_add_right h 2)
+  nlinarith
+
+theorem adr_fail_bin_child_le (L R k M : ℕ) (hM : M ≤ k + L) :
+    128 * (R + 1) * (R + 2) + 32 * (M + 1) * (R + 2) +
+      32 * (L + 1) * (M + 2) + 3 ≤
+    128 * (L + R + 3) * (L + R + 4) + 32 * (k + 1) * (L + R + 4) := by
+  nlinarith
+
+/-- Remaining all-true bits on `mvNatRest` never see a terminator, so drain. -/
+noncomputable def adr_evals_mvNatRest_fail (left0 inp right work : List Bool)
+    (out : List Bool) (hall : ∀ b ∈ out, b = true) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNatRest) none inp (false :: left0) right work out)
+      (some (adrCfg none none [] [] [] [] [true]))
+      (2 * out.length + work.length + inp.length + left0.length +
+        right.length + 9) := by
+  induction out generalizing work with
+  | nil =>
+      have h1 := adr_evals_one
+        (adr_step_mvNatRest_nil inp (false :: left0) right work none)
+      have h2 := adr_evals_failDrain inp (false :: left0) right work [] none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        _ _ _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
+  | cons b rest ih =>
+      have hb : b = true := hall b (by simp)
+      subst hb
+      have hall' : ∀ x ∈ rest, x = true := fun x hx =>
+        hall x (List.mem_cons_of_mem _ hx)
+      have h1 := adr_evals_one
+        (adr_step_mvNatRest_true rest inp (false :: left0) right work none)
+      have h2 := ih (true :: work) hall'
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        _ _ _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by simp [List.length_cons]; omega)
+
+/-- `decodeNat` fails exactly on an all-true (possibly empty) tape. -/
+noncomputable def adr_evals_mvNat_fail (k i : ℕ)
+    (left0 inp right : List Bool) (out : List Bool)
+    (hall : ∀ b ∈ out, b = true) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvNat) none inp
+        (List.replicate i true ++ false :: left0) right
+        (List.replicate k true) out)
+      (some (adrCfg none none [] [] [] [] [true]))
+      (2 * out.length + 2 * k + 2 * i + left0.length + inp.length +
+        right.length + 24) := by
+  induction out generalizing k i with
+  | nil =>
+      have h1 := adr_evals_one
+        (adr_step_mvNat_nil inp (List.replicate i true ++ false :: left0)
+          right (List.replicate k true) none)
+      have h2 := adr_evals_failDrain inp
+        (List.replicate i true ++ false :: left0) right
+        (List.replicate k true) [] none
+      have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+        _ _ _ _ _ h1 h2
+      exact evalsToInTime_le_mono t (by
+        simp [List.length_replicate, List.length_append, List.length_cons]
+        omega)
+  | cons b rest ih =>
+      have hb : b = true := hall b (by simp)
+      subst hb
+      have hall' : ∀ x ∈ rest, x = true := fun x hx =>
+        hall x (List.mem_cons_of_mem _ hx)
+      cases k with
+      | zero =>
+          have h1 := adr_evals_one
+            (adr_step_mvNat_true_work_nil rest inp
+              (List.replicate i true ++ false :: left0) right none)
+          have htake := adr_evals_mvNatRestTake i left0 inp right [] rest
+          have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+            _ _ _ _ _ h1 htake
+          have hrest :=
+            adr_evals_mvNatRest_fail left0 inp right
+              (true :: (List.replicate i true ++ ([] : List Bool))) rest hall'
+          have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+            _ _ _ _ _ t1 hrest
+          exact evalsToInTime_le_mono t2 (by
+            simp [List.length_cons, List.length_append, List.length_replicate,
+              List.length_nil]
+            omega)
+      | succ k' =>
+          have h1 := adr_evals_one
+            (adr_step_mvNat_true_work_cons true (List.replicate k' true)
+              rest inp (List.replicate i true ++ false :: left0) right none)
+          have hL : true :: (List.replicate i true ++ false :: left0) =
+              List.replicate (i + 1) true ++ false :: left0 := by
+            simp [List.replicate_succ]
+          have h2 := ih k' (i + 1) hall'
+          have h2' : EvalsToInTime afterDecodePairResultComputer.step
+              (adrCfg (some .mvNat) none inp
+                (true :: (List.replicate i true ++ false :: left0)) right
+                (List.replicate k' true) rest)
+              (some (adrCfg none none [] [] [] [] [true]))
+              (2 * rest.length + 2 * k' + 2 * (i + 1) + left0.length +
+                inp.length + right.length + 24) := by
+            simpa [hL] using h2
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+            _ _ _ _ _ h1 h2'
+          exact evalsToInTime_le_mono t (by
+            simp [List.length_cons]
+            omega)
+
+/-- Prefix decode none: walk the tag tree until a missing terminator or child. -/
+noncomputable def adr_evals_mvParse_fail (k : ℕ)
+    (out inp left right : List Bool) (fuel : ℕ)
+    (hfuel : out.length < fuel)
+    (h : decodeFormulaPrefixFuel fuel out = none) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvParse) none inp left right
+        (List.replicate k true) out)
+      (some (adrCfg none none [] [] [] [] [true]))
+      (128 * (out.length + 1) * (out.length + 2) +
+        32 * (k + 1) * (out.length + 2) +
+        inp.length + left.length + right.length + 24) := by
+  induction fuel generalizing out k inp left with
+  | zero =>
+      exact (Nat.not_lt_zero _ hfuel).elim
+  | succ f ih =>
+      match out with
+      | [] =>
+          have h1 := adr_evals_one
+            (adr_step_mvParse_nil inp left right (List.replicate k true) none)
+          have h2 := adr_evals_failDrain inp left right
+            (List.replicate k true) [] none
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+            _ _ _ _ _ h1 h2
+          exact evalsToInTime_le_mono t (by
+            simp [List.length_nil, List.length_replicate]
+            nlinarith)
+      | [false] =>
+          have h1 := adr_evals_one
+            (adr_step_mvParse_false [] inp left right
+              (List.replicate k true) none)
+          have h2 := adr_evals_one
+            (adr_step_mvTagF_nil inp left right (List.replicate k true) none)
+          have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+            _ _ _ h1 h2
+          have h3 := adr_evals_failDrain inp left right
+            (List.replicate k true) [] none
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+            _ _ _ _ _ t12 h3
+          exact evalsToInTime_le_mono t (by
+            simp [List.length_cons, List.length_nil, List.length_replicate]
+            nlinarith)
+      | [true] =>
+          have h1 := adr_evals_one
+            (adr_step_mvParse_true [] inp left right
+              (List.replicate k true) none)
+          have h2 := adr_evals_one
+            (adr_step_mvTagT_nil inp left right (List.replicate k true) none)
+          have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+            _ _ _ h1 h2
+          have h3 := adr_evals_failDrain inp left right
+            (List.replicate k true) [] none
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+            _ _ _ _ _ t12 h3
+          exact evalsToInTime_le_mono t (by
+            simp [List.length_cons, List.length_nil, List.length_replicate]
+            nlinarith)
+      | false :: false :: rest =>
+          have hnat : decodeNat rest = none := by
+            simp only [decodeFormulaPrefixFuel] at h
+            cases hn : decodeNat rest with
+            | none => rfl
+            | some _ => simp [hn] at h
+          have hall : ∀ b ∈ rest, b = true := (decodeNat_eq_none_iff rest).mp hnat
+          have h1 := adr_evals_one
+            (adr_step_mvParse_false (false :: rest) inp left right
+              (List.replicate k true) none)
+          have h2 := adr_evals_one
+            (adr_step_mvTagF_false rest inp left right
+              (List.replicate k true) none)
+          have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+            _ _ _ h1 h2
+          have hnatfail := adr_evals_mvNat_fail k 0 left inp right rest hall
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+            _ _ _ _ _ t12 hnatfail
+          exact evalsToInTime_le_mono t (by
+            simp [List.length_cons]
+            nlinarith)
+      | false :: true :: rest =>
+          have hchild : decodeFormulaPrefixFuel f rest = none := by
+            simp only [decodeFormulaPrefixFuel] at h
+            cases hc : decodeFormulaPrefixFuel f rest with
+            | none => rfl
+            | some _ => simp [hc] at h
+          have hrest : rest.length < f := by
+            simp only [List.length_cons] at hfuel
+            omega
+          have h1 := adr_evals_one
+            (adr_step_mvParse_false (true :: rest) inp left right
+              (List.replicate k true) none)
+          have h2 := adr_evals_one
+            (adr_step_mvTagF_true rest inp left right
+              (List.replicate k true) none)
+          have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+            _ _ _ h1 h2
+          have hfail := ih k rest inp left hrest hchild
+          have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+            _ _ _ _ _ t12 hfail
+          exact evalsToInTime_le_mono t (by
+            simp [List.length_cons]
+            have hle : rest.length ≤ (false :: true :: rest).length := by
+              simp [List.length_cons]; omega
+            nlinarith [adr_fail_bound_mono (k := k) hle])
+      | true :: false :: rest =>
+          have h1 := adr_evals_one
+            (adr_step_mvParse_true (false :: rest) inp left right
+              (List.replicate k true) none)
+          have h2 := adr_evals_one
+            (adr_step_mvTagT_cons false rest inp left right
+              (List.replicate k true) none)
+          have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+            _ _ _ h1 h2
+          have t12' : EvalsToInTime afterDecodePairResultComputer.step
+              (adrCfg (some .mvParse) none inp left right
+                (List.replicate k true) (true :: false :: rest))
+              (some (adrCfg (some .mvParse) none (true :: inp) left right
+                (List.replicate k true) rest)) 2 :=
+            evalsToInTime_le_mono t12 (by omega)
+          have hrest : rest.length < f := by
+            simp only [List.length_cons] at hfuel
+            omega
+          cases hφ : decodeFormulaPrefixFuel f rest with
+          | none =>
+              have hfail := ih k rest (true :: inp) left hrest hφ
+              have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+                _ _ _ _ _ t12' hfail
+              exact evalsToInTime_le_mono t (by
+                simp [List.length_cons]
+                have hle : rest.length ≤ (true :: false :: rest).length := by
+                  simp [List.length_cons]; omega
+                nlinarith [adr_fail_bound_mono (k := k) hle])
+          | some pr =>
+              rcases pr with ⟨φ, rest₁⟩
+              have hψ : decodeFormulaPrefixFuel f rest₁ = none := by
+                simp only [decodeFormulaPrefixFuel, hφ] at h
+                cases hs : decodeFormulaPrefixFuel f rest₁ with
+                | none => rfl
+                | some _ => simp [hs] at h
+              have hs : rest = encodeFormula φ ++ rest₁ :=
+                encodeFormula_append_of_decodeFormulaPrefixFuel _ hφ
+              subst hs
+              have hrest₁ : rest₁.length < f := by
+                simp [List.length_append] at hfuel ⊢
+                omega
+              let M := max k φ.maxVar
+              have hkM : k ≤ M := le_max_left _ _
+              have hφM : φ.maxVar ≤ M := le_max_right _ _
+              have hparse :=
+                adr_evals_mvParse_formula φ k M hkM hφM (true :: inp) left
+                  right rest₁
+              have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+                _ _ _ _ _ t12' hparse
+              have h4 := adr_evals_one
+                (adr_step_mvAfter_cons true inp left right
+                  (List.replicate (max k φ.maxVar) true) rest₁ none)
+              have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+                _ _ _ _ _ t2 h4
+              have hfail := ih (max k φ.maxVar) rest₁ inp left hrest₁ hψ
+              have t4 := EvalsToInTime.trans afterDecodePairResultComputer.step
+                _ _ _ _ _ t3 hfail
+              have hlenφ := maxVar_le_encodeFormula_length φ
+              have hMle : max k φ.maxVar ≤ k + (encodeFormula φ).length :=
+                max_le (Nat.le_add_right k _) (hlenφ.trans (Nat.le_add_left _ k))
+              refine evalsToInTime_le_mono t4 ?_
+              simp [List.length_cons, List.length_append]
+              have htime := adr_fail_bin_child_le (encodeFormula φ).length
+                rest₁.length k (max k φ.maxVar) hMle
+              have hx :
+                  1 + (32 * ((encodeFormula φ).length + 1) *
+                    (max k φ.maxVar + 2) + 2) =
+                  32 * ((encodeFormula φ).length + 1) *
+                    (max k φ.maxVar + 2) + 3 := by
+                omega
+              rw [hx]
+              linarith [htime]
+      | true :: true :: rest =>
+          have h1 := adr_evals_one
+            (adr_step_mvParse_true (true :: rest) inp left right
+              (List.replicate k true) none)
+          have h2 := adr_evals_one
+            (adr_step_mvTagT_cons true rest inp left right
+              (List.replicate k true) none)
+          have t12 := EvalsToInTime.trans afterDecodePairResultComputer.step 1 1
+            _ _ _ h1 h2
+          have t12' : EvalsToInTime afterDecodePairResultComputer.step
+              (adrCfg (some .mvParse) none inp left right
+                (List.replicate k true) (true :: true :: rest))
+              (some (adrCfg (some .mvParse) none (true :: inp) left right
+                (List.replicate k true) rest)) 2 :=
+            evalsToInTime_le_mono t12 (by omega)
+          have hrest : rest.length < f := by
+            simp only [List.length_cons] at hfuel
+            omega
+          cases hφ : decodeFormulaPrefixFuel f rest with
+          | none =>
+              have hfail := ih k rest (true :: inp) left hrest hφ
+              have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+                _ _ _ _ _ t12' hfail
+              exact evalsToInTime_le_mono t (by
+                simp [List.length_cons]
+                have hle : rest.length ≤ (true :: true :: rest).length := by
+                  simp [List.length_cons]; omega
+                nlinarith [adr_fail_bound_mono (k := k) hle])
+          | some pr =>
+              rcases pr with ⟨φ, rest₁⟩
+              have hψ : decodeFormulaPrefixFuel f rest₁ = none := by
+                simp only [decodeFormulaPrefixFuel, hφ] at h
+                cases hs : decodeFormulaPrefixFuel f rest₁ with
+                | none => rfl
+                | some _ => simp [hs] at h
+              have hs : rest = encodeFormula φ ++ rest₁ :=
+                encodeFormula_append_of_decodeFormulaPrefixFuel _ hφ
+              subst hs
+              have hrest₁ : rest₁.length < f := by
+                simp [List.length_append] at hfuel ⊢
+                omega
+              let M := max k φ.maxVar
+              have hkM : k ≤ M := le_max_left _ _
+              have hφM : φ.maxVar ≤ M := le_max_right _ _
+              have hparse :=
+                adr_evals_mvParse_formula φ k M hkM hφM (true :: inp) left
+                  right rest₁
+              have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+                _ _ _ _ _ t12' hparse
+              have h4 := adr_evals_one
+                (adr_step_mvAfter_cons true inp left right
+                  (List.replicate (max k φ.maxVar) true) rest₁ none)
+              have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+                _ _ _ _ _ t2 h4
+              have hfail := ih (max k φ.maxVar) rest₁ inp left hrest₁ hψ
+              have t4 := EvalsToInTime.trans afterDecodePairResultComputer.step
+                _ _ _ _ _ t3 hfail
+              have hlenφ := maxVar_le_encodeFormula_length φ
+              have hMle : max k φ.maxVar ≤ k + (encodeFormula φ).length :=
+                max_le (Nat.le_add_right k _) (hlenφ.trans (Nat.le_add_left _ k))
+              refine evalsToInTime_le_mono t4 ?_
+              simp [List.length_cons, List.length_append]
+              have htime := adr_fail_bin_child_le (encodeFormula φ).length
+                rest₁.length k (max k φ.maxVar) hMle
+              have hx :
+                  1 + (32 * ((encodeFormula φ).length + 1) *
+                    (max k φ.maxVar + 2) + 2) =
+                  32 * ((encodeFormula φ).length + 1) *
+                    (max k φ.maxVar + 2) + 3 := by
+                omega
+              rw [hx]
+              linarith [htime]
+
+/-- Top-level leftover suffix after a valid prefix: `mvFinish` rejects. -/
+noncomputable def adr_evals_mvParse_junk (φ : PropFormula) (k M : ℕ)
+    (hk : k ≤ M) (hM : φ.maxVar ≤ M)
+    (left right : List Bool) (rest : List Bool) (hne : rest ≠ []) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvParse) none [] left right
+        (List.replicate k true) (encodeFormula φ ++ rest))
+      (some (adrCfg none none [] [] [] [] [true]))
+      (32 * ((encodeFormula φ).length + 1) * (M + 2) +
+        rest.length + max k φ.maxVar + left.length + right.length + 10) := by
+  have hparse :=
+    adr_evals_mvParse_formula φ k M hk hM [] left right rest
+  have hafter := adr_evals_one
+    (adr_step_mvAfter_nil left right
+      (List.replicate (max k φ.maxVar) true) rest none)
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ hparse hafter
+  match rest with
+  | [] => exact (hne rfl).elim
+  | b :: rest' =>
+      have hfin := adr_evals_one
+        (adr_step_mvFinish_cons b rest' [] left right
+          (List.replicate (max k φ.maxVar) true) none)
+      have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+        _ _ _ _ _ t1 hfin
+      have hfail := adr_evals_failDrain [] left right
+        (List.replicate (max k φ.maxVar) true) rest' none
+      have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+        _ _ _ _ _ t2 hfail
+      exact evalsToInTime_le_mono t3 (by
+        simp [List.length_cons, List.length_replicate]
+        omega)
+
+/-- From top-level `mvParse` (`inp = []`), any `decodeFormula = none` emits `[true]`. -/
+noncomputable def adr_evals_mvParse_decode_none (φCode : List Bool)
+    (left right : List Bool)
+    (h : decodeFormula φCode = none) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .mvParse) none [] left right [] φCode)
+      (some (adrCfg none none [] [] [] [] [true]))
+      (128 * (φCode.length + 1) * (φCode.length + 2) +
+        32 * (φCode.length + 2) +
+        left.length + right.length + 24) := by
+  cases hpref : decodeFormulaPrefixFuel (φCode.length + 1) φCode with
+  | none =>
+      have hfuel : φCode.length < φCode.length + 1 := Nat.lt_succ_self _
+      have hfail := adr_evals_mvParse_fail 0 φCode [] left right
+        (φCode.length + 1) hfuel hpref
+      exact evalsToInTime_le_mono hfail (by
+        simp [List.length_nil])
+  | some pr =>
+      rcases pr with ⟨φ, rest⟩
+      have hne : rest ≠ [] := by
+        unfold decodeFormula decodeFormulaPrefix at h
+        simp only [hpref] at h
+        intro hnil
+        subst hnil
+        simp at h
+      have hs : φCode = encodeFormula φ ++ rest :=
+        encodeFormula_append_of_decodeFormulaPrefixFuel _ hpref
+      subst hs
+      have hk : (0 : ℕ) ≤ φ.maxVar := Nat.zero_le _
+      have hM : φ.maxVar ≤ φ.maxVar := le_rfl
+      have hjunk :=
+        adr_evals_mvParse_junk φ 0 φ.maxVar hk hM left right rest hne
+      have hlenφ := maxVar_le_encodeFormula_length φ
+      exact evalsToInTime_le_mono hjunk (by
+        simp [List.length_append] at hlenφ ⊢
+        nlinarith [encodeFormula_length_pos φ, hlenφ])
+
+/-- From `parkWidth`, a malformed formula code drains to `[true]`. -/
+noncomputable def adr_evals_park_decode_none (φCode table : List Bool)
+    (n : ℕ) (h : decodeFormula φCode = none) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parkWidth) none (pow2BitsLE n) φCode.reverse table [] [])
+      (some (adrCfg none none [] [] [] [] [true]))
+      (512 * (φCode.length + 1) * (φCode.length + n + table.length + 2)) := by
+  have hpark := adr_evals_park_to_mvParse φCode table n
+  have hfail := adr_evals_mvParse_decode_none φCode φCode.reverse
+    ((pow2BitsLE n).reverse ++ table) h
+  have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ hpark hfail
+  exact evalsToInTime_le_mono t (by
+    simp [List.length_reverse, List.length_append, length_pow2BitsLE]
+    nlinarith)
+
 theorem reverse_pow2BitsLE (n : ℕ) :
     (pow2BitsLE n).reverse = true :: List.replicate n false := by
   simp [pow2BitsLE, List.reverse_append, List.reverse_cons, List.reverse_replicate]
@@ -15785,6 +16254,205 @@ noncomputable def afterDecodePairResult_evals_encodePair_accept
     simp only [n]
     ring
 
+/-- Load, scan, and park-reject sit under `2048` copies of the cubic in `L`. -/
+theorem adr_encodePair_reject_pow2_time_le (L n T : ℕ) :
+    2 * L + T + 4 +
+      ((T + 1) * (2 * (T + 2) + 3) + 3 * T + 3 * n + 8) +
+      512 * (L + 1) * (L + n + T + 2) ≤
+    2048 * (T + 1) * (L + 1) * (L + n + T + 2) := by
+  have hSpos : 0 < L + n + T + 2 := by omega
+  have hQpos : 0 < (T + 1) * ((L + 1) * (L + n + T + 2)) :=
+    Nat.mul_pos (Nat.succ_pos _) (Nat.mul_pos (Nat.succ_pos _) hSpos)
+  have hLS : (L + 1) * (L + n + T + 2) ≤
+      (T + 1) * ((L + 1) * (L + n + T + 2)) :=
+    Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
+  have hS : L + n + T + 2 ≤ (T + 1) * ((L + 1) * (L + n + T + 2)) :=
+    (Nat.le_mul_of_pos_left (L + n + T + 2) (Nat.succ_pos _)).trans hLS
+  have hL : L ≤ (T + 1) * ((L + 1) * (L + n + T + 2)) :=
+    (by omega : L ≤ L + n + T + 2).trans hS
+  have hnQ : n ≤ (T + 1) * ((L + 1) * (L + n + T + 2)) :=
+    (by omega : n ≤ L + n + T + 2).trans hS
+  have hTle : T ≤ (T + 1) * ((L + 1) * (L + n + T + 2)) :=
+    (by omega : T ≤ L + n + T + 2).trans hS
+  have hpark : 512 * (L + 1) * (L + n + T + 2) ≤
+      512 * ((T + 1) * ((L + 1) * (L + n + T + 2))) := by
+    simpa [Nat.mul_assoc] using Nat.mul_le_mul_left 512 hLS
+  have hscan : (T + 1) * (2 * (T + 2) + 3) ≤
+      16 * ((T + 1) * ((L + 1) * (L + n + T + 2))) := by
+    have hcore : 2 * (T + 2) + 3 ≤ 16 * (L + n + T + 2) := by omega
+    have h1 : (T + 1) * (2 * (T + 2) + 3) ≤
+        (T + 1) * (16 * (L + n + T + 2)) :=
+      Nat.mul_le_mul_left _ hcore
+    have h2 : (T + 1) * (16 * (L + n + T + 2)) =
+        16 * ((T + 1) * (L + n + T + 2)) := by
+      ring
+    have h3 : (T + 1) * (L + n + T + 2) ≤
+        (T + 1) * ((L + 1) * (L + n + T + 2)) :=
+      Nat.mul_le_mul_left (T + 1)
+        (Nat.le_mul_of_pos_left (L + n + T + 2) (Nat.succ_pos _))
+    exact h1.trans (h2.trans_le (Nat.mul_le_mul_left 16 h3))
+  have hlin : 2 * L + 4 * T + 3 * n + 12 ≤
+      32 * ((T + 1) * ((L + 1) * (L + n + T + 2))) := by
+    have h2L : 2 * L ≤ 2 * ((T + 1) * ((L + 1) * (L + n + T + 2))) :=
+      Nat.mul_le_mul_left 2 hL
+    have h4T : 4 * T ≤ 4 * ((T + 1) * ((L + 1) * (L + n + T + 2))) :=
+      Nat.mul_le_mul_left 4 hTle
+    have h3n : 3 * n ≤ 3 * ((T + 1) * ((L + 1) * (L + n + T + 2))) :=
+      Nat.mul_le_mul_left 3 hnQ
+    have h12 : 12 ≤ 12 * ((T + 1) * ((L + 1) * (L + n + T + 2))) :=
+      Nat.le_mul_of_pos_right 12 hQpos
+    nlinarith
+  have hlin' : 2 * L + T + 4 + 3 * T + 3 * n + 8 ≤
+      32 * ((T + 1) * ((L + 1) * (L + n + T + 2))) := by
+    have : 2 * L + T + 4 + 3 * T + 3 * n + 8 =
+        2 * L + 4 * T + 3 * n + 12 := by omega
+    exact this.trans_le hlin
+  have hgroup :
+      2 * L + T + 4 +
+        ((T + 1) * (2 * (T + 2) + 3) + 3 * T + 3 * n + 8) +
+        512 * (L + 1) * (L + n + T + 2) =
+      (2 * L + T + 4 + 3 * T + 3 * n + 8) +
+        (T + 1) * (2 * (T + 2) + 3) +
+        512 * (L + 1) * (L + n + T + 2) := by
+    ring
+  have hsum := add_le_add (add_le_add hlin' hscan) hpark
+  have h560 :
+      32 * ((T + 1) * ((L + 1) * (L + n + T + 2))) +
+        16 * ((T + 1) * ((L + 1) * (L + n + T + 2))) +
+        512 * ((T + 1) * ((L + 1) * (L + n + T + 2))) =
+      560 * ((T + 1) * ((L + 1) * (L + n + T + 2))) := by
+    ring
+  have h2048 :
+      560 * ((T + 1) * ((L + 1) * (L + n + T + 2))) ≤
+        2048 * ((T + 1) * ((L + 1) * (L + n + T + 2))) :=
+    Nat.mul_le_mul_right ((T + 1) * ((L + 1) * (L + n + T + 2)))
+      (by decide : 560 ≤ 2048)
+  have hQeq : 2048 * ((T + 1) * ((L + 1) * (L + n + T + 2))) =
+      2048 * (T + 1) * (L + 1) * (L + n + T + 2) := by
+    rw [← Nat.mul_assoc, ← Nat.mul_assoc]
+  rw [hgroup]
+  exact hsum.trans ((h560.trans_le h2048).trans_eq hQeq)
+
+/-- Success-tag reject: all-true power-of-two table but `decodeFormula` fails. -/
+noncomputable def afterDecodePairResult_evals_encodePair_decode_fail
+    (φCode table : List Bool) (n : ℕ)
+    (hdec : decodeFormula φCode = none)
+    (hall : ∀ b ∈ table, b = true)
+    (hlen : table.length = 2 ^ n) :
+    TM2OutputsInTime afterDecodePairResultComputer
+      (false :: encodePair (φCode, table)) (some [true])
+      (2048 * (table.length + 1) * (φCode.length + 1) *
+        (φCode.length + n + table.length + 2)) := by
+  change EvalsToInTime afterDecodePairResultComputer.step
+    (initList afterDecodePairResultComputer (false :: encodePair (φCode, table)))
+    (some (haltList afterDecodePairResultComputer [true]))
+    (2048 * (table.length + 1) * (φCode.length + 1) *
+      (φCode.length + n + table.length + 2))
+  rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
+  have hne : table ≠ [] := by
+    intro hnil
+    subst hnil
+    have hz : (0 : ℕ) = 2 ^ n := hlen
+    have hpos : 0 < 2 ^ n := Nat.two_pow_pos _
+    exact absurd hz (Nat.ne_of_lt hpos)
+  have ht := allTrue_head_ne_false hall hne
+  have hrev := reverse_eq_of_allTrue hall
+  have htag := adr_evals_one
+    (adr_step_readTag_false (encodePair (φCode, table)) [] [] [] [] none)
+  have hload := adr_evals_load_encodePair φCode table
+  have hload' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parse) none (encodePair (φCode, table)) [] [] [] [])
+      (some (adrCfg (some .afterParse) none [] φCode.reverse table [] []))
+      (2 * φCode.length + table.length + 2) := by
+    simpa [hrev] using hload
+  have hafter := adr_evals_one
+    (adr_step_afterParse [] φCode.reverse table [] [] none)
+  have hpow := adr_evals_allTrue_pow2_to_parkWidth
+    φCode.reverse table n hall hlen
+  have hpark := adr_evals_park_decode_none φCode table n hdec
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ htag hload'
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t1 hafter
+  have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t2 hpow
+  have t4 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t3 hpark
+  exact evalsToInTime_le_mono t4 (by
+    have htime :=
+      adr_encodePair_reject_pow2_time_le φCode.length n table.length
+    nlinarith [htime])
+
+/-- From `parkWidth`, width mismatch at `eqA` emits `[true]`. -/
+noncomputable def adr_evals_park_width_ne (φ : PropFormula)
+    (table : List Bool) (n : ℕ)
+    (hne : n ≠ φ.maxVar + 1)
+    (ht : table.head? ≠ some false) :
+    EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parkWidth) none (pow2BitsLE n)
+        (encodeFormula φ).reverse table [] [])
+      (some (adrCfg none none [] [] [] [] [true]))
+      (512 * ((encodeFormula φ).length + 1) *
+        ((encodeFormula φ).length + n + table.length + 2)) := by
+  have hpark := adr_evals_park_to_mvParse (encodeFormula φ) table n
+  have hne' := adr_evals_mvParse_width_ne φ table n hne ht
+  have t := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ hpark hne'
+  exact evalsToInTime_le_mono t (by
+    simp [List.length_reverse]
+    have hM := maxVar_le_encodeFormula_length φ
+    nlinarith [hM])
+
+/-- Success-tag reject: all-true power-of-two table of the wrong width. -/
+noncomputable def afterDecodePairResult_evals_encodePair_width_ne
+    (φ : PropFormula) (table : List Bool) (n : ℕ)
+    (hall : ∀ b ∈ table, b = true)
+    (hlen : table.length = 2 ^ n)
+    (hne : n ≠ φ.maxVar + 1) :
+    TM2OutputsInTime afterDecodePairResultComputer
+      (false :: encodePair (encodeFormula φ, table)) (some [true])
+      (2048 * (table.length + 1) * ((encodeFormula φ).length + 1) *
+        ((encodeFormula φ).length + n + table.length + 2)) := by
+  change EvalsToInTime afterDecodePairResultComputer.step
+    (initList afterDecodePairResultComputer
+      (false :: encodePair (encodeFormula φ, table)))
+    (some (haltList afterDecodePairResultComputer [true]))
+    (2048 * (table.length + 1) * ((encodeFormula φ).length + 1) *
+      ((encodeFormula φ).length + n + table.length + 2))
+  rw [afterDecodePairResult_initList, afterDecodePairResult_haltList]
+  have hneTab : table ≠ [] := by
+    intro hnil
+    subst hnil
+    have hz : (0 : ℕ) = 2 ^ n := hlen
+    have hpos : 0 < 2 ^ n := Nat.two_pow_pos _
+    exact absurd hz (Nat.ne_of_lt hpos)
+  have ht := allTrue_head_ne_false hall hneTab
+  have hrev := reverse_eq_of_allTrue hall
+  have htag := adr_evals_one
+    (adr_step_readTag_false (encodePair (encodeFormula φ, table)) [] [] [] [] none)
+  have hload := adr_evals_load_encodePair (encodeFormula φ) table
+  have hload' : EvalsToInTime afterDecodePairResultComputer.step
+      (adrCfg (some .parse) none (encodePair (encodeFormula φ, table)) [] [] [] [])
+      (some (adrCfg (some .afterParse) none [] (encodeFormula φ).reverse table [] []))
+      (2 * (encodeFormula φ).length + table.length + 2) := by
+    simpa [hrev] using hload
+  have hafter := adr_evals_one
+    (adr_step_afterParse [] (encodeFormula φ).reverse table [] [] none)
+  have hpow := adr_evals_allTrue_pow2_to_parkWidth
+    (encodeFormula φ).reverse table n hall hlen
+  have hpark := adr_evals_park_width_ne φ table n hne ht
+  have t1 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ htag hload'
+  have t2 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t1 hafter
+  have t3 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t2 hpow
+  have t4 := EvalsToInTime.trans afterDecodePairResultComputer.step
+    _ _ _ _ _ t3 hpark
+  exact evalsToInTime_le_mono t4 (by
+    have htime := adr_encodePair_reject_pow2_time_le
+      (encodeFormula φ).length n table.length
+    nlinarith [htime])
 
 namespace ProofSystemFrontier
 
