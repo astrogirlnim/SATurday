@@ -155,9 +155,11 @@ Cook Levin reduction (hard direction) remain. Do not restart
   parse, loadRight, park, and emit Evals certified; reverse phase Evals
   certified; `swapPairComputableInPolyTime` packaged under `encodePair`;
   `dupEncodePairComputableInPolyTime` packaged (`s ↦ encodePair (s,s)`);
-  remaining: fan-out compose lengthOk with `V`, `afterDecodeProofSystem`
-  FinTM2 host, arbitrary-degree Horner (mapFst toUnary then unaryMul
-  then scaleAppend), Cook Levin hard direction;
+  `mapFstToUnaryComputableInPolyTime` packaged under `encodePair`;
+  Horner scaleAppend semantic identity certified; remaining: mapSnd of
+  `polyEvalUnary (divX p)`, unaryMul then scaleAppend 1 c composition,
+  fan-out compose lengthOk with `V`, `afterDecodeProofSystem` FinTM2 host,
+  Cook Levin hard direction;
   `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
