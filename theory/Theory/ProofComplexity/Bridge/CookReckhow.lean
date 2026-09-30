@@ -3580,6 +3580,81 @@ def lengthOkLinearPairComputer (a b : ℕ) : FinTM2 where
             (load (fun _ => none) halt)
             (load (fun _ => none) <| goto fun _ => LokLabel.haltDrain)
 
+def lokCfg (a b : ℕ) (l : Option LokLabel) (v : Option Bool)
+    (inp left right budget out : List Bool) :
+    (lengthOkLinearPairComputer a b).Cfg :=
+  ⟨l, v, lokStk inp left right budget out⟩
+
+theorem lok_step_scale_nil (a b : ℕ) (inp right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .scale) none inp [] right budget out) =
+      some (lokCfg a b (some .emitW) none inp [] right
+        (List.replicate b true ++ budget) out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  have hstk :
+      Function.update (lokStk inp [] right budget out) LokStack.left [] =
+        lokStk inp [] right budget out := by
+    funext s; cases s <;> simp [Function.update, lokStk]
+  have h := lokWriteBStmt_stepAux b none inp [] right budget out
+  exact congrArg some
+    (Eq.trans (congrArg (TM2.stepAux (lokWriteBStmt b) none) hstk) h)
+
+theorem lok_step_scale_cons (a b : ℕ) (c : Bool) (rest inp right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .scale) none inp (c :: rest) right budget out) =
+      some (lokCfg a b (some .scale) none inp rest right
+        (List.replicate a true ++ budget) out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  have hstk :
+      Function.update (lokStk inp (c :: rest) right budget out) LokStack.left rest =
+        lokStk inp rest right budget out := by
+    funext s; cases s <;> simp [Function.update, lokStk]
+  have h := lokWriteAStmt_stepAux a (some c) inp rest right budget out
+  exact congrArg some
+    (Eq.trans (congrArg (TM2.stepAux (lokWriteAStmt a) (some c)) hstk) h)
+
+def lok_evals_one {a b : ℕ} {c c' : (lengthOkLinearPairComputer a b).Cfg}
+    (h : TM2.step (lengthOkLinearPairComputer a b).m c = some c') :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step c (some c') 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change (some c).bind (lengthOkLinearPairComputer a b).step = some c'
+    simpa [FinTM2.step] using h
+
+/-- Drain `left` writing `a` budget trues per bit, then append `b`. -/
+def lok_evals_scale (a b : ℕ) (left inp right budget out : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .scale) none inp left right budget out)
+      (some (lokCfg a b (some .emitW) none inp [] right
+        (List.replicate b true ++
+          List.foldr (fun _ acc => List.replicate a true ++ acc) budget left)
+        out))
+      (left.length + 1) := by
+  induction left generalizing budget with
+  | nil =>
+      simpa [List.foldr] using lok_evals_one (lok_step_scale_nil a b inp right budget out)
+  | cons c left ih =>
+      have h1 := lok_evals_one
+        (lok_step_scale_cons a b c left inp right budget out)
+      have h2 := ih (List.replicate a true ++ budget)
+      have h2' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+          (lokCfg a b (some .scale) none inp left right
+            (List.replicate a true ++ budget) out)
+          (some (lokCfg a b (some .emitW) none inp [] right
+            (List.replicate b true ++
+              (List.replicate a true ++
+                List.foldr (fun _ acc => List.replicate a true ++ acc) budget left))
+            out))
+          (left.length + 1) := by
+        simpa [foldr_replicate_comm a left budget, List.append_assoc] using h2
+      have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 1
+        (left.length + 1) _ _ _ h1 h2'
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.foldr, List.append_assoc, htime] using
+        evalsToInTime_le_mono h (le_of_eq htime)
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
