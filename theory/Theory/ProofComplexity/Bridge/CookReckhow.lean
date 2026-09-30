@@ -3420,6 +3420,22 @@ theorem lengthOk_of_natDegree_le_one (p : Polynomial ℕ) (hp : p.natDegree ≤ 
     Polynomial.eq_X_add_C_of_natDegree_le_one hp
   rw [hform, lengthOk_linear]
 
+/-- Prep map for linear lengthOk: rebuild `encodePair (w, budget)`. -/
+def lengthOkLinearPair (a b : ℕ) (φ w : List Bool) : List Bool :=
+  encodePair (w, List.replicate (a * φ.length + b) true)
+
+theorem lengthOk_linear_eq_unaryLE_pair (a b : ℕ) (φ w : List Bool) :
+    lengthOk (Polynomial.C a * Polynomial.X + Polynomial.C b) φ w =
+      unaryLE w (List.replicate (a * φ.length + b) true) :=
+  lengthOk_linear a b φ w
+
+theorem unaryLE_lengthOkLinearPair (a b : ℕ) (φ w : List Bool) :
+    unaryLE ((decodePair (lengthOkLinearPair a b φ w)).getD ([], [])).1
+        ((decodePair (lengthOkLinearPair a b φ w)).getD ([], [])).2 =
+      lengthOk (Polynomial.C a * Polynomial.X + Polynomial.C b) φ w := by
+  simp [lengthOkLinearPair, decodePair_encodePair]
+  exact (lengthOk_linear a b φ w).symm
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then

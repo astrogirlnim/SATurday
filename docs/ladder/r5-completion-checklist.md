@@ -141,6 +141,7 @@ Cook Levin reduction (hard direction) remain. Do not restart
   `polyEvalUnaryDegLeOneComputableInPolyTime` certified;
   `unaryPow_two_toUnary` semantic identity certified;
   `lengthOk_linear` / `lengthOk_of_natDegree_le_one` certified;
+  `lengthOkLinearPair` glue toward unaryLE composition certified;
   remaining: recursive FinTM2 for arbitrary `p` via divX, `unaryPow` FinTM2,
   polyDomUnary host, compose with `V`, `afterDecodeProofSystem` FinTM2;
   `summit_corollary_of_easy` waits)
