@@ -4367,6 +4367,163 @@ noncomputable def lengthOkLinearPairComputableInPolyTime (a b : ℕ) :
     exact evalsToInTime_le_mono (lok_evals a b φ w)
       (lengthOkLinearPairTime_bound a b φ w)
 
+/-- Output length of the linear lengthOk prep map. -/
+theorem length_lengthOkLinearPair (a b : ℕ) (φ w : List Bool) :
+    (lengthOkLinearPair a b φ w).length =
+      2 * w.length + 1 + (a * φ.length + b) := by
+  simp [lengthOkLinearPair, length_encodePair, List.length_replicate]
+
+/-- Polynomial out-bound for `lengthOkLinearPair` under pair input length. -/
+noncomputable def lengthOkLinearPairOutBound (a b : ℕ) : Polynomial ℕ :=
+  (Polynomial.C (a + b + 3) + 1) * (Polynomial.X + 1)
+
+theorem lengthOkLinearPairOutBound_eval (a b n : ℕ) :
+    (lengthOkLinearPairOutBound a b).eval n = (a + b + 3 + 1) * (n + 1) := by
+  simp [lengthOkLinearPairOutBound, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_X, Polynomial.eval_one]
+
+theorem length_lengthOkLinearPair_le_outBound (a b : ℕ) (φ w : List Bool) :
+    (lengthOkLinearPair a b φ w).length ≤
+      (lengthOkLinearPairOutBound a b).eval (encodePair (φ, w)).length := by
+  simp [length_lengthOkLinearPair, lengthOkLinearPairOutBound_eval, length_encodePair]
+  set N := 2 * φ.length + 1 + w.length
+  have hφ : φ.length ≤ N := by omega
+  have hw : w.length ≤ N := by omega
+  have : 2 * w.length + 1 + (a * φ.length + b) ≤ (a + b + 4) * (N + 1) := by
+    have hw' : 2 * w.length ≤ 2 * (N + 1) := by omega
+    have ha' : a * φ.length ≤ a * (N + 1) := Nat.mul_le_mul_left _ (by omega)
+    have hb' : b ≤ b * (N + 1) := by
+      have : 1 ≤ N + 1 := Nat.succ_pos _
+      simpa [Nat.mul_one] using Nat.mul_le_mul_left b this
+    calc
+      2 * w.length + 1 + (a * φ.length + b)
+          ≤ 2 * (N + 1) + (N + 1) + (a * (N + 1) + b * (N + 1)) := by omega
+      _ = (2 + 1 + a + b) * (N + 1) := by ring
+      _ = (a + b + 3) * (N + 1) := by ring
+      _ ≤ (a + b + 4) * (N + 1) := Nat.mul_le_mul_right _ (by omega)
+  exact this
+/-- Linear `lengthOk` under `encodePair`: prep then unary compare. -/
+noncomputable def lengthOkLinearComputableInPolyTime (a b : ℕ) :
+    TM2ComputableInPolyTime encodePair bitEnc
+      (fun pw => lengthOk (Polynomial.C a * Polynomial.X + Polynomial.C b)
+        pw.1 pw.2) := by
+  let decodeOut : (lengthOkLinearPairComputer a b).Γ
+      (lengthOkLinearPairComputer a b).k₁ → Bool := id
+  let encodeIn : Bool → unaryLEComputer.Γ unaryLEComputer.k₀ := id
+  let tm :=
+    seqCompComputer (βΓ := Bool) (lengthOkLinearPairComputer a b) unaryLEComputer
+      decodeOut encodeIn
+  let inA : tm.Γ tm.k₀ ≃ Bool := by
+    simpa [tm, seqCompComputer, CompΓ, CompK] using (Equiv.refl Bool)
+  let outA : tm.Γ tm.k₁ ≃ Bool := by
+    simpa [tm, seqCompComputer, CompΓ, CompK] using (Equiv.refl Bool)
+  let outP := lengthOkLinearPairOutBound a b
+  let timeBound : Polynomial ℕ :=
+    lengthOkLinearPairTime a b + (4 * (outP + 1)) + (unaryLETime.comp outP)
+  refine
+    { tm := tm
+      inputAlphabet := inA
+      outputAlphabet := outA
+      time := timeBound
+      outputsFun := ?out }
+  case out =>
+    intro pw
+    rcases pw with ⟨φ, w⟩
+    change TM2OutputsInTime tm (List.map inA.invFun (encodePair (φ, w)))
+      (some (List.map outA.invFun
+        (bitEnc (lengthOk (Polynomial.C a * Polynomial.X + Polynomial.C b) φ w))))
+      (timeBound.eval (encodePair (φ, w)).length)
+    set mid := lengthOkLinearPair a b φ w with hmid_def
+    set bud := List.replicate (a * φ.length + b) true with hbud_def
+    have hbit := lengthOk_linear a b φ w
+    have hin :
+        List.map inA.invFun (encodePair (φ, w)) = encodePair (φ, w) := by
+      change List.map (Equiv.refl Bool).symm (encodePair (φ, w)) = encodePair (φ, w)
+      simp
+    have hout :
+        List.map outA.invFun
+            (bitEnc (lengthOk (Polynomial.C a * Polynomial.X + Polynomial.C b) φ w)) =
+          [unaryLE w bud] := by
+      simp only [bitEnc, List.map_cons, List.map_nil]
+      exact congrArg (fun b => [b]) (hbit.trans (by rw [hbud_def]))
+    have h1 : EvalsToInTime (lengthOkLinearPairComputer a b).step
+        (initList (lengthOkLinearPairComputer a b) (encodePair (φ, w)))
+        (some (haltList (lengthOkLinearPairComputer a b) mid))
+        ((lengthOkLinearPairTime a b).eval (encodePair (φ, w)).length) := by
+      simpa [hmid_def] using
+        evalsToInTime_le_mono (lok_evals a b φ w)
+          (lengthOkLinearPairTime_bound a b φ w)
+    have h2 : EvalsToInTime unaryLEComputer.step
+        (initList unaryLEComputer (mid.map (encodeIn ∘ decodeOut)))
+        (some (haltList unaryLEComputer [unaryLE w bud]))
+        (unaryLETime.eval mid.length) := by
+      have hmap : mid.map (encodeIn ∘ decodeOut) = mid := by
+        change List.map (id ∘ id) mid = mid
+        simp [List.map_id]
+      rw [hmap]
+      have hmid_enc : mid = encodePair (w, bud) := by
+        simp [hmid_def, hbud_def, lengthOkLinearPair]
+      rw [hmid_enc]
+      simpa [hbud_def, bitEnc] using
+        evalsToInTime_le_mono (unaryLE_evals w bud) (unaryLETime_bound w bud)
+    have heval :=
+      seqComp_evals_compose (βΓ := Bool) (lengthOkLinearPairComputer a b)
+        unaryLEComputer decodeOut encodeIn (encodePair (φ, w)) mid
+        [unaryLE w bud]
+        ((lengthOkLinearPairTime a b).eval (encodePair (φ, w)).length)
+        (unaryLETime.eval mid.length) h1 h2
+    set n := (encodePair (φ, w)).length with hn_def
+    have hflen : mid.length ≤ outP.eval n := by
+      simpa [hmid_def, hn_def] using length_lengthOkLinearPair_le_outBound a b φ w
+    have hcopy :
+        (2 * mid.length + 1) + (2 * mid.length + 1) ≤ 4 * (outP.eval n + 1) := by
+      have : 4 * (mid.length + 1) ≤ 4 * (outP.eval n + 1) :=
+        Nat.mul_le_mul_left _ (Nat.add_le_add_right hflen 1)
+      omega
+    have hule :
+        unaryLETime.eval mid.length ≤ (unaryLETime.comp outP).eval n := by
+      have h1' : unaryLETime.eval mid.length ≤ unaryLETime.eval (outP.eval n) :=
+        poly_eval_mono unaryLETime hflen
+      simpa [Polynomial.eval_comp] using h1'
+    have hbound :
+        (lengthOkLinearPairTime a b).eval n +
+          (2 * mid.length + 1) + (2 * mid.length + 1) +
+          unaryLETime.eval mid.length ≤
+        timeBound.eval n := by
+      have hc := hcopy
+      have hu := hule
+      -- Left-assoc Nat add: rearrange then apply the out-bound pieces.
+      have hstep :
+          (lengthOkLinearPairTime a b).eval n +
+              ((2 * mid.length + 1) + (2 * mid.length + 1)) +
+              unaryLETime.eval mid.length ≤
+            (lengthOkLinearPairTime a b).eval n + 4 * (outP.eval n + 1) +
+              (unaryLETime.comp outP).eval n := by
+        refine Nat.add_le_add ?_ hu
+        exact Nat.add_le_add_left hc _
+      convert hstep using 1
+      · ac_rfl
+      · simp [timeBound, Polynomial.eval_add, Polynomial.eval_mul,
+          Polynomial.eval_one, Polynomial.eval_ofNat]
+    have hfinal := evalsToInTime_le_mono (by simpa [hn_def] using heval) hbound
+    have hraw : EvalsToInTime tm.step
+        (initList tm (encodePair (φ, w)))
+        (some (haltList tm [unaryLE w bud]))
+        (timeBound.eval n) := by
+      simpa [tm, hn_def] using hfinal
+    refine evalsToInTime_congr_end
+      (by
+        have hstart :
+            initList tm (List.map inA.invFun (encodePair (φ, w))) =
+              initList tm (encodePair (φ, w)) :=
+          congrArg (initList tm) hin
+        exact { steps := hraw.steps
+                steps_le_m := by simpa [hn_def] using hraw.steps_le_m
+                evals_in_steps := by
+                  rw [hstart]
+                  exact hraw.evals_in_steps })
+      (congrArg some (congrArg (haltList tm) hout.symm))
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
