@@ -3386,6 +3386,22 @@ noncomputable def polyEvalUnaryDegLeOneComputableInPolyTime (p : Polynomial ℕ)
   funext s
   rw [hform, polyEvalUnary_linear]
 
+theorem unaryMul_one_left_replicate (n : ℕ) :
+    unaryMul [true] (List.replicate n true) = List.replicate n true := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      simp only [unaryMul, List.replicate_succ, List.flatMap_cons, List.singleton_append]
+      simpa [unaryMul] using congrArg (List.cons true) ih
+
+theorem unaryPow_two_toUnary (s : List Bool) :
+    unaryPow (toUnary s) 2 = List.replicate (s.length ^ 2) true := by
+  have h1 : unaryPow (toUnary s) 1 = toUnary s := by
+    simp [unaryPow, toUnary, unaryNat, unaryMul_one_left_replicate]
+  rw [show unaryPow (toUnary s) 2 = unaryMul (unaryPow (toUnary s) 1) (toUnary s) from rfl,
+    h1, toUnary, unaryNat, Nat.pow_two]
+  exact unaryMul_of_replicate s.length s.length
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
