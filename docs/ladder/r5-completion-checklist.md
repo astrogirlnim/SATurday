@@ -155,7 +155,10 @@ Cook Levin reduction (hard direction) remain. Do not restart
   Cook Levin hard direction; `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
-  certified; class equality needs the reduction)
+  certified; `proofCheck_eq_bitsEqualPair` and `TAUT_in_NP_of_polyBounded`
+  packaging certified conditional on FinTM2 `proofCheck`; remaining:
+  `proofCheck` FinTM2 via apply-`f` then `bitsEqualPair`, then coNP-completeness
+  of TAUT / Cook Levin reduction for class equality)
 - [x] Wire into `Theory.lean`; axiom gate PASS; zero Bridge sorries
 - [ ] Update rung memory; mark R5 certified (blocked on theorem 1)
 - [ ] Only then consider `satday auto` again

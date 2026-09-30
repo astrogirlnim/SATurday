@@ -1283,6 +1283,11 @@ theorem proofCheck_iff (f : List Bool → List Bool) (φ π : List Bool) :
     proofCheck f φ π = true ↔ f π = φ := by
   simp [proofCheck]
 
+/-- `proofCheck` is pairwise bit equality of `f π` against `φ`. -/
+theorem proofCheck_eq_bitsEqualPair (f : List Bool → List Bool) (φ π : List Bool) :
+    proofCheck f φ π = bitsEqualPair (f π, φ) := by
+  simp [proofCheck, bitsEqualPair, bitsEqual]
+
 /-- Semantic half of the hard direction: a polynomially bounded proof system yields
 short NP witnesses for `TAUT`. The poly-time TM packaging of `proofCheck` is the
 remaining FinTM2 glue (decode pair, run `f`, compare). -/
@@ -1305,6 +1310,18 @@ theorem TAUT_short_proofs_of_polyBounded' {f : List Bool → List Bool}
       ∃ π, π.length ≤ (Classical.choose hb).eval φ.length ∧ proofCheck f φ π = true := by
   have hq := Classical.choose_spec hb
   exact TAUT_short_proofs_of_polyBounded hf hq φ
+
+/-- Hard-half packaging: a poly-bounded proof system plus a FinTM2 `proofCheck`
+witness puts `TAUT` in NP. -/
+theorem TAUT_in_NP_of_polyBounded {f : List Bool → List Bool}
+    (hf : IsPropProofSystem f) (hb : PolynomiallyBounded f)
+    (hcheck : TM2ComputableInPolyTime encodePair bitEnc
+      (fun pw => proofCheck f pw.1 pw.2)) :
+    InNP TAUT := by
+  refine ⟨Classical.choose hb, proofCheck f, hcheck, ?_⟩
+  intro φ
+  exact TAUT_short_proofs_of_polyBounded' hf hb φ
+
 /-! ## Easy direction scaffolding: NP verifier to proof map -/
 
 /-- From an NP verifier for `TAUT`, build the Cook Reckhow proof map:
