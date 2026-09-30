@@ -3402,6 +3402,24 @@ theorem unaryPow_two_toUnary (s : List Bool) :
     h1, toUnary, unaryNat, Nat.pow_two]
   exact unaryMul_of_replicate s.length s.length
 
+/-- Linear length gate equals unary compare against `scaleAppend` output. -/
+theorem lengthOk_linear (a b : ℕ) (φ w : List Bool) :
+    lengthOk (Polynomial.C a * Polynomial.X + Polynomial.C b) φ w =
+      unaryLE w (List.replicate (a * φ.length + b) true) := by
+  rw [lengthOk_eq_unaryLE_poly, polyEvalUnary_linear]
+
+/-- Degree ≤ 1 length gate reduces to the linear case. -/
+theorem lengthOk_of_natDegree_le_one (p : Polynomial ℕ) (hp : p.natDegree ≤ 1)
+    (φ w : List Bool) :
+    lengthOk p φ w =
+      unaryLE w (List.replicate (p.coeff 1 * φ.length + p.coeff 0) true) := by
+  let a := p.coeff 1
+  let b := p.coeff 0
+  change lengthOk p φ w = unaryLE w (List.replicate (a * φ.length + b) true)
+  have hform : p = Polynomial.C a * Polynomial.X + Polynomial.C b :=
+    Polynomial.eq_X_add_C_of_natDegree_le_one hp
+  rw [hform, lengthOk_linear]
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
