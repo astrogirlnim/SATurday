@@ -3451,13 +3451,13 @@ instance : Fintype LokStack where
   complete s := by cases s <;> simp
 
 inductive LokLabel where
-  | parse | expectBit | loadRight | scale | appendB | emitW | emitSep | emitBudget
-  | rev1 | rev2 | haltDrain
+  | parse | expectBit | loadRight | scale | appendB | revRight | unrevRight
+  | emitW | emitSep | emitBudget | rev1 | rev2 | rev3 | haltDrain
   deriving DecidableEq, Repr
 
 instance : Fintype LokLabel where
-  elems := {.parse, .expectBit, .loadRight, .scale, .appendB, .emitW, .emitSep,
-    .emitBudget, .rev1, .rev2, .haltDrain}
+  elems := {.parse, .expectBit, .loadRight, .scale, .appendB, .revRight, .unrevRight,
+    .emitW, .emitSep, .emitBudget, .rev1, .rev2, .rev3, .haltDrain}
   complete s := by cases s <;> simp
 
 def lokStk (inp left right budget out : List Bool) : LokStack → List Bool
@@ -3494,18 +3494,18 @@ theorem lokWriteAStmt_stepAux (a : ℕ) (v : Option Bool)
       simpa [List.replicate_succ, replicate_true_append_cons] using
         ih (true :: budget)
 
-/-- Nested write of `b` budget trues then go to `emitW`. -/
+/-- Nested write of `b` budget trues then go to `revRight` (restore w onto left). -/
 def lokWriteBStmt (b : ℕ) :
     TM2.Stmt (fun _ : LokStack => Bool) LokLabel (Option Bool) :=
   match b with
-  | 0 => load (fun _ => none) <| goto fun _ => LokLabel.emitW
+  | 0 => load (fun _ => none) <| goto fun _ => LokLabel.revRight
   | n + 1 =>
       push LokStack.budget (fun _ => true) <| lokWriteBStmt n
 
 theorem lokWriteBStmt_stepAux (b : ℕ) (v : Option Bool)
     (inp left right budget out : List Bool) :
     TM2.stepAux (lokWriteBStmt b) v (lokStk inp left right budget out) =
-      ⟨some LokLabel.emitW, none,
+      ⟨some LokLabel.revRight, none,
         lokStk inp left right (List.replicate b true ++ budget) out⟩ := by
   induction b generalizing budget with
   | zero =>
@@ -3558,8 +3558,18 @@ def lengthOkLinearPairComputer (a b : ℕ) : FinTM2 where
     | .appendB =>
         -- unused label kept for Fintype completeness; scale jumps via Stmt
         lokWriteBStmt b
-    | .emitW =>
+    | .revRight =>
+        -- right holds reverse(w); move onto left so left = w
         pop LokStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => LokLabel.emitW)
+            (push LokStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => LokLabel.revRight)
+    | .unrevRight =>
+        -- unused (kept for Fintype); emit reads restored w from left
+        load (fun _ => none) <| goto fun _ => LokLabel.emitW
+    | .emitW =>
+        pop LokStack.left (fun _ o => o) <|
           branch (fun s => decide (s = none))
             (load (fun _ => none) <| goto fun _ => LokLabel.emitSep)
             (push LokStack.out (fun _ => true) <|
@@ -3575,17 +3585,26 @@ def lengthOkLinearPairComputer (a b : ℕ) : FinTM2 where
             (push LokStack.out (fun s => s.getD false) <|
               load (fun _ => none) <| goto fun _ => LokLabel.emitBudget)
     | .rev1 =>
+        -- out = reverse(EP) → budget = EP
         pop LokStack.out (fun _ o => o) <|
           branch (fun s => decide (s = none))
             (load (fun _ => none) <| goto fun _ => LokLabel.rev2)
             (push LokStack.budget (fun s => s.getD false) <|
               load (fun _ => none) <| goto fun _ => LokLabel.rev1)
     | .rev2 =>
+        -- budget = EP → left = reverse(EP)
         pop LokStack.budget (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => LokLabel.rev3)
+            (push LokStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => LokLabel.rev2)
+    | .rev3 =>
+        -- left = reverse(EP) → out = EP
+        pop LokStack.left (fun _ o => o) <|
           branch (fun s => decide (s = none))
             (load (fun _ => none) <| goto fun _ => LokLabel.haltDrain)
             (push LokStack.out (fun s => s.getD false) <|
-              load (fun _ => none) <| goto fun _ => LokLabel.rev2)
+              load (fun _ => none) <| goto fun _ => LokLabel.rev3)
     | .haltDrain =>
         pop LokStack.inp (fun _ o => o) <|
           branch (fun s => decide (s = none))
@@ -3600,7 +3619,7 @@ def lokCfg (a b : ℕ) (l : Option LokLabel) (v : Option Bool)
 theorem lok_step_scale_nil (a b : ℕ) (inp right budget out : List Bool) :
     TM2.step (lengthOkLinearPairComputer a b).m
       (lokCfg a b (some .scale) none inp [] right budget out) =
-      some (lokCfg a b (some .emitW) none inp [] right
+      some (lokCfg a b (some .revRight) none inp [] right
         (List.replicate b true ++ budget) out) := by
   simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
   have hstk :
@@ -3638,7 +3657,7 @@ def lok_evals_one {a b : ℕ} {c c' : (lengthOkLinearPairComputer a b).Cfg}
 def lok_evals_scale (a b : ℕ) (left inp right budget out : List Bool) :
     EvalsToInTime (lengthOkLinearPairComputer a b).step
       (lokCfg a b (some .scale) none inp left right budget out)
-      (some (lokCfg a b (some .emitW) none inp [] right
+      (some (lokCfg a b (some .revRight) none inp [] right
         (List.replicate b true ++
           List.foldr (fun _ acc => List.replicate a true ++ acc) budget left)
         out))
@@ -3653,7 +3672,7 @@ def lok_evals_scale (a b : ℕ) (left inp right budget out : List Bool) :
       have h2' : EvalsToInTime (lengthOkLinearPairComputer a b).step
           (lokCfg a b (some .scale) none inp left right
             (List.replicate a true ++ budget) out)
-          (some (lokCfg a b (some .emitW) none inp [] right
+          (some (lokCfg a b (some .revRight) none inp [] right
             (List.replicate b true ++
               (List.replicate a true ++
                 List.foldr (fun _ acc => List.replicate a true ++ acc) budget left))
@@ -3667,20 +3686,70 @@ def lok_evals_scale (a b : ℕ) (left inp right budget out : List Bool) :
       simpa [List.foldr, List.append_assoc, htime] using
         evalsToInTime_le_mono h (le_of_eq htime)
 
-theorem lok_step_emitW_nil (a b : ℕ) (inp left budget out : List Bool) :
+theorem lok_step_revRight_nil (a b : ℕ) (inp left budget out : List Bool) :
     TM2.step (lengthOkLinearPairComputer a b).m
-      (lokCfg a b (some .emitW) none inp left [] budget out) =
-      some (lokCfg a b (some .emitSep) none inp left [] budget out) := by
+      (lokCfg a b (some .revRight) none inp left [] budget out) =
+      some (lokCfg a b (some .emitW) none inp left [] budget out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.emitW, none, stk⟩ :
+        (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_revRight_cons (a b : ℕ) (c : Bool) (rest inp left budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .revRight) none inp left (c :: rest) budget out) =
+      some (lokCfg a b (some .revRight) none inp (c :: left) rest budget out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.revRight, none, stk⟩ :
+        (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+def lok_evals_revRight (a b : ℕ) (right inp left budget out : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .revRight) none inp left right budget out)
+      (some (lokCfg a b (some .emitW) none inp
+        (List.reverse right ++ left) [] budget out))
+      (right.length + 1) := by
+  induction right generalizing left with
+  | nil =>
+      simpa using lok_evals_one (lok_step_revRight_nil a b inp left budget out)
+  | cons c right ih =>
+      have h1 := lok_evals_one
+        (lok_step_revRight_cons a b c right inp left budget out)
+      have h2 := ih (c :: left)
+      have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 1
+        (right.length + 1) _ _ _ h1 h2
+      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+/-- Restore `w` onto left after scale left `reverse w` on right. -/
+def lok_evals_restore_w (a b : ℕ) (w inp budget out : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .revRight) none inp [] (List.reverse w) budget out)
+      (some (lokCfg a b (some .emitW) none inp w [] budget out))
+      (w.length + 1) := by
+  have h := lok_evals_revRight a b (List.reverse w) inp [] budget out
+  simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h
+
+theorem lok_step_emitW_nil (a b : ℕ) (inp right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .emitW) none inp [] right budget out) =
+      some (lokCfg a b (some .emitSep) none inp [] right budget out) := by
   simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
       (⟨some LokLabel.emitSep, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
   funext s; cases s <;> simp [Function.update, lokStk]
 
-theorem lok_step_emitW_cons (a b : ℕ) (c : Bool) (rest inp left budget out : List Bool) :
+theorem lok_step_emitW_cons (a b : ℕ) (c : Bool) (rest inp right budget out : List Bool) :
     TM2.step (lengthOkLinearPairComputer a b).m
-      (lokCfg a b (some .emitW) none inp left (c :: rest) budget out) =
-      some (lokCfg a b (some .emitW) none inp left rest budget
+      (lokCfg a b (some .emitW) none inp (c :: rest) right budget out) =
+      some (lokCfg a b (some .emitW) none inp rest right budget
         (c :: true :: out)) := by
   simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
@@ -3699,26 +3768,27 @@ theorem lok_step_emitSep (a b : ℕ) (inp left right budget out : List Bool) :
       (⟨some LokLabel.emitBudget, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
   funext s; cases s <;> simp [Function.update, lokStk]
 
-def lok_evals_emitW (a b : ℕ) (right inp left budget out : List Bool) :
+/-- Drain `left` (= w) writing reverse of encodePair left-half onto out. -/
+def lok_evals_emitW (a b : ℕ) (left inp right budget out : List Bool) :
     EvalsToInTime (lengthOkLinearPairComputer a b).step
       (lokCfg a b (some .emitW) none inp left right budget out)
-      (some (lokCfg a b (some .emitSep) none inp left [] budget
-        (List.reverse (right.flatMap fun c => [true, c]) ++ out)))
-      (right.length + 1) := by
-  induction right generalizing out with
+      (some (lokCfg a b (some .emitSep) none inp [] right budget
+        (List.reverse (left.flatMap fun c => [true, c]) ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
   | nil =>
-      simpa [List.flatMap] using lok_evals_one (lok_step_emitW_nil a b inp left budget out)
-  | cons c right ih =>
-      have h1 := lok_evals_one (lok_step_emitW_cons a b c right inp left budget out)
+      simpa [List.flatMap] using lok_evals_one (lok_step_emitW_nil a b inp right budget out)
+  | cons c left ih =>
+      have h1 := lok_evals_one (lok_step_emitW_cons a b c left inp right budget out)
       have h2 := ih (c :: true :: out)
       have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 1
-        (right.length + 1) _ _ _ h1 h2
-      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
         simp [List.length_cons]
       have hout :
-          List.reverse ((c :: right).flatMap fun c => [true, c]) ++ out =
-            List.reverse (right.flatMap fun c => [true, c]) ++ c :: true :: out := by
-        simp [List.flatMap_cons, List.reverse_append, List.reverse_cons]
+          List.reverse ((c :: left).flatMap fun c => [true, c]) ++ out =
+            List.reverse (left.flatMap fun c => [true, c]) ++ c :: true :: out := by
+        simp [List.flatMap_cons, List.reverse_cons]
       simpa [htime, hout, List.append_assoc] using h
 
 theorem lok_step_emitBudget_nil (a b : ℕ) (inp left right out : List Bool) :
@@ -3783,21 +3853,41 @@ theorem lok_step_rev1_cons (a b : ℕ) (c : Bool) (rest inp left right budget : 
 theorem lok_step_rev2_nil (a b : ℕ) (inp left right out : List Bool) :
     TM2.step (lengthOkLinearPairComputer a b).m
       (lokCfg a b (some .rev2) none inp left right [] out) =
-      some (lokCfg a b (some .haltDrain) none inp left right [] out) := by
+      some (lokCfg a b (some .rev3) none inp left right [] out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.rev3, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_rev2_cons (a b : ℕ) (c : Bool) (rest inp left right out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .rev2) none inp left right (c :: rest) out) =
+      some (lokCfg a b (some .rev2) none inp (c :: left) right rest out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.rev2, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_rev3_nil (a b : ℕ) (inp right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .rev3) none inp [] right budget out) =
+      some (lokCfg a b (some .haltDrain) none inp [] right budget out) := by
   simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
       (⟨some LokLabel.haltDrain, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
   funext s; cases s <;> simp [Function.update, lokStk]
 
-theorem lok_step_rev2_cons (a b : ℕ) (c : Bool) (rest inp left right out : List Bool) :
+theorem lok_step_rev3_cons (a b : ℕ) (c : Bool) (rest inp right budget out : List Bool) :
     TM2.step (lengthOkLinearPairComputer a b).m
-      (lokCfg a b (some .rev2) none inp left right (c :: rest) out) =
-      some (lokCfg a b (some .rev2) none inp left right rest (c :: out)) := by
+      (lokCfg a b (some .rev3) none inp (c :: rest) right budget out) =
+      some (lokCfg a b (some .rev3) none inp rest right budget (c :: out)) := by
   simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
   refine congrArg some <|
     congrArg (fun stk =>
-      (⟨some LokLabel.rev2, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
+      (⟨some LokLabel.rev3, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
   funext s; cases s <;> simp [Function.update, lokStk]
 
 def lok_evals_rev1 (a b : ℕ) (out inp left right budget : List Bool) :
@@ -3822,21 +3912,69 @@ def lok_evals_rev1 (a b : ℕ) (out inp left right budget : List Bool) :
 def lok_evals_rev2 (a b : ℕ) (budget inp left right out : List Bool) :
     EvalsToInTime (lengthOkLinearPairComputer a b).step
       (lokCfg a b (some .rev2) none inp left right budget out)
-      (some (lokCfg a b (some .haltDrain) none inp left right []
-        (List.reverse budget ++ out)))
+      (some (lokCfg a b (some .rev3) none inp
+        (List.reverse budget ++ left) right [] out))
       (budget.length + 1) := by
-  induction budget generalizing out with
+  induction budget generalizing left with
   | nil =>
       simpa using lok_evals_one (lok_step_rev2_nil a b inp left right out)
   | cons c budget ih =>
       have h1 := lok_evals_one
         (lok_step_rev2_cons a b c budget inp left right out)
-      have h2 := ih (c :: out)
+      have h2 := ih (c :: left)
       have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 1
         (budget.length + 1) _ _ _ h1 h2
       have htime : (budget.length + 1) + 1 = (c :: budget).length + 1 := by
         simp [List.length_cons]
       simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+def lok_evals_rev3 (a b : ℕ) (left inp right budget out : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .rev3) none inp left right budget out)
+      (some (lokCfg a b (some .haltDrain) none inp [] right budget
+        (List.reverse left ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      simpa using lok_evals_one (lok_step_rev3_nil a b inp right budget out)
+  | cons c left ih =>
+      have h1 := lok_evals_one
+        (lok_step_rev3_cons a b c left inp right budget out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 1
+        (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+/-- Triple reverse restores `encodePair` onto out from `reverse encodePair`. -/
+def lok_evals_unreverse (a b : ℕ) (ep : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .rev1) none [] [] [] [] (List.reverse ep))
+      (some (lokCfg a b (some .haltDrain) none [] [] [] [] ep))
+      ((ep.length + 1) + ((ep.length + 1) + (ep.length + 1))) := by
+  have h1 := lok_evals_rev1 a b (List.reverse ep) [] [] [] []
+  have h1' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .rev1) none [] [] [] [] (List.reverse ep))
+      (some (lokCfg a b (some .rev2) none [] [] [] ep []))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h1
+  have h2 := lok_evals_rev2 a b ep [] [] [] []
+  have h2' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .rev2) none [] [] [] ep [])
+      (some (lokCfg a b (some .rev3) none [] (List.reverse ep) [] [] []))
+      (ep.length + 1) := by
+    simpa [List.append_nil] using h2
+  have h3 := lok_evals_rev3 a b (List.reverse ep) [] [] [] []
+  have h3' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .rev3) none [] (List.reverse ep) [] [] [])
+      (some (lokCfg a b (some .haltDrain) none [] [] [] [] ep))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h3
+  have h12 := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    (ep.length + 1) (ep.length + 1) _ _ _ h1' h2'
+  exact EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    ((ep.length + 1) + (ep.length + 1)) (ep.length + 1) _ _ _ h12 h3'
 
 theorem lok_step_halt (a b : ℕ) (left right budget out : List Bool) :
     TM2.step (lengthOkLinearPairComputer a b).m
@@ -3963,6 +4101,271 @@ noncomputable def lok_evals_loadRight (a b : ℕ) (ys left right budget out : Li
       have htime : (ys.length + 1) + 1 = (c :: ys).length + 1 := by
         simp [List.length_cons]
       simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+/-- Parse `encodePair (φ, w)` through scale and restore: at `emitW` with
+`left = w` and budget `true^(a*|φ|+b)`. -/
+noncomputable def lok_evals_load_to_emitW (a b : ℕ) (φ w : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .parse) none (encodePair (φ, w)) [] [] [] [])
+      (some (lokCfg a b (some .emitW) none [] w []
+        (List.replicate (b + a * φ.length) true) []))
+      ((w.length + 1) +
+        ((φ.length + 1) + ((w.length + 1) + (1 + 2 * φ.length)))) := by
+  have hparse := lok_evals_parse a b φ (false :: w) [] [] [] []
+  have h1 : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .parse) none (encodePair (φ, w)) [] [] [] [])
+      (some (lokCfg a b (some .parse) none (false :: w) (List.reverse φ) [] [] []))
+      (2 * φ.length) := by
+    simpa [encodePair, List.append_assoc] using hparse
+  have hfalse := lok_evals_one
+    (lok_step_parse_false a b w (List.reverse φ) [] [] [])
+  have h12 := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    (2 * φ.length) 1 _ _ _ h1 hfalse
+  have hload := lok_evals_loadRight a b w (List.reverse φ) [] [] []
+  have h123 := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    (1 + 2 * φ.length) (w.length + 1) _ _ _ h12 hload
+  have h123' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .parse) none (encodePair (φ, w)) [] [] [] [])
+      (some (lokCfg a b (some .scale) none [] (List.reverse φ)
+        (List.reverse w) [] []))
+      ((w.length + 1) + (1 + 2 * φ.length)) := by
+    simpa [List.append_nil] using h123
+  have hscale := lok_evals_scale a b (List.reverse φ) [] (List.reverse w) [] []
+  have hscale' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .scale) none [] (List.reverse φ) (List.reverse w) [] [])
+      (some (lokCfg a b (some .revRight) none [] [] (List.reverse w)
+        (List.replicate (b + a * φ.length) true) []))
+      (φ.length + 1) := by
+    have hout :
+        List.replicate b true ++
+            List.foldr (fun _ acc => List.replicate a true ++ acc) ([] : List Bool)
+              (List.reverse φ) =
+          List.replicate (b + a * φ.length) true := by
+      rw [foldr_replicate_scale, List.append_nil, List.replicate_append_replicate,
+        List.length_reverse]
+    have h := hscale
+    simpa [hout, List.length_reverse, Nat.mul_comm] using h
+  have htoRev := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    ((w.length + 1) + (1 + 2 * φ.length)) (φ.length + 1)
+    _ _ _ h123' hscale'
+  have hrest := lok_evals_restore_w a b w []
+    (List.replicate (b + a * φ.length) true) []
+  exact EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    ((φ.length + 1) + ((w.length + 1) + (1 + 2 * φ.length)))
+    (w.length + 1)
+    _ _ _ htoRev hrest
+
+theorem replicate_budget_mul_comm (a b n : ℕ) :
+    List.replicate (b + n * a) true = List.replicate (b + a * n) true := by
+  rw [Nat.mul_comm]
+
+/-- From `emitW` (with `left = w`) through halt, emitting `encodePair (w, budget)`. -/
+noncomputable def lok_evals_emit_to_halt (a b : ℕ) (w budget : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .emitW) none [] w [] budget [])
+      (some (lokCfg a b none none [] [] [] [] (encodePair (w, budget))))
+      (1 + ((((encodePair (w, budget)).length + 1) +
+        (((encodePair (w, budget)).length + 1) +
+          ((encodePair (w, budget)).length + 1))) +
+        ((budget.length + 1) + (1 + (w.length + 1))))) := by
+  have hemitW := lok_evals_emitW a b w [] [] budget []
+  have hemitW' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .emitW) none [] w [] budget [])
+      (some (lokCfg a b (some .emitSep) none [] [] [] budget
+        (List.reverse (w.flatMap fun c => [true, c]))))
+      (w.length + 1) := by
+    simpa [List.append_nil] using hemitW
+  have hsep := lok_evals_one (lok_step_emitSep a b [] [] [] budget
+    (List.reverse (w.flatMap fun c => [true, c])))
+  have h12 := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    (w.length + 1) 1 _ _ _ hemitW' hsep
+  have hbud := lok_evals_emitBudget a b budget [] [] []
+    (false :: List.reverse (w.flatMap fun c => [true, c]))
+  have h123 := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    (1 + (w.length + 1)) (budget.length + 1) _ _ _ h12 hbud
+  have hout_emit :
+      List.reverse budget ++
+          false :: List.reverse (w.flatMap fun c => [true, c]) =
+        List.reverse (encodePair (w, budget)) := by
+    simp [encodePair, List.reverse_append, List.reverse_cons]
+  have h123' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .emitW) none [] w [] budget [])
+      (some (lokCfg a b (some .rev1) none [] [] [] []
+        (List.reverse (encodePair (w, budget)))))
+      ((budget.length + 1) + (1 + (w.length + 1))) := by
+    simpa [hout_emit] using h123
+  have hunrev := lok_evals_unreverse a b (encodePair (w, budget))
+  have h4 := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    ((budget.length + 1) + (1 + (w.length + 1)))
+    (((encodePair (w, budget)).length + 1) +
+      (((encodePair (w, budget)).length + 1) +
+        ((encodePair (w, budget)).length + 1)))
+    _ _ _ h123' hunrev
+  have hhalt := lok_evals_one (lok_step_halt a b [] [] [] (encodePair (w, budget)))
+  exact EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    ((((encodePair (w, budget)).length + 1) +
+      (((encodePair (w, budget)).length + 1) +
+        ((encodePair (w, budget)).length + 1))) +
+      ((budget.length + 1) + (1 + (w.length + 1))))
+    1
+    _ _ _ h4 hhalt
+
+theorem lok_initList (a b : ℕ) (s : List Bool) :
+    initList (lengthOkLinearPairComputer a b) s =
+      lokCfg a b (some .parse) none s [] [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some LokLabel.parse, none, stk⟩ :
+        (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext t; cases t <;> simp [lengthOkLinearPairComputer, lokStk]
+
+theorem lok_haltList (a b : ℕ) (out : List Bool) :
+    haltList (lengthOkLinearPairComputer a b) out =
+      lokCfg a b none none [] [] [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option LokLabel), (none : Option Bool), stk⟩ :
+        (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext t; cases t <;> simp [haltList, lengthOkLinearPairComputer, lokStk]
+
+/-- Full run: `encodePair (φ, w)` maps to `lengthOkLinearPair a b φ w`. -/
+noncomputable def lok_evals (a b : ℕ) (φ w : List Bool) :
+    TM2OutputsInTime (lengthOkLinearPairComputer a b) (encodePair (φ, w))
+      (some (lengthOkLinearPair a b φ w))
+      ((1 + ((((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1) +
+        (((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1) +
+          ((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1))) +
+        ((b + a * φ.length + 1) + (1 + (w.length + 1))))) +
+        ((w.length + 1) +
+          ((φ.length + 1) + ((w.length + 1) + (1 + 2 * φ.length))))) := by
+  have hload := lok_evals_load_to_emitW a b φ w
+  have hemit := lok_evals_emit_to_halt a b w
+    (List.replicate (b + a * φ.length) true)
+  have hload' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (initList (lengthOkLinearPairComputer a b) (encodePair (φ, w)))
+      (some (lokCfg a b (some .emitW) none [] w []
+        (List.replicate (b + a * φ.length) true) []))
+      ((w.length + 1) +
+        ((φ.length + 1) + ((w.length + 1) + (1 + 2 * φ.length)))) := by
+    simpa [lok_initList] using hload
+  have hemit' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .emitW) none [] w []
+        (List.replicate (b + a * φ.length) true) [])
+      (some (haltList (lengthOkLinearPairComputer a b)
+        (lengthOkLinearPair a b φ w)))
+      (1 + ((((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1) +
+        (((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1) +
+          ((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1))) +
+        ((b + a * φ.length + 1) + (1 + (w.length + 1))))) := by
+    have hep :
+        encodePair (w, List.replicate (b + a * φ.length) true) =
+          lengthOkLinearPair a b φ w := by
+      simp [lengthOkLinearPair, Nat.add_comm (a * φ.length), Nat.mul_comm]
+    simpa [lok_haltList, List.length_replicate, hep] using hemit
+  have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step
+    ((w.length + 1) +
+      ((φ.length + 1) + ((w.length + 1) + (1 + 2 * φ.length))))
+    (1 + ((((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1) +
+      (((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1) +
+        ((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1))) +
+      ((b + a * φ.length + 1) + (1 + (w.length + 1)))))
+    _ _ _ hload' hemit'
+  exact ⟨⟨h.steps, h.evals_in_steps⟩, h.steps_le_m⟩
+
+/-- Time bound depending on fixed scale coeffs `a,b` and input length. -/
+noncomputable def lengthOkLinearPairTime (a b : ℕ) : Polynomial ℕ :=
+  (48 * (Polynomial.C (a + b + 1) + 1)) * (Polynomial.X ^ 2 + Polynomial.X + 1)
+
+theorem lengthOkLinearPairTime_eval (a b n : ℕ) :
+    (lengthOkLinearPairTime a b).eval n =
+      (48 * (a + b + 1 + 1)) * (n ^ 2 + n + 1) := by
+  simp [lengthOkLinearPairTime, pow_two, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_X, Polynomial.eval_one]
+
+theorem lengthOkLinearPairTime_bound (a b : ℕ) (φ w : List Bool) :
+    ((1 + ((((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1) +
+      (((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1) +
+        ((encodePair (w, List.replicate (b + a * φ.length) true)).length + 1))) +
+      ((b + a * φ.length + 1) + (1 + (w.length + 1))))) +
+      ((w.length + 1) +
+        ((φ.length + 1) + ((w.length + 1) + (1 + 2 * φ.length))))) ≤
+      (lengthOkLinearPairTime a b).eval (encodePair (φ, w)).length := by
+  simp [lengthOkLinearPairTime_eval, length_encodePair, List.length_replicate]
+  set N := 2 * φ.length + 1 + w.length
+  have hφ : φ.length ≤ N := by omega
+  have hw : w.length ≤ N := by omega
+  have ha : a * φ.length ≤ (a + b + 1) * N :=
+    calc
+      a * φ.length ≤ (a + b + 1) * φ.length :=
+        Nat.mul_le_mul_right _ (by omega : a ≤ a + b + 1)
+      _ ≤ (a + b + 1) * N := Nat.mul_le_mul_left _ hφ
+  have hbud : b + a * φ.length ≤ (a + b + 1) * (N + 1) :=
+    calc
+      b + a * φ.length ≤ b + (a + b + 1) * N := Nat.add_le_add_left ha _
+      _ ≤ (a + b + 1) + (a + b + 1) * N := Nat.add_le_add_right (by omega : b ≤ a + b + 1) _
+      _ = (a + b + 1) * (N + 1) := by ring
+  have hNsq : N + 1 ≤ N ^ 2 + N + 1 := by nlinarith
+  have hM : (a + b + 1) * (N + 1) ≤ (a + b + 2) * (N ^ 2 + N + 1) :=
+    calc
+      (a + b + 1) * (N + 1) ≤ (a + b + 1) * (N ^ 2 + N + 1) := Nat.mul_le_mul_left _ hNsq
+      _ ≤ (a + b + 2) * (N ^ 2 + N + 1) := Nat.mul_le_mul_right _ (by omega)
+  have hw1 : w.length ≤ (a + b + 2) * (N ^ 2 + N + 1) :=
+    calc
+      w.length ≤ N := hw
+      _ ≤ N + 1 := Nat.le_succ _
+      _ ≤ (a + b + 1) * (N + 1) := by
+        simpa [Nat.mul_one] using Nat.mul_le_mul_right (N + 1) (by omega : 1 ≤ a + b + 1)
+      _ ≤ (a + b + 2) * (N ^ 2 + N + 1) := hM
+  have hφ1 : φ.length ≤ (a + b + 2) * (N ^ 2 + N + 1) :=
+    calc
+      φ.length ≤ N := hφ
+      _ ≤ N + 1 := Nat.le_succ _
+      _ ≤ (a + b + 1) * (N + 1) := by
+        simpa [Nat.mul_one] using Nat.mul_le_mul_right (N + 1) (by omega : 1 ≤ a + b + 1)
+      _ ≤ (a + b + 2) * (N ^ 2 + N + 1) := hM
+  have hbud1 : b + a * φ.length ≤ (a + b + 2) * (N ^ 2 + N + 1) :=
+    le_trans hbud hM
+  have h3 : 3 ≤ (a + b + 2) * (N ^ 2 + N + 1) := by
+    have hN1 : 1 ≤ N := by omega
+    have hsq : 3 ≤ N ^ 2 + N + 1 := by nlinarith
+    have hab : 1 ≤ a + b + 2 := by omega
+    calc
+      3 ≤ N ^ 2 + N + 1 := hsq
+      _ ≤ (a + b + 2) * (N ^ 2 + N + 1) := by
+        simpa [Nat.mul_one] using Nat.mul_le_mul_right (N ^ 2 + N + 1) hab
+  have hLHS :
+      1 + (2 * w.length + 1 + (b + a * φ.length) + 1 +
+          (2 * w.length + 1 + (b + a * φ.length) + 1 +
+            (2 * w.length + 1 + (b + a * φ.length) + 1)) +
+        (b + a * φ.length + 1 + (1 + (w.length + 1)))) +
+        (w.length + 1 + (φ.length + 1 + (w.length + 1 + (1 + 2 * φ.length)))) ≤
+      12 * (w.length + (b + a * φ.length) + φ.length + 3) := by omega
+  refine le_trans hLHS ?_
+  have hsum : w.length + (b + a * φ.length) + φ.length + 3 ≤
+      4 * (a + b + 2) * (N ^ 2 + N + 1) := by
+    have := Nat.add_le_add (Nat.add_le_add (Nat.add_le_add hw1 hbud1) hφ1) h3
+    convert this using 1 <;> ring
+  have : 12 * (w.length + (b + a * φ.length) + φ.length + 3) ≤
+      48 * (a + b + 2) * (N ^ 2 + N + 1) := by
+    have := Nat.mul_le_mul_left 12 hsum
+    convert this using 1 <;> ring
+  exact this
+
+/-- Rebuild `encodePair (w, true^(a*|φ|+b))` under `encodePair` input. -/
+noncomputable def lengthOkLinearPairComputableInPolyTime (a b : ℕ) :
+    TM2ComputableInPolyTime encodePair idBitEnc
+      (fun p => lengthOkLinearPair a b p.1 p.2) where
+  tm := lengthOkLinearPairComputer a b
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := lengthOkLinearPairTime a b
+  outputsFun p := by
+    rcases p with ⟨φ, w⟩
+    change TM2OutputsInTime (lengthOkLinearPairComputer a b)
+      (List.map id (encodePair (φ, w)))
+      (some (List.map id (idBitEnc (lengthOkLinearPair a b φ w))))
+      ((lengthOkLinearPairTime a b).eval (encodePair (φ, w)).length)
+    simp only [List.map_id, id_eq, idBitEnc]
+    exact evalsToInTime_le_mono (lok_evals a b φ w)
+      (lengthOkLinearPairTime_bound a b φ w)
 
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
