@@ -3667,6 +3667,99 @@ def lok_evals_scale (a b : ℕ) (left inp right budget out : List Bool) :
       simpa [List.foldr, List.append_assoc, htime] using
         evalsToInTime_le_mono h (le_of_eq htime)
 
+theorem lok_step_emitW_nil (a b : ℕ) (inp left budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .emitW) none inp left [] budget out) =
+      some (lokCfg a b (some .emitSep) none inp left [] budget out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.emitSep, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_emitW_cons (a b : ℕ) (c : Bool) (rest inp left budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .emitW) none inp left (c :: rest) budget out) =
+      some (lokCfg a b (some .emitW) none inp left rest budget
+        (c :: true :: out)) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.emitW, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_emitSep (a b : ℕ) (inp left right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .emitSep) none inp left right budget out) =
+      some (lokCfg a b (some .emitBudget) none inp left right budget
+        (false :: out)) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.emitBudget, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+def lok_evals_emitW (a b : ℕ) (right inp left budget out : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .emitW) none inp left right budget out)
+      (some (lokCfg a b (some .emitSep) none inp left [] budget
+        (List.reverse (right.flatMap fun c => [true, c]) ++ out)))
+      (right.length + 1) := by
+  induction right generalizing out with
+  | nil =>
+      simpa [List.flatMap] using lok_evals_one (lok_step_emitW_nil a b inp left budget out)
+  | cons c right ih =>
+      have h1 := lok_evals_one (lok_step_emitW_cons a b c right inp left budget out)
+      have h2 := ih (c :: true :: out)
+      have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 1
+        (right.length + 1) _ _ _ h1 h2
+      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        simp [List.length_cons]
+      have hout :
+          List.reverse ((c :: right).flatMap fun c => [true, c]) ++ out =
+            List.reverse (right.flatMap fun c => [true, c]) ++ c :: true :: out := by
+        simp [List.flatMap_cons, List.reverse_append, List.reverse_cons]
+      simpa [htime, hout, List.append_assoc] using h
+
+theorem lok_step_emitBudget_nil (a b : ℕ) (inp left right out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .emitBudget) none inp left right [] out) =
+      some (lokCfg a b (some .rev1) none inp left right [] out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.rev1, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_emitBudget_cons (a b : ℕ) (c : Bool) (rest inp left right out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .emitBudget) none inp left right (c :: rest) out) =
+      some (lokCfg a b (some .emitBudget) none inp left right rest (c :: out)) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.emitBudget, none, stk⟩ : (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+def lok_evals_emitBudget (a b : ℕ) (budget inp left right out : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .emitBudget) none inp left right budget out)
+      (some (lokCfg a b (some .rev1) none inp left right []
+        (List.reverse budget ++ out)))
+      (budget.length + 1) := by
+  induction budget generalizing out with
+  | nil =>
+      simpa using lok_evals_one (lok_step_emitBudget_nil a b inp left right out)
+  | cons c budget ih =>
+      have h1 := lok_evals_one
+        (lok_step_emitBudget_cons a b c budget inp left right out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 1
+        (budget.length + 1) _ _ _ h1 h2
+      have htime : (budget.length + 1) + 1 = (c :: budget).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
