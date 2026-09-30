@@ -3849,6 +3849,121 @@ theorem lok_step_halt (a b : ℕ) (left right budget out : List Bool) :
         (lengthOkLinearPairComputer a b).Cfg)) ?_
   funext s; cases s <;> simp [Function.update, lokStk]
 
+theorem lok_step_parse_false (a b : ℕ) (rest left right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .parse) none (false :: rest) left right budget out) =
+      some (lokCfg a b (some .loadRight) none rest left right budget out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.loadRight, none, stk⟩ :
+        (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_parse_true (a b : ℕ) (c : Bool) (rest left right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .parse) none (true :: c :: rest) left right budget out) =
+      some (lokCfg a b (some .expectBit) none (c :: rest) left right budget out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.expectBit, none, stk⟩ :
+        (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_expectBit (a b : ℕ) (c : Bool) (rest left right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .expectBit) none (c :: rest) left right budget out) =
+      some (lokCfg a b (some .parse) none rest (c :: left) right budget out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.parse, none, stk⟩ :
+        (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_loadRight_nil (a b : ℕ) (left right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .loadRight) none [] left right budget out) =
+      some (lokCfg a b (some .scale) none [] left right budget out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.scale, none, stk⟩ :
+        (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+theorem lok_step_loadRight_cons (a b : ℕ) (c : Bool) (rest left right budget out : List Bool) :
+    TM2.step (lengthOkLinearPairComputer a b).m
+      (lokCfg a b (some .loadRight) none (c :: rest) left right budget out) =
+      some (lokCfg a b (some .loadRight) none rest left (c :: right) budget out) := by
+  simp [lengthOkLinearPairComputer, lokCfg, lokStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some LokLabel.loadRight, none, stk⟩ :
+        (lengthOkLinearPairComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, lokStk]
+
+def lok_evals_parse_one (a b : ℕ) (c : Bool) (rest left right budget out : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .parse) none (true :: c :: rest) left right budget out)
+      (some (lokCfg a b (some .parse) none rest (c :: left) right budget out))
+      2 := by
+  have h1 := lok_evals_one
+    (lok_step_parse_true a b c rest left right budget out)
+  have h2 := lok_evals_one
+    (lok_step_expectBit a b c rest left right budget out)
+  exact EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 1 1 _ _ _ h1 h2
+
+noncomputable def lok_evals_parse (a b : ℕ) (xs rest left right budget out : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .parse) none
+        ((xs.flatMap fun c => [true, c]) ++ rest) left right budget out)
+      (some (lokCfg a b (some .parse) none rest (List.reverse xs ++ left) right
+        budget out))
+      (2 * xs.length) := by
+  induction xs generalizing left with
+  | nil =>
+      simpa [List.flatMap] using
+        (EvalsToInTime.refl (lengthOkLinearPairComputer a b).step
+          (lokCfg a b (some .parse) none rest left right budget out))
+  | cons c xs ih =>
+      have h1 := lok_evals_parse_one a b c
+        ((xs.flatMap fun c => [true, c]) ++ rest) left right budget out
+      have h2 := ih (c :: left)
+      have h2' : EvalsToInTime (lengthOkLinearPairComputer a b).step
+          (lokCfg a b (some .parse) none
+            ((xs.flatMap fun c => [true, c]) ++ rest) (c :: left) right budget out)
+          (some (lokCfg a b (some .parse) none rest
+            (List.reverse xs ++ c :: left) right budget out))
+          (2 * xs.length) := by
+        simpa [List.reverse_cons, List.append_assoc] using h2
+      have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 2
+        (2 * xs.length) _ _ _ h1 h2'
+      have htime : 2 * xs.length + 2 = 2 * (c :: xs).length := by
+        simp [List.length_cons]; omega
+      simpa [List.flatMap_cons, List.append_assoc, htime] using
+        evalsToInTime_le_mono h (le_of_eq htime)
+
+noncomputable def lok_evals_loadRight (a b : ℕ) (ys left right budget out : List Bool) :
+    EvalsToInTime (lengthOkLinearPairComputer a b).step
+      (lokCfg a b (some .loadRight) none ys left right budget out)
+      (some (lokCfg a b (some .scale) none [] left (List.reverse ys ++ right)
+        budget out))
+      (ys.length + 1) := by
+  induction ys generalizing right with
+  | nil =>
+      exact lok_evals_one (lok_step_loadRight_nil a b left right budget out)
+  | cons c ys ih =>
+      have h1 := lok_evals_one
+        (lok_step_loadRight_cons a b c ys left right budget out)
+      have h2 := ih (c :: right)
+      have h := EvalsToInTime.trans (lengthOkLinearPairComputer a b).step 1
+        (ys.length + 1) _ _ _ h1 h2
+      have htime : (ys.length + 1) + 1 = (c :: ys).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
