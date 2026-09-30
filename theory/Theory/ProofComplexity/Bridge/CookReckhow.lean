@@ -1,5 +1,6 @@
 import Theory.ProofComplexity.Bridge.ProofSystem
 import Mathlib.Algebra.Polynomial.Inductions
+import Mathlib.Algebra.Polynomial.Degree.SmallDegree
 import Mathlib.Tactic
 
 /-!
@@ -3359,6 +3360,31 @@ theorem length_dupEncodePair (s : List Bool) :
 
 theorem unaryPow_succ_eq_mul (u : List Bool) (k : ℕ) :
     unaryPow u (k + 1) = unaryMul (unaryPow u k) u := rfl
+
+theorem polyEvalUnary_C (c n : ℕ) :
+    polyEvalUnary (Polynomial.C c) n = List.replicate c true := by
+  simp [polyEvalUnary, unaryNat]
+
+/-- Constant polynomial unary eval ignores input length (drain+write via scaleAppend 0). -/
+noncomputable def polyEvalUnaryConstComputableInPolyTime (c : ℕ) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => polyEvalUnary (Polynomial.C c) s.length) := by
+  convert scaleAppendComputableInPolyTime 0 c using 1
+  funext s
+  simpa [Nat.zero_mul, Nat.zero_add] using polyEvalUnary_C c s.length
+
+/-- Degree ≤ 1 polynomials are exact poly-time unary budgets. -/
+noncomputable def polyEvalUnaryDegLeOneComputableInPolyTime (p : Polynomial ℕ)
+    (hp : p.natDegree ≤ 1) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => polyEvalUnary p s.length) := by
+  let a := p.coeff 1
+  let b := p.coeff 0
+  have hform : p = Polynomial.C a * Polynomial.X + Polynomial.C b :=
+    Polynomial.eq_X_add_C_of_natDegree_le_one hp
+  convert polyEvalUnaryLinearComputableInPolyTime a b using 1
+  funext s
+  rw [hform, polyEvalUnary_linear]
 
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 

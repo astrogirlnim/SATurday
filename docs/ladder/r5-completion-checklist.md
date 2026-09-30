@@ -137,6 +137,8 @@ Cook Levin reduction (hard direction) remain. Do not restart
   `scaleAppendComputableInPolyTime` / `polyEvalUnaryLinearComputableInPolyTime`
   certified (degree ≤ 1 exact unary poly-eval; time `|s|+2`);
   `polyEvalUnary_divX` Horner identity certified;
+  `polyEvalUnaryConstComputableInPolyTime` /
+  `polyEvalUnaryDegLeOneComputableInPolyTime` certified;
   remaining: recursive FinTM2 for arbitrary `p` via divX, `unaryPow` FinTM2,
   polyDomUnary host, compose with `V`, `afterDecodeProofSystem` FinTM2;
   `summit_corollary_of_easy` waits)
