@@ -4524,6 +4524,20 @@ noncomputable def lengthOkLinearComputableInPolyTime (a b : ℕ) :
                   exact hraw.evals_in_steps })
       (congrArg some (congrArg (haltList tm) hout.symm))
 
+/-- Degree ≤ 1 `lengthOk` reduces to the linear case. -/
+noncomputable def lengthOkDegLeOneComputableInPolyTime (p : Polynomial ℕ)
+    (hp : p.natDegree ≤ 1) :
+    TM2ComputableInPolyTime encodePair bitEnc
+      (fun pw => lengthOk p pw.1 pw.2) := by
+  let a := p.coeff 1
+  let b := p.coeff 0
+  have hform : p = Polynomial.C a * Polynomial.X + Polynomial.C b :=
+    Polynomial.eq_X_add_C_of_natDegree_le_one hp
+  convert lengthOkLinearComputableInPolyTime a b using 1
+  funext pw
+  rcases pw with ⟨φ, w⟩
+  rw [hform]
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
