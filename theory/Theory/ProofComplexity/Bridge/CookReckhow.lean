@@ -4127,6 +4127,678 @@ noncomputable def dupEncodePairComputableInPolyTime :
     simp only [List.map_id, id_eq, idBitEnc]
     exact evalsToInTime_le_mono (dup_evals s) (dupEncodePairTime_bound s)
 
+/-! ## FinTM2: map first component to unary under `encodePair`
+
+`encodePair (x, y) ↦ encodePair (toUnary x, y)`. Parse pushes `true` per
+first-component bit (so `left = toUnary x`), load `y` reversed, then the same
+emit pipeline as `swapPairComputer`. -/
+
+inductive MapUStack where
+  | inp | left | right | out
+  deriving DecidableEq, Repr
+
+instance : Fintype MapUStack where
+  elems := {.inp, .left, .right, .out}
+  complete s := by cases s <;> simp
+
+inductive MapULabel where
+  | parse | expectBit | loadRight
+  | emitW | emitSep | emitFstPrep | emitFst
+  | rev1 | rev2 | rev3 | haltDrain
+  deriving DecidableEq, Repr
+
+instance : Fintype MapULabel where
+  elems := {.parse, .expectBit, .loadRight, .emitW, .emitSep, .emitFstPrep,
+    .emitFst, .rev1, .rev2, .rev3, .haltDrain}
+  complete s := by cases s <;> simp
+
+def mapUStk (inp left right out : List Bool) : MapUStack → List Bool
+  | .inp => inp
+  | .left => left
+  | .right => right
+  | .out => out
+
+def mapFstToUnaryComputer : FinTM2 where
+  K := MapUStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := MapULabel
+  main := .parse
+  σ := Option Bool
+  initialState := none
+  m
+    | .parse =>
+        pop MapUStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapULabel.haltDrain)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => MapULabel.loadRight)
+              (load (fun _ => none) <| goto fun _ => MapULabel.expectBit))
+    | .expectBit =>
+        pop MapUStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapULabel.haltDrain)
+            (push MapUStack.left (fun _ => true) <|
+              load (fun _ => none) <| goto fun _ => MapULabel.parse)
+    | .loadRight =>
+        pop MapUStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapULabel.emitW)
+            (push MapUStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapULabel.loadRight)
+    | .emitW =>
+        pop MapUStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapULabel.emitSep)
+            (push MapUStack.out (fun _ => true) <|
+              push MapUStack.out (fun s => s.getD false) <|
+                load (fun _ => none) <| goto fun _ => MapULabel.emitW)
+    | .emitSep =>
+        push MapUStack.out (fun _ => false) <|
+          load (fun _ => none) <| goto fun _ => MapULabel.emitFstPrep
+    | .emitFstPrep =>
+        pop MapUStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapULabel.emitFst)
+            (push MapUStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapULabel.emitFstPrep)
+    | .emitFst =>
+        pop MapUStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapULabel.rev1)
+            (push MapUStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapULabel.emitFst)
+    | .rev1 =>
+        pop MapUStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapULabel.rev2)
+            (push MapUStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapULabel.rev1)
+    | .rev2 =>
+        pop MapUStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapULabel.rev3)
+            (push MapUStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapULabel.rev2)
+    | .rev3 =>
+        pop MapUStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapULabel.haltDrain)
+            (push MapUStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapULabel.rev3)
+    | .haltDrain =>
+        pop MapUStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            halt
+            (load (fun _ => none) <| goto fun _ => MapULabel.haltDrain)
+
+def mapUCfg (l : Option MapULabel) (v : Option Bool)
+    (inp left right out : List Bool) : mapFstToUnaryComputer.Cfg :=
+  ⟨l, v, mapUStk inp left right out⟩
+
+def mapFstToUnaryPair (p : List Bool × List Bool) : List Bool :=
+  encodePair (toUnary p.1, p.2)
+
+theorem mapFstToUnaryPair_encode (x y : List Bool) :
+    mapFstToUnaryPair (x, y) = encodePair (toUnary x, y) := rfl
+
+theorem mapU_step_parse_true (rest left right out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .parse) none (true :: rest) left right out) =
+      some (mapUCfg (some .expectBit) none rest left right out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.expectBit, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_expectBit (b : Bool) (rest left right out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .expectBit) none (b :: rest) left right out) =
+      some (mapUCfg (some .parse) none rest (true :: left) right out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.parse, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_parse_false (rest left right out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .parse) none (false :: rest) left right out) =
+      some (mapUCfg (some .loadRight) none rest left right out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.loadRight, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_loadRight_cons (c : Bool) (rest left right out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .loadRight) none (c :: rest) left right out) =
+      some (mapUCfg (some .loadRight) none rest left (c :: right) out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.loadRight, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_loadRight_nil (left right out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .loadRight) none [] left right out) =
+      some (mapUCfg (some .emitW) none [] left right out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.emitW, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+def mapU_evals_one {c c' : mapFstToUnaryComputer.Cfg}
+    (h : TM2.step mapFstToUnaryComputer.m c = some c') :
+    EvalsToInTime mapFstToUnaryComputer.step c (some c') 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change (some c).bind mapFstToUnaryComputer.step = some c'
+    simpa [FinTM2.step] using h
+
+def mapU_evals_parse_one (c : Bool) (rest left right out : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .parse) none (true :: c :: rest) left right out)
+      (some (mapUCfg (some .parse) none rest (true :: left) right out)) 2 := by
+  exact EvalsToInTime.trans mapFstToUnaryComputer.step 1 1 _ _ _
+    (mapU_evals_one (mapU_step_parse_true (c :: rest) left right out))
+    (mapU_evals_one (mapU_step_expectBit c rest left right out))
+
+theorem replicate_true_append_cons_eq (n : ℕ) (left : List Bool) :
+    List.replicate n true ++ true :: left =
+      true :: (List.replicate n true ++ left) := by
+  induction n generalizing left with
+  | zero => simp
+  | succ n ih =>
+      simpa [List.replicate_succ, List.cons_append] using
+        congrArg (List.cons true) (ih left)
+
+noncomputable def mapU_evals_parse (xs rest left right out : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .parse) none
+        (xs.flatMap (fun b => [true, b]) ++ rest) left right out)
+      (some (mapUCfg (some .parse) none rest
+        (List.replicate xs.length true ++ left) right out))
+      (2 * xs.length) := by
+  induction xs generalizing left with
+  | nil =>
+      simpa [List.flatMap, List.replicate] using
+        (EvalsToInTime.refl mapFstToUnaryComputer.step
+          (mapUCfg (some .parse) none rest left right out))
+  | cons c xs ih =>
+      have h1 := mapU_evals_parse_one c (xs.flatMap (fun b => [true, b]) ++ rest)
+        left right out
+      have h2 := ih (true :: left)
+      have h := EvalsToInTime.trans mapFstToUnaryComputer.step 2 (2 * xs.length) _ _ _ h1 h2
+      have htime : 2 * xs.length + 2 = 2 * (c :: xs).length := by
+        simp [List.length_cons]; ring
+      simpa [List.flatMap_cons, replicate_true_append_cons_eq, List.replicate_succ,
+        htime] using h
+
+noncomputable def mapU_evals_loadRight (ys left right out : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .loadRight) none ys left right out)
+      (some (mapUCfg (some .emitW) none [] left (List.reverse ys ++ right) out))
+      (ys.length + 1) := by
+  induction ys generalizing right with
+  | nil =>
+      exact mapU_evals_one (mapU_step_loadRight_nil left right out)
+  | cons c ys ih =>
+      have h1 := mapU_evals_one (mapU_step_loadRight_cons c ys left right out)
+      have h2 := ih (c :: right)
+      have h := EvalsToInTime.trans mapFstToUnaryComputer.step 1 (ys.length + 1) _ _ _ h1 h2
+      have htime : (ys.length + 1) + 1 = (c :: ys).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+/-- Parse through load: at emitW with left = toUnary x and right = reverse y. -/
+noncomputable def mapU_evals_load_to_emitW (x y : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .parse) none (encodePair (x, y)) [] [] [])
+      (some (mapUCfg (some .emitW) none [] (toUnary x) (List.reverse y) []))
+      ((y.length + 1) + (1 + 2 * x.length)) := by
+  have hparse := mapU_evals_parse x (false :: y) [] [] []
+  have h1 : EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .parse) none (encodePair (x, y)) [] [] [])
+      (some (mapUCfg (some .parse) none (false :: y)
+        (List.replicate x.length true) [] []))
+      (2 * x.length) := by
+    simpa [encodePair, List.append_assoc] using hparse
+  have hfalse := mapU_evals_one
+    (mapU_step_parse_false y (List.replicate x.length true) [] [])
+  have h12 := EvalsToInTime.trans mapFstToUnaryComputer.step
+    (2 * x.length) 1 _ _ _ h1 hfalse
+  have hload := mapU_evals_loadRight y (List.replicate x.length true) [] []
+  have h123 := EvalsToInTime.trans mapFstToUnaryComputer.step
+    (1 + 2 * x.length) (y.length + 1) _ _ _ h12 hload
+  simpa [toUnary, unaryNat, List.append_nil] using h123
+
+theorem mapU_step_emitW_nil (right out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .emitW) none [] [] right out) =
+      some (mapUCfg (some .emitSep) none [] [] right out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.emitSep, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_emitW_cons (c : Bool) (rest right out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .emitW) none [] (c :: rest) right out) =
+      some (mapUCfg (some .emitW) none [] rest right (c :: true :: out)) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.emitW, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+def mapU_evals_emitW (left right out : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .emitW) none [] left right out)
+      (some (mapUCfg (some .emitSep) none [] [] right
+        (List.reverse (left.flatMap fun c => [true, c]) ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      simpa [List.flatMap] using mapU_evals_one (mapU_step_emitW_nil right out)
+  | cons c left ih =>
+      have h1 := mapU_evals_one (mapU_step_emitW_cons c left right out)
+      have h2 := ih (c :: true :: out)
+      have h := EvalsToInTime.trans mapFstToUnaryComputer.step 1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      have hout :
+          List.reverse ((c :: left).flatMap fun c => [true, c]) ++ out =
+            List.reverse (left.flatMap fun c => [true, c]) ++ c :: true :: out := by
+        simp [List.flatMap_cons, List.reverse_cons]
+      simpa [htime, hout, List.append_assoc] using h
+
+theorem mapU_step_emitSep (right out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .emitSep) none [] [] right out) =
+      some (mapUCfg (some .emitFstPrep) none [] [] right (false :: out)) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.emitFstPrep, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_emitFstPrep_cons (c : Bool) (rest left out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .emitFstPrep) none [] left (c :: rest) out) =
+      some (mapUCfg (some .emitFstPrep) none [] (c :: left) rest out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.emitFstPrep, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_emitFstPrep_nil (left out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .emitFstPrep) none [] left [] out) =
+      some (mapUCfg (some .emitFst) none [] left [] out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.emitFst, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+noncomputable def mapU_evals_emitFstPrep (right left out : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .emitFstPrep) none [] left right out)
+      (some (mapUCfg (some .emitFst) none [] (List.reverse right ++ left) [] out))
+      (right.length + 1) := by
+  induction right generalizing left with
+  | nil =>
+      exact mapU_evals_one (mapU_step_emitFstPrep_nil left out)
+  | cons c right ih =>
+      have h1 := mapU_evals_one (mapU_step_emitFstPrep_cons c right left out)
+      have h2 := ih (c :: left)
+      have h := EvalsToInTime.trans mapFstToUnaryComputer.step 1 (right.length + 1) _ _ _ h1 h2
+      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem mapU_step_emitFst_cons (c : Bool) (rest out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .emitFst) none [] (c :: rest) [] out) =
+      some (mapUCfg (some .emitFst) none [] rest [] (c :: out)) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.emitFst, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_emitFst_nil (out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .emitFst) none [] [] [] out) =
+      some (mapUCfg (some .rev1) none [] [] [] out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.rev1, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+def mapU_evals_emitFst (left out : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .emitFst) none [] left [] out)
+      (some (mapUCfg (some .rev1) none [] [] [] (List.reverse left ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      exact mapU_evals_one (mapU_step_emitFst_nil out)
+  | cons c left ih =>
+      have h1 := mapU_evals_one (mapU_step_emitFst_cons c left out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans mapFstToUnaryComputer.step 1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem mapU_step_rev1_cons (c : Bool) (rest right : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .rev1) none [] [] right (c :: rest)) =
+      some (mapUCfg (some .rev1) none [] [] (c :: right) rest) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.rev1, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_rev1_nil (right : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .rev1) none [] [] right []) =
+      some (mapUCfg (some .rev2) none [] [] right []) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.rev2, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+def mapU_evals_rev1 (out right : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .rev1) none [] [] right out)
+      (some (mapUCfg (some .rev2) none [] [] (List.reverse out ++ right) []))
+      (out.length + 1) := by
+  induction out generalizing right with
+  | nil =>
+      exact mapU_evals_one (mapU_step_rev1_nil right)
+  | cons c out ih =>
+      have h1 := mapU_evals_one (mapU_step_rev1_cons c out right)
+      have h2 := ih (c :: right)
+      have h := EvalsToInTime.trans mapFstToUnaryComputer.step 1 (out.length + 1) _ _ _ h1 h2
+      have htime : (out.length + 1) + 1 = (c :: out).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem mapU_step_rev2_cons (c : Bool) (rest left out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .rev2) none [] left (c :: rest) out) =
+      some (mapUCfg (some .rev2) none [] (c :: left) rest out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.rev2, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_rev2_nil (left out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .rev2) none [] left [] out) =
+      some (mapUCfg (some .rev3) none [] left [] out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.rev3, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+def mapU_evals_rev2 (right left out : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .rev2) none [] left right out)
+      (some (mapUCfg (some .rev3) none [] (List.reverse right ++ left) [] out))
+      (right.length + 1) := by
+  induction right generalizing left with
+  | nil =>
+      exact mapU_evals_one (mapU_step_rev2_nil left out)
+  | cons c right ih =>
+      have h1 := mapU_evals_one (mapU_step_rev2_cons c right left out)
+      have h2 := ih (c :: left)
+      have h := EvalsToInTime.trans mapFstToUnaryComputer.step 1 (right.length + 1) _ _ _ h1 h2
+      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem mapU_step_rev3_cons (c : Bool) (rest out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .rev3) none [] (c :: rest) [] out) =
+      some (mapUCfg (some .rev3) none [] rest [] (c :: out)) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.rev3, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_step_rev3_nil (out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .rev3) none [] [] [] out) =
+      some (mapUCfg (some .haltDrain) none [] [] [] out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapULabel.haltDrain, (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+def mapU_evals_rev3 (left out : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .rev3) none [] left [] out)
+      (some (mapUCfg (some .haltDrain) none [] [] [] (List.reverse left ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      exact mapU_evals_one (mapU_step_rev3_nil out)
+  | cons c left ih =>
+      have h1 := mapU_evals_one (mapU_step_rev3_cons c left out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans mapFstToUnaryComputer.step 1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+def mapU_evals_unreverse (ep : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .rev1) none [] [] [] (List.reverse ep))
+      (some (mapUCfg (some .haltDrain) none [] [] [] ep))
+      ((ep.length + 1) + ((ep.length + 1) + (ep.length + 1))) := by
+  have h1 := mapU_evals_rev1 (List.reverse ep) []
+  have h1' : EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .rev1) none [] [] [] (List.reverse ep))
+      (some (mapUCfg (some .rev2) none [] [] ep []))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h1
+  have h2 := mapU_evals_rev2 ep [] []
+  have h2' : EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .rev2) none [] [] ep [])
+      (some (mapUCfg (some .rev3) none [] (List.reverse ep) [] []))
+      (ep.length + 1) := by
+    simpa [List.append_nil] using h2
+  have h3 := mapU_evals_rev3 (List.reverse ep) []
+  have h3' : EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .rev3) none [] (List.reverse ep) [] [])
+      (some (mapUCfg (some .haltDrain) none [] [] [] ep))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h3
+  have h12 := EvalsToInTime.trans mapFstToUnaryComputer.step
+    (ep.length + 1) (ep.length + 1) _ _ _ h1' h2'
+  exact EvalsToInTime.trans mapFstToUnaryComputer.step
+    ((ep.length + 1) + (ep.length + 1)) (ep.length + 1) _ _ _ h12 h3'
+
+theorem mapU_step_halt (out : List Bool) :
+    TM2.step mapFstToUnaryComputer.m
+      (mapUCfg (some .haltDrain) none [] [] [] out) =
+      some (mapUCfg none none [] [] [] out) := by
+  simp [mapFstToUnaryComputer, mapUCfg, mapUStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option MapULabel), (none : Option Bool), stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapUStk]
+
+theorem mapU_initList (s : List Bool) :
+    initList mapFstToUnaryComputer s =
+      mapUCfg (some .parse) none s [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some MapULabel.parse, none, stk⟩ : mapFstToUnaryComputer.Cfg)) ?_
+  funext t; cases t <;> simp [mapFstToUnaryComputer, mapUStk]
+
+theorem mapU_haltList (out : List Bool) :
+    haltList mapFstToUnaryComputer out =
+      mapUCfg none none [] [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option MapULabel), (none : Option Bool), stk⟩ :
+        mapFstToUnaryComputer.Cfg)) ?_
+  funext t; cases t <;> simp [haltList, mapFstToUnaryComputer, mapUStk]
+
+/-- From emitW (left = toUnary x, right = reverse y) through halt. -/
+noncomputable def mapU_evals_emit_to_halt (x y : List Bool) :
+    EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .emitW) none [] (toUnary x) (List.reverse y) [])
+      (some (mapUCfg none none [] [] [] (encodePair (toUnary x, y))))
+      (1 + ((((encodePair (toUnary x, y)).length + 1) +
+        (((encodePair (toUnary x, y)).length + 1) +
+          ((encodePair (toUnary x, y)).length + 1))) +
+        ((y.length + 1) + ((y.length + 1) + (1 + (x.length + 1)))))) := by
+  have hemitW := mapU_evals_emitW (toUnary x) (List.reverse y) []
+  have hemitW' : EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .emitW) none [] (toUnary x) (List.reverse y) [])
+      (some (mapUCfg (some .emitSep) none [] [] (List.reverse y)
+        (List.reverse ((toUnary x).flatMap fun c => [true, c]))))
+      (x.length + 1) := by
+    simpa [toUnary, unaryNat, length_unaryNat, List.append_nil] using hemitW
+  have hsep := mapU_evals_one (mapU_step_emitSep (List.reverse y)
+    (List.reverse ((toUnary x).flatMap fun c => [true, c])))
+  have h12 := EvalsToInTime.trans mapFstToUnaryComputer.step
+    (x.length + 1) 1 _ _ _ hemitW' hsep
+  have hprep := mapU_evals_emitFstPrep (List.reverse y) []
+    (false :: List.reverse ((toUnary x).flatMap fun c => [true, c]))
+  have hprep' : EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .emitFstPrep) none [] [] (List.reverse y)
+        (false :: List.reverse ((toUnary x).flatMap fun c => [true, c])))
+      (some (mapUCfg (some .emitFst) none [] y []
+        (false :: List.reverse ((toUnary x).flatMap fun c => [true, c]))))
+      (y.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using hprep
+  have h123 := EvalsToInTime.trans mapFstToUnaryComputer.step
+    (1 + (x.length + 1)) (y.length + 1) _ _ _ h12 hprep'
+  have hemitF := mapU_evals_emitFst y
+    (false :: List.reverse ((toUnary x).flatMap fun c => [true, c]))
+  have hout_emit :
+      List.reverse y ++ false :: List.reverse ((toUnary x).flatMap fun c => [true, c]) =
+        List.reverse (encodePair (toUnary x, y)) := by
+    simp [encodePair, List.reverse_append, List.reverse_cons]
+  have h1234 := EvalsToInTime.trans mapFstToUnaryComputer.step
+    ((y.length + 1) + (1 + (x.length + 1))) (y.length + 1) _ _ _ h123 hemitF
+  have h1234' : EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .emitW) none [] (toUnary x) (List.reverse y) [])
+      (some (mapUCfg (some .rev1) none [] [] []
+        (List.reverse (encodePair (toUnary x, y)))))
+      ((y.length + 1) + ((y.length + 1) + (1 + (x.length + 1)))) := by
+    simpa [hout_emit] using h1234
+  have hunrev := mapU_evals_unreverse (encodePair (toUnary x, y))
+  have h5 := EvalsToInTime.trans mapFstToUnaryComputer.step
+    ((y.length + 1) + ((y.length + 1) + (1 + (x.length + 1))))
+    (((encodePair (toUnary x, y)).length + 1) +
+      (((encodePair (toUnary x, y)).length + 1) +
+        ((encodePair (toUnary x, y)).length + 1)))
+    _ _ _ h1234' hunrev
+  have hhalt := mapU_evals_one (mapU_step_halt (encodePair (toUnary x, y)))
+  exact EvalsToInTime.trans mapFstToUnaryComputer.step
+    ((((encodePair (toUnary x, y)).length + 1) +
+      (((encodePair (toUnary x, y)).length + 1) +
+        ((encodePair (toUnary x, y)).length + 1))) +
+      ((y.length + 1) + ((y.length + 1) + (1 + (x.length + 1)))))
+    1
+    _ _ _ h5 hhalt
+
+noncomputable def mapU_evals (x y : List Bool) :
+    TM2OutputsInTime mapFstToUnaryComputer (encodePair (x, y))
+      (some (mapFstToUnaryPair (x, y)))
+      ((1 + ((((encodePair (toUnary x, y)).length + 1) +
+        (((encodePair (toUnary x, y)).length + 1) +
+          ((encodePair (toUnary x, y)).length + 1))) +
+        ((y.length + 1) + ((y.length + 1) + (1 + (x.length + 1)))))) +
+        ((y.length + 1) + (1 + 2 * x.length))) := by
+  have hload := mapU_evals_load_to_emitW x y
+  have hemit := mapU_evals_emit_to_halt x y
+  have hload' : EvalsToInTime mapFstToUnaryComputer.step
+      (initList mapFstToUnaryComputer (encodePair (x, y)))
+      (some (mapUCfg (some .emitW) none [] (toUnary x) (List.reverse y) []))
+      ((y.length + 1) + (1 + 2 * x.length)) := by
+    simpa [mapU_initList] using hload
+  have hemit' : EvalsToInTime mapFstToUnaryComputer.step
+      (mapUCfg (some .emitW) none [] (toUnary x) (List.reverse y) [])
+      (some (haltList mapFstToUnaryComputer (mapFstToUnaryPair (x, y))))
+      (1 + ((((encodePair (toUnary x, y)).length + 1) +
+        (((encodePair (toUnary x, y)).length + 1) +
+          ((encodePair (toUnary x, y)).length + 1))) +
+        ((y.length + 1) + ((y.length + 1) + (1 + (x.length + 1)))))) := by
+    simpa [mapU_haltList, mapFstToUnaryPair] using hemit
+  have h := EvalsToInTime.trans mapFstToUnaryComputer.step
+    ((y.length + 1) + (1 + 2 * x.length))
+    (1 + ((((encodePair (toUnary x, y)).length + 1) +
+      (((encodePair (toUnary x, y)).length + 1) +
+        ((encodePair (toUnary x, y)).length + 1))) +
+      ((y.length + 1) + ((y.length + 1) + (1 + (x.length + 1))))))
+    _ _ _ hload' hemit'
+  exact ⟨⟨h.steps, h.evals_in_steps⟩, h.steps_le_m⟩
+
+noncomputable def mapFstToUnaryTime : Polynomial ℕ :=
+  64 * (Polynomial.X ^ 2 + Polynomial.X + 1)
+
+theorem mapFstToUnaryTime_eval (n : ℕ) :
+    mapFstToUnaryTime.eval n = 64 * (n ^ 2 + n + 1) := by
+  simp [mapFstToUnaryTime, pow_two, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_X, Polynomial.eval_one]
+
+theorem mapFstToUnaryTime_bound (x y : List Bool) :
+    ((1 + ((((encodePair (toUnary x, y)).length + 1) +
+      (((encodePair (toUnary x, y)).length + 1) +
+        ((encodePair (toUnary x, y)).length + 1))) +
+      ((y.length + 1) + ((y.length + 1) + (1 + (x.length + 1)))))) +
+      ((y.length + 1) + (1 + 2 * x.length))) ≤
+      mapFstToUnaryTime.eval (encodePair (x, y)).length := by
+  simp [mapFstToUnaryTime_eval, length_encodePair, toUnary, length_unaryNat]
+  set N := 2 * x.length + 1 + y.length
+  have hLHS :
+      1 + (2 * x.length + 1 + y.length + 1 +
+          (2 * x.length + 1 + y.length + 1 +
+            (2 * x.length + 1 + y.length + 1)) +
+        (y.length + 1 + (y.length + 1 + (1 + (x.length + 1))))) +
+        (y.length + 1 + (1 + 2 * x.length)) ≤
+      32 * (N ^ 2 + N + 1) := by omega
+  refine le_trans hLHS ?_
+  omega
+
+noncomputable def mapFstToUnaryComputableInPolyTime :
+    TM2ComputableInPolyTime encodePair encodePair
+      (fun p => (toUnary p.1, p.2)) where
+  tm := mapFstToUnaryComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := mapFstToUnaryTime
+  outputsFun p := by
+    rcases p with ⟨x, y⟩
+    change TM2OutputsInTime mapFstToUnaryComputer
+      (List.map id (encodePair (x, y)))
+      (some (List.map id (encodePair (toUnary x, y))))
+      (mapFstToUnaryTime.eval (encodePair (x, y)).length)
+    simp only [List.map_id, id_eq]
+    exact evalsToInTime_le_mono (mapU_evals x y) (mapFstToUnaryTime_bound x y)
+
 theorem unaryPow_succ_eq_mul (u : List Bool) (k : ℕ) :
     unaryPow u (k + 1) = unaryMul (unaryPow u k) u := rfl
 
