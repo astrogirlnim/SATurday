@@ -152,10 +152,11 @@ Cook Levin reduction (hard direction) remain. Do not restart
   `andBitComputer` / `andBitComputableInPolyTime` certified (acceptWitness
   AND glue); `swapPair` semantic rearrange certified (`(φ,π) ↦ (π,φ)`);
   `swapPairComputer` FinTM2 scaffold landed (parse, park, emit, reverse);
-  parse and loadRight Evals certified; remaining: park, emit, reverse Evals
-  and `TM2ComputableInPolyTime`, fan-out compose lengthOk with `V`,
-  `afterDecodeProofSystem` FinTM2 host, arbitrary-degree Horner, Cook Levin
-  hard direction; `summit_corollary_of_easy` waits)
+  parse, loadRight, park, and emit Evals certified; reverse phase Evals
+  certified; remaining: full `swapPair` `TM2ComputableInPolyTime` package,
+  fan-out compose lengthOk with `V`, `afterDecodeProofSystem` FinTM2 host,
+  arbitrary-degree Horner, Cook Levin hard direction;
+  `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
   certified; `proofCheck_eq_bitsEqualPair` and `TAUT_in_NP_of_polyBounded`
