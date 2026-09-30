@@ -4704,6 +4704,29 @@ noncomputable def andBitComputableInPolyTime :
     simp only [List.map_id, id_eq, bitEnc, andBitTime_eval]
     exact evalsToInTime_le_mono (andBit_evals b1 b2) (by omega)
 
+/-! ## Pair swap under `encodePair` (proofCheck rearrange: `(φ,π) ↦ (π,φ)`) -/
+
+/-- Swap components of a decoded pair, re-encoded. -/
+def swapPair (p : List Bool × List Bool) : List Bool :=
+  encodePair (p.2, p.1)
+
+theorem swapPair_encode (φ π : List Bool) :
+    swapPair (φ, π) = encodePair (π, φ) := rfl
+
+theorem length_swapPair (p : List Bool × List Bool) :
+    (swapPair p).length = 2 * p.2.length + 1 + p.1.length := by
+  simp [swapPair, length_encodePair]
+
+/-- Swap output is linearly bounded by the input pair encoding length. -/
+theorem length_swapPair_le_encodePair (φ π : List Bool) :
+    (swapPair (φ, π)).length ≤ 2 * (encodePair (φ, π)).length := by
+  simp [swapPair, length_encodePair]
+  omega
+
+theorem proofCheck_eq_bitsEqualPair_swap (f : List Bool → List Bool) (φ π : List Bool) :
+    proofCheck f φ π = bitsEqualPair (f π, φ) :=
+  proofCheck_eq_bitsEqualPair f φ π
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then

@@ -150,7 +150,8 @@ Cook Levin reduction (hard direction) remain. Do not restart
   `TAUT_in_NP_of_NP_eq_coNP` / `isPropProofSystemOfNPVerifier` /
   `bridge_theorem_1_easy_of_packaging` semantic packaging certified;
   `andBitComputer` / `andBitComputableInPolyTime` certified (acceptWitness
-  AND glue); remaining: fan-out compose lengthOk with `V`, 
+  AND glue); `swapPair` semantic rearrange certified (`(φ,π) ↦ (π,φ)`);
+  remaining: `swapPair` FinTM2, fan-out compose lengthOk with `V`,
   `afterDecodeProofSystem` FinTM2 host, arbitrary-degree Horner,
   Cook Levin hard direction; `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
