@@ -3375,6 +3375,734 @@ theorem length_dupEncodePair (s : List Bool) :
     (encodePair (s, s)).length = 3 * s.length + 1 := by
   simp [length_encodePair]; omega
 
+/-! ## FinTM2: duplicate `s ↦ encodePair (s, s)` (Horner fan-out) -/
+
+inductive DupStack where
+  | inp | left | right | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype DupStack where
+  elems := {.inp, .left, .right, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive DupLabel where
+  | load | toWork | toOut | toLeft
+  | emitW | emitSep | emitFstPrep | emitFst
+  | rev1 | rev2 | rev3 | haltDrain
+  deriving DecidableEq, Repr
+
+instance : Fintype DupLabel where
+  elems := {.load, .toWork, .toOut, .toLeft, .emitW, .emitSep, .emitFstPrep,
+    .emitFst, .rev1, .rev2, .rev3, .haltDrain}
+  complete s := by cases s <;> simp
+
+def dupStk (inp left right work out : List Bool) : DupStack → List Bool
+  | .inp => inp
+  | .left => left
+  | .right => right
+  | .work => work
+  | .out => out
+
+/-- Copy each input bit onto `left` and `right` (both end as `reverse s`), restore
+`left = s` via a three-stack bounce, then emit `encodePair (s, s)` (same emit
+pipeline as `swapPairComputer`). -/
+def dupEncodePairComputer : FinTM2 where
+  K := DupStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := DupLabel
+  main := .load
+  σ := Option Bool
+  initialState := none
+  m
+    | .load =>
+        pop DupStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.toWork)
+            (push DupStack.left (fun s => s.getD false) <|
+              push DupStack.right (fun s => s.getD false) <|
+                load (fun _ => none) <| goto fun _ => DupLabel.load)
+    | .toWork =>
+        pop DupStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.toOut)
+            (push DupStack.work (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => DupLabel.toWork)
+    | .toOut =>
+        pop DupStack.work (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.toLeft)
+            (push DupStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => DupLabel.toOut)
+    | .toLeft =>
+        pop DupStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.emitW)
+            (push DupStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => DupLabel.toLeft)
+    | .emitW =>
+        pop DupStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.emitSep)
+            (push DupStack.out (fun _ => true) <|
+              push DupStack.out (fun s => s.getD false) <|
+                load (fun _ => none) <| goto fun _ => DupLabel.emitW)
+    | .emitSep =>
+        push DupStack.out (fun _ => false) <|
+          load (fun _ => none) <| goto fun _ => DupLabel.emitFstPrep
+    | .emitFstPrep =>
+        pop DupStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.emitFst)
+            (push DupStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => DupLabel.emitFstPrep)
+    | .emitFst =>
+        pop DupStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.rev1)
+            (push DupStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => DupLabel.emitFst)
+    | .rev1 =>
+        pop DupStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.rev2)
+            (push DupStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => DupLabel.rev1)
+    | .rev2 =>
+        pop DupStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.rev3)
+            (push DupStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => DupLabel.rev2)
+    | .rev3 =>
+        pop DupStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => DupLabel.haltDrain)
+            (push DupStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => DupLabel.rev3)
+    | .haltDrain =>
+        pop DupStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            halt
+            (load (fun _ => none) <| goto fun _ => DupLabel.haltDrain)
+
+def dupCfg (l : Option DupLabel) (v : Option Bool)
+    (inp left right work out : List Bool) : dupEncodePairComputer.Cfg :=
+  ⟨l, v, dupStk inp left right work out⟩
+
+theorem dup_step_load_cons (c : Bool) (rest left right work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .load) none (c :: rest) left right work out) =
+      some (dupCfg (some .load) none rest (c :: left) (c :: right) work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.load, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_load_nil (left right work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .load) none [] left right work out) =
+      some (dupCfg (some .toWork) none [] left right work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.toWork, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+def dup_evals_one {c c' : dupEncodePairComputer.Cfg}
+    (h : TM2.step dupEncodePairComputer.m c = some c') :
+    EvalsToInTime dupEncodePairComputer.step c (some c') 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change (some c).bind dupEncodePairComputer.step = some c'
+    simpa [FinTM2.step] using h
+
+noncomputable def dup_evals_load (s left right work out : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .load) none s left right work out)
+      (some (dupCfg (some .toWork) none [] (List.reverse s ++ left)
+        (List.reverse s ++ right) work out))
+      (s.length + 1) := by
+  induction s generalizing left right with
+  | nil =>
+      exact dup_evals_one (dup_step_load_nil left right work out)
+  | cons c s ih =>
+      have h1 := dup_evals_one (dup_step_load_cons c s left right work out)
+      have h2 := ih (c :: left) (c :: right)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (s.length + 1) _ _ _ h1 h2
+      have htime : (s.length + 1) + 1 = (c :: s).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem dup_step_toWork_cons (c : Bool) (rest right work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .toWork) none [] (c :: rest) right work out) =
+      some (dupCfg (some .toWork) none [] rest right (c :: work) out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.toWork, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_toWork_nil (right work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .toWork) none [] [] right work out) =
+      some (dupCfg (some .toOut) none [] [] right work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.toOut, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+noncomputable def dup_evals_toWork (left right work out : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .toWork) none [] left right work out)
+      (some (dupCfg (some .toOut) none [] [] right
+        (List.reverse left ++ work) out))
+      (left.length + 1) := by
+  induction left generalizing work with
+  | nil =>
+      exact dup_evals_one (dup_step_toWork_nil right work out)
+  | cons c left ih =>
+      have h1 := dup_evals_one (dup_step_toWork_cons c left right work out)
+      have h2 := ih (c :: work)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem dup_step_toOut_cons (c : Bool) (rest right out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .toOut) none [] [] right (c :: rest) out) =
+      some (dupCfg (some .toOut) none [] [] right rest (c :: out)) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.toOut, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_toOut_nil (right out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .toOut) none [] [] right [] out) =
+      some (dupCfg (some .toLeft) none [] [] right [] out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.toLeft, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+noncomputable def dup_evals_toOut (work right out : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .toOut) none [] [] right work out)
+      (some (dupCfg (some .toLeft) none [] [] right []
+        (List.reverse work ++ out)))
+      (work.length + 1) := by
+  induction work generalizing out with
+  | nil =>
+      exact dup_evals_one (dup_step_toOut_nil right out)
+  | cons c work ih =>
+      have h1 := dup_evals_one (dup_step_toOut_cons c work right out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (work.length + 1) _ _ _ h1 h2
+      have htime : (work.length + 1) + 1 = (c :: work).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem dup_step_toLeft_cons (c : Bool) (rest left right work : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .toLeft) none [] left right work (c :: rest)) =
+      some (dupCfg (some .toLeft) none [] (c :: left) right work rest) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.toLeft, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_toLeft_nil (left right work : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .toLeft) none [] left right work []) =
+      some (dupCfg (some .emitW) none [] left right work []) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.emitW, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+noncomputable def dup_evals_toLeft (out left right work : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .toLeft) none [] left right work out)
+      (some (dupCfg (some .emitW) none [] (List.reverse out ++ left) right work []))
+      (out.length + 1) := by
+  induction out generalizing left with
+  | nil =>
+      exact dup_evals_one (dup_step_toLeft_nil left right work)
+  | cons c out ih =>
+      have h1 := dup_evals_one (dup_step_toLeft_cons c out left right work)
+      have h2 := ih (c :: left)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (out.length + 1) _ _ _ h1 h2
+      have htime : (out.length + 1) + 1 = (c :: out).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+/-- Load and bounce: at `emitW` with `left = s` and `right = reverse s`. -/
+noncomputable def dup_evals_load_to_emitW (s : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .load) none s [] [] [] [])
+      (some (dupCfg (some .emitW) none [] s (List.reverse s) [] []))
+      ((s.length + 1) + ((s.length + 1) + ((s.length + 1) + (s.length + 1)))) := by
+  have hload := dup_evals_load s [] [] [] []
+  have hload' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .load) none s [] [] [] [])
+      (some (dupCfg (some .toWork) none [] (List.reverse s) (List.reverse s) [] []))
+      (s.length + 1) := by
+    simpa [List.append_nil] using hload
+  have hwork := dup_evals_toWork (List.reverse s) (List.reverse s) [] []
+  have hwork' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .toWork) none [] (List.reverse s) (List.reverse s) [] [])
+      (some (dupCfg (some .toOut) none [] [] (List.reverse s) s []))
+      (s.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using hwork
+  have h12 := EvalsToInTime.trans dupEncodePairComputer.step
+    (s.length + 1) (s.length + 1) _ _ _ hload' hwork'
+  have hout := dup_evals_toOut s (List.reverse s) []
+  have hout' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .toOut) none [] [] (List.reverse s) s [])
+      (some (dupCfg (some .toLeft) none [] [] (List.reverse s) [] (List.reverse s)))
+      (s.length + 1) := by
+    simpa [List.append_nil] using hout
+  have h123 := EvalsToInTime.trans dupEncodePairComputer.step
+    ((s.length + 1) + (s.length + 1)) (s.length + 1) _ _ _ h12 hout'
+  have hleft := dup_evals_toLeft (List.reverse s) [] (List.reverse s) []
+  have hleft' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .toLeft) none [] [] (List.reverse s) [] (List.reverse s))
+      (some (dupCfg (some .emitW) none [] s (List.reverse s) [] []))
+      (s.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using hleft
+  exact EvalsToInTime.trans dupEncodePairComputer.step
+    ((s.length + 1) + ((s.length + 1) + (s.length + 1))) (s.length + 1)
+    _ _ _ h123 hleft'
+
+theorem dup_step_emitW_nil (right work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .emitW) none [] [] right work out) =
+      some (dupCfg (some .emitSep) none [] [] right work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.emitSep, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_emitW_cons (c : Bool) (rest right work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .emitW) none [] (c :: rest) right work out) =
+      some (dupCfg (some .emitW) none [] rest right work (c :: true :: out)) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.emitW, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+def dup_evals_emitW (left right work out : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .emitW) none [] left right work out)
+      (some (dupCfg (some .emitSep) none [] [] right work
+        (List.reverse (left.flatMap fun c => [true, c]) ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      simpa [List.flatMap] using dup_evals_one (dup_step_emitW_nil right work out)
+  | cons c left ih =>
+      have h1 := dup_evals_one (dup_step_emitW_cons c left right work out)
+      have h2 := ih (c :: true :: out)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      have hout :
+          List.reverse ((c :: left).flatMap fun c => [true, c]) ++ out =
+            List.reverse (left.flatMap fun c => [true, c]) ++ c :: true :: out := by
+        simp [List.flatMap_cons, List.reverse_cons]
+      simpa [htime, hout, List.append_assoc] using h
+
+theorem dup_step_emitSep (right work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .emitSep) none [] [] right work out) =
+      some (dupCfg (some .emitFstPrep) none [] [] right work (false :: out)) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.emitFstPrep, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_emitFstPrep_cons (c : Bool) (rest left work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .emitFstPrep) none [] left (c :: rest) work out) =
+      some (dupCfg (some .emitFstPrep) none [] (c :: left) rest work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.emitFstPrep, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_emitFstPrep_nil (left work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .emitFstPrep) none [] left [] work out) =
+      some (dupCfg (some .emitFst) none [] left [] work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.emitFst, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+noncomputable def dup_evals_emitFstPrep (right left work out : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .emitFstPrep) none [] left right work out)
+      (some (dupCfg (some .emitFst) none [] (List.reverse right ++ left) [] work out))
+      (right.length + 1) := by
+  induction right generalizing left with
+  | nil =>
+      exact dup_evals_one (dup_step_emitFstPrep_nil left work out)
+  | cons c right ih =>
+      have h1 := dup_evals_one (dup_step_emitFstPrep_cons c right left work out)
+      have h2 := ih (c :: left)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (right.length + 1) _ _ _ h1 h2
+      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem dup_step_emitFst_cons (c : Bool) (rest work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .emitFst) none [] (c :: rest) [] work out) =
+      some (dupCfg (some .emitFst) none [] rest [] work (c :: out)) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.emitFst, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_emitFst_nil (work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .emitFst) none [] [] [] work out) =
+      some (dupCfg (some .rev1) none [] [] [] work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.rev1, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+def dup_evals_emitFst (left work out : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .emitFst) none [] left [] work out)
+      (some (dupCfg (some .rev1) none [] [] [] work
+        (List.reverse left ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      exact dup_evals_one (dup_step_emitFst_nil work out)
+  | cons c left ih =>
+      have h1 := dup_evals_one (dup_step_emitFst_cons c left work out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem dup_step_rev1_cons (c : Bool) (rest right work : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .rev1) none [] [] right work (c :: rest)) =
+      some (dupCfg (some .rev1) none [] [] (c :: right) work rest) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.rev1, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_rev1_nil (right work : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .rev1) none [] [] right work []) =
+      some (dupCfg (some .rev2) none [] [] right work []) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.rev2, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+def dup_evals_rev1 (out right work : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .rev1) none [] [] right work out)
+      (some (dupCfg (some .rev2) none [] [] (List.reverse out ++ right) work []))
+      (out.length + 1) := by
+  induction out generalizing right with
+  | nil =>
+      exact dup_evals_one (dup_step_rev1_nil right work)
+  | cons c out ih =>
+      have h1 := dup_evals_one (dup_step_rev1_cons c out right work)
+      have h2 := ih (c :: right)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (out.length + 1) _ _ _ h1 h2
+      have htime : (out.length + 1) + 1 = (c :: out).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem dup_step_rev2_cons (c : Bool) (rest left work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .rev2) none [] left (c :: rest) work out) =
+      some (dupCfg (some .rev2) none [] (c :: left) rest work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.rev2, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_rev2_nil (left work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .rev2) none [] left [] work out) =
+      some (dupCfg (some .rev3) none [] left [] work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.rev3, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+def dup_evals_rev2 (right left work out : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .rev2) none [] left right work out)
+      (some (dupCfg (some .rev3) none [] (List.reverse right ++ left) [] work out))
+      (right.length + 1) := by
+  induction right generalizing left with
+  | nil =>
+      exact dup_evals_one (dup_step_rev2_nil left work out)
+  | cons c right ih =>
+      have h1 := dup_evals_one (dup_step_rev2_cons c right left work out)
+      have h2 := ih (c :: left)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (right.length + 1) _ _ _ h1 h2
+      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem dup_step_rev3_cons (c : Bool) (rest work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .rev3) none [] (c :: rest) [] work out) =
+      some (dupCfg (some .rev3) none [] rest [] work (c :: out)) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.rev3, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_step_rev3_nil (work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .rev3) none [] [] [] work out) =
+      some (dupCfg (some .haltDrain) none [] [] [] work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some DupLabel.haltDrain, (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+def dup_evals_rev3 (left work out : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .rev3) none [] left [] work out)
+      (some (dupCfg (some .haltDrain) none [] [] [] work
+        (List.reverse left ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      exact dup_evals_one (dup_step_rev3_nil work out)
+  | cons c left ih =>
+      have h1 := dup_evals_one (dup_step_rev3_cons c left work out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans dupEncodePairComputer.step 1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+def dup_evals_unreverse (ep : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .rev1) none [] [] [] [] (List.reverse ep))
+      (some (dupCfg (some .haltDrain) none [] [] [] [] ep))
+      ((ep.length + 1) + ((ep.length + 1) + (ep.length + 1))) := by
+  have h1 := dup_evals_rev1 (List.reverse ep) [] []
+  have h1' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .rev1) none [] [] [] [] (List.reverse ep))
+      (some (dupCfg (some .rev2) none [] [] ep [] []))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h1
+  have h2 := dup_evals_rev2 ep [] [] []
+  have h2' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .rev2) none [] [] ep [] [])
+      (some (dupCfg (some .rev3) none [] (List.reverse ep) [] [] []))
+      (ep.length + 1) := by
+    simpa [List.append_nil] using h2
+  have h3 := dup_evals_rev3 (List.reverse ep) [] []
+  have h3' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .rev3) none [] (List.reverse ep) [] [] [])
+      (some (dupCfg (some .haltDrain) none [] [] [] [] ep))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h3
+  have h12 := EvalsToInTime.trans dupEncodePairComputer.step
+    (ep.length + 1) (ep.length + 1) _ _ _ h1' h2'
+  exact EvalsToInTime.trans dupEncodePairComputer.step
+    ((ep.length + 1) + (ep.length + 1)) (ep.length + 1) _ _ _ h12 h3'
+
+theorem dup_step_halt (work out : List Bool) :
+    TM2.step dupEncodePairComputer.m
+      (dupCfg (some .haltDrain) none [] [] [] work out) =
+      some (dupCfg none none [] [] [] work out) := by
+  simp [dupEncodePairComputer, dupCfg, dupStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option DupLabel), (none : Option Bool), stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, dupStk]
+
+theorem dup_initList (s : List Bool) :
+    initList dupEncodePairComputer s =
+      dupCfg (some .load) none s [] [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some DupLabel.load, none, stk⟩ : dupEncodePairComputer.Cfg)) ?_
+  funext t; cases t <;> simp [dupEncodePairComputer, dupStk]
+
+theorem dup_haltList (out : List Bool) :
+    haltList dupEncodePairComputer out =
+      dupCfg none none [] [] [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option DupLabel), (none : Option Bool), stk⟩ :
+        dupEncodePairComputer.Cfg)) ?_
+  funext t; cases t <;> simp [haltList, dupEncodePairComputer, dupStk]
+
+/-- From `emitW` through halt, emitting `encodePair (s, s)`. -/
+noncomputable def dup_evals_emit_to_halt (s : List Bool) :
+    EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .emitW) none [] s (List.reverse s) [] [])
+      (some (dupCfg none none [] [] [] [] (encodePair (s, s))))
+      (1 + ((((encodePair (s, s)).length + 1) +
+        (((encodePair (s, s)).length + 1) +
+          ((encodePair (s, s)).length + 1))) +
+        ((s.length + 1) + ((s.length + 1) + (1 + (s.length + 1)))))) := by
+  have hemitW := dup_evals_emitW s (List.reverse s) [] []
+  have hemitW' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .emitW) none [] s (List.reverse s) [] [])
+      (some (dupCfg (some .emitSep) none [] [] (List.reverse s) []
+        (List.reverse (s.flatMap fun c => [true, c]))))
+      (s.length + 1) := by
+    simpa [List.append_nil] using hemitW
+  have hsep := dup_evals_one (dup_step_emitSep (List.reverse s) []
+    (List.reverse (s.flatMap fun c => [true, c])))
+  have h12 := EvalsToInTime.trans dupEncodePairComputer.step
+    (s.length + 1) 1 _ _ _ hemitW' hsep
+  have hprep := dup_evals_emitFstPrep (List.reverse s) [] []
+    (false :: List.reverse (s.flatMap fun c => [true, c]))
+  have hprep' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .emitFstPrep) none [] [] (List.reverse s) []
+        (false :: List.reverse (s.flatMap fun c => [true, c])))
+      (some (dupCfg (some .emitFst) none [] s [] []
+        (false :: List.reverse (s.flatMap fun c => [true, c]))))
+      (s.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using hprep
+  have h123 := EvalsToInTime.trans dupEncodePairComputer.step
+    (1 + (s.length + 1)) (s.length + 1) _ _ _ h12 hprep'
+  have hemitF := dup_evals_emitFst s []
+    (false :: List.reverse (s.flatMap fun c => [true, c]))
+  have hout_emit :
+      List.reverse s ++ false :: List.reverse (s.flatMap fun c => [true, c]) =
+        List.reverse (encodePair (s, s)) := by
+    simp [encodePair, List.reverse_append, List.reverse_cons]
+  have h1234 := EvalsToInTime.trans dupEncodePairComputer.step
+    ((s.length + 1) + (1 + (s.length + 1))) (s.length + 1) _ _ _ h123 hemitF
+  have h1234' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .emitW) none [] s (List.reverse s) [] [])
+      (some (dupCfg (some .rev1) none [] [] [] []
+        (List.reverse (encodePair (s, s)))))
+      ((s.length + 1) + ((s.length + 1) + (1 + (s.length + 1)))) := by
+    simpa [hout_emit] using h1234
+  have hunrev := dup_evals_unreverse (encodePair (s, s))
+  have h5 := EvalsToInTime.trans dupEncodePairComputer.step
+    ((s.length + 1) + ((s.length + 1) + (1 + (s.length + 1))))
+    (((encodePair (s, s)).length + 1) +
+      (((encodePair (s, s)).length + 1) +
+        ((encodePair (s, s)).length + 1)))
+    _ _ _ h1234' hunrev
+  have hhalt := dup_evals_one (dup_step_halt [] (encodePair (s, s)))
+  exact EvalsToInTime.trans dupEncodePairComputer.step
+    ((((encodePair (s, s)).length + 1) +
+      (((encodePair (s, s)).length + 1) +
+        ((encodePair (s, s)).length + 1))) +
+      ((s.length + 1) + ((s.length + 1) + (1 + (s.length + 1)))))
+    1
+    _ _ _ h5 hhalt
+
+noncomputable def dup_evals (s : List Bool) :
+    TM2OutputsInTime dupEncodePairComputer s
+      (some (encodePair (s, s)))
+      ((1 + ((((encodePair (s, s)).length + 1) +
+        (((encodePair (s, s)).length + 1) +
+          ((encodePair (s, s)).length + 1))) +
+        ((s.length + 1) + ((s.length + 1) + (1 + (s.length + 1)))))) +
+        ((s.length + 1) + ((s.length + 1) + ((s.length + 1) + (s.length + 1))))) := by
+  have hload := dup_evals_load_to_emitW s
+  have hemit := dup_evals_emit_to_halt s
+  have hload' : EvalsToInTime dupEncodePairComputer.step
+      (initList dupEncodePairComputer s)
+      (some (dupCfg (some .emitW) none [] s (List.reverse s) [] []))
+      ((s.length + 1) + ((s.length + 1) + ((s.length + 1) + (s.length + 1)))) := by
+    simpa [dup_initList] using hload
+  have hemit' : EvalsToInTime dupEncodePairComputer.step
+      (dupCfg (some .emitW) none [] s (List.reverse s) [] [])
+      (some (haltList dupEncodePairComputer (encodePair (s, s))))
+      (1 + ((((encodePair (s, s)).length + 1) +
+        (((encodePair (s, s)).length + 1) +
+          ((encodePair (s, s)).length + 1))) +
+        ((s.length + 1) + ((s.length + 1) + (1 + (s.length + 1)))))) := by
+    simpa [dup_haltList] using hemit
+  have h := EvalsToInTime.trans dupEncodePairComputer.step
+    ((s.length + 1) + ((s.length + 1) + ((s.length + 1) + (s.length + 1))))
+    (1 + ((((encodePair (s, s)).length + 1) +
+      (((encodePair (s, s)).length + 1) +
+        ((encodePair (s, s)).length + 1))) +
+      ((s.length + 1) + ((s.length + 1) + (1 + (s.length + 1))))))
+    _ _ _ hload' hemit'
+  exact ⟨⟨h.steps, h.evals_in_steps⟩, h.steps_le_m⟩
+
+noncomputable def dupEncodePairTime : Polynomial ℕ :=
+  64 * (Polynomial.X ^ 2 + Polynomial.X + 1)
+
+theorem dupEncodePairTime_eval (n : ℕ) :
+    dupEncodePairTime.eval n = 64 * (n ^ 2 + n + 1) := by
+  simp [dupEncodePairTime, pow_two, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_X, Polynomial.eval_one]
+
+theorem dupEncodePairTime_bound (s : List Bool) :
+    ((1 + ((((encodePair (s, s)).length + 1) +
+      (((encodePair (s, s)).length + 1) +
+        ((encodePair (s, s)).length + 1))) +
+      ((s.length + 1) + ((s.length + 1) + (1 + (s.length + 1)))))) +
+      ((s.length + 1) + ((s.length + 1) + ((s.length + 1) + (s.length + 1))))) ≤
+      dupEncodePairTime.eval s.length := by
+  simp [dupEncodePairTime_eval, length_encodePair]
+  set N := s.length
+  have hLHS :
+      1 + (2 * N + 1 + N + 1 + (2 * N + 1 + N + 1 + (2 * N + 1 + N + 1)) +
+        (N + 1 + (N + 1 + (1 + (N + 1))))) +
+        (N + 1 + (N + 1 + (N + 1 + (N + 1)))) ≤
+      32 * (N ^ 2 + N + 1) := by omega
+  refine le_trans hLHS ?_
+  omega
+
+noncomputable def dupEncodePairComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc encodePair (fun s => (s, s)) where
+  tm := dupEncodePairComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := dupEncodePairTime
+  outputsFun s := by
+    change TM2OutputsInTime dupEncodePairComputer
+      (List.map id (idBitEnc s))
+      (some (List.map id (encodePair (s, s))))
+      (dupEncodePairTime.eval (idBitEnc s).length)
+    simp only [List.map_id, id_eq, idBitEnc]
+    exact evalsToInTime_le_mono (dup_evals s) (dupEncodePairTime_bound s)
+
 theorem unaryPow_succ_eq_mul (u : List Bool) (k : ℕ) :
     unaryPow u (k + 1) = unaryMul (unaryPow u k) u := rfl
 
