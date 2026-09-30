@@ -3371,6 +3371,30 @@ theorem polyEvalUnary_divX (p : Polynomial ℕ) (n : ℕ) :
           simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
             Polynomial.eval_C]
 
+/-- Horner: `polyEvalUnary p` equals scaleAppend-1-c after unary mul of toUnary
+against `polyEvalUnary (divX p)`. -/
+theorem polyEvalUnary_horner_scaleAppend (p : Polynomial ℕ) (s : List Bool) :
+    polyEvalUnary p s.length =
+      List.replicate
+        ((unaryMul (toUnary s)
+            (polyEvalUnary (Polynomial.divX p) s.length)).length + p.coeff 0)
+        true := by
+  have hmul :
+      unaryMul (toUnary s) (polyEvalUnary (Polynomial.divX p) s.length) =
+        List.replicate (s.length * (Polynomial.divX p).eval s.length) true := by
+    simpa [toUnary, unaryNat, polyEvalUnary, length_unaryNat] using
+      unaryMul_of_replicate s.length ((Polynomial.divX p).eval s.length)
+  have hep := polyEvalUnary_divX p s.length
+  rw [hep, hmul, List.length_replicate]
+
+theorem polyEvalUnary_horner_eq_scaleAppend_one (p : Polynomial ℕ) (s : List Bool) :
+    polyEvalUnary p s.length =
+      List.replicate
+        (1 * (unaryMul (toUnary s)
+            (polyEvalUnary (Polynomial.divX p) s.length)).length + p.coeff 0)
+        true := by
+  simpa [Nat.one_mul] using polyEvalUnary_horner_scaleAppend p s
+
 theorem length_dupEncodePair (s : List Bool) :
     (encodePair (s, s)).length = 3 * s.length + 1 := by
   simp [length_encodePair]; omega
