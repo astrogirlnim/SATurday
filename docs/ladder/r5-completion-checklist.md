@@ -143,9 +143,10 @@ Cook Levin reduction (hard direction) remain. Do not restart
   `lengthOk_linear` / `lengthOk_of_natDegree_le_one` certified;
   `lengthOkLinearPair` glue toward unaryLE composition certified;
   `lengthOkLinearPairComputer` FinTM2 scaffold landed (parse, scale, emit);
-  remaining: EvalsToInTime for lengthOkLinearPairComputer, compose with
-  unaryLE, recursive FinTM2 for arbitrary `p`, compose with `V`,
-  `afterDecodeProofSystem` FinTM2; `summit_corollary_of_easy` waits)
+  scale, emit, and reverse phase Evals certified;
+  remaining: parse/load Evals, full `TM2ComputableInPolyTime` package, compose
+  with unaryLE and `V`, `afterDecodeProofSystem`, arbitrary-degree Horner,
+  Cook Levin hard direction; `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
   certified; class equality needs the reduction)
