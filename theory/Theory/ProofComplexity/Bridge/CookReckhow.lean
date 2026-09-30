@@ -3436,6 +3436,150 @@ theorem unaryLE_lengthOkLinearPair (a b : ℕ) (φ w : List Bool) :
   simp [lengthOkLinearPair, decodePair_encodePair]
   exact (lengthOk_linear a b φ w).symm
 
+/-! ## FinTM2 sketch: rebuild `lengthOkLinearPair` under `encodePair`
+
+Parse `(φ, w)`, write budget `true^(a*|φ|+b)` while draining `φ`, then emit
+`encodePair (w, budget)`. Composition with `unaryLEComputer` yields linear
+`lengthOk`. -/
+
+inductive LokStack where
+  | inp | left | right | budget | out
+  deriving DecidableEq, Repr
+
+instance : Fintype LokStack where
+  elems := {.inp, .left, .right, .budget, .out}
+  complete s := by cases s <;> simp
+
+inductive LokLabel where
+  | parse | expectBit | loadRight | scale | appendB | emitW | emitSep | emitBudget
+  | haltDrain
+  deriving DecidableEq, Repr
+
+instance : Fintype LokLabel where
+  elems := {.parse, .expectBit, .loadRight, .scale, .appendB, .emitW, .emitSep,
+    .emitBudget, .haltDrain}
+  complete s := by cases s <;> simp
+
+def lokStk (inp left right budget out : List Bool) : LokStack → List Bool
+  | .inp => inp
+  | .left => left
+  | .right => right
+  | .budget => budget
+  | .out => out
+
+/-- Nested write of `a` budget trues then return to `scale`. -/
+def lokWriteAStmt (a : ℕ) :
+    TM2.Stmt (fun _ : LokStack => Bool) LokLabel (Option Bool) :=
+  match a with
+  | 0 => load (fun _ => none) <| goto fun _ => LokLabel.scale
+  | n + 1 =>
+      push LokStack.budget (fun _ => true) <| lokWriteAStmt n
+
+theorem lokWriteAStmt_stepAux (a : ℕ) (v : Option Bool)
+    (inp left right budget out : List Bool) :
+    TM2.stepAux (lokWriteAStmt a) v (lokStk inp left right budget out) =
+      ⟨some LokLabel.scale, none,
+        lokStk inp left right (List.replicate a true ++ budget) out⟩ := by
+  induction a generalizing budget with
+  | zero =>
+      simp [lokWriteAStmt, TM2.stepAux, List.replicate_zero, lokStk]
+  | succ n ih =>
+      simp only [lokWriteAStmt, TM2.stepAux]
+      have hstk :
+          Function.update (lokStk inp left right budget out) LokStack.budget
+              (true :: lokStk inp left right budget out LokStack.budget) =
+            lokStk inp left right (true :: budget) out := by
+        funext s; cases s <;> simp [Function.update, lokStk]
+      rw [hstk]
+      simpa [List.replicate_succ, replicate_true_append_cons] using
+        ih (true :: budget)
+
+/-- Nested write of `b` budget trues then go to `emitW`. -/
+def lokWriteBStmt (b : ℕ) :
+    TM2.Stmt (fun _ : LokStack => Bool) LokLabel (Option Bool) :=
+  match b with
+  | 0 => load (fun _ => none) <| goto fun _ => LokLabel.emitW
+  | n + 1 =>
+      push LokStack.budget (fun _ => true) <| lokWriteBStmt n
+
+theorem lokWriteBStmt_stepAux (b : ℕ) (v : Option Bool)
+    (inp left right budget out : List Bool) :
+    TM2.stepAux (lokWriteBStmt b) v (lokStk inp left right budget out) =
+      ⟨some LokLabel.emitW, none,
+        lokStk inp left right (List.replicate b true ++ budget) out⟩ := by
+  induction b generalizing budget with
+  | zero =>
+      simp [lokWriteBStmt, TM2.stepAux, List.replicate_zero, lokStk]
+  | succ n ih =>
+      simp only [lokWriteBStmt, TM2.stepAux]
+      have hstk :
+          Function.update (lokStk inp left right budget out) LokStack.budget
+              (true :: lokStk inp left right budget out LokStack.budget) =
+            lokStk inp left right (true :: budget) out := by
+        funext s; cases s <;> simp [Function.update, lokStk]
+      rw [hstk]
+      simpa [List.replicate_succ, replicate_true_append_cons] using
+        ih (true :: budget)
+
+def lengthOkLinearPairComputer (a b : ℕ) : FinTM2 where
+  K := LokStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := LokLabel
+  main := .parse
+  σ := Option Bool
+  initialState := none
+  m
+    | .parse =>
+        pop LokStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => LokLabel.haltDrain)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => LokLabel.loadRight)
+              (load (fun _ => none) <| goto fun _ => LokLabel.expectBit))
+    | .expectBit =>
+        pop LokStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => LokLabel.haltDrain)
+            (push LokStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => LokLabel.parse)
+    | .loadRight =>
+        pop LokStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => LokLabel.scale)
+            (push LokStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => LokLabel.loadRight)
+    | .scale =>
+        pop LokStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (lokWriteBStmt b)
+            (lokWriteAStmt a)
+    | .appendB =>
+        -- unused label kept for Fintype completeness; scale jumps via Stmt
+        lokWriteBStmt b
+    | .emitW =>
+        pop LokStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => LokLabel.emitSep)
+            (push LokStack.out (fun _ => true) <|
+              push LokStack.out (fun s => s.getD false) <|
+                load (fun _ => none) <| goto fun _ => LokLabel.emitW)
+    | .emitSep =>
+        push LokStack.out (fun _ => false) <|
+          load (fun _ => none) <| goto fun _ => LokLabel.emitBudget
+    | .emitBudget =>
+        pop LokStack.budget (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => LokLabel.haltDrain)
+            (push LokStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => LokLabel.emitBudget)
+    | .haltDrain =>
+        pop LokStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) halt)
+            (load (fun _ => none) <| goto fun _ => LokLabel.haltDrain)
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
