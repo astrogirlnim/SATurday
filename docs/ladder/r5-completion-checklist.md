@@ -156,6 +156,7 @@ Cook Levin reduction (hard direction) remain. Do not restart
   certified; `swapPairComputableInPolyTime` packaged under `encodePair`;
   `dupEncodePairComputableInPolyTime` packaged (`s ↦ encodePair (s,s)`);
   `mapFstToUnaryComputableInPolyTime` packaged under `encodePair`;
+  `toUnarySelfPairComputableInPolyTime` via seqComp of dup and mapFst;
   Horner scaleAppend semantic identity certified; remaining: mapSnd of
   `polyEvalUnary (divX p)`, unaryMul then scaleAppend 1 c composition,
   fan-out compose lengthOk with `V`, `afterDecodeProofSystem` FinTM2 host,
