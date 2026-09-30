@@ -3452,12 +3452,12 @@ instance : Fintype LokStack where
 
 inductive LokLabel where
   | parse | expectBit | loadRight | scale | appendB | emitW | emitSep | emitBudget
-  | haltDrain
+  | rev1 | rev2 | haltDrain
   deriving DecidableEq, Repr
 
 instance : Fintype LokLabel where
   elems := {.parse, .expectBit, .loadRight, .scale, .appendB, .emitW, .emitSep,
-    .emitBudget, .haltDrain}
+    .emitBudget, .rev1, .rev2, .haltDrain}
   complete s := by cases s <;> simp
 
 def lokStk (inp left right budget out : List Bool) : LokStack → List Bool
@@ -3571,9 +3571,21 @@ def lengthOkLinearPairComputer (a b : ℕ) : FinTM2 where
     | .emitBudget =>
         pop LokStack.budget (fun _ o => o) <|
           branch (fun s => decide (s = none))
-            (load (fun _ => none) <| goto fun _ => LokLabel.haltDrain)
+            (load (fun _ => none) <| goto fun _ => LokLabel.rev1)
             (push LokStack.out (fun s => s.getD false) <|
               load (fun _ => none) <| goto fun _ => LokLabel.emitBudget)
+    | .rev1 =>
+        pop LokStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => LokLabel.rev2)
+            (push LokStack.budget (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => LokLabel.rev1)
+    | .rev2 =>
+        pop LokStack.budget (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => LokLabel.haltDrain)
+            (push LokStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => LokLabel.rev2)
     | .haltDrain =>
         pop LokStack.inp (fun _ o => o) <|
           branch (fun s => decide (s = none))
