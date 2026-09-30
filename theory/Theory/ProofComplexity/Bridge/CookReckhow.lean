@@ -4727,6 +4727,128 @@ theorem proofCheck_eq_bitsEqualPair_swap (f : List Bool → List Bool) (φ π : 
     proofCheck f φ π = bitsEqualPair (f π, φ) :=
   proofCheck_eq_bitsEqualPair f φ π
 
+/-! ## FinTM2: `swapPair` under `encodePair`
+
+Parse `(φ, π)` to `left = reverse φ`, `right = reverse π`. Park `φ` on `out`,
+restore `π` onto `left`, repark `φ` on `right`, then emit `encodePair (π, φ)`. -/
+
+inductive SwapStack where
+  | inp | left | right | out
+  deriving DecidableEq, Repr
+
+instance : Fintype SwapStack where
+  elems := {.inp, .left, .right, .out}
+  complete s := by cases s <;> simp
+
+inductive SwapLabel where
+  | parse | expectBit | loadRight
+  | parkL | revRight | parkOut
+  | emitW | emitSep | emitFst
+  | rev1 | rev2 | rev3 | haltDrain
+  deriving DecidableEq, Repr
+
+instance : Fintype SwapLabel where
+  elems := {.parse, .expectBit, .loadRight, .parkL, .revRight, .parkOut,
+    .emitW, .emitSep, .emitFst, .rev1, .rev2, .rev3, .haltDrain}
+  complete s := by cases s <;> simp
+
+def swapStk (inp left right out : List Bool) : SwapStack → List Bool
+  | .inp => inp
+  | .left => left
+  | .right => right
+  | .out => out
+
+def swapPairComputer : FinTM2 where
+  K := SwapStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := SwapLabel
+  main := .parse
+  σ := Option Bool
+  initialState := none
+  m
+    | .parse =>
+        pop SwapStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.haltDrain)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => SwapLabel.loadRight)
+              (load (fun _ => none) <| goto fun _ => SwapLabel.expectBit))
+    | .expectBit =>
+        pop SwapStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.haltDrain)
+            (push SwapStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => SwapLabel.parse)
+    | .loadRight =>
+        pop SwapStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.parkL)
+            (push SwapStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => SwapLabel.loadRight)
+    | .parkL =>
+        pop SwapStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.revRight)
+            (push SwapStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => SwapLabel.parkL)
+    | .revRight =>
+        pop SwapStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.parkOut)
+            (push SwapStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => SwapLabel.revRight)
+    | .parkOut =>
+        pop SwapStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.emitW)
+            (push SwapStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => SwapLabel.parkOut)
+    | .emitW =>
+        pop SwapStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.emitSep)
+            (push SwapStack.out (fun _ => true) <|
+              push SwapStack.out (fun s => s.getD false) <|
+                load (fun _ => none) <| goto fun _ => SwapLabel.emitW)
+    | .emitSep =>
+        push SwapStack.out (fun _ => false) <|
+          load (fun _ => none) <| goto fun _ => SwapLabel.emitFst
+    | .emitFst =>
+        pop SwapStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.rev1)
+            (push SwapStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => SwapLabel.emitFst)
+    | .rev1 =>
+        pop SwapStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.rev2)
+            (push SwapStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => SwapLabel.rev1)
+    | .rev2 =>
+        pop SwapStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.rev3)
+            (push SwapStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => SwapLabel.rev2)
+    | .rev3 =>
+        pop SwapStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => SwapLabel.haltDrain)
+            (push SwapStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => SwapLabel.rev3)
+    | .haltDrain =>
+        pop SwapStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            halt
+            (load (fun _ => none) <| goto fun _ => SwapLabel.haltDrain)
+
+def swapCfg (l : Option SwapLabel) (v : Option Bool)
+    (inp left right out : List Bool) : swapPairComputer.Cfg :=
+  ⟨l, v, swapStk inp left right out⟩
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
