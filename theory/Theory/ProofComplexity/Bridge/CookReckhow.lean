@@ -5150,6 +5150,169 @@ def swap_evals_emitFst (right out : List Bool) :
         simp [List.length_cons]
       simpa [List.reverse_cons, List.append_assoc, htime] using h
 
+theorem swap_step_rev1_cons (c : Bool) (rest right : List Bool) :
+    TM2.step swapPairComputer.m
+      (swapCfg (some .rev1) none [] [] right (c :: rest)) =
+      some (swapCfg (some .rev1) none [] [] (c :: right) rest) := by
+  simp [swapPairComputer, swapCfg, swapStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some SwapLabel.rev1, (none : Option Bool), stk⟩ : swapPairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, swapStk]
+
+theorem swap_step_rev1_nil (right : List Bool) :
+    TM2.step swapPairComputer.m
+      (swapCfg (some .rev1) none [] [] right []) =
+      some (swapCfg (some .rev2) none [] [] right []) := by
+  simp [swapPairComputer, swapCfg, swapStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some SwapLabel.rev2, (none : Option Bool), stk⟩ : swapPairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, swapStk]
+
+def swap_evals_rev1 (out right : List Bool) :
+    EvalsToInTime swapPairComputer.step
+      (swapCfg (some .rev1) none [] [] right out)
+      (some (swapCfg (some .rev2) none [] [] (List.reverse out ++ right) []))
+      (out.length + 1) := by
+  induction out generalizing right with
+  | nil =>
+      exact swap_evals_one (swap_step_rev1_nil right)
+  | cons c out ih =>
+      have h1 := swap_evals_one (swap_step_rev1_cons c out right)
+      have h2 := ih (c :: right)
+      have h := EvalsToInTime.trans swapPairComputer.step 1 (out.length + 1) _ _ _ h1 h2
+      have htime : (out.length + 1) + 1 = (c :: out).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem swap_step_rev2_cons (c : Bool) (rest left : List Bool) :
+    TM2.step swapPairComputer.m
+      (swapCfg (some .rev2) none [] left (c :: rest) []) =
+      some (swapCfg (some .rev2) none [] (c :: left) rest []) := by
+  simp [swapPairComputer, swapCfg, swapStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some SwapLabel.rev2, (none : Option Bool), stk⟩ : swapPairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, swapStk]
+
+theorem swap_step_rev2_nil (left : List Bool) :
+    TM2.step swapPairComputer.m
+      (swapCfg (some .rev2) none [] left [] []) =
+      some (swapCfg (some .rev3) none [] left [] []) := by
+  simp [swapPairComputer, swapCfg, swapStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some SwapLabel.rev3, (none : Option Bool), stk⟩ : swapPairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, swapStk]
+
+def swap_evals_rev2 (right left : List Bool) :
+    EvalsToInTime swapPairComputer.step
+      (swapCfg (some .rev2) none [] left right [])
+      (some (swapCfg (some .rev3) none [] (List.reverse right ++ left) [] []))
+      (right.length + 1) := by
+  induction right generalizing left with
+  | nil =>
+      exact swap_evals_one (swap_step_rev2_nil left)
+  | cons c right ih =>
+      have h1 := swap_evals_one (swap_step_rev2_cons c right left)
+      have h2 := ih (c :: left)
+      have h := EvalsToInTime.trans swapPairComputer.step 1 (right.length + 1) _ _ _ h1 h2
+      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem swap_step_rev3_cons (c : Bool) (rest out : List Bool) :
+    TM2.step swapPairComputer.m
+      (swapCfg (some .rev3) none [] (c :: rest) [] out) =
+      some (swapCfg (some .rev3) none [] rest [] (c :: out)) := by
+  simp [swapPairComputer, swapCfg, swapStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some SwapLabel.rev3, (none : Option Bool), stk⟩ : swapPairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, swapStk]
+
+theorem swap_step_rev3_nil (out : List Bool) :
+    TM2.step swapPairComputer.m
+      (swapCfg (some .rev3) none [] [] [] out) =
+      some (swapCfg (some .haltDrain) none [] [] [] out) := by
+  simp [swapPairComputer, swapCfg, swapStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some SwapLabel.haltDrain, (none : Option Bool), stk⟩ : swapPairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, swapStk]
+
+def swap_evals_rev3 (left out : List Bool) :
+    EvalsToInTime swapPairComputer.step
+      (swapCfg (some .rev3) none [] left [] out)
+      (some (swapCfg (some .haltDrain) none [] [] []
+        (List.reverse left ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      exact swap_evals_one (swap_step_rev3_nil out)
+  | cons c left ih =>
+      have h1 := swap_evals_one (swap_step_rev3_cons c left out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans swapPairComputer.step 1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+/-- Triple reverse restores `encodePair` onto out. -/
+def swap_evals_unreverse (ep : List Bool) :
+    EvalsToInTime swapPairComputer.step
+      (swapCfg (some .rev1) none [] [] [] (List.reverse ep))
+      (some (swapCfg (some .haltDrain) none [] [] [] ep))
+      ((ep.length + 1) + ((ep.length + 1) + (ep.length + 1))) := by
+  have h1 := swap_evals_rev1 (List.reverse ep) []
+  have h1' : EvalsToInTime swapPairComputer.step
+      (swapCfg (some .rev1) none [] [] [] (List.reverse ep))
+      (some (swapCfg (some .rev2) none [] [] ep []))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h1
+  have h2 := swap_evals_rev2 ep []
+  have h2' : EvalsToInTime swapPairComputer.step
+      (swapCfg (some .rev2) none [] [] ep [])
+      (some (swapCfg (some .rev3) none [] (List.reverse ep) [] []))
+      (ep.length + 1) := by
+    simpa [List.append_nil] using h2
+  have h3 := swap_evals_rev3 (List.reverse ep) []
+  have h3' : EvalsToInTime swapPairComputer.step
+      (swapCfg (some .rev3) none [] (List.reverse ep) [] [])
+      (some (swapCfg (some .haltDrain) none [] [] [] ep))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h3
+  have h12 := EvalsToInTime.trans swapPairComputer.step
+    (ep.length + 1) (ep.length + 1) _ _ _ h1' h2'
+  exact EvalsToInTime.trans swapPairComputer.step
+    ((ep.length + 1) + (ep.length + 1)) (ep.length + 1) _ _ _ h12 h3'
+
+theorem swap_step_halt (out : List Bool) :
+    TM2.step swapPairComputer.m
+      (swapCfg (some .haltDrain) none [] [] [] out) =
+      some (swapCfg none none [] [] [] out) := by
+  simp [swapPairComputer, swapCfg, swapStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option SwapLabel), (none : Option Bool), stk⟩ : swapPairComputer.Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, swapStk]
+
+theorem swap_initList (s : List Bool) :
+    initList swapPairComputer s =
+      swapCfg (some .parse) none s [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some SwapLabel.parse, none, stk⟩ : swapPairComputer.Cfg)) ?_
+  funext t; cases t <;> simp [swapPairComputer, swapStk]
+
+theorem swap_haltList (out : List Bool) :
+    haltList swapPairComputer out =
+      swapCfg none none [] [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option SwapLabel), (none : Option Bool), stk⟩ :
+        swapPairComputer.Cfg)) ?_
+  funext t; cases t <;> simp [haltList, swapPairComputer, swapStk]
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
