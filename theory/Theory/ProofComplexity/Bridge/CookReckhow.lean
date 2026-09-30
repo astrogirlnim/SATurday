@@ -4538,6 +4538,155 @@ noncomputable def lengthOkDegLeOneComputableInPolyTime (p : Polynomial ℕ)
   rcases pw with ⟨φ, w⟩
   rw [hform]
 
+/-! ## Easy direction packaging: NP witness to `IsPropProofSystem` -/
+
+/-- `NP = coNP` lifts the certified `TAUT ∈ coNP` witness into `TAUT ∈ NP`. -/
+theorem TAUT_in_NP_of_NP_eq_coNP (h : ClassNP_eq_ClassCoNP) : InNP TAUT :=
+  (h TAUT).mpr TAUT_in_coNP
+
+/-- Package an NP verifier for `TAUT` as a propositional proof system, given the
+FinTM2 witness for `proofSystemOfNPVerifier`. -/
+noncomputable def isPropProofSystemOfNPVerifier (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool)
+    (hV : ∀ φ, TAUT φ ↔
+      ∃ w, w.length ≤ p.eval φ.length ∧ V φ w = true)
+    (hpoly : TM2ComputableInPolyTime idBitEnc idBitEnc
+      (proofSystemOfNPVerifier p V)) :
+    IsPropProofSystem (proofSystemOfNPVerifier p V) where
+  poly := hpoly
+  sound := proofSystemOfNPVerifier_sound p V hV
+  complete := proofSystemOfNPVerifier_complete p V hV
+
+/-- Easy half of bridge theorem 1, conditional on FinTM2 packaging of the proof map. -/
+theorem bridge_theorem_1_easy_of_packaging
+    (h : ClassNP_eq_ClassCoNP)
+    (hpack : ∀ (p : Polynomial ℕ) (V : List Bool → List Bool → Bool),
+      (∀ φ, TAUT φ ↔ ∃ w, w.length ≤ p.eval φ.length ∧ V φ w = true) →
+      TM2ComputableInPolyTime encodePair bitEnc (fun pw => V pw.1 pw.2) →
+      TM2ComputableInPolyTime idBitEnc idBitEnc (proofSystemOfNPVerifier p V)) :
+    ∃ f, Nonempty (IsPropProofSystem f) ∧ PolynomiallyBounded f := by
+  rcases TAUT_in_NP_of_NP_eq_coNP h with ⟨p, V, hVpoly, hV⟩
+  refine ⟨proofSystemOfNPVerifier p V, ?_, proofSystemOfNPVerifier_polyBounded p V hV⟩
+  exact ⟨isPropProofSystemOfNPVerifier p V hV (hpack p V hV hVpoly)⟩
+
+/-! ## Two-bit AND (glue for `acceptWitness = lengthOk && V`) -/
+
+/-- Pop two bits, push their conjunction, halt. -/
+def andBitComputer : FinTM2 where
+  K := Unit
+  k₀ := ⟨⟩
+  k₁ := ⟨⟩
+  Γ _ := Bool
+  Λ := Fin 3
+  main := (0 : Fin 3)
+  σ := Bool × Bool
+  initialState := (false, false)
+  m
+    | ⟨0, _⟩ =>
+        pop ⟨⟩ (fun _ o => (Option.getD o false, false)) <|
+          goto fun _ => (1 : Fin 3)
+    | ⟨1, _⟩ =>
+        pop ⟨⟩ (fun s o => (s.1, Option.getD o false)) <|
+          goto fun _ => (2 : Fin 3)
+    | ⟨2, _⟩ =>
+        push ⟨⟩ (fun s => s.1 && s.2) <|
+          load (fun _ => (false, false)) halt
+
+def andBitCfg (l : Option (Fin 3)) (v : Bool × Bool) (s : List Bool) :
+    andBitComputer.Cfg :=
+  ⟨l, v, fun _ => s⟩
+
+theorem update_andBit_stk (s t : List Bool) :
+    Function.update (fun _ : Unit => s) PUnit.unit t = fun _ => t := by
+  funext k; cases k; simp [Function.update]
+
+theorem andBit_step_read1 (b1 b2 : Bool) (rest : List Bool) :
+    TM2.step andBitComputer.m
+      (andBitCfg (some (0 : Fin 3)) (false, false) (b1 :: b2 :: rest)) =
+      some (andBitCfg (some (1 : Fin 3)) (b1, false) (b2 :: rest)) := by
+  simp [andBitComputer, andBitCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk =>
+      (⟨some (1 : Fin 3), (b1, false), stk⟩ : andBitComputer.Cfg))
+      (update_andBit_stk (b1 :: b2 :: rest) (b2 :: rest))
+
+theorem andBit_step_read2 (b1 b2 : Bool) (rest : List Bool) :
+    TM2.step andBitComputer.m
+      (andBitCfg (some (1 : Fin 3)) (b1, false) (b2 :: rest)) =
+      some (andBitCfg (some (2 : Fin 3)) (b1, b2) rest) := by
+  simp [andBitComputer, andBitCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk =>
+      (⟨some (2 : Fin 3), (b1, b2), stk⟩ : andBitComputer.Cfg))
+      (update_andBit_stk (b2 :: rest) rest)
+
+theorem andBit_step_write (b1 b2 : Bool) (rest : List Bool) :
+    TM2.step andBitComputer.m
+      (andBitCfg (some (2 : Fin 3)) (b1, b2) rest) =
+      some (andBitCfg none (false, false) ((b1 && b2) :: rest)) := by
+  simp [andBitComputer, andBitCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option (Fin 3)), (false, false), stk⟩ : andBitComputer.Cfg))
+      (update_andBit_stk rest ((b1 && b2) :: rest))
+
+theorem andBit_initList (s : List Bool) :
+    initList andBitComputer s = andBitCfg (some (0 : Fin 3)) (false, false) s := by
+  simp [initList, andBitComputer, andBitCfg]
+
+theorem andBit_haltList (b : Bool) (rest : List Bool) :
+    haltList andBitComputer (b :: rest) =
+      andBitCfg none (false, false) (b :: rest) := by
+  simp [haltList, andBitComputer, andBitCfg]
+
+/-- Two-bit AND in three steps on the shared tape. -/
+def andBit_evals (b1 b2 : Bool) :
+    EvalsToInTime andBitComputer.step
+      (initList andBitComputer [b1, b2])
+      (some (haltList andBitComputer [b1 && b2])) 3 where
+  steps := 3
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change
+      (((some (initList andBitComputer [b1, b2])).bind andBitComputer.step).bind
+        andBitComputer.step).bind andBitComputer.step =
+      some (haltList andBitComputer [b1 && b2])
+    simp only [FinTM2.step, andBit_initList, andBit_haltList]
+    change
+      ((TM2.step andBitComputer.m
+          (andBitCfg (some (0 : Fin 3)) (false, false) [b1, b2])).bind
+        (TM2.step andBitComputer.m)).bind (TM2.step andBitComputer.m) =
+      some (andBitCfg none (false, false) [b1 && b2])
+    rw [andBit_step_read1 b1 b2 []]
+    change
+      ((TM2.step andBitComputer.m
+          (andBitCfg (some (1 : Fin 3)) (b1, false) [b2])).bind
+        (TM2.step andBitComputer.m)) =
+      some (andBitCfg none (false, false) [b1 && b2])
+    rw [andBit_step_read2 b1 b2 []]
+    exact andBit_step_write b1 b2 []
+
+noncomputable def andBitTime : Polynomial ℕ := 3
+
+theorem andBitTime_eval (n : ℕ) : andBitTime.eval n = 3 := by
+  simp [andBitTime]
+
+/-- AND of two bits under `bitEnc` of a pair (via `encodePair` of singletons). -/
+noncomputable def andBitComputableInPolyTime :
+    TM2ComputableInPolyTime
+      (fun p : Bool × Bool => [p.1, p.2]) bitEnc (fun p => p.1 && p.2) where
+  tm := andBitComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := andBitTime
+  outputsFun p := by
+    rcases p with ⟨b1, b2⟩
+    change TM2OutputsInTime andBitComputer (List.map id [b1, b2])
+      (some (List.map id (bitEnc (b1 && b2))))
+      (andBitTime.eval [b1, b2].length)
+    simp only [List.map_id, id_eq, bitEnc, andBitTime_eval]
+    exact evalsToInTime_le_mono (andBit_evals b1 b2) (by omega)
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 /-- If every propositional proof system fails to be polynomially bounded, then
