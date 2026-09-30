@@ -4923,6 +4923,15 @@ noncomputable def toUnarySelfPairComputableInPolyTime :
                   exact hraw.evals_in_steps })
       (congrArg some (congrArg (haltList tm) hout.symm))
 
+/-- Quadratic unary eval expands to `a n^2 + b n + c`. -/
+theorem polyEvalUnary_quadratic (a b c n : ℕ) :
+    polyEvalUnary
+        (Polynomial.C a * Polynomial.X ^ 2 +
+          Polynomial.C b * Polynomial.X + Polynomial.C c) n =
+      List.replicate (a * n ^ 2 + b * n + c) true := by
+  simp [polyEvalUnary, unaryNat, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_pow, Polynomial.eval_C, Polynomial.eval_X, pow_two]
+
 theorem unaryPow_succ_eq_mul (u : List Bool) (k : ℕ) :
     unaryPow u (k + 1) = unaryMul (unaryPow u k) u := rfl
 
