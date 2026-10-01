@@ -5206,6 +5206,32 @@ noncomputable def unarySquareComputableInPolyTime :
                   exact hraw.evals_in_steps })
       (congrArg some (congrArg (haltList tm) hout.symm))
 
+/-- Square out-bound `|true^(n^2)| = n^2`. -/
+noncomputable def unarySquareOutBound : Polynomial ℕ := Polynomial.X ^ 2
+
+theorem unarySquareOutBound_eval (n : ℕ) :
+    unarySquareOutBound.eval n = n ^ 2 := by
+  simp [unarySquareOutBound, pow_two, Polynomial.eval_pow, Polynomial.eval_X]
+
+theorem length_unarySquare_le_outBound (s : List Bool) :
+    (List.replicate (s.length ^ 2) true).length ≤
+      unarySquareOutBound.eval s.length := by
+  simp [List.length_replicate, unarySquareOutBound_eval]
+
+/-- `polyEvalUnary (C a * X^2)` via unarySquare then unaryScale a. -/
+noncomputable def polyEvalUnaryXSquaredComputableInPolyTime (a : ℕ) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => polyEvalUnary (Polynomial.C a * Polynomial.X ^ 2) s.length) := by
+  have hcomp :=
+    comp_idBitEnc_idBitEnc unarySquareComputableInPolyTime
+      (unaryScaleComputableInPolyTime a) unarySquareOutBound
+      length_unarySquare_le_outBound
+  convert hcomp using 1
+  funext s
+  simp [polyEvalUnary, unaryNat, Polynomial.eval_mul, Polynomial.eval_pow,
+    Polynomial.eval_C, Polynomial.eval_X, Function.comp, unaryScale,
+    toUnary, unaryMul, unaryNat, flatMap_replicate_true, Nat.mul_comm, pow_two]
+
 theorem unaryPow_succ_eq_mul (u : List Bool) (k : ℕ) :
     unaryPow u (k + 1) = unaryMul (unaryPow u k) u := rfl
 
