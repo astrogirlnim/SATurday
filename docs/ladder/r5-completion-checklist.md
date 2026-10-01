@@ -159,9 +159,10 @@ Cook Levin reduction (hard direction) remain. Do not restart
   `toUnarySelfPairComputableInPolyTime` via seqComp of dup and mapFst;
   Horner scaleAppend semantic identity and quadratic closed form certified;
   `toUnaryDupPairComputableInPolyTime` and `unarySquareComputableInPolyTime`
-  packaged (`true^(n^2)`); `polyEvalUnaryXSquaredComputableInPolyTime`
-  packaged; remaining: add linear and const terms for full quadratic,
-  mapSnd or full Horner induction, fan-out compose lengthOk with `V`,
+  packaged (`true^(n^2)`); `polyEvalUnaryXSquaredComputableInPolyTime` and
+  `polyEvalUnaryXSquaredPlusConstComputableInPolyTime` packaged; remaining:
+  linear cross term for full quadratic via mapFstScaleAppend or mapSnd,
+  full Horner induction, fan-out compose lengthOk with `V`,
   `afterDecodeProofSystem` FinTM2 host, Cook Levin hard direction;
   `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
