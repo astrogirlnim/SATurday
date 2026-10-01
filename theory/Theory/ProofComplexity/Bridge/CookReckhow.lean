@@ -5232,6 +5232,36 @@ noncomputable def polyEvalUnaryXSquaredComputableInPolyTime (a : ℕ) :
     Polynomial.eval_C, Polynomial.eval_X, Function.comp, unaryScale,
     toUnary, unaryMul, unaryNat, flatMap_replicate_true, Nat.mul_comm, pow_two]
 
+/-- `polyEvalUnary (C a * X^2 + C c)` via X^2 then scaleAppend 1 c. -/
+noncomputable def polyEvalUnaryXSquaredPlusConstComputableInPolyTime (a c : ℕ) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => polyEvalUnary
+        (Polynomial.C a * Polynomial.X ^ 2 + Polynomial.C c) s.length) := by
+  have hout (s : List Bool) :
+      (polyEvalUnary (Polynomial.C a * Polynomial.X ^ 2) s.length).length ≤
+        (Polynomial.C a * Polynomial.X ^ 2).eval s.length := by
+    simp [polyEvalUnary, unaryNat, Polynomial.eval_mul, Polynomial.eval_pow,
+      Polynomial.eval_C, Polynomial.eval_X, List.length_replicate]
+  have hcomp :=
+    comp_idBitEnc_idBitEnc (polyEvalUnaryXSquaredComputableInPolyTime a)
+      (scaleAppendComputableInPolyTime 1 c)
+      (Polynomial.C a * Polynomial.X ^ 2) hout
+  convert hcomp using 1
+  funext s
+  simp only [Function.comp]
+  have hx2 :
+      polyEvalUnary (Polynomial.C a * Polynomial.X ^ 2) s.length =
+        List.replicate (a * s.length ^ 2) true := by
+    simpa [Nat.zero_mul, Nat.add_zero] using
+      polyEvalUnary_quadratic a 0 0 s.length
+  have hgoal :
+      polyEvalUnary (Polynomial.C a * Polynomial.X ^ 2 + Polynomial.C c)
+          s.length =
+        List.replicate (a * s.length ^ 2 + c) true := by
+    simpa [Nat.zero_mul] using polyEvalUnary_quadratic a 0 c s.length
+  rw [hgoal, hx2]
+  simp [List.length_replicate, Nat.one_mul]
+
 theorem unaryPow_succ_eq_mul (u : List Bool) (k : ℕ) :
     unaryPow u (k + 1) = unaryMul (unaryPow u k) u := rfl
 
