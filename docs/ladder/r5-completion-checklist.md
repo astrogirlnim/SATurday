@@ -162,8 +162,10 @@ Cook Levin reduction (hard direction) remain. Do not restart
   packaged (`true^(n^2)`); `polyEvalUnaryXSquaredComputableInPolyTime` and
   `polyEvalUnaryXSquaredPlusConstComputableInPolyTime` packaged;
   `mapFstScaleAppendComputableInPolyTime` packaged under `encodePair`
-  (`(x,y) ↦ (true^(a*|x|+b), y)`); remaining: mapSnd via swap compose,
-  full quadratic Horner (`a X^2 + b X + c`), fan-out compose lengthOk with
+  (`(x,y) ↦ (true^(a*|x|+b), y)`); `mapSndScaleAppendComputableInPolyTime`
+  via swap compose (`(φ,π) ↦ (φ, true^(a*|π|+b))`);
+  `polyEvalUnaryQuadraticComputableInPolyTime` packaged (Horner
+  `a X^2 + b X + c`); remaining: fan-out compose lengthOk with
   `V`, `afterDecodeProofSystem` FinTM2 host, Cook Levin hard direction;
   `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
