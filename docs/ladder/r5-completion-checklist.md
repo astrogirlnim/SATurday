@@ -158,8 +158,9 @@ Cook Levin reduction (hard direction) remain. Do not restart
   `mapFstToUnaryComputableInPolyTime` packaged under `encodePair`;
   `toUnarySelfPairComputableInPolyTime` via seqComp of dup and mapFst;
   Horner scaleAppend semantic identity and quadratic closed form certified;
-  remaining: mapFstScaleAppend or mapSnd of `polyEvalUnary (divX p)`,
-  unaryMul then scaleAppend 1 c composition to close arbitrary Horner,
+  `toUnaryDupPairComputableInPolyTime` and `unarySquareComputableInPolyTime`
+  packaged (`true^(n^2)`); remaining: unaryScale compose for `a X^2`,
+  then add linear/const terms, mapSnd or full Horner induction,
   fan-out compose lengthOk with `V`, `afterDecodeProofSystem` FinTM2 host,
   Cook Levin hard direction;
   `summit_corollary_of_easy` waits)
