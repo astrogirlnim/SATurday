@@ -4147,6 +4147,246 @@ theorem classP_eq_classNP_implies_NP_eq_coNP
       simpa [complement_complement] using InP_complement (complement L) hPc
     exact (h L).mp hP
 
+/-! ## Generic mapFst under `encodePair` (park second, run guest on first)
+
+`mapFstComputer tm encodeIn decodeOut` parses `encodePair (x,y)`, parks `y`,
+loads `x` onto `tm.k₀` via `encodeIn`, runs `tm`, copies `tm.k₁` through
+`decodeOut` onto a work stack, then emits `encodePair (fx, y)`.
+Stack layout reuses `CompK` with a 4-stack Bool host as the "first" summand
+and the guest as the "second". Host labels are a finite enum; guest labels are
+lifted with `stmtRemap` so guest halt enters the copy/emit phase. -/
+
+/-- Host stacks for mapFst: input, park (y), work (fx), output. -/
+inductive MapFstHost where
+  | inp | park | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype MapFstHost where
+  elems := {.inp, .park, .work, .out}
+  complete s := by cases s <;> simp
+
+/-- Product stacks: Bool host then guest. -/
+abbrev MapFstK (K : Type) := MapFstHost ⊕ K
+
+/-- Alphabets: host stacks are Bool; guest keeps its `Γ`. -/
+def MapFstΓ {K : Type} (Γ : K → Type) : MapFstK K → Type :=
+  Sum.elim (fun _ : MapFstHost => Bool) Γ
+
+/-- Host-phase labels (parse, copy in/out, emit, reverse, halt). -/
+inductive MapFstHostLabel where
+  | parse | expectBit | loadPark
+  | copyInPop | copyInPush
+  | copyOutPop | copyOutPush
+  | emitW | emitSep | emitFstPrep | emitFst
+  | rev1 | rev2 | rev3 | haltDrain
+  deriving DecidableEq, Repr
+
+instance : Fintype MapFstHostLabel where
+  elems := {.parse, .expectBit, .loadPark, .copyInPop, .copyInPush,
+    .copyOutPop, .copyOutPush, .emitW, .emitSep, .emitFstPrep, .emitFst,
+    .rev1, .rev2, .rev3, .haltDrain}
+  complete s := by cases s <;> simp
+
+/-- Labels: host phase or lifted guest label. -/
+abbrev MapFstLabel (Λ : Type) := MapFstHostLabel ⊕ Λ
+
+/-- Internal state: guest state plus optional Bool buffer for copy/emit. -/
+abbrev MapFstσ (σ : Type) := σ × Option Bool
+
+/-- Lift guest statements onto `Sum.inr` stacks, acting only on guest state. -/
+def stmtLiftMapFstGuest {K : Type} {Γ : K → Type} {Λ σ : Type} :
+    TM2.Stmt Γ Λ σ → TM2.Stmt (MapFstΓ Γ) Λ (MapFstσ σ)
+  | .push k f q =>
+      .push (Sum.inr k) (fun st => f st.1) (stmtLiftMapFstGuest q)
+  | .peek k f q =>
+      .peek (Sum.inr k) (fun st o => (f st.1 o, st.2)) (stmtLiftMapFstGuest q)
+  | .pop k f q =>
+      .pop (Sum.inr k) (fun st o => (f st.1 o, st.2)) (stmtLiftMapFstGuest q)
+  | .load f q => .load (fun st => (f st.1, st.2)) (stmtLiftMapFstGuest q)
+  | .branch p q₁ q₂ =>
+      .branch (fun st => p st.1) (stmtLiftMapFstGuest q₁) (stmtLiftMapFstGuest q₂)
+  | .goto f => .goto (fun st => f st.1)
+  | .halt => .halt
+
+/-- Guest phase: remap labels into `Sum.inr`, send halt to copy-out. -/
+def mapFstGuestStmt {K : Type} {Γ : K → Type} {Λ σ : Type}
+    (q : TM2.Stmt Γ Λ σ) :
+    TM2.Stmt (MapFstΓ Γ) (MapFstLabel Λ) (MapFstσ σ) :=
+  stmtRemap (Sum.inr : Λ → MapFstLabel Λ)
+    (fun _ => Sum.inl MapFstHostLabel.copyOutPop)
+    (stmtLiftMapFstGuest q)
+
+/-- Host stack view. -/
+def mapFstHostStk (inp park work out : List Bool) : MapFstHost → List Bool
+  | .inp => inp
+  | .park => park
+  | .work => work
+  | .out => out
+
+/-- Full product stack from host lists and guest stacks. -/
+def mapFstStk {K : Type} {Γ : K → Type}
+    (inp park work out : List Bool) (S : ∀ k, List (Γ k)) :
+    ∀ k : MapFstK K, List (MapFstΓ Γ k)
+  | .inl h => mapFstHostStk inp park work out h
+  | .inr k => S k
+
+/-- Empty guest stacks. -/
+def mapFstEmptyGuest {K : Type} {Γ : K → Type} : ∀ k : K, List (Γ k) :=
+  fun _ => []
+
+/-- Configuration helper. -/
+def mapFstCfg {K : Type} {Γ : K → Type} {Λ σ : Type}
+    (l : Option (MapFstLabel Λ)) (st : MapFstσ σ)
+    (inp park work out : List Bool) (S : ∀ k, List (Γ k)) :
+    TM2.Cfg (MapFstΓ Γ) (MapFstLabel Λ) (MapFstσ σ) :=
+  ⟨l, st, mapFstStk inp park work out S⟩
+
+/-- Parse/emit/copy statements for the host phase (guest `k₀`/`k₁` wired in).
+
+Parse accumulates first-component bits on `work` (reversed), parks `y` on
+`park`, then reverse-copies `work` onto guest `k₀` so the guest sees `x` in
+`initList` order. After the guest halts, `k₁` is reverse-copied onto `work`
+and the standard mapFst emit/reverse pipeline rebuilds `encodePair (fx, y)`. -/
+def mapFstHostStmt {K : Type} {Γ : K → Type} {Λ σ : Type}
+    (k₀ k₁ : K) [Inhabited (Γ k₀)]
+    (encodeIn : Bool → Γ k₀) (decodeOut : Γ k₁ → Bool)
+    (guestMain : Λ) (lab : MapFstHostLabel) :
+    TM2.Stmt (MapFstΓ Γ) (MapFstLabel Λ) (MapFstσ σ) :=
+  match lab with
+  | .parse =>
+      pop (Sum.inl MapFstHost.inp) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.haltDrain)
+          (branch (fun st => decide (st.2 = some false))
+            (load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.loadPark)
+            (load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.expectBit))
+  | .expectBit =>
+      pop (Sum.inl MapFstHost.inp) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.haltDrain)
+          (push (Sum.inl MapFstHost.work) (fun st => st.2.getD false) <|
+            load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.parse)
+  | .loadPark =>
+      pop (Sum.inl MapFstHost.inp) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.copyInPop)
+          (push (Sum.inl MapFstHost.park) (fun st => st.2.getD false) <|
+            load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.loadPark)
+  | .copyInPop =>
+      pop (Sum.inl MapFstHost.work) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inr guestMain)
+          (goto fun _ => Sum.inl MapFstHostLabel.copyInPush)
+  | .copyInPush =>
+      push (Sum.inr k₀) (fun st => encodeIn (st.2.getD false)) <|
+        load (fun st => (st.1, none)) <|
+          goto fun _ => Sum.inl MapFstHostLabel.copyInPop
+  | .copyOutPop =>
+      pop (Sum.inr k₁) (fun st o =>
+        match o with
+        | none => (st.1, none)
+        | some x => (st.1, some (decodeOut x))) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.emitW)
+          (goto fun _ => Sum.inl MapFstHostLabel.copyOutPush)
+  | .copyOutPush =>
+      push (Sum.inl MapFstHost.work) (fun st => st.2.getD false) <|
+        load (fun st => (st.1, none)) <|
+          goto fun _ => Sum.inl MapFstHostLabel.copyOutPop
+  | .emitW =>
+      pop (Sum.inl MapFstHost.work) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.emitSep)
+          (push (Sum.inl MapFstHost.out) (fun _ => true) <|
+            push (Sum.inl MapFstHost.out) (fun st => st.2.getD false) <|
+              load (fun st => (st.1, none)) <|
+                goto fun _ => Sum.inl MapFstHostLabel.emitW)
+  | .emitSep =>
+      push (Sum.inl MapFstHost.out) (fun _ => false) <|
+        load (fun st => (st.1, none)) <|
+          goto fun _ => Sum.inl MapFstHostLabel.emitFstPrep
+  | .emitFstPrep =>
+      pop (Sum.inl MapFstHost.park) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.emitFst)
+          (push (Sum.inl MapFstHost.work) (fun st => st.2.getD false) <|
+            load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.emitFstPrep)
+  | .emitFst =>
+      pop (Sum.inl MapFstHost.work) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.rev1)
+          (push (Sum.inl MapFstHost.out) (fun st => st.2.getD false) <|
+            load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.emitFst)
+  | .rev1 =>
+      pop (Sum.inl MapFstHost.out) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.rev2)
+          (push (Sum.inl MapFstHost.park) (fun st => st.2.getD false) <|
+            load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.rev1)
+  | .rev2 =>
+      pop (Sum.inl MapFstHost.park) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.rev3)
+          (push (Sum.inl MapFstHost.work) (fun st => st.2.getD false) <|
+            load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.rev2)
+  | .rev3 =>
+      pop (Sum.inl MapFstHost.work) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.haltDrain)
+          (push (Sum.inl MapFstHost.out) (fun st => st.2.getD false) <|
+            load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.rev3)
+  | .haltDrain =>
+      pop (Sum.inl MapFstHost.inp) (fun st o => (st.1, o)) <|
+        branch (fun st => decide (st.2 = none))
+          halt
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.haltDrain)
+
+/-- Product FinTM2: parse pair, run `tm` on first component, emit remapped pair. -/
+noncomputable def mapFstComputer (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool) : FinTM2 := by
+  letI : Fintype tm.K := tm.kFin
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : Fintype tm.Λ := tm.ΛFin
+  letI : Fintype tm.σ := tm.σFin
+  letI : Inhabited (tm.Γ tm.k₀) := ⟨encodeIn false⟩
+  letI : Fintype (MapFstΓ tm.Γ (Sum.inl MapFstHost.inp)) :=
+    inferInstanceAs (Fintype Bool)
+  exact
+    { K := MapFstK tm.K
+      k₀ := Sum.inl MapFstHost.inp
+      k₁ := Sum.inl MapFstHost.out
+      Γ := MapFstΓ tm.Γ
+      Λ := MapFstLabel tm.Λ
+      main := Sum.inl MapFstHostLabel.parse
+      σ := MapFstσ tm.σ
+      initialState := (tm.initialState, none)
+      m
+        | .inl lab =>
+            mapFstHostStmt (K := tm.K) (Γ := tm.Γ) (Λ := tm.Λ) (σ := tm.σ)
+              tm.k₀ tm.k₁ encodeIn decodeOut tm.main lab
+        | .inr l => mapFstGuestStmt (tm.m l) }
+
 end SATurday.Bridge
 
 /-! ## Frontier
