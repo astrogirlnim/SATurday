@@ -4387,6 +4387,201 @@ noncomputable def mapFstComputer (tm : FinTM2)
               tm.k₀ tm.k₁ encodeIn decodeOut tm.main lab
         | .inr l => mapFstGuestStmt (tm.m l) }
 
+/-- Lift a guest configuration into the product, sending halt to copy-out. -/
+def liftMapFstGuestCfg (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (inp park work out : List Bool) (c : tm.Cfg) :
+    (mapFstComputer tm encodeIn decodeOut).Cfg :=
+  match c.l with
+  | none =>
+      mapFstCfg (some (Sum.inl MapFstHostLabel.copyOutPop)) (c.var, none)
+        inp park work out c.stk
+  | some l =>
+      mapFstCfg (some (Sum.inr l)) (c.var, none) inp park work out c.stk
+
+theorem mapFstStk_update_guest {K : Type} {Γ : K → Type}
+    (inp park work out : List Bool) (S : ∀ k, List (Γ k))
+    (k : K) (v : List (Γ k))
+    [DecidableEq (MapFstK K)] [DecidableEq K] :
+    Function.update (mapFstStk inp park work out S) (Sum.inr k) v =
+      mapFstStk inp park work out (Function.update S k v) := by
+  funext t
+  by_cases ht : t = Sum.inr k
+  · subst ht; rw [Function.update_self]; simp [mapFstStk, Function.update]
+  · rw [Function.update_of_ne ht]
+    cases t with
+    | inl h => simp [mapFstStk]
+    | inr k' =>
+        have hk : ¬ k' = k := by intro h; exact ht (by rw [h])
+        simp [mapFstStk, Function.update, hk]
+
+theorem mapFstStk_update_host {K : Type} {Γ : K → Type}
+    (inp park work out : List Bool) (S : ∀ k, List (Γ k))
+    (h : MapFstHost) (v : List Bool)
+    [DecidableEq (MapFstK K)] :
+    Function.update (mapFstStk (Γ := Γ) inp park work out S) (Sum.inl h) v =
+      mapFstStk (Γ := Γ)
+        (if h = .inp then v else inp)
+        (if h = .park then v else park)
+        (if h = .work then v else work)
+        (if h = .out then v else out) S := by
+  funext t
+  by_cases ht : t = Sum.inl h
+  · subst ht; rw [Function.update_self]
+    cases h <;> simp [mapFstStk, mapFstHostStk]
+  · rw [Function.update_of_ne ht]
+    cases t with
+    | inl h' =>
+        have hh : ¬ h' = h := by intro e; exact ht (by rw [e])
+        cases h' <;> cases h <;> simp [mapFstStk, mapFstHostStk, hh] at *
+    | inr _ => simp [mapFstStk]
+
+/-- Guest-phase `stepAux` matches the underlying guest step (halt → copy-out). -/
+theorem mapFstGuest_stepAux (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (q : TM2.Stmt tm.Γ tm.Λ tm.σ)
+    (σ : tm.σ) (inp park work out : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.stepAux (mapFstGuestStmt q) (σ, (none : Option Bool))
+      (mapFstStk inp park work out S) =
+    liftMapFstGuestCfg tm encodeIn decodeOut inp park work out
+      (TM2.stepAux q σ S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  induction q generalizing σ S with
+  | push k f q ih =>
+      have hstk :=
+        mapFstStk_update_guest (Γ := tm.Γ) inp park work out S k (f σ :: S k)
+      have hq : mapFstGuestStmt (push k f q) =
+          push (Sum.inr k) (fun st : MapFstσ tm.σ => f st.1)
+            (mapFstGuestStmt q) := rfl
+      rw [hq]
+      change TM2.stepAux (mapFstGuestStmt q) (σ, none)
+          (Function.update (mapFstStk inp park work out S) (Sum.inr k) (f σ :: S k)) =
+        liftMapFstGuestCfg tm encodeIn decodeOut inp park work out
+          (TM2.stepAux q σ (Function.update S k (f σ :: S k)))
+      convert ih σ (Function.update S k (f σ :: S k)) using 1
+      exact congrArg _ hstk
+  | peek k f q ih =>
+      have hq : mapFstGuestStmt (peek k f q) =
+          peek (Sum.inr k) (fun st o => (f st.1 o, st.2))
+            (mapFstGuestStmt q) := rfl
+      rw [hq]
+      change TM2.stepAux (mapFstGuestStmt q) (f σ (S k).head?, none)
+          (mapFstStk inp park work out S) =
+        liftMapFstGuestCfg tm encodeIn decodeOut inp park work out
+          (TM2.stepAux q (f σ (S k).head?) S)
+      exact ih (f σ (S k).head?) S
+  | pop k f q ih =>
+      have hstk :=
+        mapFstStk_update_guest (Γ := tm.Γ) inp park work out S k (S k).tail
+      have hq : mapFstGuestStmt (pop k f q) =
+          pop (Sum.inr k) (fun st o => (f st.1 o, st.2))
+            (mapFstGuestStmt q) := rfl
+      rw [hq]
+      change TM2.stepAux (mapFstGuestStmt q) (f σ (S k).head?, none)
+          (Function.update (mapFstStk inp park work out S) (Sum.inr k) (S k).tail) =
+        liftMapFstGuestCfg tm encodeIn decodeOut inp park work out
+          (TM2.stepAux q (f σ (S k).head?) (Function.update S k (S k).tail))
+      convert ih (f σ (S k).head?) (Function.update S k (S k).tail) using 1
+      exact congrArg _ hstk
+  | load f q ih =>
+      have hq : mapFstGuestStmt (load f q) =
+          load (fun st : MapFstσ tm.σ => (f st.1, st.2))
+            (mapFstGuestStmt q) := rfl
+      rw [hq, TM2.stepAux]
+      exact ih (f σ) S
+  | branch p q₁ q₂ ih₁ ih₂ =>
+      have hq : mapFstGuestStmt (branch p q₁ q₂) =
+          branch (fun st : MapFstσ tm.σ => p st.1)
+            (mapFstGuestStmt q₁) (mapFstGuestStmt q₂) := rfl
+      rw [hq, TM2.stepAux]
+      cases h : p σ with
+      | true => simpa [h, cond] using ih₁ σ S
+      | false => simpa [h, cond] using ih₂ σ S
+  | goto f =>
+      simp [mapFstGuestStmt, stmtRemap, stmtLiftMapFstGuest, liftMapFstGuestCfg,
+        mapFstCfg, TM2.stepAux]
+  | halt =>
+      simp [mapFstGuestStmt, stmtRemap, stmtLiftMapFstGuest, liftMapFstGuestCfg,
+        mapFstCfg, TM2.stepAux]
+
+theorem mapFst_step_guest (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (l : tm.Λ) (σ : tm.σ) (inp park work out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inr l)) (σ, none) inp park work out S) =
+      some (liftMapFstGuestCfg tm encodeIn decodeOut inp park work out
+        (TM2.stepAux (tm.m l) σ S)) := by
+  change some (TM2.stepAux (mapFstGuestStmt (tm.m l)) (σ, none)
+      (mapFstStk inp park work out S)) =
+    some (liftMapFstGuestCfg tm encodeIn decodeOut inp park work out
+      (TM2.stepAux (tm.m l) σ S))
+  exact congrArg some
+    (mapFstGuest_stepAux tm encodeIn decodeOut (tm.m l) σ inp park work out S)
+
+theorem liftMapFstGuestCfg_step (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (inp park work out : List Bool)
+    (l : tm.Λ) (var : tm.σ) (stk : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (liftMapFstGuestCfg tm encodeIn decodeOut inp park work out
+        ⟨some l, var, stk⟩) =
+      some (liftMapFstGuestCfg tm encodeIn decodeOut inp park work out
+        (TM2.stepAux (tm.m l) var stk)) := by
+  simpa [liftMapFstGuestCfg] using
+    mapFst_step_guest tm encodeIn decodeOut l var inp park work out stk
+
+theorem liftMapFstGuestCfg_iterate (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (inp park work out : List Bool) (n : ℕ) (c c' : tm.Cfg)
+    (h : (flip bind tm.step)^[n] (some c) = some c') :
+    (flip bind (TM2.step (mapFstComputer tm encodeIn decodeOut).m))^[n]
+      (some (liftMapFstGuestCfg tm encodeIn decodeOut inp park work out c)) =
+      some (liftMapFstGuestCfg tm encodeIn decodeOut inp park work out c') := by
+  induction n generalizing c with
+  | zero =>
+      injection h with h'
+      exact congrArg some (congrArg _ h')
+  | succ n ih =>
+      have h1 : (flip bind tm.step)^[n] (tm.step c) = some c' := by
+        simpa [Function.iterate_succ_apply, flip, Option.bind] using h
+      rcases c with ⟨lOpt, var, stk⟩
+      cases lOpt with
+      | none =>
+          have : (flip bind tm.step)^[n] (none : Option tm.Cfg) = some c' := by
+            simpa [FinTM2.step, TM2.step] using h1
+          rw [option_bind_iterate_none] at this
+          cases this
+      | some l =>
+          have hc : tm.step ⟨some l, var, stk⟩ =
+              some (TM2.stepAux (tm.m l) var stk) := by
+            simp [FinTM2.step, TM2.step]
+          have hstep :=
+            liftMapFstGuestCfg_step tm encodeIn decodeOut inp park work out
+              l var stk
+          have h1' : (flip bind tm.step)^[n]
+              (some (TM2.stepAux (tm.m l) var stk)) = some c' := by
+            simpa [hc] using h1
+          have ih' := ih (TM2.stepAux (tm.m l) var stk) h1'
+          simpa [Function.iterate_succ_apply, flip, Option.bind, hstep] using ih'
+
+/-- Package guest `EvalsToInTime` into the product guest phase. -/
+noncomputable def mapFst_evals_guest (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (inp park work out : List Bool) (c c' : tm.Cfg) (m : ℕ)
+    (h : EvalsToInTime tm.step c (some c') m) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (liftMapFstGuestCfg tm encodeIn decodeOut inp park work out c)
+      (some (liftMapFstGuestCfg tm encodeIn decodeOut inp park work out c')) m where
+  steps := h.steps
+  steps_le_m := h.steps_le_m
+  evals_in_steps := by
+    simpa using
+      liftMapFstGuestCfg_iterate tm encodeIn decodeOut inp park work out
+        h.steps c c' (by simpa using h.evals_in_steps)
+
 end SATurday.Bridge
 
 /-! ## Frontier
