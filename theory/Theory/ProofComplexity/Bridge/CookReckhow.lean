@@ -4799,6 +4799,815 @@ noncomputable def mapFstToUnaryComputableInPolyTime :
     simp only [List.map_id, id_eq]
     exact evalsToInTime_le_mono (mapU_evals x y) (mapFstToUnaryTime_bound x y)
 
+/-! ## FinTM2: mapFst of scaleAppend under `encodePair`
+
+`encodePair (x, y) ↦ encodePair (true^(a*|x|+b), y)`. On each first-component
+bit write `a` trues onto `left`; after the separator write `b` trues; then emit
+with the same pipeline as `mapFstToUnaryComputer`. -/
+
+inductive MapSAStack where
+  | inp | left | right | out
+  deriving DecidableEq, Repr
+
+instance : Fintype MapSAStack where
+  elems := {.inp, .left, .right, .out}
+  complete s := by cases s <;> simp
+
+inductive MapSALabel where
+  | parse | expectBit | writeB | loadRight
+  | emitW | emitSep | emitFstPrep | emitFst
+  | rev1 | rev2 | rev3 | haltDrain
+  deriving DecidableEq, Repr
+
+instance : Fintype MapSALabel where
+  elems := {.parse, .expectBit, .writeB, .loadRight, .emitW, .emitSep,
+    .emitFstPrep, .emitFst, .rev1, .rev2, .rev3, .haltDrain}
+  complete s := by cases s <;> simp
+
+def mapSAStk (inp left right out : List Bool) : MapSAStack → List Bool
+  | .inp => inp
+  | .left => left
+  | .right => right
+  | .out => out
+
+/-- Nested push of `k` trues onto `left`, then goto `cont`. -/
+def mapSAWriteKStmt (k : ℕ) (cont : MapSALabel) :
+    TM2.Stmt (fun _ : MapSAStack => Bool) MapSALabel (Option Bool) :=
+  match k with
+  | 0 => load (fun _ => none) <| goto fun _ => cont
+  | n + 1 =>
+      push MapSAStack.left (fun _ => true) <| mapSAWriteKStmt n cont
+
+def mapFstScaleAppendComputer (a b : ℕ) : FinTM2 where
+  K := MapSAStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := MapSALabel
+  main := .parse
+  σ := Option Bool
+  initialState := none
+  m
+    | .parse =>
+        pop MapSAStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapSALabel.haltDrain)
+            (branch (fun s => decide (s = some false))
+              (load (fun _ => none) <| goto fun _ => MapSALabel.writeB)
+              (load (fun _ => none) <| goto fun _ => MapSALabel.expectBit))
+    | .expectBit =>
+        pop MapSAStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapSALabel.haltDrain)
+            (mapSAWriteKStmt a MapSALabel.parse)
+    | .writeB =>
+        mapSAWriteKStmt b MapSALabel.loadRight
+    | .loadRight =>
+        pop MapSAStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapSALabel.emitW)
+            (push MapSAStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapSALabel.loadRight)
+    | .emitW =>
+        pop MapSAStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapSALabel.emitSep)
+            (push MapSAStack.out (fun _ => true) <|
+              push MapSAStack.out (fun s => s.getD false) <|
+                load (fun _ => none) <| goto fun _ => MapSALabel.emitW)
+    | .emitSep =>
+        push MapSAStack.out (fun _ => false) <|
+          load (fun _ => none) <| goto fun _ => MapSALabel.emitFstPrep
+    | .emitFstPrep =>
+        pop MapSAStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapSALabel.emitFst)
+            (push MapSAStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapSALabel.emitFstPrep)
+    | .emitFst =>
+        pop MapSAStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapSALabel.rev1)
+            (push MapSAStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapSALabel.emitFst)
+    | .rev1 =>
+        pop MapSAStack.out (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapSALabel.rev2)
+            (push MapSAStack.right (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapSALabel.rev1)
+    | .rev2 =>
+        pop MapSAStack.right (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapSALabel.rev3)
+            (push MapSAStack.left (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapSALabel.rev2)
+    | .rev3 =>
+        pop MapSAStack.left (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            (load (fun _ => none) <| goto fun _ => MapSALabel.haltDrain)
+            (push MapSAStack.out (fun s => s.getD false) <|
+              load (fun _ => none) <| goto fun _ => MapSALabel.rev3)
+    | .haltDrain =>
+        pop MapSAStack.inp (fun _ o => o) <|
+          branch (fun s => decide (s = none))
+            halt
+            (load (fun _ => none) <| goto fun _ => MapSALabel.haltDrain)
+
+def mapSACfg (a b : ℕ) (l : Option MapSALabel) (v : Option Bool)
+    (inp left right out : List Bool) : (mapFstScaleAppendComputer a b).Cfg :=
+  ⟨l, v, mapSAStk inp left right out⟩
+
+def mapFstScaleAppendPair (a b : ℕ) (p : List Bool × List Bool) : List Bool :=
+  encodePair (List.replicate (a * p.1.length + b) true, p.2)
+
+theorem mapFstScaleAppendPair_encode (a b : ℕ) (x y : List Bool) :
+    mapFstScaleAppendPair a b (x, y) =
+      encodePair (List.replicate (a * x.length + b) true, y) := rfl
+
+theorem mapSAWriteKStmt_stepAux (a b k : ℕ) (cont : MapSALabel) (v : Option Bool)
+    (inp left right out : List Bool) :
+    TM2.stepAux (mapSAWriteKStmt k cont) v (mapSAStk inp left right out) =
+      ⟨some cont, none,
+        mapSAStk inp (List.replicate k true ++ left) right out⟩ := by
+  induction k generalizing left with
+  | zero =>
+      simp [mapSAWriteKStmt, TM2.stepAux, List.replicate_zero, mapSAStk]
+  | succ n ih =>
+      simp only [mapSAWriteKStmt, TM2.stepAux]
+      have hstk :
+          Function.update (mapSAStk inp left right out) MapSAStack.left
+              (true :: mapSAStk inp left right out MapSAStack.left) =
+            mapSAStk inp (true :: left) right out := by
+        funext s; cases s <;> simp [Function.update, mapSAStk]
+      rw [hstk]
+      simpa [List.replicate_succ, replicate_true_append_cons] using ih (true :: left)
+
+theorem mapSA_step_parse_true (a b : ℕ) (rest left right out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .parse) none (true :: rest) left right out) =
+      some (mapSACfg a b (some .expectBit) none rest left right out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.expectBit, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_expectBit (a b : ℕ) (bit : Bool) (rest left right out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .expectBit) none (bit :: rest) left right out) =
+      some (mapSACfg a b (some .parse) none rest
+        (List.replicate a true ++ left) right out) := by
+  have hinp : mapSAStk (bit :: rest) left right out MapSAStack.inp = bit :: rest := rfl
+  simp [mapFstScaleAppendComputer, mapSACfg, TM2.step, TM2.stepAux, hinp]
+  have hstk :
+      Function.update (mapSAStk (bit :: rest) left right out) MapSAStack.inp rest =
+        mapSAStk rest left right out := by
+    funext s; cases s <;> simp [Function.update, mapSAStk]
+  exact congrArg some <|
+    (congrArg (TM2.stepAux (mapSAWriteKStmt a MapSALabel.parse) (some bit)) hstk).trans
+      (mapSAWriteKStmt_stepAux a b a MapSALabel.parse (some bit) rest left right out)
+
+
+theorem mapSA_step_parse_false (a b : ℕ) (rest left right out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .parse) none (false :: rest) left right out) =
+      some (mapSACfg a b (some .writeB) none rest left right out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.writeB, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_writeB (a b : ℕ) (inp left right out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .writeB) none inp left right out) =
+      some (mapSACfg a b (some .loadRight) none inp
+        (List.replicate b true ++ left) right out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, TM2.step]
+  exact congrArg some
+    (mapSAWriteKStmt_stepAux a b b MapSALabel.loadRight none inp left right out)
+
+theorem mapSA_step_loadRight_cons (a b : ℕ) (c : Bool) (rest left right out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .loadRight) none (c :: rest) left right out) =
+      some (mapSACfg a b (some .loadRight) none rest left (c :: right) out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.loadRight, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_loadRight_nil (a b : ℕ) (left right out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .loadRight) none [] left right out) =
+      some (mapSACfg a b (some .emitW) none [] left right out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.emitW, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+def mapSA_evals_one (a b : ℕ) {c c' : (mapFstScaleAppendComputer a b).Cfg}
+    (h : TM2.step (mapFstScaleAppendComputer a b).m c = some c') :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step c (some c') 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change (some c).bind (mapFstScaleAppendComputer a b).step = some c'
+    simpa [FinTM2.step] using h
+
+def mapSA_evals_parse_one (a b : ℕ) (bit : Bool) (rest left right out : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .parse) none (true :: bit :: rest) left right out)
+      (some (mapSACfg a b (some .parse) none rest
+        (List.replicate a true ++ left) right out)) 2 := by
+  exact EvalsToInTime.trans (mapFstScaleAppendComputer a b).step 1 1 _ _ _
+    (mapSA_evals_one a b (mapSA_step_parse_true a b (bit :: rest) left right out))
+    (mapSA_evals_one a b (mapSA_step_expectBit a b bit rest left right out))
+
+theorem replicate_append_replicate_mul (a n : ℕ) (left : List Bool) :
+    List.replicate (a * n) true ++ (List.replicate a true ++ left) =
+      List.replicate (a * (n + 1)) true ++ left := by
+  rw [← List.append_assoc, ← List.replicate_add, Nat.mul_succ]
+
+noncomputable def mapSA_evals_parse (a b : ℕ) (xs rest left right out : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .parse) none
+        (xs.flatMap (fun bit => [true, bit]) ++ rest) left right out)
+      (some (mapSACfg a b (some .parse) none rest
+        (List.replicate (a * xs.length) true ++ left) right out))
+      (2 * xs.length) := by
+  induction xs generalizing left with
+  | nil =>
+      simpa [List.flatMap, List.replicate] using
+        (EvalsToInTime.refl (mapFstScaleAppendComputer a b).step
+          (mapSACfg a b (some .parse) none rest left right out))
+  | cons bit xs ih =>
+      have h1 := mapSA_evals_parse_one a b bit
+        (xs.flatMap (fun bit => [true, bit]) ++ rest) left right out
+      have h2 := ih (List.replicate a true ++ left)
+      have h := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+        2 (2 * xs.length) _ _ _ h1 h2
+      have htime : 2 * xs.length + 2 = 2 * (bit :: xs).length := by
+        simp [List.length_cons]; ring
+      have hleft := replicate_append_replicate_mul a xs.length left
+      simpa [List.flatMap_cons, List.length_cons, htime, hleft] using h
+
+noncomputable def mapSA_evals_loadRight (a b : ℕ) (ys left right out : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .loadRight) none ys left right out)
+      (some (mapSACfg a b (some .emitW) none [] left (List.reverse ys ++ right) out))
+      (ys.length + 1) := by
+  induction ys generalizing right with
+  | nil =>
+      exact mapSA_evals_one a b (mapSA_step_loadRight_nil a b left right out)
+  | cons c ys ih =>
+      have h1 := mapSA_evals_one a b (mapSA_step_loadRight_cons a b c ys left right out)
+      have h2 := ih (c :: right)
+      have h := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+        1 (ys.length + 1) _ _ _ h1 h2
+      have htime : (ys.length + 1) + 1 = (c :: ys).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+/-- Parse through writeB and load: emitW with left = true^(a*|x|+b), right = reverse y. -/
+noncomputable def mapSA_evals_load_to_emitW (a b : ℕ) (x y : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .parse) none (encodePair (x, y)) [] [] [])
+      (some (mapSACfg a b (some .emitW) none []
+        (List.replicate (a * x.length + b) true) (List.reverse y) []))
+      ((y.length + 1) + (1 + (1 + 2 * x.length))) := by
+  have hparse := mapSA_evals_parse a b x (false :: y) [] [] []
+  have h1 : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .parse) none (encodePair (x, y)) [] [] [])
+      (some (mapSACfg a b (some .parse) none (false :: y)
+        (List.replicate (a * x.length) true) [] []))
+      (2 * x.length) := by
+    simpa [encodePair, List.append_assoc] using hparse
+  have hfalse := mapSA_evals_one a b
+    (mapSA_step_parse_false a b y (List.replicate (a * x.length) true) [] [])
+  have h12 := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    (2 * x.length) 1 _ _ _ h1 hfalse
+  have hwrite := mapSA_evals_one a b
+    (mapSA_step_writeB a b y (List.replicate (a * x.length) true) [] [])
+  have h123 := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    (1 + 2 * x.length) 1 _ _ _ h12 hwrite
+  have h123' : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .parse) none (encodePair (x, y)) [] [] [])
+      (some (mapSACfg a b (some .loadRight) none y
+        (List.replicate (a * x.length + b) true) [] []))
+      (1 + (1 + 2 * x.length)) := by
+    have hrep :
+        List.replicate b true ++ List.replicate (a * x.length) true =
+          List.replicate (a * x.length + b) true := by
+      simpa [Nat.add_comm] using (List.replicate_add b (a * x.length) true).symm
+    simpa [hrep] using h123
+  have hload := mapSA_evals_loadRight a b y
+    (List.replicate (a * x.length + b) true) [] []
+  have h1234 := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    (1 + (1 + 2 * x.length)) (y.length + 1) _ _ _ h123' hload
+  simpa [List.append_nil] using h1234
+
+
+theorem mapSA_step_emitW_nil (a b : ℕ) (right out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .emitW) none [] [] right out) =
+      some (mapSACfg a b (some .emitSep) none [] [] right out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.emitSep, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_emitW_cons (a b : ℕ) (c : Bool) (rest right out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .emitW) none [] (c :: rest) right out) =
+      some (mapSACfg a b (some .emitW) none [] rest right (c :: true :: out)) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.emitW, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+def mapSA_evals_emitW (a b : ℕ) (left right out : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .emitW) none [] left right out)
+      (some (mapSACfg a b (some .emitSep) none [] [] right
+        (List.reverse (left.flatMap fun c => [true, c]) ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      simpa [List.flatMap] using mapSA_evals_one a b (mapSA_step_emitW_nil a b right out)
+  | cons c left ih =>
+      have h1 := mapSA_evals_one a b (mapSA_step_emitW_cons a b c left right out)
+      have h2 := ih (c :: true :: out)
+      have h := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+        1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      have hout :
+          List.reverse ((c :: left).flatMap fun c => [true, c]) ++ out =
+            List.reverse (left.flatMap fun c => [true, c]) ++ c :: true :: out := by
+        simp [List.flatMap_cons, List.reverse_cons]
+      simpa [htime, hout, List.append_assoc] using h
+
+theorem mapSA_step_emitSep (a b : ℕ) (right out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .emitSep) none [] [] right out) =
+      some (mapSACfg a b (some .emitFstPrep) none [] [] right (false :: out)) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.emitFstPrep, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_emitFstPrep_cons (a b : ℕ) (c : Bool) (rest left out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .emitFstPrep) none [] left (c :: rest) out) =
+      some (mapSACfg a b (some .emitFstPrep) none [] (c :: left) rest out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.emitFstPrep, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_emitFstPrep_nil (a b : ℕ) (left out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .emitFstPrep) none [] left [] out) =
+      some (mapSACfg a b (some .emitFst) none [] left [] out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.emitFst, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+noncomputable def mapSA_evals_emitFstPrep (a b : ℕ) (right left out : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .emitFstPrep) none [] left right out)
+      (some (mapSACfg a b (some .emitFst) none [] (List.reverse right ++ left) [] out))
+      (right.length + 1) := by
+  induction right generalizing left with
+  | nil =>
+      exact mapSA_evals_one a b (mapSA_step_emitFstPrep_nil a b left out)
+  | cons c right ih =>
+      have h1 := mapSA_evals_one a b (mapSA_step_emitFstPrep_cons a b c right left out)
+      have h2 := ih (c :: left)
+      have h := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+        1 (right.length + 1) _ _ _ h1 h2
+      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem mapSA_step_emitFst_cons (a b : ℕ) (c : Bool) (rest out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .emitFst) none [] (c :: rest) [] out) =
+      some (mapSACfg a b (some .emitFst) none [] rest [] (c :: out)) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.emitFst, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_emitFst_nil (a b : ℕ) (out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .emitFst) none [] [] [] out) =
+      some (mapSACfg a b (some .rev1) none [] [] [] out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.rev1, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+def mapSA_evals_emitFst (a b : ℕ) (left out : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .emitFst) none [] left [] out)
+      (some (mapSACfg a b (some .rev1) none [] [] [] (List.reverse left ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      exact mapSA_evals_one a b (mapSA_step_emitFst_nil a b out)
+  | cons c left ih =>
+      have h1 := mapSA_evals_one a b (mapSA_step_emitFst_cons a b c left out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+        1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem mapSA_step_rev1_cons (a b : ℕ) (c : Bool) (rest right : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .rev1) none [] [] right (c :: rest)) =
+      some (mapSACfg a b (some .rev1) none [] [] (c :: right) rest) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.rev1, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_rev1_nil (a b : ℕ) (right : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .rev1) none [] [] right []) =
+      some (mapSACfg a b (some .rev2) none [] [] right []) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.rev2, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+def mapSA_evals_rev1 (a b : ℕ) (out right : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .rev1) none [] [] right out)
+      (some (mapSACfg a b (some .rev2) none [] [] (List.reverse out ++ right) []))
+      (out.length + 1) := by
+  induction out generalizing right with
+  | nil =>
+      exact mapSA_evals_one a b (mapSA_step_rev1_nil a b right)
+  | cons c out ih =>
+      have h1 := mapSA_evals_one a b (mapSA_step_rev1_cons a b c out right)
+      have h2 := ih (c :: right)
+      have h := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+        1 (out.length + 1) _ _ _ h1 h2
+      have htime : (out.length + 1) + 1 = (c :: out).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem mapSA_step_rev2_cons (a b : ℕ) (c : Bool) (rest left out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .rev2) none [] left (c :: rest) out) =
+      some (mapSACfg a b (some .rev2) none [] (c :: left) rest out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.rev2, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_rev2_nil (a b : ℕ) (left out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .rev2) none [] left [] out) =
+      some (mapSACfg a b (some .rev3) none [] left [] out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.rev3, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+def mapSA_evals_rev2 (a b : ℕ) (right left out : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .rev2) none [] left right out)
+      (some (mapSACfg a b (some .rev3) none [] (List.reverse right ++ left) [] out))
+      (right.length + 1) := by
+  induction right generalizing left with
+  | nil =>
+      exact mapSA_evals_one a b (mapSA_step_rev2_nil a b left out)
+  | cons c right ih =>
+      have h1 := mapSA_evals_one a b (mapSA_step_rev2_cons a b c right left out)
+      have h2 := ih (c :: left)
+      have h := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+        1 (right.length + 1) _ _ _ h1 h2
+      have htime : (right.length + 1) + 1 = (c :: right).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+theorem mapSA_step_rev3_cons (a b : ℕ) (c : Bool) (rest out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .rev3) none [] (c :: rest) [] out) =
+      some (mapSACfg a b (some .rev3) none [] rest [] (c :: out)) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.rev3, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_step_rev3_nil (a b : ℕ) (out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .rev3) none [] [] [] out) =
+      some (mapSACfg a b (some .haltDrain) none [] [] [] out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some MapSALabel.haltDrain, (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+def mapSA_evals_rev3 (a b : ℕ) (left out : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .rev3) none [] left [] out)
+      (some (mapSACfg a b (some .haltDrain) none [] [] [] (List.reverse left ++ out)))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      exact mapSA_evals_one a b (mapSA_step_rev3_nil a b out)
+  | cons c left ih =>
+      have h1 := mapSA_evals_one a b (mapSA_step_rev3_cons a b c left out)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+        1 (left.length + 1) _ _ _ h1 h2
+      have htime : (left.length + 1) + 1 = (c :: left).length + 1 := by
+        simp [List.length_cons]
+      simpa [List.reverse_cons, List.append_assoc, htime] using h
+
+def mapSA_evals_unreverse (a b : ℕ) (ep : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .rev1) none [] [] [] (List.reverse ep))
+      (some (mapSACfg a b (some .haltDrain) none [] [] [] ep))
+      ((ep.length + 1) + ((ep.length + 1) + (ep.length + 1))) := by
+  have h1 := mapSA_evals_rev1 a b (List.reverse ep) []
+  have h1' : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .rev1) none [] [] [] (List.reverse ep))
+      (some (mapSACfg a b (some .rev2) none [] [] ep []))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h1
+  have h2 := mapSA_evals_rev2 a b ep [] []
+  have h2' : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .rev2) none [] [] ep [])
+      (some (mapSACfg a b (some .rev3) none [] (List.reverse ep) [] []))
+      (ep.length + 1) := by
+    simpa [List.append_nil] using h2
+  have h3 := mapSA_evals_rev3 a b (List.reverse ep) []
+  have h3' : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .rev3) none [] (List.reverse ep) [] [])
+      (some (mapSACfg a b (some .haltDrain) none [] [] [] ep))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h3
+  have h12 := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    (ep.length + 1) (ep.length + 1) _ _ _ h1' h2'
+  exact EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    ((ep.length + 1) + (ep.length + 1)) (ep.length + 1) _ _ _ h12 h3'
+
+theorem mapSA_step_halt (a b : ℕ) (out : List Bool) :
+    TM2.step (mapFstScaleAppendComputer a b).m
+      (mapSACfg a b (some .haltDrain) none [] [] [] out) =
+      some (mapSACfg a b none none [] [] [] out) := by
+  simp [mapFstScaleAppendComputer, mapSACfg, mapSAStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option MapSALabel), (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext s; cases s <;> simp [Function.update, mapSAStk]
+
+theorem mapSA_initList (a b : ℕ) (s : List Bool) :
+    initList (mapFstScaleAppendComputer a b) s =
+      mapSACfg a b (some .parse) none s [] [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some MapSALabel.parse, none, stk⟩ : (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext t; cases t <;> simp [mapFstScaleAppendComputer, mapSAStk]
+
+theorem mapSA_haltList (a b : ℕ) (out : List Bool) :
+    haltList (mapFstScaleAppendComputer a b) out =
+      mapSACfg a b none none [] [] [] out := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option MapSALabel), (none : Option Bool), stk⟩ :
+        (mapFstScaleAppendComputer a b).Cfg)) ?_
+  funext t; cases t <;> simp [haltList, mapFstScaleAppendComputer, mapSAStk]
+
+
+/-- From emitW (left = true^(a*|x|+b), right = reverse y) through halt. -/
+noncomputable def mapSA_evals_emit_to_halt (a b : ℕ) (x y : List Bool) :
+    EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .emitW) none []
+        (List.replicate (a * x.length + b) true) (List.reverse y) [])
+      (some (mapSACfg a b none none [] [] []
+        (mapFstScaleAppendPair a b (x, y))))
+      (1 + ((((mapFstScaleAppendPair a b (x, y)).length + 1) +
+        (((mapFstScaleAppendPair a b (x, y)).length + 1) +
+          ((mapFstScaleAppendPair a b (x, y)).length + 1))) +
+        ((y.length + 1) + ((y.length + 1) +
+          (1 + ((a * x.length + b) + 1)))))) := by
+  set L := a * x.length + b
+  set ep := mapFstScaleAppendPair a b (x, y)
+  have hemitW := mapSA_evals_emitW a b (List.replicate L true) (List.reverse y) []
+  have hemitW' : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .emitW) none [] (List.replicate L true) (List.reverse y) [])
+      (some (mapSACfg a b (some .emitSep) none [] [] (List.reverse y)
+        (List.reverse ((List.replicate L true).flatMap fun c => [true, c]))))
+      (L + 1) := by
+    simpa [List.append_nil, List.length_replicate] using hemitW
+  have hsep := mapSA_evals_one a b (mapSA_step_emitSep a b (List.reverse y)
+    (List.reverse ((List.replicate L true).flatMap fun c => [true, c])))
+  have h12 := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    (L + 1) 1 _ _ _ hemitW' hsep
+  have hprep := mapSA_evals_emitFstPrep a b (List.reverse y) []
+    (false :: List.reverse ((List.replicate L true).flatMap fun c => [true, c]))
+  have hprep' : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .emitFstPrep) none [] [] (List.reverse y)
+        (false :: List.reverse ((List.replicate L true).flatMap fun c => [true, c])))
+      (some (mapSACfg a b (some .emitFst) none [] y []
+        (false :: List.reverse ((List.replicate L true).flatMap fun c => [true, c]))))
+      (y.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using hprep
+  have h123 := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    (1 + (L + 1)) (y.length + 1) _ _ _ h12 hprep'
+  have hemitF := mapSA_evals_emitFst a b y
+    (false :: List.reverse ((List.replicate L true).flatMap fun c => [true, c]))
+  have hout_emit :
+      List.reverse y ++ false :: List.reverse ((List.replicate L true).flatMap fun c => [true, c]) =
+        List.reverse ep := by
+    simp [ep, mapFstScaleAppendPair, encodePair, List.reverse_append, List.reverse_cons, L]
+  have h1234 := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    ((y.length + 1) + (1 + (L + 1))) (y.length + 1) _ _ _ h123 hemitF
+  have h1234' : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .emitW) none [] (List.replicate L true) (List.reverse y) [])
+      (some (mapSACfg a b (some .rev1) none [] [] [] (List.reverse ep)))
+      ((y.length + 1) + ((y.length + 1) + (1 + (L + 1)))) := by
+    simpa [hout_emit] using h1234
+  have hunrev := mapSA_evals_unreverse a b ep
+  have h5 := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    ((y.length + 1) + ((y.length + 1) + (1 + (L + 1))))
+    ((ep.length + 1) + ((ep.length + 1) + (ep.length + 1)))
+    _ _ _ h1234' hunrev
+  have hhalt := mapSA_evals_one a b (mapSA_step_halt a b ep)
+  simpa [L, ep] using
+    (EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+      (((ep.length + 1) + ((ep.length + 1) + (ep.length + 1))) +
+        ((y.length + 1) + ((y.length + 1) + (1 + (L + 1)))))
+      1 _ _ _ h5 hhalt)
+
+noncomputable def mapSA_evals (a b : ℕ) (x y : List Bool) :
+    TM2OutputsInTime (mapFstScaleAppendComputer a b) (encodePair (x, y))
+      (some (mapFstScaleAppendPair a b (x, y)))
+      ((1 + ((((mapFstScaleAppendPair a b (x, y)).length + 1) +
+        (((mapFstScaleAppendPair a b (x, y)).length + 1) +
+          ((mapFstScaleAppendPair a b (x, y)).length + 1))) +
+        ((y.length + 1) + ((y.length + 1) +
+          (1 + ((a * x.length + b) + 1)))))) +
+        ((y.length + 1) + (1 + (1 + 2 * x.length)))) := by
+  have hload := mapSA_evals_load_to_emitW a b x y
+  have hemit := mapSA_evals_emit_to_halt a b x y
+  have hload' : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (initList (mapFstScaleAppendComputer a b) (encodePair (x, y)))
+      (some (mapSACfg a b (some .emitW) none []
+        (List.replicate (a * x.length + b) true) (List.reverse y) []))
+      ((y.length + 1) + (1 + (1 + 2 * x.length))) := by
+    simpa [mapSA_initList] using hload
+  have hemit' : EvalsToInTime (mapFstScaleAppendComputer a b).step
+      (mapSACfg a b (some .emitW) none []
+        (List.replicate (a * x.length + b) true) (List.reverse y) [])
+      (some (haltList (mapFstScaleAppendComputer a b)
+        (mapFstScaleAppendPair a b (x, y))))
+      (1 + ((((mapFstScaleAppendPair a b (x, y)).length + 1) +
+        (((mapFstScaleAppendPair a b (x, y)).length + 1) +
+          ((mapFstScaleAppendPair a b (x, y)).length + 1))) +
+        ((y.length + 1) + ((y.length + 1) +
+          (1 + ((a * x.length + b) + 1)))))) := by
+    simpa [mapSA_haltList] using hemit
+  have h := EvalsToInTime.trans (mapFstScaleAppendComputer a b).step
+    ((y.length + 1) + (1 + (1 + 2 * x.length)))
+    (1 + ((((mapFstScaleAppendPair a b (x, y)).length + 1) +
+      (((mapFstScaleAppendPair a b (x, y)).length + 1) +
+        ((mapFstScaleAppendPair a b (x, y)).length + 1))) +
+      ((y.length + 1) + ((y.length + 1) +
+        (1 + ((a * x.length + b) + 1))))))
+    _ _ _ hload' hemit'
+  exact ⟨⟨h.steps, h.evals_in_steps⟩, h.steps_le_m⟩
+
+/-- Time bound: constants a,b inflate the unary left by a linear factor. -/
+noncomputable def mapFstScaleAppendTime (a b : ℕ) : Polynomial ℕ :=
+  Polynomial.C ((a + b + 1) * 128) * (Polynomial.X ^ 2 + Polynomial.X + 1)
+
+theorem mapFstScaleAppendTime_eval (a b n : ℕ) :
+    (mapFstScaleAppendTime a b).eval n =
+      ((a + b + 1) * 128) * (n ^ 2 + n + 1) := by
+  simp [mapFstScaleAppendTime, pow_two, Polynomial.eval_C, Polynomial.eval_add,
+    Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_one]
+
+theorem mapFstScaleAppendTime_bound (a b : ℕ) (x y : List Bool) :
+    ((1 + ((((mapFstScaleAppendPair a b (x, y)).length + 1) +
+      (((mapFstScaleAppendPair a b (x, y)).length + 1) +
+        ((mapFstScaleAppendPair a b (x, y)).length + 1))) +
+      ((y.length + 1) + ((y.length + 1) +
+        (1 + ((a * x.length + b) + 1)))))) +
+      ((y.length + 1) + (1 + (1 + 2 * x.length)))) ≤
+      (mapFstScaleAppendTime a b).eval (encodePair (x, y)).length := by
+  simp [mapFstScaleAppendTime_eval, mapFstScaleAppendPair, length_encodePair,
+    List.length_replicate]
+  set N := 2 * x.length + 1 + y.length with hN
+  set L := a * x.length + b with hL
+  have hx : x.length ≤ N := by omega
+  have hy : y.length ≤ N := by omega
+  have hNpos : 0 < N := by omega
+  have habpos : 0 < a + b + 1 := by omega
+  have hLbound : L ≤ (a + b + 1) * N := by
+    have ha : a * x.length ≤ a * N := Nat.mul_le_mul_left a hx
+    have hb : b ≤ b * N := Nat.le_mul_of_pos_right b hNpos
+    rw [hL]
+    refine le_trans (Nat.add_le_add ha hb) ?_
+    have : a * N + b * N = (a + b) * N := by ring
+    rw [this]
+    exact Nat.mul_le_mul_right N (Nat.le_succ _)
+  have hLHS :
+      1 + ((2 * L + 1 + y.length + 1) +
+          ((2 * L + 1 + y.length + 1) + (2 * L + 1 + y.length + 1)) +
+        (y.length + 1 + (y.length + 1 + (1 + (L + 1))))) +
+        (y.length + 1 + (1 + (1 + 2 * x.length))) ≤
+      16 * (2 * L + N + 2) := by omega
+  have hMid : 16 * (2 * L + N + 2) ≤ 64 * ((a + b + 1) * N + 1) := by
+    have h2L : 2 * L ≤ 2 * ((a + b + 1) * N) := Nat.mul_le_mul_left 2 hLbound
+    have hcore : 2 * ((a + b + 1) * N) + N + 2 ≤ 4 * ((a + b + 1) * N + 1) := by
+      have hNle : N ≤ (a + b + 1) * N := Nat.le_mul_of_pos_left N habpos
+      have : 4 * ((a + b + 1) * N + 1) = 4 * ((a + b + 1) * N) + 4 := by ring
+      omega
+    have hstep : 2 * L + N + 2 ≤ 4 * ((a + b + 1) * N + 1) :=
+      le_trans (Nat.add_le_add_right (Nat.add_le_add_right h2L N) 2) hcore
+    have hmul := Nat.mul_le_mul_left 16 hstep
+    refine le_trans hmul ?_
+    have : 16 * (4 * ((a + b + 1) * N + 1)) = 64 * ((a + b + 1) * N + 1) := by ring
+    exact le_of_eq this
+  have hPoly : 64 * ((a + b + 1) * N + 1) ≤
+      ((a + b + 1) * 128) * (N ^ 2 + N + 1) := by
+    have hN1 : N ≤ N ^ 2 + N + 1 := by nlinarith
+    have hone : 1 ≤ N ^ 2 + N + 1 := by nlinarith
+    have hmulN := Nat.mul_le_mul_left (a + b + 1) hN1
+    have hmul1 := le_trans hone (Nat.le_mul_of_pos_left (N ^ 2 + N + 1) habpos)
+    have hsum := Nat.add_le_add hmulN hmul1
+    have hsum' : (a + b + 1) * N + 1 ≤ 2 * ((a + b + 1) * (N ^ 2 + N + 1)) := by
+      refine le_trans hsum ?_
+      have : (a + b + 1) * (N ^ 2 + N + 1) + (a + b + 1) * (N ^ 2 + N + 1) =
+          2 * ((a + b + 1) * (N ^ 2 + N + 1)) := by ring
+      exact le_of_eq this
+    have hmul64 := Nat.mul_le_mul_left 64 hsum'
+    refine le_trans hmul64 ?_
+    have : 64 * (2 * ((a + b + 1) * (N ^ 2 + N + 1))) =
+        ((a + b + 1) * 128) * (N ^ 2 + N + 1) := by ring
+    exact le_of_eq this
+  exact le_trans (le_trans hLHS hMid) hPoly
+
+noncomputable def mapFstScaleAppendComputableInPolyTime (a b : ℕ) :
+    TM2ComputableInPolyTime encodePair encodePair
+      (fun p => (List.replicate (a * p.1.length + b) true, p.2)) where
+  tm := mapFstScaleAppendComputer a b
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := mapFstScaleAppendTime a b
+  outputsFun p := by
+    rcases p with ⟨x, y⟩
+    change TM2OutputsInTime (mapFstScaleAppendComputer a b)
+      (List.map id (encodePair (x, y)))
+      (some (List.map id (encodePair
+        (List.replicate (a * x.length + b) true, y))))
+      ((mapFstScaleAppendTime a b).eval (encodePair (x, y)).length)
+    simp only [List.map_id, id_eq]
+    have h := mapSA_evals a b x y
+    simpa [mapFstScaleAppendPair] using
+      (evalsToInTime_le_mono h (mapFstScaleAppendTime_bound a b x y))
+
 /-- Out-bound for `dupEncodePair`: `|encodePair (s,s)| = 3|s|+1`. -/
 noncomputable def dupEncodePairOutBound : Polynomial ℕ :=
   3 * Polynomial.X + 1

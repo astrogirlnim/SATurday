@@ -160,10 +160,11 @@ Cook Levin reduction (hard direction) remain. Do not restart
   Horner scaleAppend semantic identity and quadratic closed form certified;
   `toUnaryDupPairComputableInPolyTime` and `unarySquareComputableInPolyTime`
   packaged (`true^(n^2)`); `polyEvalUnaryXSquaredComputableInPolyTime` and
-  `polyEvalUnaryXSquaredPlusConstComputableInPolyTime` packaged; remaining:
-  linear cross term for full quadratic via mapFstScaleAppend or mapSnd,
-  full Horner induction, fan-out compose lengthOk with `V`,
-  `afterDecodeProofSystem` FinTM2 host, Cook Levin hard direction;
+  `polyEvalUnaryXSquaredPlusConstComputableInPolyTime` packaged;
+  `mapFstScaleAppendComputableInPolyTime` packaged under `encodePair`
+  (`(x,y) ↦ (true^(a*|x|+b), y)`); remaining: mapSnd via swap compose,
+  full quadratic Horner (`a X^2 + b X + c`), fan-out compose lengthOk with
+  `V`, `afterDecodeProofSystem` FinTM2 host, Cook Levin hard direction;
   `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
