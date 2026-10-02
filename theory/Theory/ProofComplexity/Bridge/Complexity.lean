@@ -4172,18 +4172,22 @@ abbrev MapFstK (K : Type) := MapFstHost ⊕ K
 def MapFstΓ {K : Type} (Γ : K → Type) : MapFstK K → Type :=
   Sum.elim (fun _ : MapFstHost => Bool) Γ
 
-/-- Host-phase labels (parse, copy in/out, emit, reverse, halt). -/
+/-- Host-phase labels (parse, copy in/out, emit, reverse, halt).
+
+`revFx` undoes the copyOut reverse so `emitW` sees `f x` in forward order
+(guest `haltList` stores the output list head-first). -/
 inductive MapFstHostLabel where
   | parse | expectBit | loadPark
   | copyInPop | copyInPush
   | copyOutPop | copyOutPush
+  | revFx
   | emitW | emitSep | emitFstPrep | emitFst
   | rev1 | rev2 | rev3 | haltDrain
   deriving DecidableEq, Repr
 
 instance : Fintype MapFstHostLabel where
   elems := {.parse, .expectBit, .loadPark, .copyInPop, .copyInPush,
-    .copyOutPop, .copyOutPush, .emitW, .emitSep, .emitFstPrep, .emitFst,
+    .copyOutPop, .copyOutPush, .revFx, .emitW, .emitSep, .emitFstPrep, .emitFst,
     .rev1, .rev2, .rev3, .haltDrain}
   complete s := by cases s <;> simp
 
@@ -4296,14 +4300,24 @@ def mapFstHostStmt {K : Type} {Γ : K → Type} {Λ σ : Type}
         | some x => (st.1, some (decodeOut x))) <|
         branch (fun st => st.2.isNone)
           (load (fun st => (st.1, none)) <|
-            goto fun _ => Sum.inl MapFstHostLabel.emitW)
+            goto fun _ => Sum.inl MapFstHostLabel.revFx)
           (goto fun _ => Sum.inl MapFstHostLabel.copyOutPush)
   | .copyOutPush =>
       push (Sum.inl MapFstHost.work) (fun st => st.2.getD false) <|
         load (fun st => (st.1, none)) <|
           goto fun _ => Sum.inl MapFstHostLabel.copyOutPop
-  | .emitW =>
+  | .revFx =>
+      -- Reverse `work` onto empty `inp` so emitW sees forward `f x`.
       pop (Sum.inl MapFstHost.work) (fun st o => (st.1, o)) <|
+        branch (fun st => st.2.isNone)
+          (load (fun st => (st.1, none)) <|
+            goto fun _ => Sum.inl MapFstHostLabel.emitW)
+          (push (Sum.inl MapFstHost.inp) (fun st => st.2.getD false) <|
+            load (fun st => (st.1, none)) <|
+              goto fun _ => Sum.inl MapFstHostLabel.revFx)
+  | .emitW =>
+      -- Emit first-component encoding from `inp` (forward `f x` after revFx).
+      pop (Sum.inl MapFstHost.inp) (fun st o => (st.1, o)) <|
         branch (fun st => st.2.isNone)
           (load (fun st => (st.1, none)) <|
             goto fun _ => Sum.inl MapFstHostLabel.emitSep)
@@ -4885,6 +4899,647 @@ noncomputable def mapFst_evals_copyIn (tm : FinTM2)
         · simp [Function.update, hk]
       simpa [List.reverse_cons, List.map_append, List.map_cons, List.append_assoc,
         Nat.mul_succ, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, hupd] using h
+
+
+
+/-! ### mapFst host phase steps (copyOut / revFx / emit / rev / halt) -/
+
+theorem mapFstStk_update_out {K : Type} {Γ : K → Type}
+    (inp park work out : List Bool) (S : ∀ k, List (Γ k)) (out' : List Bool)
+    [DecidableEq (MapFstK K)] :
+    Function.update (mapFstStk (Γ := Γ) inp park work out S)
+        (Sum.inl MapFstHost.out) out' =
+      mapFstStk inp park work out' S := by
+  funext k; cases k with
+  | inl h => cases h <;> first | rfl | simp [Function.update, mapFstStk, mapFstHostStk]
+  | inr k => simp [Function.update, mapFstStk]
+
+theorem mapFst_step_copyOutPop_cons (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (g : tm.Γ tm.k₁) (rest : List (tm.Γ tm.k₁))
+    (park work out : List Bool) (S : ∀ k, List (tm.Γ k))
+    (hS : S tm.k₁ = g :: rest) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .copyOutPop)) (σ, none)
+        [] park work out S) =
+      some (mapFstCfg (some (Sum.inl .copyOutPush)) (σ, some (decodeOut g))
+        [] park work out (Function.update S tm.k₁ rest)) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :=
+    mapFstStk_update_guest (Γ := tm.Γ) [] park work out S tm.k₁ rest
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, hS, List.head?, List.tail, Option.isNone]
+  exact hstk
+
+theorem mapFst_step_copyOutPush (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (b : Bool) (park work out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .copyOutPush)) (σ, some b)
+        [] park work out S) =
+      some (mapFstCfg (some (Sum.inl .copyOutPop)) (σ, none)
+        [] park (b :: work) out S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :=
+    mapFstStk_update_work (Γ := tm.Γ) [] park work out S (b :: work)
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, Option.getD]
+  exact hstk
+
+theorem mapFst_step_copyOutPop_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (park work out : List Bool) (S : ∀ k, List (tm.Γ k))
+    (hS : S tm.k₁ = []) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .copyOutPop)) (σ, none)
+        [] park work out S) =
+      some (mapFstCfg (some (Sum.inl .revFx)) (σ, none)
+        [] park work out (Function.update S tm.k₁ [])) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :=
+    mapFstStk_update_guest (Γ := tm.Γ) [] park work out S tm.k₁ []
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, hS, List.head?, List.tail, Option.isNone]
+  exact hstk
+
+theorem mapFst_step_revFx_cons (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (b : Bool) (rest inp park out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .revFx)) (σ, none)
+        inp park (b :: rest) out S) =
+      some (mapFstCfg (some (Sum.inl .revFx)) (σ, none)
+        (b :: inp) park rest out S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :
+      Function.update
+          (Function.update (mapFstStk (Γ := tm.Γ) inp park (b :: rest) out S)
+            (Sum.inl MapFstHost.work) rest)
+          (Sum.inl MapFstHost.inp) (b :: inp) =
+        mapFstStk (b :: inp) park rest out S := by
+    rw [mapFstStk_update_work (Γ := tm.Γ)]
+    exact mapFstStk_update_inp (Γ := tm.Γ) inp park rest out S (b :: inp)
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone, Option.getD,
+    hstk]
+
+theorem mapFst_step_revFx_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (inp park out : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .revFx)) (σ, none)
+        inp park [] out S) =
+      some (mapFstCfg (some (Sum.inl .emitW)) (σ, none)
+        inp park [] out S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone]
+  rfl
+
+theorem mapFst_step_emitW_cons (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (c : Bool) (rest park work out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .emitW)) (σ, none)
+        (c :: rest) park work out S) =
+      some (mapFstCfg (some (Sum.inl .emitW)) (σ, none)
+        rest park work (c :: true :: out) S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :
+      Function.update
+          (Function.update
+            (Function.update (mapFstStk (Γ := tm.Γ) (c :: rest) park work out S)
+              (Sum.inl MapFstHost.inp) rest)
+            (Sum.inl MapFstHost.out) (true :: out))
+          (Sum.inl MapFstHost.out) (c :: true :: out) =
+        mapFstStk rest park work (c :: true :: out) S := by
+    rw [mapFstStk_update_inp (Γ := tm.Γ)]
+    rw [mapFstStk_update_out (Γ := tm.Γ)]
+    exact mapFstStk_update_out (Γ := tm.Γ) rest park work (true :: out) S
+      (c :: true :: out)
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone, Option.getD,
+    hstk]
+
+theorem mapFst_step_emitW_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (park work out : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .emitW)) (σ, none)
+        [] park work out S) =
+      some (mapFstCfg (some (Sum.inl .emitSep)) (σ, none)
+        [] park work out S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone]
+  rfl
+
+theorem mapFst_step_emitSep (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (park work out : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .emitSep)) (σ, none)
+        [] park work out S) =
+      some (mapFstCfg (some (Sum.inl .emitFstPrep)) (σ, none)
+        [] park work (false :: out) S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :=
+    mapFstStk_update_out (Γ := tm.Γ) [] park work out S (false :: out)
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, Option.getD]
+  exact hstk
+
+theorem mapFst_step_emitFstPrep_cons (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (c : Bool) (rest work out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .emitFstPrep)) (σ, none)
+        [] (c :: rest) work out S) =
+      some (mapFstCfg (some (Sum.inl .emitFstPrep)) (σ, none)
+        [] rest (c :: work) out S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :
+      Function.update
+          (Function.update (mapFstStk (Γ := tm.Γ) [] (c :: rest) work out S)
+            (Sum.inl MapFstHost.park) rest)
+          (Sum.inl MapFstHost.work) (c :: work) =
+        mapFstStk [] rest (c :: work) out S := by
+    rw [mapFstStk_update_park (Γ := tm.Γ)]
+    exact mapFstStk_update_work (Γ := tm.Γ) [] rest work out S (c :: work)
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone, Option.getD,
+    hstk]
+
+theorem mapFst_step_emitFstPrep_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (work out : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .emitFstPrep)) (σ, none)
+        [] [] work out S) =
+      some (mapFstCfg (some (Sum.inl .emitFst)) (σ, none)
+        [] [] work out S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone]
+  rfl
+
+theorem mapFst_step_emitFst_cons (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (c : Bool) (rest out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .emitFst)) (σ, none)
+        [] [] (c :: rest) out S) =
+      some (mapFstCfg (some (Sum.inl .emitFst)) (σ, none)
+        [] [] rest (c :: out) S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :
+      Function.update
+          (Function.update (mapFstStk (Γ := tm.Γ) [] [] (c :: rest) out S)
+            (Sum.inl MapFstHost.work) rest)
+          (Sum.inl MapFstHost.out) (c :: out) =
+        mapFstStk [] [] rest (c :: out) S := by
+    rw [mapFstStk_update_work (Γ := tm.Γ)]
+    exact mapFstStk_update_out (Γ := tm.Γ) [] [] rest out S (c :: out)
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone, Option.getD,
+    hstk]
+
+theorem mapFst_step_emitFst_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (out : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .emitFst)) (σ, none)
+        [] [] [] out S) =
+      some (mapFstCfg (some (Sum.inl .rev1)) (σ, none)
+        [] [] [] out S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone]
+  rfl
+
+theorem mapFst_step_rev1_cons (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (c : Bool) (rest park : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .rev1)) (σ, none)
+        [] park [] (c :: rest) S) =
+      some (mapFstCfg (some (Sum.inl .rev1)) (σ, none)
+        [] (c :: park) [] rest S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :
+      Function.update
+          (Function.update (mapFstStk (Γ := tm.Γ) [] park [] (c :: rest) S)
+            (Sum.inl MapFstHost.out) rest)
+          (Sum.inl MapFstHost.park) (c :: park) =
+        mapFstStk [] (c :: park) [] rest S := by
+    rw [mapFstStk_update_out (Γ := tm.Γ)]
+    exact mapFstStk_update_park (Γ := tm.Γ) [] park [] rest S (c :: park)
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone, Option.getD,
+    hstk]
+
+theorem mapFst_step_rev1_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (park : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .rev1)) (σ, none)
+        [] park [] [] S) =
+      some (mapFstCfg (some (Sum.inl .rev2)) (σ, none)
+        [] park [] [] S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone]
+  rfl
+
+theorem mapFst_step_rev2_cons (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (c : Bool) (rest work : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .rev2)) (σ, none)
+        [] (c :: rest) work [] S) =
+      some (mapFstCfg (some (Sum.inl .rev2)) (σ, none)
+        [] rest (c :: work) [] S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :
+      Function.update
+          (Function.update (mapFstStk (Γ := tm.Γ) [] (c :: rest) work [] S)
+            (Sum.inl MapFstHost.park) rest)
+          (Sum.inl MapFstHost.work) (c :: work) =
+        mapFstStk [] rest (c :: work) [] S := by
+    rw [mapFstStk_update_park (Γ := tm.Γ)]
+    exact mapFstStk_update_work (Γ := tm.Γ) [] rest work [] S (c :: work)
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone, Option.getD,
+    hstk]
+
+theorem mapFst_step_rev2_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (work : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .rev2)) (σ, none)
+        [] [] work [] S) =
+      some (mapFstCfg (some (Sum.inl .rev3)) (σ, none)
+        [] [] work [] S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone]
+  rfl
+
+theorem mapFst_step_rev3_cons (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (c : Bool) (rest out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .rev3)) (σ, none)
+        [] [] (c :: rest) out S) =
+      some (mapFstCfg (some (Sum.inl .rev3)) (σ, none)
+        [] [] rest (c :: out) S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  have hstk :
+      Function.update
+          (Function.update (mapFstStk (Γ := tm.Γ) [] [] (c :: rest) out S)
+            (Sum.inl MapFstHost.work) rest)
+          (Sum.inl MapFstHost.out) (c :: out) =
+        mapFstStk [] [] rest (c :: out) S := by
+    rw [mapFstStk_update_work (Γ := tm.Γ)]
+    exact mapFstStk_update_out (Γ := tm.Γ) [] [] rest out S (c :: out)
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone, Option.getD,
+    hstk]
+
+theorem mapFst_step_rev3_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (out : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .rev3)) (σ, none)
+        [] [] [] out S) =
+      some (mapFstCfg (some (Sum.inl .haltDrain)) (σ, none)
+        [] [] [] out S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone]
+  rfl
+
+theorem mapFst_step_haltDrain_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (park work out : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    TM2.step (mapFstComputer tm encodeIn decodeOut).m
+      (mapFstCfg (some (Sum.inl .haltDrain)) (σ, none)
+        [] park work out S) =
+      some (mapFstCfg none (σ, none) [] park work out S) := by
+  letI : DecidableEq tm.K := tm.kDecidableEq
+  letI : DecidableEq (MapFstK tm.K) :=
+    (mapFstComputer tm encodeIn decodeOut).kDecidableEq
+  simp [mapFstComputer, mapFstCfg, mapFstHostStmt, TM2.step, TM2.stepAux,
+    mapFstStk, mapFstHostStk, List.head?, List.tail, Option.isNone]
+  exact ⟨rfl, rfl⟩
+
+/-- Reverse-copy guest `k₁` onto `work`, then un-reverse onto `inp`. -/
+noncomputable def mapFst_evals_copyOut (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (fx : List Bool) (park work out : List Bool)
+    (S : ∀ k, List (tm.Γ k))
+    (encodeOut : Bool → tm.Γ tm.k₁)
+    (hdec : ∀ b, decodeOut (encodeOut b) = b)
+    (hS : S tm.k₁ = List.map encodeOut fx) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .copyOutPop)) (σ, none)
+        [] park work out S)
+      (some (mapFstCfg (some (Sum.inl .revFx)) (σ, none)
+        [] park (List.reverse fx ++ work) out
+        (Function.update S tm.k₁ [])))
+      (2 * fx.length + 1) := by
+  induction fx generalizing S work with
+  | nil =>
+      simpa [List.reverse_nil, List.nil_append] using
+        mapFst_evals_one
+          (mapFst_step_copyOutPop_nil tm encodeIn decodeOut σ park work out S hS)
+  | cons b fx ih =>
+      have hS' : S tm.k₁ = encodeOut b :: List.map encodeOut fx := by
+        simpa [List.map_cons] using hS
+      have h1 := mapFst_evals_one
+        (mapFst_step_copyOutPop_cons tm encodeIn decodeOut σ (encodeOut b)
+          (List.map encodeOut fx) park work out S hS')
+      have h1' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+          (mapFstCfg (some (Sum.inl .copyOutPop)) (σ, none) [] park work out S)
+          (some (mapFstCfg (some (Sum.inl .copyOutPush)) (σ, some b)
+            [] park work out (Function.update S tm.k₁ (List.map encodeOut fx)))) 1 := by
+        simpa [hdec b] using h1
+      have h2 := mapFst_evals_one
+        (mapFst_step_copyOutPush tm encodeIn decodeOut σ b park work out
+          (Function.update S tm.k₁ (List.map encodeOut fx)))
+      have h12 := EvalsToInTime.trans
+        (TM2.step (mapFstComputer tm encodeIn decodeOut).m) 1 1 _ _ _ h1' h2
+      have hSupd : (Function.update S tm.k₁ (List.map encodeOut fx)) tm.k₁ =
+          List.map encodeOut fx := by simp [Function.update]
+      have h3 := ih (b :: work) (Function.update S tm.k₁ (List.map encodeOut fx)) hSupd
+      have h := EvalsToInTime.trans
+        (TM2.step (mapFstComputer tm encodeIn decodeOut).m) 2 (2 * fx.length + 1)
+        _ _ _ h12 h3
+      have hupd :
+          Function.update
+              (Function.update S tm.k₁ (List.map encodeOut fx)) tm.k₁ [] =
+            Function.update S tm.k₁ [] := by
+        ext k; by_cases hk : k = tm.k₁
+        · subst hk; simp [Function.update]
+        · simp [Function.update, hk]
+      simpa [List.reverse_cons, List.append_assoc, Nat.mul_succ, Nat.add_assoc,
+        Nat.add_comm, Nat.add_left_comm, hupd] using h
+
+noncomputable def mapFst_evals_revFx (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (work inp park out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .revFx)) (σ, none)
+        inp park work out S)
+      (some (mapFstCfg (some (Sum.inl .emitW)) (σ, none)
+        (List.reverse work ++ inp) park [] out S))
+      (work.length + 1) := by
+  induction work generalizing inp with
+  | nil =>
+      simpa [List.reverse_nil, List.nil_append] using
+        mapFst_evals_one
+          (mapFst_step_revFx_nil tm encodeIn decodeOut σ inp park out S)
+  | cons b work ih =>
+      have h1 := mapFst_evals_one
+        (mapFst_step_revFx_cons tm encodeIn decodeOut σ b work inp park out S)
+      have h2 := ih (b :: inp)
+      have h := EvalsToInTime.trans
+        (TM2.step (mapFstComputer tm encodeIn decodeOut).m) 1 (work.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_assoc, Nat.add_comm,
+        Nat.add_left_comm] using h
+
+noncomputable def mapFst_evals_emitW (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (left park work out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .emitW)) (σ, none)
+        left park work out S)
+      (some (mapFstCfg (some (Sum.inl .emitSep)) (σ, none)
+        [] park work
+        (List.reverse (left.flatMap fun c => [true, c]) ++ out) S))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      simpa [List.flatMap] using
+        mapFst_evals_one
+          (mapFst_step_emitW_nil tm encodeIn decodeOut σ park work out S)
+  | cons c left ih =>
+      have h1 := mapFst_evals_one
+        (mapFst_step_emitW_cons tm encodeIn decodeOut σ c left park work out S)
+      have h2 := ih (c :: true :: out)
+      have h := EvalsToInTime.trans
+        (TM2.step (mapFstComputer tm encodeIn decodeOut).m) 1 (left.length + 1)
+        _ _ _ h1 h2
+      have hout :
+          List.reverse ((c :: left).flatMap fun c => [true, c]) ++ out =
+            List.reverse (left.flatMap fun c => [true, c]) ++ c :: true :: out := by
+        simp [List.flatMap_cons, List.reverse_cons]
+      simpa [List.length_cons, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm,
+        hout, List.append_assoc] using h
+
+noncomputable def mapFst_evals_emitFstPrep (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (park work out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .emitFstPrep)) (σ, none)
+        [] park work out S)
+      (some (mapFstCfg (some (Sum.inl .emitFst)) (σ, none)
+        [] [] (List.reverse park ++ work) out S))
+      (park.length + 1) := by
+  induction park generalizing work with
+  | nil =>
+      exact mapFst_evals_one
+        (mapFst_step_emitFstPrep_nil tm encodeIn decodeOut σ work out S)
+  | cons c park ih =>
+      have h1 := mapFst_evals_one
+        (mapFst_step_emitFstPrep_cons tm encodeIn decodeOut σ c park work out S)
+      have h2 := ih (c :: work)
+      have h := EvalsToInTime.trans
+        (TM2.step (mapFstComputer tm encodeIn decodeOut).m) 1 (park.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_assoc, Nat.add_comm,
+        Nat.add_left_comm] using h
+
+noncomputable def mapFst_evals_emitFst (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (left out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .emitFst)) (σ, none)
+        [] [] left out S)
+      (some (mapFstCfg (some (Sum.inl .rev1)) (σ, none)
+        [] [] [] (List.reverse left ++ out) S))
+      (left.length + 1) := by
+  induction left generalizing out with
+  | nil =>
+      exact mapFst_evals_one
+        (mapFst_step_emitFst_nil tm encodeIn decodeOut σ out S)
+  | cons c left ih =>
+      have h1 := mapFst_evals_one
+        (mapFst_step_emitFst_cons tm encodeIn decodeOut σ c left out S)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans
+        (TM2.step (mapFstComputer tm encodeIn decodeOut).m) 1 (left.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_assoc, Nat.add_comm,
+        Nat.add_left_comm] using h
+
+noncomputable def mapFst_evals_rev1 (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (out park : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .rev1)) (σ, none)
+        [] park [] out S)
+      (some (mapFstCfg (some (Sum.inl .rev2)) (σ, none)
+        [] (List.reverse out ++ park) [] [] S))
+      (out.length + 1) := by
+  induction out generalizing park with
+  | nil =>
+      exact mapFst_evals_one
+        (mapFst_step_rev1_nil tm encodeIn decodeOut σ park S)
+  | cons c out ih =>
+      have h1 := mapFst_evals_one
+        (mapFst_step_rev1_cons tm encodeIn decodeOut σ c out park S)
+      have h2 := ih (c :: park)
+      have h := EvalsToInTime.trans
+        (TM2.step (mapFstComputer tm encodeIn decodeOut).m) 1 (out.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_assoc, Nat.add_comm,
+        Nat.add_left_comm] using h
+
+noncomputable def mapFst_evals_rev2 (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (park work : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .rev2)) (σ, none)
+        [] park work [] S)
+      (some (mapFstCfg (some (Sum.inl .rev3)) (σ, none)
+        [] [] (List.reverse park ++ work) [] S))
+      (park.length + 1) := by
+  induction park generalizing work with
+  | nil =>
+      exact mapFst_evals_one
+        (mapFst_step_rev2_nil tm encodeIn decodeOut σ work S)
+  | cons c park ih =>
+      have h1 := mapFst_evals_one
+        (mapFst_step_rev2_cons tm encodeIn decodeOut σ c park work S)
+      have h2 := ih (c :: work)
+      have h := EvalsToInTime.trans
+        (TM2.step (mapFstComputer tm encodeIn decodeOut).m) 1 (park.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_assoc, Nat.add_comm,
+        Nat.add_left_comm] using h
+
+noncomputable def mapFst_evals_rev3 (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (work out : List Bool)
+    (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .rev3)) (σ, none)
+        [] [] work out S)
+      (some (mapFstCfg (some (Sum.inl .haltDrain)) (σ, none)
+        [] [] [] (List.reverse work ++ out) S))
+      (work.length + 1) := by
+  induction work generalizing out with
+  | nil =>
+      exact mapFst_evals_one
+        (mapFst_step_rev3_nil tm encodeIn decodeOut σ out S)
+  | cons c work ih =>
+      have h1 := mapFst_evals_one
+        (mapFst_step_rev3_cons tm encodeIn decodeOut σ c work out S)
+      have h2 := ih (c :: out)
+      have h := EvalsToInTime.trans
+        (TM2.step (mapFstComputer tm encodeIn decodeOut).m) 1 (work.length + 1)
+        _ _ _ h1 h2
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_assoc, Nat.add_comm,
+        Nat.add_left_comm] using h
+
+/-- Triple reverse restoring `encodePair` order on `out`. -/
+noncomputable def mapFst_evals_unreverse (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (ep : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .rev1)) (σ, none)
+        [] [] [] (List.reverse ep) S)
+      (some (mapFstCfg (some (Sum.inl .haltDrain)) (σ, none)
+        [] [] [] ep S))
+      ((ep.length + 1) + ((ep.length + 1) + (ep.length + 1))) := by
+  have h1 := mapFst_evals_rev1 tm encodeIn decodeOut σ (List.reverse ep) [] S
+  have h1' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .rev1)) (σ, none) [] [] [] (List.reverse ep) S)
+      (some (mapFstCfg (some (Sum.inl .rev2)) (σ, none) [] ep [] [] S))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h1
+  have h2 := mapFst_evals_rev2 tm encodeIn decodeOut σ ep [] S
+  have h2' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .rev2)) (σ, none) [] ep [] [] S)
+      (some (mapFstCfg (some (Sum.inl .rev3)) (σ, none)
+        [] [] (List.reverse ep) [] S))
+      (ep.length + 1) := by
+    simpa [List.append_nil] using h2
+  have h3 := mapFst_evals_rev3 tm encodeIn decodeOut σ (List.reverse ep) [] S
+  have h3' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .rev3)) (σ, none)
+        [] [] (List.reverse ep) [] S)
+      (some (mapFstCfg (some (Sum.inl .haltDrain)) (σ, none) [] [] [] ep S))
+      (ep.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using h3
+  have h12 := EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    (ep.length + 1) (ep.length + 1) _ _ _ h1' h2'
+  exact EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    ((ep.length + 1) + (ep.length + 1)) (ep.length + 1) _ _ _ h12 h3'
 
 
 end SATurday.Bridge
