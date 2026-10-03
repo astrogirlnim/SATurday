@@ -5541,6 +5541,503 @@ noncomputable def mapFst_evals_unreverse (tm : FinTM2)
     (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
     ((ep.length + 1) + (ep.length + 1)) (ep.length + 1) _ _ _ h12 h3'
 
+/-- Halt drain with empty input stack. -/
+noncomputable def mapFst_evals_haltDrain_nil (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (park work out : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .haltDrain)) (σ, none) [] park work out S)
+      (some (mapFstCfg none (σ, none) [] park work out S)) 1 :=
+  mapFst_evals_one
+    (mapFst_step_haltDrain_nil tm encodeIn decodeOut σ park work out S)
+
+theorem reverse_encodePair (x y : List Bool) :
+    List.reverse (encodePair (x, y)) =
+      List.reverse y ++ false ::
+        List.reverse (x.flatMap fun b => [true, b]) := by
+  simp [encodePair, List.reverse_append, List.reverse_cons]
+
+/-- Emit pipeline from forward `fx` on `inp` and parked `reverse y`.
+`EvalsToInTime.trans` yields `m₂ + m₁`, so the packaged bound is written in
+that addition order. -/
+noncomputable def mapFst_evals_emit (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (fx y : List Bool) (S : ∀ k, List (tm.Γ k)) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .emitW)) (σ, none)
+        fx (List.reverse y) [] [] S)
+      (some (mapFstCfg (some (Sum.inl .rev1)) (σ, none)
+        [] [] [] (List.reverse (encodePair (fx, y))) S))
+      ((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) := by
+  have hW := mapFst_evals_emitW tm encodeIn decodeOut σ fx (List.reverse y) [] [] S
+  have hW' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .emitW)) (σ, none)
+        fx (List.reverse y) [] [] S)
+      (some (mapFstCfg (some (Sum.inl .emitSep)) (σ, none)
+        [] (List.reverse y) []
+        (List.reverse (fx.flatMap fun c => [true, c])) S))
+      (fx.length + 1) := by
+    simpa [List.append_nil] using hW
+  have hSep := mapFst_evals_one
+    (mapFst_step_emitSep tm encodeIn decodeOut σ (List.reverse y) []
+      (List.reverse (fx.flatMap fun c => [true, c])) S)
+  have hPrep :=
+    mapFst_evals_emitFstPrep tm encodeIn decodeOut σ (List.reverse y) []
+      (false :: List.reverse (fx.flatMap fun c => [true, c])) S
+  have hPrep' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .emitFstPrep)) (σ, none)
+        [] (List.reverse y) []
+        (false :: List.reverse (fx.flatMap fun c => [true, c])) S)
+      (some (mapFstCfg (some (Sum.inl .emitFst)) (σ, none)
+        [] [] y (false :: List.reverse (fx.flatMap fun c => [true, c])) S))
+      (y.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using hPrep
+  have hFst :=
+    mapFst_evals_emitFst tm encodeIn decodeOut σ y
+      (false :: List.reverse (fx.flatMap fun c => [true, c])) S
+  have hFst' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .emitFst)) (σ, none)
+        [] [] y (false :: List.reverse (fx.flatMap fun c => [true, c])) S)
+      (some (mapFstCfg (some (Sum.inl .rev1)) (σ, none)
+        [] [] [] (List.reverse (encodePair (fx, y))) S))
+      (y.length + 1) := by
+    simpa [reverse_encodePair, List.append_assoc] using hFst
+  have h1 := EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    (fx.length + 1) 1 _ _ _ hW' hSep
+  have h2 := EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    (1 + (fx.length + 1)) (y.length + 1) _ _ _ h1 hPrep'
+  exact EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    ((y.length + 1) + (1 + (fx.length + 1))) (y.length + 1) _ _ _ h2 hFst'
+
+/-- Post-guest: copyOut, revFx, emit, unreverse, halt. -/
+noncomputable def mapFst_evals_afterGuest (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (fx y : List Bool) (S : ∀ k, List (tm.Γ k))
+    (encodeOut : Bool → tm.Γ tm.k₁)
+    (hdec : ∀ b, decodeOut (encodeOut b) = b)
+    (hS : S tm.k₁ = List.map encodeOut fx) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .copyOutPop)) (σ, none)
+        [] (List.reverse y) [] [] S)
+      (some (mapFstCfg none (σ, none)
+        [] [] [] (encodePair (fx, y)) (Function.update S tm.k₁ [])))
+      (1 +
+        (((encodePair (fx, y)).length + 1 +
+            ((encodePair (fx, y)).length + 1 + (encodePair (fx, y)).length + 1)) +
+          (((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) +
+            ((fx.length + 1) + (2 * fx.length + 1))))) := by
+  have hCopy :=
+    mapFst_evals_copyOut tm encodeIn decodeOut σ fx (List.reverse y) [] [] S
+      encodeOut hdec hS
+  have hCopy' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .copyOutPop)) (σ, none)
+        [] (List.reverse y) [] [] S)
+      (some (mapFstCfg (some (Sum.inl .revFx)) (σ, none)
+        [] (List.reverse y) (List.reverse fx) [] (Function.update S tm.k₁ [])))
+      (2 * fx.length + 1) := by
+    simpa [List.append_nil] using hCopy
+  have hRevFx :=
+    mapFst_evals_revFx tm encodeIn decodeOut σ (List.reverse fx) [] (List.reverse y) []
+      (Function.update S tm.k₁ [])
+  have hRevFx' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .revFx)) (σ, none)
+        [] (List.reverse y) (List.reverse fx) [] (Function.update S tm.k₁ []))
+      (some (mapFstCfg (some (Sum.inl .emitW)) (σ, none)
+        fx (List.reverse y) [] [] (Function.update S tm.k₁ [])))
+      (fx.length + 1) := by
+    simpa [List.reverse_reverse, List.append_nil, List.length_reverse] using hRevFx
+  have hEmit :=
+    mapFst_evals_emit tm encodeIn decodeOut σ fx y (Function.update S tm.k₁ [])
+  have hUnrev :=
+    mapFst_evals_unreverse tm encodeIn decodeOut σ (encodePair (fx, y))
+      (Function.update S tm.k₁ [])
+  have hHalt :=
+    mapFst_evals_haltDrain_nil tm encodeIn decodeOut σ [] [] (encodePair (fx, y))
+      (Function.update S tm.k₁ [])
+  have h1 := EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    (2 * fx.length + 1) (fx.length + 1) _ _ _ hCopy' hRevFx'
+  have h2 := EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    ((fx.length + 1) + (2 * fx.length + 1))
+    ((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) _ _ _ h1 hEmit
+  have h3 := EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    (((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) +
+      ((fx.length + 1) + (2 * fx.length + 1)))
+    ((encodePair (fx, y)).length + 1 +
+      ((encodePair (fx, y)).length + 1 + (encodePair (fx, y)).length + 1))
+    _ _ _ h2 hUnrev
+  exact EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    (((encodePair (fx, y)).length + 1 +
+        ((encodePair (fx, y)).length + 1 + (encodePair (fx, y)).length + 1)) +
+      (((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) +
+        ((fx.length + 1) + (2 * fx.length + 1))))
+    1 _ _ _ h3 hHalt
+
+/-- Pre-guest host: parse, park, copyIn onto guest `k₀`. -/
+noncomputable def mapFst_evals_beforeGuest (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (σ : tm.σ) (x y : List Bool) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .parse)) (σ, none)
+        (encodePair (x, y)) [] [] [] mapFstEmptyGuest)
+      (some (mapFstCfg (some (Sum.inr tm.main)) (σ, none)
+        [] (List.reverse y) [] []
+        (Function.update mapFstEmptyGuest tm.k₀ (List.map encodeIn x))))
+      ((2 * x.length + 1) + ((y.length + 1) + (2 * x.length + 1))) := by
+  have hParse :=
+    mapFst_evals_parse tm encodeIn decodeOut σ x y [] [] [] mapFstEmptyGuest
+  have hParse' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .parse)) (σ, none)
+        (encodePair (x, y)) [] [] [] mapFstEmptyGuest)
+      (some (mapFstCfg (some (Sum.inl .loadPark)) (σ, none)
+        y [] (List.reverse x) [] mapFstEmptyGuest))
+      (2 * x.length + 1) := by
+    simpa [List.append_nil] using hParse
+  have hPark :=
+    mapFst_evals_loadPark tm encodeIn decodeOut σ y [] (List.reverse x) []
+      mapFstEmptyGuest
+  have hPark' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .loadPark)) (σ, none)
+        y [] (List.reverse x) [] mapFstEmptyGuest)
+      (some (mapFstCfg (some (Sum.inl .copyInPop)) (σ, none)
+        [] (List.reverse y) (List.reverse x) [] mapFstEmptyGuest))
+      (y.length + 1) := by
+    simpa [List.append_nil] using hPark
+  have hCopyIn :=
+    mapFst_evals_copyIn tm encodeIn decodeOut σ (List.reverse y) (List.reverse x) []
+      mapFstEmptyGuest
+  have hCopyIn' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .copyInPop)) (σ, none)
+        [] (List.reverse y) (List.reverse x) [] mapFstEmptyGuest)
+      (some (mapFstCfg (some (Sum.inr tm.main)) (σ, none)
+        [] (List.reverse y) [] []
+        (Function.update mapFstEmptyGuest tm.k₀ (List.map encodeIn x))))
+      (2 * x.length + 1) := by
+    have hempty : mapFstEmptyGuest (K := tm.K) (Γ := tm.Γ) tm.k₀ = [] := rfl
+    simpa [List.reverse_reverse, List.map_nil, List.append_nil, List.length_reverse,
+      hempty] using hCopyIn
+  have h1 := EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    (2 * x.length + 1) (y.length + 1) _ _ _ hParse' hPark'
+  exact EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    ((y.length + 1) + (2 * x.length + 1)) (2 * x.length + 1) _ _ _ h1 hCopyIn'
+
+theorem mapFst_initList (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (s : List Bool) :
+    initList (mapFstComputer tm encodeIn decodeOut) s =
+      mapFstCfg (some (Sum.inl .parse)) (tm.initialState, none)
+        s [] [] [] mapFstEmptyGuest := by
+  let tm' := mapFstComputer tm encodeIn decodeOut
+  letI : DecidableEq (MapFstK tm.K) := tm'.kDecidableEq
+  refine congrArg (fun stk : ∀ k, List (tm'.Γ k) =>
+      (⟨some (Sum.inl MapFstHostLabel.parse), (tm.initialState, (none : Option Bool)),
+        stk⟩ : tm'.Cfg)) ?_
+  funext k
+  cases k with
+  | inl h =>
+      cases h with
+      | inp =>
+          change (initList tm' s).stk (Sum.inl MapFstHost.inp) = s
+          simpa [tm', mapFstComputer] using initList_stk_k₀ tm' s
+      | park =>
+          have hne : (Sum.inl MapFstHost.park : MapFstK tm.K) ≠ tm'.k₀ := by
+            simp [tm', mapFstComputer]
+          simpa [mapFstStk, mapFstHostStk, mapFstEmptyGuest] using
+            initList_stk_of_ne tm' s _ hne
+      | work =>
+          have hne : (Sum.inl MapFstHost.work : MapFstK tm.K) ≠ tm'.k₀ := by
+            simp [tm', mapFstComputer]
+          simpa [mapFstStk, mapFstHostStk, mapFstEmptyGuest] using
+            initList_stk_of_ne tm' s _ hne
+      | out =>
+          have hne : (Sum.inl MapFstHost.out : MapFstK tm.K) ≠ tm'.k₀ := by
+            simp [tm', mapFstComputer]
+          simpa [mapFstStk, mapFstHostStk, mapFstEmptyGuest] using
+            initList_stk_of_ne tm' s _ hne
+  | inr k =>
+      have hne : (Sum.inr k : MapFstK tm.K) ≠ tm'.k₀ := by
+        simp [tm', mapFstComputer]
+      simpa [mapFstStk, mapFstEmptyGuest] using initList_stk_of_ne tm' s _ hne
+
+theorem mapFst_haltList (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (s : List Bool) :
+    haltList (mapFstComputer tm encodeIn decodeOut) s =
+      mapFstCfg none (tm.initialState, none) [] [] [] s mapFstEmptyGuest := by
+  let tm' := mapFstComputer tm encodeIn decodeOut
+  letI : DecidableEq (MapFstK tm.K) := tm'.kDecidableEq
+  refine congrArg (fun stk : ∀ k, List (tm'.Γ k) =>
+      (⟨(none : Option (MapFstLabel tm.Λ)), (tm.initialState, (none : Option Bool)),
+        stk⟩ : tm'.Cfg)) ?_
+  funext k
+  cases k with
+  | inl h =>
+      cases h with
+      | out =>
+          change (haltList tm' s).stk (Sum.inl MapFstHost.out) = s
+          simpa [tm', mapFstComputer] using haltList_stk_k₁ tm' s
+      | inp =>
+          have hne : (Sum.inl MapFstHost.inp : MapFstK tm.K) ≠ tm'.k₁ := by
+            simp [tm', mapFstComputer]
+          simpa [mapFstStk, mapFstHostStk, mapFstEmptyGuest] using
+            haltList_stk_of_ne tm' s _ hne
+      | park =>
+          have hne : (Sum.inl MapFstHost.park : MapFstK tm.K) ≠ tm'.k₁ := by
+            simp [tm', mapFstComputer]
+          simpa [mapFstStk, mapFstHostStk, mapFstEmptyGuest] using
+            haltList_stk_of_ne tm' s _ hne
+      | work =>
+          have hne : (Sum.inl MapFstHost.work : MapFstK tm.K) ≠ tm'.k₁ := by
+            simp [tm', mapFstComputer]
+          simpa [mapFstStk, mapFstHostStk, mapFstEmptyGuest] using
+            haltList_stk_of_ne tm' s _ hne
+  | inr k =>
+      have hne : (Sum.inr k : MapFstK tm.K) ≠ tm'.k₁ := by
+        simp [tm', mapFstComputer]
+      simpa [mapFstStk, mapFstEmptyGuest] using haltList_stk_of_ne tm' s _ hne
+
+theorem mapFst_lift_initList (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (park : List Bool) (x : List Bool) :
+    liftMapFstGuestCfg tm encodeIn decodeOut [] park [] []
+        (initList tm (List.map encodeIn x)) =
+      mapFstCfg (some (Sum.inr tm.main)) (tm.initialState, none)
+        [] park [] []
+        (Function.update mapFstEmptyGuest tm.k₀ (List.map encodeIn x)) := by
+  have hstk := initList_stk_eq_update_empty tm (List.map encodeIn x)
+  have hstk' :
+      (initList tm (List.map encodeIn x)).stk =
+        Function.update mapFstEmptyGuest tm.k₀ (List.map encodeIn x) := by
+    simpa [mapFstEmptyGuest, emptyStk] using hstk
+  simp only [liftMapFstGuestCfg, initList]
+  change mapFstCfg (some (Sum.inr tm.main)) (tm.initialState, none)
+      [] park [] [] (initList tm (List.map encodeIn x)).stk =
+    mapFstCfg (some (Sum.inr tm.main)) (tm.initialState, none)
+      [] park [] []
+      (Function.update mapFstEmptyGuest tm.k₀ (List.map encodeIn x))
+  exact congrArg _ hstk'
+
+theorem mapFst_lift_haltList (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (park : List Bool) (fx : List (tm.Γ tm.k₁)) :
+    liftMapFstGuestCfg tm encodeIn decodeOut [] park [] [] (haltList tm fx) =
+      mapFstCfg (some (Sum.inl .copyOutPop)) (tm.initialState, none)
+        [] park [] [] (haltList tm fx).stk := by
+  simp [liftMapFstGuestCfg, haltList, mapFstCfg]
+
+/-- Full mapFst evaluation under a guest `outputsFun` run. -/
+noncomputable def mapFst_evals (tm : FinTM2)
+    (encodeIn : Bool → tm.Γ tm.k₀) (decodeOut : tm.Γ tm.k₁ → Bool)
+    (encodeOut : Bool → tm.Γ tm.k₁)
+    (hdec : ∀ b, decodeOut (encodeOut b) = b)
+    (x y fx : List Bool) (m : ℕ)
+    (hguest : EvalsToInTime tm.step
+      (initList tm (List.map encodeIn x))
+      (some (haltList tm (List.map encodeOut fx))) m) :
+    EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (initList (mapFstComputer tm encodeIn decodeOut) (encodePair (x, y)))
+      (some (haltList (mapFstComputer tm encodeIn decodeOut)
+        (encodePair (fx, y))))
+      ((1 +
+          (((encodePair (fx, y)).length + 1 +
+              ((encodePair (fx, y)).length + 1 +
+                (encodePair (fx, y)).length + 1)) +
+            (((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) +
+              ((fx.length + 1) + (2 * fx.length + 1))))) +
+        (m + ((2 * x.length + 1) + ((y.length + 1) + (2 * x.length + 1))))) := by
+  let σ := tm.initialState
+  have hBefore := mapFst_evals_beforeGuest tm encodeIn decodeOut σ x y
+  have hBefore' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (initList (mapFstComputer tm encodeIn decodeOut) (encodePair (x, y)))
+      (some (liftMapFstGuestCfg tm encodeIn decodeOut [] (List.reverse y) [] []
+        (initList tm (List.map encodeIn x))))
+      ((2 * x.length + 1) + ((y.length + 1) + (2 * x.length + 1))) := by
+    simpa [mapFst_initList, mapFst_lift_initList] using hBefore
+  have hGuest :=
+    mapFst_evals_guest tm encodeIn decodeOut [] (List.reverse y) [] []
+      (initList tm (List.map encodeIn x))
+      (haltList tm (List.map encodeOut fx)) m hguest
+  have hGuest' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (liftMapFstGuestCfg tm encodeIn decodeOut [] (List.reverse y) [] []
+        (initList tm (List.map encodeIn x)))
+      (some (mapFstCfg (some (Sum.inl .copyOutPop)) (σ, none)
+        [] (List.reverse y) [] [] (haltList tm (List.map encodeOut fx)).stk)) m := by
+    simpa [mapFst_lift_haltList, σ] using hGuest
+  have hS : (haltList tm (List.map encodeOut fx)).stk tm.k₁ =
+      List.map encodeOut fx := haltList_stk_k₁ tm _
+  have hAfter :=
+    mapFst_evals_afterGuest tm encodeIn decodeOut σ fx y
+      (haltList tm (List.map encodeOut fx)).stk encodeOut hdec hS
+  have hCleared :
+      Function.update (haltList tm (List.map encodeOut fx)).stk tm.k₁ [] =
+        mapFstEmptyGuest := by
+    simpa [mapFstEmptyGuest, emptyStk] using
+      haltList_stk_cleared tm (List.map encodeOut fx)
+  have hAfter' : EvalsToInTime (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+      (mapFstCfg (some (Sum.inl .copyOutPop)) (σ, none)
+        [] (List.reverse y) [] [] (haltList tm (List.map encodeOut fx)).stk)
+      (some (haltList (mapFstComputer tm encodeIn decodeOut)
+        (encodePair (fx, y))))
+      (1 +
+        (((encodePair (fx, y)).length + 1 +
+            ((encodePair (fx, y)).length + 1 + (encodePair (fx, y)).length + 1)) +
+          (((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) +
+            ((fx.length + 1) + (2 * fx.length + 1))))) := by
+    simpa [mapFst_haltList, hCleared, σ] using hAfter
+  have h1 := EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    ((2 * x.length + 1) + ((y.length + 1) + (2 * x.length + 1))) m
+    _ _ _ hBefore' hGuest'
+  exact EvalsToInTime.trans
+    (TM2.step (mapFstComputer tm encodeIn decodeOut).m)
+    (m + ((2 * x.length + 1) + ((y.length + 1) + (2 * x.length + 1))))
+    (1 +
+      (((encodePair (fx, y)).length + 1 +
+          ((encodePair (fx, y)).length + 1 + (encodePair (fx, y)).length + 1)) +
+        (((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) +
+          ((fx.length + 1) + (2 * fx.length + 1)))))
+    _ _ _ h1 hAfter'
+
+/-- Polynomial time majorant for the mapFst host overhead plus guest. -/
+noncomputable def mapFstTime (guestTime outBound : Polynomial ℕ) : Polynomial ℕ :=
+  guestTime.comp Polynomial.X +
+    Polynomial.C 64 * (2 * (outBound.comp Polynomial.X) + Polynomial.X + 1)
+
+theorem mapFstTime_eval (guestTime outBound : Polynomial ℕ) (n : ℕ) :
+    (mapFstTime guestTime outBound).eval n =
+      guestTime.eval n + 64 * (2 * outBound.eval n + n + 1) := by
+  simp [mapFstTime, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_comp,
+    Polynomial.eval_X, Polynomial.eval_one, Polynomial.eval_C, Polynomial.eval_ofNat]
+
+theorem mapFst_time_bound (x y fx : List Bool)
+    (guestTime outBound : Polynomial ℕ)
+    (hfx : fx.length ≤ outBound.eval x.length)
+    (hg : guestTime.eval x.length ≤ guestTime.eval (encodePair (x, y)).length) :
+    (1 +
+        (((encodePair (fx, y)).length + 1 +
+            ((encodePair (fx, y)).length + 1 +
+              (encodePair (fx, y)).length + 1)) +
+          (((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) +
+            ((fx.length + 1) + (2 * fx.length + 1))))) +
+      (guestTime.eval x.length +
+        ((2 * x.length + 1) + ((y.length + 1) + (2 * x.length + 1)))) ≤
+      (mapFstTime guestTime outBound).eval (encodePair (x, y)).length := by
+  set N := (encodePair (x, y)).length
+  have hN : N = 2 * x.length + 1 + y.length := by
+    simp [N, length_encodePair]
+  have hx : x.length ≤ N := by omega
+  have hy : y.length ≤ N := by omega
+  have hfx' : fx.length ≤ outBound.eval N :=
+    le_trans hfx (poly_eval_mono outBound hx)
+  have hep : (encodePair (fx, y)).length = 2 * fx.length + 1 + y.length := by
+    simp [length_encodePair]
+  have hep' : (encodePair (fx, y)).length ≤ 2 * outBound.eval N + 1 + N := by
+    omega
+  have hguest : guestTime.eval x.length ≤ guestTime.eval N := hg
+  have hhost :
+      (1 +
+          (((encodePair (fx, y)).length + 1 +
+              ((encodePair (fx, y)).length + 1 +
+                (encodePair (fx, y)).length + 1)) +
+            (((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) +
+              ((fx.length + 1) + (2 * fx.length + 1))))) +
+        ((2 * x.length + 1) + ((y.length + 1) + (2 * x.length + 1))) ≤
+        64 * (2 * outBound.eval N + N + 1) := by
+    omega
+  have hLHS :
+      (1 +
+          (((encodePair (fx, y)).length + 1 +
+              ((encodePair (fx, y)).length + 1 +
+                (encodePair (fx, y)).length + 1)) +
+            (((y.length + 1) + ((y.length + 1) + (1 + (fx.length + 1)))) +
+              ((fx.length + 1) + (2 * fx.length + 1))))) +
+        (guestTime.eval x.length +
+          ((2 * x.length + 1) + ((y.length + 1) + (2 * x.length + 1)))) ≤
+        guestTime.eval N + 64 * (2 * outBound.eval N + N + 1) := by
+    omega
+  simpa [mapFstTime_eval, N] using hLHS
+
+/-- Generic mapFst under `encodePair`: `(x,y) ↦ (f x, y)`. -/
+noncomputable def mapFstComputableInPolyTime {f : List Bool → List Bool}
+    (hf : TM2ComputableInPolyTime idBitEnc idBitEnc f)
+    (outBound : Polynomial ℕ)
+    (hout : ∀ s, (f s).length ≤ outBound.eval s.length) :
+    TM2ComputableInPolyTime encodePair encodePair (fun p => (f p.1, p.2)) := by
+  let encodeIn : Bool → hf.tm.Γ hf.tm.k₀ := hf.inputAlphabet.symm
+  let decodeOut : hf.tm.Γ hf.tm.k₁ → Bool := hf.outputAlphabet
+  let encodeOut : Bool → hf.tm.Γ hf.tm.k₁ := hf.outputAlphabet.symm
+  have hdec : ∀ b, decodeOut (encodeOut b) = b := by
+    intro b; simp [decodeOut, encodeOut]
+  let tm := mapFstComputer hf.tm encodeIn decodeOut
+  let inA : tm.Γ tm.k₀ ≃ Bool := by
+    simpa [tm, mapFstComputer, MapFstΓ, MapFstK] using (Equiv.refl Bool)
+  let outA : tm.Γ tm.k₁ ≃ Bool := by
+    simpa [tm, mapFstComputer, MapFstΓ, MapFstK] using (Equiv.refl Bool)
+  let timeBound := mapFstTime hf.time outBound
+  refine
+    { tm := tm
+      inputAlphabet := inA
+      outputAlphabet := outA
+      time := timeBound
+      outputsFun := ?out }
+  case out =>
+    intro p
+    rcases p with ⟨x, y⟩
+    change TM2OutputsInTime tm (List.map inA.invFun (encodePair (x, y)))
+      (some (List.map outA.invFun (encodePair (f x, y))))
+      (timeBound.eval (encodePair (x, y)).length)
+    have hin :
+        List.map inA.invFun (encodePair (x, y)) = encodePair (x, y) := by
+      change List.map (Equiv.refl Bool).symm (encodePair (x, y)) =
+        encodePair (x, y)
+      simp
+    have hout' :
+        List.map outA.invFun (encodePair (f x, y)) = encodePair (f x, y) := by
+      change List.map (Equiv.refl Bool).symm (encodePair (f x, y)) =
+        encodePair (f x, y)
+      simp
+    have hguest0 : EvalsToInTime hf.tm.step
+        (initList hf.tm (List.map hf.inputAlphabet.invFun (idBitEnc x)))
+        (some (haltList hf.tm
+          (List.map hf.outputAlphabet.invFun (idBitEnc (f x)))))
+        (hf.time.eval (idBitEnc x).length) :=
+      hf.outputsFun x
+    have hguest : EvalsToInTime hf.tm.step
+        (initList hf.tm (List.map encodeIn x))
+        (some (haltList hf.tm (List.map encodeOut (f x))))
+        (hf.time.eval x.length) := by
+      simpa [encodeIn, encodeOut, idBitEnc, List.map_id, List.length_map] using
+        hguest0
+    have heval :=
+      mapFst_evals hf.tm encodeIn decodeOut encodeOut hdec x y (f x)
+        (hf.time.eval x.length) hguest
+    have hbound :=
+      mapFst_time_bound x y (f x) hf.time outBound (hout x)
+        (by
+          have hx : x.length ≤ (encodePair (x, y)).length := by
+            simp [length_encodePair]; omega
+          exact poly_eval_mono hf.time hx)
+    have hmono := evalsToInTime_le_mono heval hbound
+    refine evalsToInTime_congr_end
+      (by
+        have hstart :
+            initList tm (List.map inA.invFun (encodePair (x, y))) =
+              initList tm (encodePair (x, y)) :=
+          congrArg (initList tm) hin
+        exact { steps := hmono.steps
+                steps_le_m := by simpa [timeBound] using hmono.steps_le_m
+                evals_in_steps := by
+                  rw [hstart]
+                  simpa [tm] using hmono.evals_in_steps })
+      (congrArg some (congrArg (haltList tm) hout'.symm))
 
 end SATurday.Bridge
 
