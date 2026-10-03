@@ -165,13 +165,13 @@ Cook Levin reduction (hard direction) remain. Do not restart
   (`(x,y) ↦ (true^(a*|x|+b), y)`); `mapSndScaleAppendComputableInPolyTime`
   via swap compose (`(φ,π) ↦ (φ, true^(a*|π|+b))`);
   `polyEvalUnaryQuadraticComputableInPolyTime` packaged (Horner
-  `a X^2 + b X + c`); `mapFstComputer` product scaffolding landed in
-  `Complexity.lean` (parse park guest emit host + guest-phase
-  `mapFst_evals_guest` lift); remaining: host parse copy emit Evals,
-  `mapFstComputableInPolyTime` / `mapSndComputableInPolyTime` packaging,
-  Horner `polyEvalUnaryComputableInPolyTime` WF, lengthOk for opaque p,
-  fan-out compose with `V`, `afterDecodeProofSystem` FinTM2 host,
-  Cook Levin hard direction; `summit_corollary_of_easy` waits)
+  `a X^2 + b X + c`); `mapFstComputableInPolyTime` packaged under
+  `encodePair` (product `mapFstComputer` host parse park copyIn guest
+  copyOut emit rev); `mapSndComputableInPolyTime` via swap compose;
+  remaining: Horner `polyEvalUnaryComputableInPolyTime` WF for arbitrary
+  p, lengthOk for opaque p, fan-out compose with `V`,
+  `afterDecodeProofSystem` FinTM2 host, Cook Levin hard direction;
+  `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
   certified; `proofCheck_eq_bitsEqualPair` and `TAUT_in_NP_of_polyBounded`
