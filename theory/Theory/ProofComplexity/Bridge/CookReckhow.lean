@@ -8618,6 +8618,320 @@ theorem length_mapSndScaleAppend_le_outBound (a b : ℕ) (φ π : List Bool) :
   simpa [mapSndScaleAppendOutBound, Polynomial.eval_comp] using
     le_trans h1 hmono
 
+/-! ## Generic mapSnd under `encodePair` via swap compose
+
+`(x,y) ↦ (x, f y)` as swap, then `mapFst f`, then swap. Reuses
+`swapPairComputer` and `mapFstComputableInPolyTime`. -/
+
+/-- Out-bound for generic mapFst under pair encoding length. -/
+noncomputable def mapFstPairOutBound (outBound : Polynomial ℕ) : Polynomial ℕ :=
+  2 * (outBound.comp Polynomial.X) + Polynomial.X + 1
+
+theorem mapFstPairOutBound_eval (outBound : Polynomial ℕ) (n : ℕ) :
+    (mapFstPairOutBound outBound).eval n =
+      2 * outBound.eval n + n + 1 := by
+  simp [mapFstPairOutBound, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_comp, Polynomial.eval_X, Polynomial.eval_one,
+    Polynomial.eval_ofNat]
+
+theorem length_mapFstPair_le_outBound (f : List Bool → List Bool)
+    (outBound : Polynomial ℕ) (hout : ∀ s, (f s).length ≤ outBound.eval s.length)
+    (x y : List Bool) :
+    (encodePair (f x, y)).length ≤
+      (mapFstPairOutBound outBound).eval (encodePair (x, y)).length := by
+  set N := (encodePair (x, y)).length with hNdef
+  have hN : N = 2 * x.length + 1 + y.length := by
+    simp [hNdef, length_encodePair]
+  have hx : x.length ≤ N := by omega
+  have hy : y.length ≤ N := by omega
+  have hfx : (f x).length ≤ outBound.eval N :=
+    le_trans (hout x) (poly_eval_mono outBound hx)
+  have hgoal :
+      2 * (f x).length + 1 + y.length ≤ 2 * outBound.eval N + N + 1 := by
+    omega
+  simpa [length_encodePair, mapFstPairOutBound_eval, hNdef] using hgoal
+
+/-- Intermediate: `(x,y) ↦ (f y, x)` via swap then mapFst. -/
+noncomputable def swapThenMapFstComputableInPolyTime {f : List Bool → List Bool}
+    (hf : TM2ComputableInPolyTime idBitEnc idBitEnc f)
+    (outBound : Polynomial ℕ)
+    (hout : ∀ s, (f s).length ≤ outBound.eval s.length) :
+    TM2ComputableInPolyTime encodePair encodePair
+      (fun p => (f p.2, p.1)) := by
+  let hmap := mapFstComputableInPolyTime hf outBound hout
+  let decodeOut : swapPairComputer.Γ swapPairComputer.k₁ → Bool := id
+  let encodeIn : Bool → hmap.tm.Γ hmap.tm.k₀ := hmap.inputAlphabet.symm
+  let tm :=
+    seqCompComputer (βΓ := Bool) swapPairComputer hmap.tm decodeOut encodeIn
+  let inA : tm.Γ tm.k₀ ≃ Bool := by
+    simpa [tm, seqCompComputer, CompΓ, CompK] using (Equiv.refl Bool)
+  let outA : tm.Γ tm.k₁ ≃ Bool := by
+    let e : tm.Γ tm.k₁ ≃ hmap.tm.Γ hmap.tm.k₁ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (hmap.tm.Γ hmap.tm.k₁))
+    exact e.trans hmap.outputAlphabet
+  let outP := swapPairOutBound
+  let timeBound : Polynomial ℕ :=
+    swapPairTime + (4 * (outP + 1)) + (hmap.time.comp outP)
+  refine
+    { tm := tm
+      inputAlphabet := inA
+      outputAlphabet := outA
+      time := timeBound
+      outputsFun := ?out }
+  case out =>
+    intro p
+    rcases p with ⟨x, y⟩
+    change TM2OutputsInTime tm (List.map inA.invFun (encodePair (x, y)))
+      (some (List.map outA.invFun (encodePair (f y, x))))
+      (timeBound.eval (encodePair (x, y)).length)
+    set mid := swapPair (x, y) with hmid_def
+    set outp := encodePair (f y, x) with houtp_def
+    have hin :
+        List.map inA.invFun (encodePair (x, y)) = encodePair (x, y) := by
+      change List.map (Equiv.refl Bool).symm (encodePair (x, y)) =
+        encodePair (x, y)
+      simp
+    have hout' :
+        List.map outA.invFun outp =
+          List.map hmap.outputAlphabet.invFun outp := by
+      apply congrArg (fun φb : Bool → tm.Γ tm.k₁ => List.map φb outp)
+      funext b
+      simp only [outA]
+      change (Equiv.refl _).symm (hmap.outputAlphabet.symm b) =
+        hmap.outputAlphabet.symm b
+      rfl
+    have h1 : EvalsToInTime swapPairComputer.step
+        (initList swapPairComputer (encodePair (x, y)))
+        (some (haltList swapPairComputer mid))
+        (swapPairTime.eval (encodePair (x, y)).length) := by
+      simpa [hmid_def, idBitEnc] using
+        evalsToInTime_le_mono (swap_evals x y) (swapPairTime_bound x y)
+    have h2 : EvalsToInTime hmap.tm.step
+        (initList hmap.tm (mid.map (encodeIn ∘ decodeOut)))
+        (some (haltList hmap.tm (List.map hmap.outputAlphabet.invFun outp)))
+        (hmap.time.eval mid.length) := by
+      have hmap_mid : mid.map (encodeIn ∘ decodeOut) =
+          List.map hmap.inputAlphabet.invFun mid := by
+        simp only [mid, decodeOut, encodeIn, List.map_map]
+        refine congrArg (List.map · (swapPair (x, y))) ?_
+        funext b
+        change hmap.inputAlphabet.symm (id b) = hmap.inputAlphabet.symm b
+        rfl
+      rw [hmap_mid, hmid_def]
+      have hmid_enc : swapPair (x, y) = encodePair (y, x) := rfl
+      rw [hmid_enc]
+      simpa [houtp_def] using hmap.outputsFun (y, x)
+    have heval :=
+      seqComp_evals_compose (βΓ := Bool) swapPairComputer hmap.tm
+        decodeOut encodeIn (encodePair (x, y)) mid
+        (List.map hmap.outputAlphabet.invFun outp)
+        (swapPairTime.eval (encodePair (x, y)).length)
+        (hmap.time.eval mid.length) h1 h2
+    set n := (encodePair (x, y)).length with hn_def
+    have hflen : mid.length ≤ outP.eval n := by
+      simpa [hmid_def, hn_def, outP] using length_swapPair_le_outBound x y
+    have hcopy :
+        (2 * mid.length + 1) + (2 * mid.length + 1) ≤ 4 * (outP.eval n + 1) := by
+      have : 4 * (mid.length + 1) ≤ 4 * (outP.eval n + 1) :=
+        Nat.mul_le_mul_left _ (Nat.add_le_add_right hflen 1)
+      omega
+    have hmapT :
+        hmap.time.eval mid.length ≤ (hmap.time.comp outP).eval n := by
+      have h1' : hmap.time.eval mid.length ≤ hmap.time.eval (outP.eval n) :=
+        poly_eval_mono hmap.time hflen
+      simpa [Polynomial.eval_comp] using h1'
+    have hbound :
+        swapPairTime.eval n +
+          (2 * mid.length + 1) + (2 * mid.length + 1) +
+          hmap.time.eval mid.length ≤
+        timeBound.eval n := by
+      have hc := hcopy
+      have hu := hmapT
+      have hstep :
+          swapPairTime.eval n +
+              ((2 * mid.length + 1) + (2 * mid.length + 1)) +
+              hmap.time.eval mid.length ≤
+            swapPairTime.eval n + 4 * (outP.eval n + 1) +
+              (hmap.time.comp outP).eval n := by
+        refine Nat.add_le_add ?_ hu
+        exact Nat.add_le_add_left hc _
+      convert hstep using 1
+      · ac_rfl
+      · simp [timeBound, Polynomial.eval_add, Polynomial.eval_mul,
+          Polynomial.eval_one, Polynomial.eval_ofNat]
+    have hfinal := evalsToInTime_le_mono (by simpa [hn_def] using heval) hbound
+    have hraw : EvalsToInTime tm.step
+        (initList tm (encodePair (x, y)))
+        (some (haltList tm (List.map hmap.outputAlphabet.invFun outp)))
+        (timeBound.eval n) := by
+      simpa [tm, hn_def] using hfinal
+    have hstart :
+        initList tm (List.map inA.invFun (encodePair (x, y))) =
+          initList tm (encodePair (x, y)) :=
+      congrArg (initList tm) hin
+    refine evalsToInTime_congr_end
+      ({ steps := hraw.steps
+         steps_le_m := by simpa [hn_def] using hraw.steps_le_m
+         evals_in_steps := by
+           rw [hstart]
+           exact hraw.evals_in_steps } :
+        EvalsToInTime tm.step
+          (initList tm (List.map inA.invFun (encodePair (x, y))))
+          (some (haltList tm (List.map hmap.outputAlphabet.invFun outp)))
+          (timeBound.eval n))
+      (congrArg some (congrArg (haltList tm) hout'.symm))
+
+/-- Out-bound after swap-then-mapFst. -/
+noncomputable def swapThenMapFstOutBound (outBound : Polynomial ℕ) : Polynomial ℕ :=
+  (mapFstPairOutBound outBound).comp swapPairOutBound
+
+theorem length_swapThenMapFst_generic_le_outBound {f : List Bool → List Bool}
+    (outBound : Polynomial ℕ) (hout : ∀ s, (f s).length ≤ outBound.eval s.length)
+    (x y : List Bool) :
+    (encodePair (f y, x)).length ≤
+      (swapThenMapFstOutBound outBound).eval (encodePair (x, y)).length := by
+  have h1 := length_mapFstPair_le_outBound f outBound hout y x
+  have h2 := length_swapPair_le_outBound x y
+  have hmono :
+      (mapFstPairOutBound outBound).eval (swapPair (x, y)).length ≤
+        (mapFstPairOutBound outBound).eval
+          (swapPairOutBound.eval (encodePair (x, y)).length) :=
+    poly_eval_mono (mapFstPairOutBound outBound) h2
+  simpa [swapThenMapFstOutBound, swapPair, Polynomial.eval_comp] using
+    le_trans h1 hmono
+
+/-- Generic mapSnd under `encodePair`: `(x,y) ↦ (x, f y)`. -/
+noncomputable def mapSndComputableInPolyTime {f : List Bool → List Bool}
+    (hf : TM2ComputableInPolyTime idBitEnc idBitEnc f)
+    (outBound : Polynomial ℕ)
+    (hout : ∀ s, (f s).length ≤ outBound.eval s.length) :
+    TM2ComputableInPolyTime encodePair encodePair (fun p => (p.1, f p.2)) := by
+  let hf' := swapThenMapFstComputableInPolyTime hf outBound hout
+  let decodeOut : hf'.tm.Γ hf'.tm.k₁ → Bool := hf'.outputAlphabet
+  let encodeIn : Bool → swapPairComputer.Γ swapPairComputer.k₀ := id
+  let tm :=
+    seqCompComputer (βΓ := Bool) hf'.tm swapPairComputer decodeOut encodeIn
+  let inA : tm.Γ tm.k₀ ≃ Bool := by
+    let e : tm.Γ tm.k₀ ≃ hf'.tm.Γ hf'.tm.k₀ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (hf'.tm.Γ hf'.tm.k₀))
+    exact e.trans hf'.inputAlphabet
+  let outA : tm.Γ tm.k₁ ≃ Bool := by
+    let e : tm.Γ tm.k₁ ≃ swapPairComputer.Γ swapPairComputer.k₁ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (swapPairComputer.Γ swapPairComputer.k₁))
+    exact e.trans (Equiv.refl Bool)
+  let outP := swapThenMapFstOutBound outBound
+  let timeBound : Polynomial ℕ :=
+    hf'.time + (4 * (outP + 1)) + (swapPairTime.comp outP)
+  refine
+    { tm := tm
+      inputAlphabet := inA
+      outputAlphabet := outA
+      time := timeBound
+      outputsFun := ?out }
+  case out =>
+    intro p
+    rcases p with ⟨x, y⟩
+    change TM2OutputsInTime tm (List.map inA.invFun (encodePair (x, y)))
+      (some (List.map outA.invFun (encodePair (x, f y))))
+      (timeBound.eval (encodePair (x, y)).length)
+    set mid := encodePair (f y, x) with hmid_def
+    set outp := encodePair (x, f y) with houtp_def
+    have hin :
+        List.map inA.invFun (encodePair (x, y)) =
+          List.map hf'.inputAlphabet.invFun (encodePair (x, y)) := by
+      apply congrArg (fun φb : Bool → tm.Γ tm.k₀ =>
+        List.map φb (encodePair (x, y)))
+      funext b
+      simp only [inA]
+      change (Equiv.refl _).symm (hf'.inputAlphabet.symm b) =
+        hf'.inputAlphabet.symm b
+      rfl
+    have hout' :
+        List.map outA.invFun outp = outp := by
+      change List.map (Equiv.refl Bool).symm outp = outp
+      simp [houtp_def]
+    have h1 : EvalsToInTime hf'.tm.step
+        (initList hf'.tm (List.map hf'.inputAlphabet.invFun (encodePair (x, y))))
+        (some (haltList hf'.tm (List.map hf'.outputAlphabet.invFun mid)))
+        (hf'.time.eval (encodePair (x, y)).length) := by
+      simpa [hmid_def] using hf'.outputsFun (x, y)
+    have hmid_map :
+        (List.map hf'.outputAlphabet.invFun mid).map (encodeIn ∘ decodeOut) =
+          mid := by
+      simp only [decodeOut, encodeIn, List.map_map]
+      change List.map (id ∘ hf'.outputAlphabet ∘ hf'.outputAlphabet.symm) mid = mid
+      simp [List.map_id]
+    have h2 : EvalsToInTime swapPairComputer.step
+        (initList swapPairComputer
+          ((List.map hf'.outputAlphabet.invFun mid).map (encodeIn ∘ decodeOut)))
+        (some (haltList swapPairComputer outp))
+        (swapPairTime.eval mid.length) := by
+      rw [hmid_map, hmid_def]
+      have hsw : swapPair (f y, x) = outp := by simp [swapPair, houtp_def]
+      simpa [hsw, idBitEnc] using
+        evalsToInTime_le_mono (swap_evals (f y) x) (swapPairTime_bound (f y) x)
+    have heval :=
+      seqComp_evals_compose (βΓ := Bool) hf'.tm swapPairComputer decodeOut encodeIn
+        (List.map hf'.inputAlphabet.invFun (encodePair (x, y)))
+        (List.map hf'.outputAlphabet.invFun mid) outp
+        (hf'.time.eval (encodePair (x, y)).length)
+        (swapPairTime.eval mid.length) h1 h2
+    set n := (encodePair (x, y)).length with hn_def
+    have hflen : mid.length ≤ outP.eval n := by
+      simpa [hmid_def, hn_def, outP] using
+        length_swapThenMapFst_generic_le_outBound outBound hout x y
+    have hcopy :
+        (2 * mid.length + 1) + (2 * mid.length + 1) ≤ 4 * (outP.eval n + 1) := by
+      have : 4 * (mid.length + 1) ≤ 4 * (outP.eval n + 1) :=
+        Nat.mul_le_mul_left _ (Nat.add_le_add_right hflen 1)
+      omega
+    have hswT :
+        swapPairTime.eval mid.length ≤ (swapPairTime.comp outP).eval n := by
+      have h1' : swapPairTime.eval mid.length ≤
+          swapPairTime.eval (outP.eval n) :=
+        poly_eval_mono swapPairTime hflen
+      simpa [Polynomial.eval_comp] using h1'
+    have hbound :
+        hf'.time.eval n +
+          (2 * mid.length + 1) + (2 * mid.length + 1) +
+          swapPairTime.eval mid.length ≤
+        timeBound.eval n := by
+      have hc := hcopy
+      have hu := hswT
+      have hstep :
+          hf'.time.eval n +
+              ((2 * mid.length + 1) + (2 * mid.length + 1)) +
+              swapPairTime.eval mid.length ≤
+            hf'.time.eval n + 4 * (outP.eval n + 1) +
+              (swapPairTime.comp outP).eval n := by
+        refine Nat.add_le_add ?_ hu
+        exact Nat.add_le_add_left hc _
+      convert hstep using 1
+      · ac_rfl
+      · simp [timeBound, Polynomial.eval_add, Polynomial.eval_mul,
+          Polynomial.eval_one, Polynomial.eval_ofNat]
+    have hfinal := evalsToInTime_le_mono (by simpa [hn_def] using heval) hbound
+    have hraw : EvalsToInTime tm.step
+        (initList tm (List.map hf'.inputAlphabet.invFun (encodePair (x, y))))
+        (some (haltList tm outp))
+        (timeBound.eval n) := by
+      simpa [tm, hn_def] using hfinal
+    refine evalsToInTime_congr_end
+      (by
+        have hstart :
+            initList tm (List.map inA.invFun (encodePair (x, y))) =
+              initList tm (List.map hf'.inputAlphabet.invFun (encodePair (x, y))) :=
+          congrArg (initList tm) hin
+        exact { steps := hraw.steps
+                steps_le_m := by simpa [hn_def] using hraw.steps_le_m
+                evals_in_steps := by
+                  rw [hstart]
+                  exact hraw.evals_in_steps })
+      (congrArg some (congrArg (haltList tm) hout'.symm))
+
 /-- Out-bound for `toUnarySelfPair`: `|encodePair (toUnary s, s)| = 3|s|+1`. -/
 noncomputable def toUnarySelfPairOutBound : Polynomial ℕ :=
   3 * Polynomial.X + 1
