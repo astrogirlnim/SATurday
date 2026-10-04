@@ -9273,6 +9273,386 @@ noncomputable def polyEvalUnaryQuadraticComputableInPolyTime (a b c : ℕ) :
   rw [hgoal]
   simp [List.length_replicate, Nat.one_mul]
 
+/-! ## Horner WF: `polyEvalUnaryComputableInPolyTime` for arbitrary `p`
+
+Pipeline for the inductive step (`divX p` already packaged):
+`toUnarySelfPair` then generic `mapSnd` of the IH, then `unaryMul`, then
+`scaleAppend 1 (p.coeff 0)`, matching `polyEvalUnary_horner_eq_scaleAppend_one`. -/
+
+theorem length_polyEvalUnary_le_eval (q : Polynomial ℕ) (s : List Bool) :
+    (polyEvalUnary q s.length).length ≤ q.eval s.length := by
+  simp [length_polyEvalUnary]
+
+/-- Unary mul of `toUnary s` against a unary poly-eval tape. -/
+theorem unaryMul_toUnary_polyEvalUnary (q : Polynomial ℕ) (s : List Bool) :
+    (unaryMul (toUnary s) (polyEvalUnary q s.length)).reverse =
+      List.replicate (s.length * q.eval s.length) true := by
+  have h := unaryMul_of_replicate s.length (q.eval s.length)
+  rw [toUnary, unaryNat, polyEvalUnary, unaryNat, h, List.reverse_replicate]
+
+/-- Out-bound for generic mapSnd under pair encoding length. -/
+noncomputable def mapSndPairOutBound (outBound : Polynomial ℕ) : Polynomial ℕ :=
+  Polynomial.X + outBound
+
+theorem mapSndPairOutBound_eval (outBound : Polynomial ℕ) (n : ℕ) :
+    (mapSndPairOutBound outBound).eval n = n + outBound.eval n := by
+  simp [mapSndPairOutBound, Polynomial.eval_add, Polynomial.eval_X]
+
+theorem length_mapSndPair_le_outBound (f : List Bool → List Bool)
+    (outBound : Polynomial ℕ) (hout : ∀ s, (f s).length ≤ outBound.eval s.length)
+    (x y : List Bool) :
+    (encodePair (x, f y)).length ≤
+      (mapSndPairOutBound outBound).eval (encodePair (x, y)).length := by
+  set N := (encodePair (x, y)).length with hNdef
+  have hN : N = 2 * x.length + 1 + y.length := by
+    simp [hNdef, length_encodePair]
+  have hy : y.length ≤ N := by omega
+  have hfy : (f y).length ≤ outBound.eval N :=
+    le_trans (hout y) (poly_eval_mono outBound hy)
+  have hgoal :
+      2 * x.length + 1 + (f y).length ≤ N + outBound.eval N := by
+    omega
+  simpa [length_encodePair, mapSndPairOutBound_eval, hNdef] using hgoal
+
+/-- `s ↦ encodePair (toUnary s, f s)` via toUnarySelfPair then generic mapSnd. -/
+noncomputable def toUnaryMapSndComputableInPolyTime {f : List Bool → List Bool}
+    (hf : TM2ComputableInPolyTime idBitEnc idBitEnc f)
+    (outBound : Polynomial ℕ)
+    (hout : ∀ s, (f s).length ≤ outBound.eval s.length) :
+    TM2ComputableInPolyTime idBitEnc encodePair
+      (fun s => (toUnary s, f s)) := by
+  let hself := toUnarySelfPairComputableInPolyTime
+  let hmap := mapSndComputableInPolyTime hf outBound hout
+  let decodeOut : hself.tm.Γ hself.tm.k₁ → Bool := hself.outputAlphabet
+  let encodeIn : Bool → hmap.tm.Γ hmap.tm.k₀ := hmap.inputAlphabet.symm
+  let tm :=
+    seqCompComputer (βΓ := Bool) hself.tm hmap.tm decodeOut encodeIn
+  let inA : tm.Γ tm.k₀ ≃ Bool := by
+    let e : tm.Γ tm.k₀ ≃ hself.tm.Γ hself.tm.k₀ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (hself.tm.Γ hself.tm.k₀))
+    exact e.trans hself.inputAlphabet
+  let outA : tm.Γ tm.k₁ ≃ Bool := by
+    let e : tm.Γ tm.k₁ ≃ hmap.tm.Γ hmap.tm.k₁ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (hmap.tm.Γ hmap.tm.k₁))
+    exact e.trans hmap.outputAlphabet
+  let outP := toUnarySelfPairOutBound
+  let timeBound : Polynomial ℕ :=
+    hself.time + (4 * (outP + 1)) + (hmap.time.comp outP)
+  refine
+    { tm := tm
+      inputAlphabet := inA
+      outputAlphabet := outA
+      time := timeBound
+      outputsFun := ?out }
+  case out =>
+    intro s
+    change TM2OutputsInTime tm (List.map inA.invFun (idBitEnc s))
+      (some (List.map outA.invFun (encodePair (toUnary s, f s))))
+      (timeBound.eval (idBitEnc s).length)
+    set mid := encodePair (toUnary s, s) with hmid_def
+    set outp := encodePair (toUnary s, f s) with houtp_def
+    have hin :
+        List.map inA.invFun (idBitEnc s) =
+          List.map hself.inputAlphabet.invFun (idBitEnc s) := by
+      apply congrArg (fun φb : Bool → tm.Γ tm.k₀ => List.map φb (idBitEnc s))
+      funext b
+      simp only [inA]
+      change (Equiv.refl _).symm (hself.inputAlphabet.symm b) =
+        hself.inputAlphabet.symm b
+      rfl
+    have hout' :
+        List.map outA.invFun outp =
+          List.map hmap.outputAlphabet.invFun outp := by
+      apply congrArg (fun φb : Bool → tm.Γ tm.k₁ => List.map φb outp)
+      funext b
+      simp only [outA]
+      change (Equiv.refl _).symm (hmap.outputAlphabet.symm b) =
+        hmap.outputAlphabet.symm b
+      rfl
+    have h1 : EvalsToInTime hself.tm.step
+        (initList hself.tm (List.map hself.inputAlphabet.invFun (idBitEnc s)))
+        (some (haltList hself.tm (List.map hself.outputAlphabet.invFun mid)))
+        (hself.time.eval (idBitEnc s).length) := by
+      simpa [hmid_def] using hself.outputsFun s
+    have hmid_map :
+        (List.map hself.outputAlphabet.invFun mid).map (encodeIn ∘ decodeOut) =
+          List.map hmap.inputAlphabet.invFun mid := by
+      simp only [decodeOut, encodeIn, List.map_map]
+      refine congrArg (List.map · mid) ?_
+      funext b
+      change hmap.inputAlphabet.symm
+          (hself.outputAlphabet (hself.outputAlphabet.symm b)) =
+        hmap.inputAlphabet.symm b
+      simp
+    have h2 : EvalsToInTime hmap.tm.step
+        (initList hmap.tm
+          ((List.map hself.outputAlphabet.invFun mid).map (encodeIn ∘ decodeOut)))
+        (some (haltList hmap.tm (List.map hmap.outputAlphabet.invFun outp)))
+        (hmap.time.eval mid.length) := by
+      rw [hmid_map, hmid_def]
+      simpa [houtp_def, toUnary] using hmap.outputsFun (toUnary s, s)
+    have heval :=
+      seqComp_evals_compose (βΓ := Bool) hself.tm hmap.tm decodeOut encodeIn
+        (List.map hself.inputAlphabet.invFun (idBitEnc s))
+        (List.map hself.outputAlphabet.invFun mid)
+        (List.map hmap.outputAlphabet.invFun outp)
+        (hself.time.eval (idBitEnc s).length)
+        (hmap.time.eval mid.length) h1 h2
+    set n := (idBitEnc s).length with hn_def
+    have hflen : mid.length ≤ outP.eval n := by
+      simpa [hmid_def, hn_def, idBitEnc, outP] using
+        length_toUnarySelfPair_le_outBound s
+    have hcopy :
+        (2 * mid.length + 1) + (2 * mid.length + 1) ≤ 4 * (outP.eval n + 1) := by
+      have : 4 * (mid.length + 1) ≤ 4 * (outP.eval n + 1) :=
+        Nat.mul_le_mul_left _ (Nat.add_le_add_right hflen 1)
+      omega
+    have hmapT :
+        hmap.time.eval mid.length ≤ (hmap.time.comp outP).eval n := by
+      have h1' : hmap.time.eval mid.length ≤ hmap.time.eval (outP.eval n) :=
+        poly_eval_mono hmap.time hflen
+      simpa [Polynomial.eval_comp] using h1'
+    have hbound :
+        hself.time.eval n +
+          (2 * mid.length + 1) + (2 * mid.length + 1) +
+          hmap.time.eval mid.length ≤
+        timeBound.eval n := by
+      have hc := hcopy
+      have hu := hmapT
+      have hstep :
+          hself.time.eval n +
+              ((2 * mid.length + 1) + (2 * mid.length + 1)) +
+              hmap.time.eval mid.length ≤
+            hself.time.eval n + 4 * (outP.eval n + 1) +
+              (hmap.time.comp outP).eval n := by
+        refine Nat.add_le_add ?_ hu
+        exact Nat.add_le_add_left hc _
+      convert hstep using 1
+      · ac_rfl
+      · simp [timeBound, Polynomial.eval_add, Polynomial.eval_mul,
+          Polynomial.eval_one, Polynomial.eval_ofNat]
+    have hfinal := evalsToInTime_le_mono (by simpa [hn_def] using heval) hbound
+    have hraw : EvalsToInTime tm.step
+        (initList tm (List.map hself.inputAlphabet.invFun (idBitEnc s)))
+        (some (haltList tm (List.map hmap.outputAlphabet.invFun outp)))
+        (timeBound.eval n) := by
+      simpa [tm, hn_def] using hfinal
+    have hraw' : EvalsToInTime tm.step
+        (initList tm (List.map inA.invFun (idBitEnc s)))
+        (some (haltList tm (List.map hmap.outputAlphabet.invFun outp)))
+        (timeBound.eval n) := by
+      convert hraw
+    exact evalsToInTime_congr_end hraw'
+      (congrArg some (congrArg (haltList tm) hout'.symm))
+
+/-- Out-bound after toUnarySelfPair then generic mapSnd. -/
+noncomputable def toUnaryMapSndOutBound (outBound : Polynomial ℕ) : Polynomial ℕ :=
+  (mapSndPairOutBound outBound).comp toUnarySelfPairOutBound
+
+theorem length_toUnaryMapSnd_generic_le_outBound {f : List Bool → List Bool}
+    (outBound : Polynomial ℕ) (hout : ∀ s, (f s).length ≤ outBound.eval s.length)
+    (s : List Bool) :
+    (encodePair (toUnary s, f s)).length ≤
+      (toUnaryMapSndOutBound outBound).eval s.length := by
+  have h1 := length_mapSndPair_le_outBound f outBound hout (toUnary s) s
+  have h2 := length_toUnarySelfPair_le_outBound s
+  have hmono := poly_eval_mono (mapSndPairOutBound outBound) h2
+  simpa [toUnaryMapSndOutBound, Polynomial.eval_comp] using le_trans h1 hmono
+
+/-- Horner product: `s ↦ true^(n * q.eval n)` via toUnaryMapSnd then unaryMul. -/
+noncomputable def polyEvalUnaryHornerMulComputableInPolyTime {q : Polynomial ℕ}
+    (hf : TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => polyEvalUnary q s.length)) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => List.replicate (s.length * q.eval s.length) true) := by
+  let hpair :=
+    toUnaryMapSndComputableInPolyTime hf q (length_polyEvalUnary_le_eval q)
+  let decodeOut : hpair.tm.Γ hpair.tm.k₁ → Bool := hpair.outputAlphabet
+  let encodeIn : Bool → unaryMulComputer.Γ unaryMulComputer.k₀ := id
+  let tm :=
+    seqCompComputer (βΓ := Bool) hpair.tm unaryMulComputer decodeOut encodeIn
+  let inA : tm.Γ tm.k₀ ≃ Bool := by
+    let e : tm.Γ tm.k₀ ≃ hpair.tm.Γ hpair.tm.k₀ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (hpair.tm.Γ hpair.tm.k₀))
+    exact e.trans hpair.inputAlphabet
+  let outA : tm.Γ tm.k₁ ≃ Bool := by
+    let e : tm.Γ tm.k₁ ≃ unaryMulComputer.Γ unaryMulComputer.k₁ := by
+      simpa [tm, seqCompComputer, CompΓ, CompK] using
+        (Equiv.refl (unaryMulComputer.Γ unaryMulComputer.k₁))
+    exact e.trans (Equiv.refl Bool)
+  let outP := toUnaryMapSndOutBound q
+  let timeBound : Polynomial ℕ :=
+    hpair.time + (4 * (outP + 1)) + (unaryMulTime.comp outP)
+  refine
+    { tm := tm
+      inputAlphabet := inA
+      outputAlphabet := outA
+      time := timeBound
+      outputsFun := ?out }
+  case out =>
+    intro s
+    change TM2OutputsInTime tm (List.map inA.invFun (idBitEnc s))
+      (some (List.map outA.invFun
+        (idBitEnc (List.replicate (s.length * q.eval s.length) true))))
+      (timeBound.eval (idBitEnc s).length)
+    set mid :=
+      encodePair (toUnary s, polyEvalUnary q s.length) with hmid_def
+    have hin :
+        List.map inA.invFun (idBitEnc s) =
+          List.map hpair.inputAlphabet.invFun (idBitEnc s) := by
+      apply congrArg (fun φb : Bool → tm.Γ tm.k₀ => List.map φb (idBitEnc s))
+      funext b
+      simp only [inA]
+      change (Equiv.refl _).symm (hpair.inputAlphabet.symm b) =
+        hpair.inputAlphabet.symm b
+      rfl
+    have hout :
+        List.map outA.invFun
+            (idBitEnc (List.replicate (s.length * q.eval s.length) true)) =
+          List.replicate (s.length * q.eval s.length) true := by
+      change List.map (Equiv.refl Bool).symm
+          (idBitEnc (List.replicate (s.length * q.eval s.length) true)) =
+        List.replicate (s.length * q.eval s.length) true
+      simp [idBitEnc]
+    have h1 : EvalsToInTime hpair.tm.step
+        (initList hpair.tm (List.map hpair.inputAlphabet.invFun (idBitEnc s)))
+        (some (haltList hpair.tm (List.map hpair.outputAlphabet.invFun mid)))
+        (hpair.time.eval (idBitEnc s).length) := by
+      simpa [hmid_def] using hpair.outputsFun s
+    have hmid_map :
+        (List.map hpair.outputAlphabet.invFun mid).map (encodeIn ∘ decodeOut) =
+          mid := by
+      simp only [decodeOut, encodeIn, List.map_map]
+      change List.map (id ∘ hpair.outputAlphabet ∘ hpair.outputAlphabet.symm) mid =
+        mid
+      simp [List.map_id]
+    have h2 : EvalsToInTime unaryMulComputer.step
+        (initList unaryMulComputer
+          ((List.map hpair.outputAlphabet.invFun mid).map (encodeIn ∘ decodeOut)))
+        (some (haltList unaryMulComputer
+          (List.replicate (s.length * q.eval s.length) true)))
+        (unaryMulTime.eval mid.length) := by
+      rw [hmid_map, hmid_def]
+      have hrev := unaryMul_evals (toUnary s) (polyEvalUnary q s.length)
+      have hsq := unaryMul_toUnary_polyEvalUnary q s
+      simpa [hsq, idBitEnc, List.map_id] using
+        evalsToInTime_le_mono hrev
+          (unaryMulTime_bound (toUnary s) (polyEvalUnary q s.length))
+    have heval :=
+      seqComp_evals_compose (βΓ := Bool) hpair.tm unaryMulComputer decodeOut
+        encodeIn (List.map hpair.inputAlphabet.invFun (idBitEnc s))
+        (List.map hpair.outputAlphabet.invFun mid)
+        (List.replicate (s.length * q.eval s.length) true)
+        (hpair.time.eval (idBitEnc s).length)
+        (unaryMulTime.eval mid.length) h1 h2
+    set n := (idBitEnc s).length with hn_def
+    have hflen : mid.length ≤ outP.eval n := by
+      simpa [hmid_def, hn_def, idBitEnc, outP] using
+        length_toUnaryMapSnd_generic_le_outBound q
+          (length_polyEvalUnary_le_eval q) s
+    have hcopy :
+        (2 * mid.length + 1) + (2 * mid.length + 1) ≤ 4 * (outP.eval n + 1) := by
+      have : 4 * (mid.length + 1) ≤ 4 * (outP.eval n + 1) :=
+        Nat.mul_le_mul_left _ (Nat.add_le_add_right hflen 1)
+      omega
+    have hmul :
+        unaryMulTime.eval mid.length ≤ (unaryMulTime.comp outP).eval n := by
+      have h1' : unaryMulTime.eval mid.length ≤
+          unaryMulTime.eval (outP.eval n) :=
+        poly_eval_mono unaryMulTime hflen
+      simpa [Polynomial.eval_comp] using h1'
+    have hbound :
+        hpair.time.eval n +
+          (2 * mid.length + 1) + (2 * mid.length + 1) +
+          unaryMulTime.eval mid.length ≤
+        timeBound.eval n := by
+      have hc := hcopy
+      have hu := hmul
+      have hstep :
+          hpair.time.eval n +
+              ((2 * mid.length + 1) + (2 * mid.length + 1)) +
+              unaryMulTime.eval mid.length ≤
+            hpair.time.eval n + 4 * (outP.eval n + 1) +
+              (unaryMulTime.comp outP).eval n := by
+        refine Nat.add_le_add ?_ hu
+        exact Nat.add_le_add_left hc _
+      convert hstep using 1
+      · ac_rfl
+      · simp [timeBound, Polynomial.eval_add, Polynomial.eval_mul,
+          Polynomial.eval_one, Polynomial.eval_ofNat]
+    have hfinal := evalsToInTime_le_mono (by simpa [hn_def] using heval) hbound
+    have hraw : EvalsToInTime tm.step
+        (initList tm (List.map hpair.inputAlphabet.invFun (idBitEnc s)))
+        (some (haltList tm
+          (List.replicate (s.length * q.eval s.length) true)))
+        (timeBound.eval n) := by
+      simpa [tm, hn_def] using hfinal
+    have hraw' : EvalsToInTime tm.step
+        (initList tm (List.map inA.invFun (idBitEnc s)))
+        (some (haltList tm
+          (List.replicate (s.length * q.eval s.length) true)))
+        (timeBound.eval n) := by
+      convert hraw
+    exact evalsToInTime_congr_end hraw'
+      (congrArg some (congrArg (haltList tm) hout.symm))
+
+/-- Out-bound `|true^(n * q.eval n)| = n * q.eval n`. -/
+noncomputable def polyEvalUnaryHornerMulOutBound (q : Polynomial ℕ) : Polynomial ℕ :=
+  Polynomial.X * q
+
+theorem polyEvalUnaryHornerMulOutBound_eval (q : Polynomial ℕ) (n : ℕ) :
+    (polyEvalUnaryHornerMulOutBound q).eval n = n * q.eval n := by
+  simp [polyEvalUnaryHornerMulOutBound, Polynomial.eval_mul, Polynomial.eval_X]
+
+theorem length_polyEvalUnaryHornerMul_le_outBound (q : Polynomial ℕ) (s : List Bool) :
+    (List.replicate (s.length * q.eval s.length) true).length ≤
+      (polyEvalUnaryHornerMulOutBound q).eval s.length := by
+  simp [List.length_replicate, polyEvalUnaryHornerMulOutBound_eval]
+
+/-- Horner step: IH for `divX p`, then mul, then scaleAppend `1` and `coeff 0`. -/
+noncomputable def polyEvalUnaryHornerStep (p : Polynomial ℕ)
+    (hf : TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => polyEvalUnary (Polynomial.divX p) s.length)) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => polyEvalUnary p s.length) := by
+  have hcomp :=
+    comp_idBitEnc_idBitEnc
+      (polyEvalUnaryHornerMulComputableInPolyTime hf)
+      (scaleAppendComputableInPolyTime 1 (p.coeff 0))
+      (polyEvalUnaryHornerMulOutBound (Polynomial.divX p))
+      (length_polyEvalUnaryHornerMul_le_outBound (Polynomial.divX p))
+  convert hcomp using 1
+  funext s
+  simp only [Function.comp]
+  rw [polyEvalUnary_horner_eq_scaleAppend_one p s]
+  have hlen :
+      (unaryMul (toUnary s)
+          (polyEvalUnary (Polynomial.divX p) s.length)).length =
+        (List.replicate (s.length * (Polynomial.divX p).eval s.length) true).length := by
+    rw [← unaryMul_toUnary_polyEvalUnary (Polynomial.divX p) s, List.length_reverse]
+  simp [List.length_replicate, Nat.one_mul, hlen]
+
+/-- Exact unary poly-eval for arbitrary `p`, by well-founded Horner on `natDegree`. -/
+noncomputable def polyEvalUnaryComputableInPolyTime (p : Polynomial ℕ) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc
+      (fun s => polyEvalUnary p s.length) :=
+  WellFounded.fix (measure (fun q : Polynomial ℕ => q.natDegree)).wf
+    (fun (q : Polynomial ℕ)
+      (ih : ∀ y : Polynomial ℕ, y.natDegree < q.natDegree →
+        TM2ComputableInPolyTime idBitEnc idBitEnc
+          (fun s => polyEvalUnary y s.length)) =>
+      if h : q.natDegree ≤ 1 then
+        polyEvalUnaryDegLeOneComputableInPolyTime q h
+      else
+        polyEvalUnaryHornerStep q (ih (Polynomial.divX q) (by
+          have hlt : 1 < q.natDegree := Nat.lt_of_not_ge h
+          rw [Polynomial.natDegree_divX_eq_natDegree_tsub_one]
+          exact Nat.sub_lt (Nat.zero_lt_of_lt hlt) Nat.one_pos)))
+    p
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 
