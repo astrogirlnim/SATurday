@@ -2392,3 +2392,17 @@ SATurday.Bridge.npProofSystem_polyBounded
 SATurday.Bridge.npProofSystemComputableInPolyTime
 SATurday.Bridge.bridge_theorem_1_easy
 SATurday.Bridge.summit_corollary
+SATurday.Bridge.TM2Bound.pushCount
+SATurday.Bridge.TM2Bound.total
+SATurday.Bridge.TM2Bound.total_update_push
+SATurday.Bridge.TM2Bound.total_update_tail_le
+SATurday.Bridge.TM2Bound.stepAux_total_le
+SATurday.Bridge.TM2Bound.stepBudget
+SATurday.Bridge.TM2Bound.step_total_le
+SATurday.Bridge.TM2Bound.iterate_total_le
+SATurday.Bridge.TM2Bound.total_initList
+SATurday.Bridge.TM2Bound.length_le_total_haltList
+SATurday.Bridge.TM2Bound.output_length_le
+SATurday.Bridge.outBound_of_computable
+SATurday.Bridge.proofCheckComputableInPolyTime
+SATurday.Bridge.TAUT_in_NP_of_polyBounded'

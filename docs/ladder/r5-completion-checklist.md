@@ -175,11 +175,14 @@ Cook Levin reduction (hard direction) remain. Do not restart
   `npProofSystemComputableInPolyTime`, `bridge_theorem_1_easy` and
   unconditional `summit_corollary` certified 2026-10-05; axiom gate PASS)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
-  (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
-  certified; `proofCheck_eq_bitsEqualPair` and `TAUT_in_NP_of_polyBounded`
-  packaging certified conditional on FinTM2 `proofCheck`; remaining:
-  `proofCheck` FinTM2 via apply-`f` then `bitsEqualPair`, then coNP-completeness
-  of TAUT / Cook Levin reduction for class equality)
+  (`Bridge/CookLevin.lean`, 2026-10-05: generic output length bound
+  `outBound_of_computable` (stack growth per step, `stepBudget`),
+  `proofCheckComputableInPolyTime` (apply `f`, swap, `bitsEqualPair`), and
+  unconditional `TAUT_in_NP_of_polyBounded'` certified; axiom gate PASS;
+  remaining: Cook Levin reduction `L ∈ NP → complement L ≤p TAUT`
+  (tableau formula of a FinTM2 run, computed by a poly time FinTM2) plus
+  closure of `InNP` under poly many one reductions, then
+  `bridge_theorem_1_hard : (∃ f, IsPropProofSystem f ∧ PolynomiallyBounded f) → ClassNP_eq_ClassCoNP`)
 - [x] Wire into `Theory.lean`; axiom gate PASS; zero Bridge sorries
 - [ ] Update rung memory; mark R5 certified (blocked on theorem 1)
 - [ ] Only then consider `satday auto` again
