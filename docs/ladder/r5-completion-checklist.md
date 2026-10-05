@@ -170,7 +170,8 @@ Cook Levin reduction (hard direction) remain. Do not restart
   copyOut emit rev); `mapSndComputableInPolyTime` via swap compose;
   Horner `polyEvalUnaryComputableInPolyTime` WF for arbitrary p
   (toUnarySelfPair, mapSnd IH, unaryMul, scaleAppend 1 coeff0);
-  remaining: lengthOk for opaque p, fan-out compose with `V`,
+  `lengthOkComputableInPolyTime` for opaque p (swap, mapSnd polyEval,
+  unaryLE); remaining: fan-out compose with `V` into acceptWitness,
   `afterDecodeProofSystem` FinTM2 host, Cook Levin hard direction;
   `summit_corollary_of_easy` waits)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
