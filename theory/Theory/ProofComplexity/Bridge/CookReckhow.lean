@@ -9944,6 +9944,333 @@ noncomputable def lengthOkComputableInPolyTime (p : Polynomial ℕ) :
     exact evalsToInTime_congr_end hraw'
       (congrArg some (congrArg (haltList tm) hout.symm))
 
+/-! ## Block C: accept bit of the NP verifier proof map
+
+`acceptWitness p V φ w = lengthOk p φ w && V φ w` needs two certified bit
+machines run on the *same* tape. The fan out duplicates the tape into a pair and
+then alternates `mapFst` with a swap:
+
+  `encodePair (φ,w)`
+    -> `encodePair (encodePair (φ,w), encodePair (φ,w))`   (dup)
+    -> `encodePair ([bV], encodePair (φ,w))`               (mapFst of `V`)
+    -> `encodePair (encodePair (φ,w), [bV])`               (swap)
+    -> `encodePair ([bL], [bV])`                           (mapFst of `lengthOk`)
+    -> `[bL && bV]`                                        (tagged AND)
+
+Every stage is glued by the generic `comp_enc`, and the intermediate pair types
+are relabelled with `recodeOutput`, so the only new FinTM2 is the five step
+tagged AND below. Crucially `mapFstEncComputableInPolyTime` accepts a guest
+certified only on the image of its encoding, so neither `V` nor `lengthOk` has
+to be totalized to all of `List Bool`. -/
+
+/-- Generic swap under `encodePair` with arbitrary component encodings. -/
+noncomputable def swapPairEncComputableInPolyTime {α β : Type}
+    (ea : α → List Bool) (eb : β → List Bool) :
+    TM2ComputableInPolyTime
+      (fun q : α × β => encodePair (ea q.1, eb q.2))
+      (fun q : β × α => encodePair (eb q.1, ea q.2))
+      (fun q => (q.2, q.1)) :=
+  reindexComputable swapPairComputableInPolyTime
+    (fun q : α × β => encodePair (ea q.1, eb q.2))
+    (fun q : β × α => encodePair (eb q.1, ea q.2))
+    (fun q => (q.2, q.1))
+    (fun q => (ea q.1, eb q.2))
+    (fun _ => rfl) (fun _ => rfl)
+
+/-! ### Tagged two-bit AND
+
+`encodePair (bitEnc b1, bitEnc b2) = [true, b1, false, b2]`, so conjunction of
+two single bit components is four pops (tag, bit, separator, bit) and one push
+on the shared stack. -/
+
+/-- Pop tag, first bit, separator, second bit; push the conjunction; halt. -/
+def andBitTaggedComputer : FinTM2 where
+  K := Unit
+  k₀ := ⟨⟩
+  k₁ := ⟨⟩
+  Γ _ := Bool
+  Λ := Fin 5
+  main := (0 : Fin 5)
+  σ := Bool × Bool
+  initialState := (false, false)
+  m
+    | ⟨0, _⟩ =>
+        pop ⟨⟩ (fun s _ => s) <|
+          goto fun _ => (1 : Fin 5)
+    | ⟨1, _⟩ =>
+        pop ⟨⟩ (fun _ o => (Option.getD o false, false)) <|
+          goto fun _ => (2 : Fin 5)
+    | ⟨2, _⟩ =>
+        pop ⟨⟩ (fun s _ => s) <|
+          goto fun _ => (3 : Fin 5)
+    | ⟨3, _⟩ =>
+        pop ⟨⟩ (fun s o => (s.1, Option.getD o false)) <|
+          goto fun _ => (4 : Fin 5)
+    | ⟨4, _⟩ =>
+        push ⟨⟩ (fun s => s.1 && s.2) <|
+          load (fun _ => (false, false)) halt
+
+def andBitTaggedCfg (l : Option (Fin 5)) (v : Bool × Bool) (s : List Bool) :
+    andBitTaggedComputer.Cfg :=
+  ⟨l, v, fun _ => s⟩
+
+theorem update_andBitTagged_stk (s t : List Bool) :
+    Function.update (fun _ : Unit => s) PUnit.unit t = fun _ => t := by
+  funext k; cases k; simp [Function.update]
+
+theorem andBitTagged_step_dropTag (b : Bool) (rest : List Bool) (v : Bool × Bool) :
+    TM2.step andBitTaggedComputer.m
+      (andBitTaggedCfg (some (0 : Fin 5)) v (b :: rest)) =
+      some (andBitTaggedCfg (some (1 : Fin 5)) v rest) := by
+  simp [andBitTaggedComputer, andBitTaggedCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk =>
+      (⟨some (1 : Fin 5), v, stk⟩ : andBitTaggedComputer.Cfg))
+      (update_andBitTagged_stk (b :: rest) rest)
+
+theorem andBitTagged_step_read1 (b1 : Bool) (rest : List Bool) (v : Bool × Bool) :
+    TM2.step andBitTaggedComputer.m
+      (andBitTaggedCfg (some (1 : Fin 5)) v (b1 :: rest)) =
+      some (andBitTaggedCfg (some (2 : Fin 5)) (b1, false) rest) := by
+  simp [andBitTaggedComputer, andBitTaggedCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk =>
+      (⟨some (2 : Fin 5), (b1, false), stk⟩ : andBitTaggedComputer.Cfg))
+      (update_andBitTagged_stk (b1 :: rest) rest)
+
+theorem andBitTagged_step_dropSep (b : Bool) (rest : List Bool) (v : Bool × Bool) :
+    TM2.step andBitTaggedComputer.m
+      (andBitTaggedCfg (some (2 : Fin 5)) v (b :: rest)) =
+      some (andBitTaggedCfg (some (3 : Fin 5)) v rest) := by
+  simp [andBitTaggedComputer, andBitTaggedCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk =>
+      (⟨some (3 : Fin 5), v, stk⟩ : andBitTaggedComputer.Cfg))
+      (update_andBitTagged_stk (b :: rest) rest)
+
+theorem andBitTagged_step_read2 (b1 b2 : Bool) (rest : List Bool) :
+    TM2.step andBitTaggedComputer.m
+      (andBitTaggedCfg (some (3 : Fin 5)) (b1, false) (b2 :: rest)) =
+      some (andBitTaggedCfg (some (4 : Fin 5)) (b1, b2) rest) := by
+  simp [andBitTaggedComputer, andBitTaggedCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk =>
+      (⟨some (4 : Fin 5), (b1, b2), stk⟩ : andBitTaggedComputer.Cfg))
+      (update_andBitTagged_stk (b2 :: rest) rest)
+
+theorem andBitTagged_step_write (b1 b2 : Bool) (rest : List Bool) :
+    TM2.step andBitTaggedComputer.m
+      (andBitTaggedCfg (some (4 : Fin 5)) (b1, b2) rest) =
+      some (andBitTaggedCfg none (false, false) ((b1 && b2) :: rest)) := by
+  simp [andBitTaggedComputer, andBitTaggedCfg, TM2.step, TM2.stepAux]
+  exact congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option (Fin 5)), (false, false), stk⟩ : andBitTaggedComputer.Cfg))
+      (update_andBitTagged_stk rest ((b1 && b2) :: rest))
+
+theorem andBitTagged_initList (s : List Bool) :
+    initList andBitTaggedComputer s =
+      andBitTaggedCfg (some (0 : Fin 5)) (false, false) s := by
+  simp [initList, andBitTaggedComputer, andBitTaggedCfg]
+
+theorem andBitTagged_haltList (b : Bool) (rest : List Bool) :
+    haltList andBitTaggedComputer (b :: rest) =
+      andBitTaggedCfg none (false, false) (b :: rest) := by
+  simp [haltList, andBitTaggedComputer, andBitTaggedCfg]
+
+/-- Tagged two-bit AND in five steps on the shared tape. -/
+def andBitTagged_evals (b1 b2 : Bool) :
+    EvalsToInTime andBitTaggedComputer.step
+      (initList andBitTaggedComputer [true, b1, false, b2])
+      (some (haltList andBitTaggedComputer [b1 && b2])) 5 where
+  steps := 5
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change
+      (((((some (initList andBitTaggedComputer [true, b1, false, b2])).bind
+        andBitTaggedComputer.step).bind
+        andBitTaggedComputer.step).bind
+        andBitTaggedComputer.step).bind
+        andBitTaggedComputer.step).bind
+        andBitTaggedComputer.step =
+      some (haltList andBitTaggedComputer [b1 && b2])
+    simp only [FinTM2.step, andBitTagged_initList, andBitTagged_haltList]
+    change
+      ((((TM2.step andBitTaggedComputer.m
+            (andBitTaggedCfg (some (0 : Fin 5)) (false, false)
+              [true, b1, false, b2])).bind
+          (TM2.step andBitTaggedComputer.m)).bind
+          (TM2.step andBitTaggedComputer.m)).bind
+          (TM2.step andBitTaggedComputer.m)).bind
+          (TM2.step andBitTaggedComputer.m) =
+      some (andBitTaggedCfg none (false, false) [b1 && b2])
+    rw [andBitTagged_step_dropTag true [b1, false, b2] (false, false)]
+    change
+      (((TM2.step andBitTaggedComputer.m
+            (andBitTaggedCfg (some (1 : Fin 5)) (false, false)
+              [b1, false, b2])).bind
+          (TM2.step andBitTaggedComputer.m)).bind
+          (TM2.step andBitTaggedComputer.m)).bind
+          (TM2.step andBitTaggedComputer.m) =
+      some (andBitTaggedCfg none (false, false) [b1 && b2])
+    rw [andBitTagged_step_read1 b1 [false, b2] (false, false)]
+    change
+      ((TM2.step andBitTaggedComputer.m
+            (andBitTaggedCfg (some (2 : Fin 5)) (b1, false) [false, b2])).bind
+          (TM2.step andBitTaggedComputer.m)).bind
+          (TM2.step andBitTaggedComputer.m) =
+      some (andBitTaggedCfg none (false, false) [b1 && b2])
+    rw [andBitTagged_step_dropSep false [b2] (b1, false)]
+    change
+      (TM2.step andBitTaggedComputer.m
+            (andBitTaggedCfg (some (3 : Fin 5)) (b1, false) [b2])).bind
+          (TM2.step andBitTaggedComputer.m) =
+      some (andBitTaggedCfg none (false, false) [b1 && b2])
+    rw [andBitTagged_step_read2 b1 b2 []]
+    exact andBitTagged_step_write b1 b2 []
+
+noncomputable def andBitTaggedTime : Polynomial ℕ := 5
+
+theorem andBitTaggedTime_eval (n : ℕ) : andBitTaggedTime.eval n = 5 := by
+  simp [andBitTaggedTime]
+
+theorem encodePair_bitEnc_bitEnc (b1 b2 : Bool) :
+    encodePair (bitEnc b1, bitEnc b2) = [true, b1, false, b2] := by
+  simp [encodePair, bitEnc]
+
+theorem length_encodePair_bitEnc_bitEnc (b1 b2 : Bool) :
+    (encodePair (bitEnc b1, bitEnc b2)).length = 4 := by
+  simp [encodePair_bitEnc_bitEnc]
+
+/-- AND of two bits packed as `encodePair (bitEnc b1, bitEnc b2)`. -/
+noncomputable def andBitTaggedComputableInPolyTime :
+    TM2ComputableInPolyTime
+      (fun q : Bool × Bool => encodePair (bitEnc q.1, bitEnc q.2)) bitEnc
+      (fun q => q.1 && q.2) where
+  tm := andBitTaggedComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := andBitTaggedTime
+  outputsFun q := by
+    rcases q with ⟨b1, b2⟩
+    change TM2OutputsInTime andBitTaggedComputer
+      (List.map id (encodePair (bitEnc b1, bitEnc b2)))
+      (some (List.map id (bitEnc (b1 && b2))))
+      (andBitTaggedTime.eval (encodePair (bitEnc b1, bitEnc b2)).length)
+    simp only [encodePair_bitEnc_bitEnc, List.map_id, id_eq, bitEnc,
+      andBitTaggedTime_eval]
+    exact evalsToInTime_le_mono (andBitTagged_evals b1 b2) (by omega)
+
+/-! ### Fan out: `acceptWitness` under `encodePair` -/
+
+/-- Duplicating a tape triples it plus the separator. -/
+theorem length_encodePair_self (s : List Bool) :
+    (encodePair (s, s)).length = 3 * s.length + 1 := by
+  simp only [length_encodePair]
+  omega
+
+/-- A one bit first component costs three cells. -/
+theorem length_encodePair_bitEnc_fst (b : Bool) (s : List Bool) :
+    (encodePair (bitEnc b, s)).length = s.length + 3 := by
+  simp only [length_encodePair, length_bitEnc]
+  omega
+
+/-- A one bit second component costs one cell. -/
+theorem length_encodePair_bitEnc_snd (s : List Bool) (b : Bool) :
+    (encodePair (s, bitEnc b)).length = 2 * s.length + 2 := by
+  simp only [length_encodePair, length_bitEnc]
+
+/-- Accept bit of the NP verifier proof map is poly time under `encodePair`,
+given a poly time verifier `V`. The length gate is the already certified
+`lengthOkComputableInPolyTime`. -/
+noncomputable def acceptWitnessComputableInPolyTime (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool)
+    (hV : TM2ComputableInPolyTime encodePair bitEnc (fun pw => V pw.1 pw.2)) :
+    TM2ComputableInPolyTime encodePair bitEnc
+      (fun pw => acceptWitness p V pw.1 pw.2) := by
+  -- Stage A: duplicate the input tape into a pair of identical halves.
+  have hA : TM2ComputableInPolyTime encodePair
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun pw => (pw, encodePair pw)) :=
+    reindexComputable dupEncodePairComputableInPolyTime
+      encodePair
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun pw => (pw, encodePair pw))
+      encodePair (fun _ => rfl) (fun _ => rfl)
+  -- Stage B: run the verifier on the first half only.
+  have hB : TM2ComputableInPolyTime
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2))
+      (fun q => (V q.1.1 q.1.2, q.2)) :=
+    mapFstEncComputableInPolyTime hV 1 (by intro pw; simp)
+  have hAB : TM2ComputableInPolyTime encodePair
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2))
+      (fun pw => (V pw.1 pw.2, encodePair pw)) :=
+    comp_enc hA hB (3 * Polynomial.X + 1)
+      (by
+        intro pw
+        simp only [length_encodePair_self, Polynomial.eval_add,
+          Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_one,
+          Polynomial.eval_ofNat]
+        omega)
+  -- Stage C: swap so the untouched copy is back in first position.
+  have hC : TM2ComputableInPolyTime
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2))
+      (fun q : List Bool × Bool => encodePair (q.1, bitEnc q.2))
+      (fun q => (q.2, q.1)) :=
+    swapPairEncComputableInPolyTime bitEnc idBitEnc
+  have hABC : TM2ComputableInPolyTime encodePair
+      (fun q : List Bool × Bool => encodePair (q.1, bitEnc q.2))
+      (fun pw => (encodePair pw, V pw.1 pw.2)) :=
+    comp_enc hAB hC (Polynomial.X + 3)
+      (by
+        intro pw
+        simp only [length_encodePair_bitEnc_fst, Polynomial.eval_add,
+          Polynomial.eval_X, Polynomial.eval_ofNat]
+        omega)
+  -- Relabel: the verifier bit is just a one bit raw tape in second position.
+  have hABC' : TM2ComputableInPolyTime encodePair
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun pw => (pw, bitEnc (V pw.1 pw.2))) :=
+    recodeOutput hABC
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun pw => (pw, bitEnc (V pw.1 pw.2))) (fun _ => rfl)
+  -- Stage D: run the length gate on the surviving copy.
+  have hD : TM2ComputableInPolyTime
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2))
+      (fun q => (lengthOk p q.1.1 q.1.2, q.2)) :=
+    mapFstEncComputableInPolyTime (lengthOkComputableInPolyTime p) 1
+      (by intro pw; simp)
+  have hABCD : TM2ComputableInPolyTime encodePair
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2))
+      (fun pw => (lengthOk p pw.1 pw.2, bitEnc (V pw.1 pw.2))) :=
+    comp_enc hABC' hD (2 * Polynomial.X + 2)
+      (by
+        intro pw
+        simp only [length_encodePair_bitEnc_snd, Polynomial.eval_add,
+          Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_ofNat]
+        omega)
+  -- Relabel: both components are now single bits.
+  have hABCD' : TM2ComputableInPolyTime encodePair
+      (fun q : Bool × Bool => encodePair (bitEnc q.1, bitEnc q.2))
+      (fun pw => (lengthOk p pw.1 pw.2, V pw.1 pw.2)) :=
+    recodeOutput hABCD
+      (fun q : Bool × Bool => encodePair (bitEnc q.1, bitEnc q.2))
+      (fun pw => (lengthOk p pw.1 pw.2, V pw.1 pw.2)) (fun _ => rfl)
+  -- Stage E: tagged AND of the two bits.
+  exact comp_enc hABCD' andBitTaggedComputableInPolyTime 4
+    (by
+      intro pw
+      simp only [length_encodePair_bitEnc_bitEnc, Polynomial.eval_ofNat]
+      omega)
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 
