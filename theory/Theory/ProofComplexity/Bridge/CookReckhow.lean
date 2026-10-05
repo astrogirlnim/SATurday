@@ -10271,6 +10271,293 @@ noncomputable def acceptWitnessComputableInPolyTime (p : Polynomial ℕ)
       simp only [length_encodePair_bitEnc_bitEnc, Polynomial.eval_ofNat]
       omega)
 
+/-! ## Block C: cons a decided bit onto a payload
+
+The already certified `liftValidationToTT` is the conditional of the Cook
+Reckhow proof map: it reads one leading bit and either drops it (returning the
+payload) or emits the seed tautology. To use it we must turn the fan out tape
+`encodePair (bitEnc b, φ) = [true, b, false] ++ φ` into `b :: φ`. That is one
+small FinTM2 with no branching beyond loop termination: drop the tag, read the
+bit into state, drop the separator, copy the payload through a work stack (two
+reversals preserve order), then push the saved bit last. Correctness is only
+needed on well formed tapes, so the domain encoding is the pair encoding. -/
+
+inductive ConsBitStack where
+  | inp | work | out
+  deriving DecidableEq, Repr
+
+instance : Fintype ConsBitStack where
+  elems := {.inp, .work, .out}
+  complete s := by cases s <;> simp
+
+inductive ConsBitLabel where
+  | dropTag | readBit | dropSep | copy | rev | emitBit
+  deriving DecidableEq, Repr
+
+instance : Fintype ConsBitLabel where
+  elems := {.dropTag, .readBit, .dropSep, .copy, .rev, .emitBit}
+  complete s := by cases s <;> simp
+
+/-- State: the saved bit and the last popped cell. -/
+def consBitComputer : FinTM2 where
+  K := ConsBitStack
+  k₀ := .inp
+  k₁ := .out
+  Γ _ := Bool
+  Λ := ConsBitLabel
+  main := .dropTag
+  σ := Bool × Option Bool
+  initialState := (false, none)
+  m
+    | .dropTag =>
+        pop ConsBitStack.inp (fun s _ => s) <|
+          goto fun _ => ConsBitLabel.readBit
+    | .readBit =>
+        pop ConsBitStack.inp (fun _ o => (o.getD false, none)) <|
+          goto fun _ => ConsBitLabel.dropSep
+    | .dropSep =>
+        pop ConsBitStack.inp (fun s _ => s) <|
+          goto fun _ => ConsBitLabel.copy
+    | .copy =>
+        pop ConsBitStack.inp (fun s o => (s.1, o)) <|
+          branch (fun s => decide (s.2 = none))
+            (goto fun _ => ConsBitLabel.rev)
+            (push ConsBitStack.work (fun s => s.2.getD false) <|
+              load (fun s => (s.1, none)) <|
+                goto fun _ => ConsBitLabel.copy)
+    | .rev =>
+        pop ConsBitStack.work (fun s o => (s.1, o)) <|
+          branch (fun s => decide (s.2 = none))
+            (goto fun _ => ConsBitLabel.emitBit)
+            (push ConsBitStack.out (fun s => s.2.getD false) <|
+              load (fun s => (s.1, none)) <|
+                goto fun _ => ConsBitLabel.rev)
+    | .emitBit =>
+        push ConsBitStack.out (fun s => s.1) <|
+          load (fun _ => (false, none)) halt
+
+def consBitStk (inp work out : List Bool) : ConsBitStack → List Bool
+  | .inp => inp
+  | .work => work
+  | .out => out
+
+def consBitCfg (l : Option ConsBitLabel) (v : Bool × Option Bool)
+    (inp work out : List Bool) : consBitComputer.Cfg :=
+  ⟨l, v, consBitStk inp work out⟩
+
+theorem consBit_step_dropTag (b : Bool) (rest work out : List Bool)
+    (v : Bool × Option Bool) :
+    TM2.step consBitComputer.m
+      (consBitCfg (some .dropTag) v (b :: rest) work out) =
+      some (consBitCfg (some .readBit) v rest work out) := by
+  simp [consBitComputer, consBitCfg, consBitStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ConsBitLabel.readBit, v, stk⟩ : consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, consBitStk]
+
+theorem consBit_step_readBit (b : Bool) (rest work out : List Bool)
+    (v : Bool × Option Bool) :
+    TM2.step consBitComputer.m
+      (consBitCfg (some .readBit) v (b :: rest) work out) =
+      some (consBitCfg (some .dropSep) (b, none) rest work out) := by
+  simp [consBitComputer, consBitCfg, consBitStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ConsBitLabel.dropSep, (b, (none : Option Bool)), stk⟩ :
+        consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, consBitStk]
+
+theorem consBit_step_dropSep (b : Bool) (rest work out : List Bool)
+    (v : Bool × Option Bool) :
+    TM2.step consBitComputer.m
+      (consBitCfg (some .dropSep) v (b :: rest) work out) =
+      some (consBitCfg (some .copy) v rest work out) := by
+  simp [consBitComputer, consBitCfg, consBitStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ConsBitLabel.copy, v, stk⟩ : consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, consBitStk]
+
+theorem consBit_step_copy_cons (sb c : Bool) (rest work out : List Bool)
+    (o : Option Bool) :
+    TM2.step consBitComputer.m
+      (consBitCfg (some .copy) (sb, o) (c :: rest) work out) =
+      some (consBitCfg (some .copy) (sb, none) rest (c :: work) out) := by
+  simp [consBitComputer, consBitCfg, consBitStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ConsBitLabel.copy, (sb, (none : Option Bool)), stk⟩ :
+        consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, consBitStk]
+
+theorem consBit_step_copy_nil (sb : Bool) (work out : List Bool)
+    (o : Option Bool) :
+    TM2.step consBitComputer.m
+      (consBitCfg (some .copy) (sb, o) [] work out) =
+      some (consBitCfg (some .rev) (sb, none) [] work out) := by
+  simp [consBitComputer, consBitCfg, consBitStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ConsBitLabel.rev, (sb, (none : Option Bool)), stk⟩ :
+        consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, consBitStk]
+
+theorem consBit_step_rev_cons (sb c : Bool) (rest out : List Bool)
+    (o : Option Bool) :
+    TM2.step consBitComputer.m
+      (consBitCfg (some .rev) (sb, o) [] (c :: rest) out) =
+      some (consBitCfg (some .rev) (sb, none) [] rest (c :: out)) := by
+  simp [consBitComputer, consBitCfg, consBitStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ConsBitLabel.rev, (sb, (none : Option Bool)), stk⟩ :
+        consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, consBitStk]
+
+theorem consBit_step_rev_nil (sb : Bool) (out : List Bool) (o : Option Bool) :
+    TM2.step consBitComputer.m
+      (consBitCfg (some .rev) (sb, o) [] [] out) =
+      some (consBitCfg (some .emitBit) (sb, none) [] [] out) := by
+  simp [consBitComputer, consBitCfg, consBitStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨some ConsBitLabel.emitBit, (sb, (none : Option Bool)), stk⟩ :
+        consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, consBitStk]
+
+theorem consBit_step_emitBit (sb : Bool) (out : List Bool)
+    (o : Option Bool) :
+    TM2.step consBitComputer.m
+      (consBitCfg (some .emitBit) (sb, o) [] [] out) =
+      some (consBitCfg none (false, none) [] [] (sb :: out)) := by
+  simp [consBitComputer, consBitCfg, consBitStk, TM2.step, TM2.stepAux]
+  refine congrArg some <|
+    congrArg (fun stk =>
+      (⟨(none : Option ConsBitLabel), (false, (none : Option Bool)), stk⟩ :
+        consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [Function.update, consBitStk]
+
+theorem consBit_initList (s : List Bool) :
+    initList consBitComputer s = consBitCfg (some .dropTag) (false, none) s [] [] := by
+  refine congrArg (fun stk =>
+      (⟨some ConsBitLabel.dropTag, ((false, none) : Bool × Option Bool), stk⟩ :
+        consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [consBitComputer, consBitStk]
+
+theorem consBit_haltList (s : List Bool) :
+    haltList consBitComputer s = consBitCfg none (false, none) [] [] s := by
+  refine congrArg (fun stk =>
+      (⟨(none : Option ConsBitLabel), ((false, none) : Bool × Option Bool), stk⟩ :
+        consBitComputer.Cfg)) ?_
+  funext k; cases k <;> simp [consBitComputer, consBitStk]
+
+def consBit_evals_one {c c' : consBitComputer.Cfg}
+    (h : TM2.step consBitComputer.m c = some c') :
+    EvalsToInTime consBitComputer.step c (some c') 1 where
+  steps := 1
+  steps_le_m := le_rfl
+  evals_in_steps := by
+    change (some c).bind consBitComputer.step = some c'
+    simpa [FinTM2.step] using h
+
+noncomputable def consBit_evals_copy (sb : Bool) (inp work out : List Bool)
+    (o : Option Bool) :
+    EvalsToInTime consBitComputer.step
+      (consBitCfg (some .copy) (sb, o) inp work out)
+      (some (consBitCfg (some .rev) (sb, none) [] (inp.reverse ++ work) out))
+      (inp.length + 1) := by
+  induction inp generalizing work o with
+  | nil =>
+      simpa using consBit_evals_one (consBit_step_copy_nil sb work out o)
+  | cons c cs ih =>
+      have h1 := EvalsToInTime.trans consBitComputer.step 1 (cs.length + 1)
+        _ _ _ (consBit_evals_one (consBit_step_copy_cons sb c cs work out o))
+        (ih (c :: work) none)
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h1
+
+noncomputable def consBit_evals_rev (sb : Bool) (work out : List Bool)
+    (o : Option Bool) :
+    EvalsToInTime consBitComputer.step
+      (consBitCfg (some .rev) (sb, o) [] work out)
+      (some (consBitCfg (some .emitBit) (sb, none) [] [] (work.reverse ++ out)))
+      (work.length + 1) := by
+  induction work generalizing out o with
+  | nil =>
+      simpa using consBit_evals_one (consBit_step_rev_nil sb out o)
+  | cons c cs ih =>
+      have h1 := EvalsToInTime.trans consBitComputer.step 1 (cs.length + 1)
+        _ _ _ (consBit_evals_one (consBit_step_rev_cons sb c cs out o))
+        (ih (c :: out) none)
+      simpa [List.reverse_cons, List.append_assoc, Nat.add_comm, Nat.add_left_comm,
+        Nat.add_assoc] using h1
+
+/-- `[true, b, false] ++ φ` becomes `b :: φ` in `2 |φ| + 6` steps. -/
+noncomputable def consBit_evals (b : Bool) (φ : List Bool) :
+    TM2OutputsInTime consBitComputer ([true, b, false] ++ φ)
+      (some (b :: φ)) (2 * φ.length + 6) := by
+  have h0 := consBit_evals_one
+    (consBit_step_dropTag true ([b, false] ++ φ) [] [] (false, none))
+  have h1 := consBit_evals_one
+    (consBit_step_readBit b ([false] ++ φ) [] [] (false, none))
+  have h2 := consBit_evals_one (consBit_step_dropSep false φ [] [] (b, none))
+  have h3 : EvalsToInTime consBitComputer.step
+      (consBitCfg (some .copy) (b, none) φ [] [])
+      (some (consBitCfg (some .rev) (b, none) [] φ.reverse []))
+      (φ.length + 1) := by
+    simpa [List.append_nil] using consBit_evals_copy b φ [] [] none
+  have h4 : EvalsToInTime consBitComputer.step
+      (consBitCfg (some .rev) (b, none) [] φ.reverse [])
+      (some (consBitCfg (some .emitBit) (b, none) [] [] φ))
+      (φ.length + 1) := by
+    simpa [List.reverse_reverse, List.length_reverse, List.append_nil] using
+      consBit_evals_rev b φ.reverse [] none
+  have h5 := consBit_evals_one (consBit_step_emitBit b φ none)
+  have h01 := EvalsToInTime.trans consBitComputer.step _ _ _ _ _ h0 h1
+  have h012 := EvalsToInTime.trans consBitComputer.step _ _ _ _ _ h01 h2
+  have h0123 := EvalsToInTime.trans consBitComputer.step _ _ _ _ _ h012 h3
+  have hall := EvalsToInTime.trans consBitComputer.step _ _ _ _ _ h0123 h4
+  have hall' := EvalsToInTime.trans consBitComputer.step _ _ _ _ _ hall h5
+  have hres : EvalsToInTime consBitComputer.step
+      (initList consBitComputer ([true, b, false] ++ φ))
+      (some (haltList consBitComputer (b :: φ)))
+      (2 * φ.length + 6) := by
+    rw [consBit_initList, consBit_haltList]
+    exact evalsToInTime_le_mono hall' (by omega)
+  exact hres
+
+noncomputable def consBitTime : Polynomial ℕ := 2 * Polynomial.X + 6
+
+theorem consBitTime_eval (n : ℕ) : consBitTime.eval n = 2 * n + 6 := by
+  simp [consBitTime, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X,
+    Polynomial.eval_ofNat]
+
+theorem encodePair_bitEnc_cons (b : Bool) (φ : List Bool) :
+    encodePair (bitEnc b, φ) = [true, b, false] ++ φ := by
+  simp [encodePair, bitEnc]
+
+/-- Cons a decided bit onto a payload, under the pair encoding. -/
+noncomputable def consBitComputableInPolyTime :
+    TM2ComputableInPolyTime
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2)) idBitEnc
+      (fun q => q.1 :: q.2) where
+  tm := consBitComputer
+  inputAlphabet := Equiv.refl Bool
+  outputAlphabet := Equiv.refl Bool
+  time := consBitTime
+  outputsFun q := by
+    rcases q with ⟨b, φ⟩
+    change TM2OutputsInTime consBitComputer
+      (List.map id (encodePair (bitEnc b, φ)))
+      (some (List.map id (idBitEnc (b :: φ))))
+      (consBitTime.eval (encodePair (bitEnc b, φ)).length)
+    simp only [idBitEnc, List.map_id, id_eq, encodePair_bitEnc_cons,
+      consBitTime_eval]
+    refine evalsToInTime_le_mono (consBit_evals b φ) ?_
+    simp only [List.length_append, List.length_cons, List.length_nil]
+    omega
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 
