@@ -10558,6 +10558,295 @@ noncomputable def consBitComputableInPolyTime :
     simp only [List.length_append, List.length_cons, List.length_nil]
     omega
 
+/-! ## Block C: the NP verifier proof map as a certified FinTM2
+
+Two observations remove every remaining branching machine.
+
+First, the seed tautology encoding is itself a well formed pair encoding, so the
+already certified sanitizer `liftValidationToTT (decodePairResult ·)` is total
+*and* always lands in the image of `encodePair`. That turns the decode failure
+case into an ordinary pair, so the rest of the pipeline never has to dispatch on
+whether decoding succeeded.
+
+Second, `liftValidationToTT` is exactly the conditional of the Cook Reckhow
+proof map: on `false :: φ` it returns `φ` and on anything else it returns the
+seed. So after the fan out computes the accept bit we only need to cons its
+negation onto the first component, which is `consBitComputableInPolyTime`. -/
+
+theorem decodePair_encodeFormula_tautSeed :
+    decodePair (encodeFormula tautSeed) =
+      some ([true], [false, false, false, true, false, false, false]) := by
+  rw [encodeFormula_tautSeed]
+  rfl
+
+/-- The pair that the seed tautology encoding decodes to. -/
+def tautSeedPair : List Bool × List Bool :=
+  ([true], [false, false, false, true, false, false, false])
+
+theorem encodePair_tautSeedPair : encodePair tautSeedPair = encodeFormula tautSeed :=
+  encodePair_of_decodePair decodePair_encodeFormula_tautSeed
+
+/-- Replace an undecodable proof tape by the seed encoding. Certified as
+`liftValidationToTT` after `decodePairResult`, and always a pair encoding. -/
+def sanitizeProof (π : List Bool) : List Bool :=
+  liftValidationToTT (decodePairResult π)
+
+theorem sanitizeProof_eq (π : List Bool) :
+    sanitizeProof π = encodePair ((decodePair π).getD tautSeedPair) := by
+  unfold sanitizeProof
+  cases h : decodePair π with
+  | none =>
+      rw [decodePairResult_of_none h, liftValidationToTT_true]
+      simp [h, encodePair_tautSeedPair]
+  | some pw =>
+      rw [decodePairResult_of_some h, liftValidationToTT_false]
+      simp [h, encodePair_of_decodePair h]
+
+theorem length_sanitizeProof_le (π : List Bool) :
+    (encodePair ((decodePair π).getD tautSeedPair)).length ≤ 3 * π.length + 11 := by
+  rw [← sanitizeProof_eq]
+  unfold sanitizeProof
+  cases h : decodePair π with
+  | none =>
+      rw [decodePairResult_of_none h, liftValidationToTT_true]
+      simp only [length_encodeFormula_tautSeed]
+      omega
+  | some pw =>
+      rw [decodePairResult_of_some h, liftValidationToTT_false]
+      omega
+
+/-- Sanitizing is poly time, with the pair encoding as output encoding. -/
+noncomputable def sanitizeProofComputableInPolyTime :
+    TM2ComputableInPolyTime idBitEnc encodePair
+      (fun π => (decodePair π).getD tautSeedPair) :=
+  recodeOutput
+    (comp_idBitEnc_idBitEnc decodePairResultComputableInPolyTime
+      liftValidationToTTComputableInPolyTime decodePairResultOutBound
+      decodePairResult_length_le_outBound)
+    encodePair (fun π => (decodePair π).getD tautSeedPair)
+    (fun π => (sanitizeProof_eq π).symm)
+
+theorem liftValidationToTT_not_cons (b : Bool) (l : List Bool) :
+    liftValidationToTT ((!b) :: l) = if b then l else encodeFormula tautSeed := by
+  cases b <;> simp
+
+/-- Proof map restricted to well formed pairs: accept gives the formula, reject
+gives the seed. Fan out for the accept bit, cons its negation, then the
+certified `liftValidationToTT` conditional. -/
+noncomputable def afterDecodeProofSystemComputableInPolyTime (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool)
+    (hV : TM2ComputableInPolyTime encodePair bitEnc (fun pw => V pw.1 pw.2)) :
+    TM2ComputableInPolyTime encodePair idBitEnc
+      (fun pw => if acceptWitness p V pw.1 pw.2 then pw.1
+        else encodeFormula tautSeed) := by
+  -- Negated accept bit.
+  have hNAcc : TM2ComputableInPolyTime encodePair bitEnc
+      (fun pw => !(acceptWitness p V pw.1 pw.2)) :=
+    comp_enc (acceptWitnessComputableInPolyTime p V hV)
+      notBitComputableInPolyTime 1 (by intro pw; simp)
+  -- Duplicate the tape, then run the bit machine on the first half.
+  have hDup : TM2ComputableInPolyTime encodePair
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun pw => (pw, encodePair pw)) :=
+    reindexComputable dupEncodePairComputableInPolyTime
+      encodePair
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun pw => (pw, encodePair pw))
+      encodePair (fun _ => rfl) (fun _ => rfl)
+  have hMapAcc : TM2ComputableInPolyTime
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2))
+      (fun q => (!(acceptWitness p V q.1.1 q.1.2), q.2)) :=
+    mapFstEncComputableInPolyTime hNAcc 1 (by intro pw; simp)
+  have h1 : TM2ComputableInPolyTime encodePair
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2))
+      (fun pw => (!(acceptWitness p V pw.1 pw.2), encodePair pw)) :=
+    comp_enc hDup hMapAcc (3 * Polynomial.X + 1)
+      (by
+        intro pw
+        simp only [length_encodePair_self, Polynomial.eval_add,
+          Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_one,
+          Polynomial.eval_ofNat]
+        omega)
+  -- Relabel the untouched half as a pair again, then swap it back to front.
+  have h2 : TM2ComputableInPolyTime encodePair
+      (fun q : Bool × (List Bool × List Bool) =>
+        encodePair (bitEnc q.1, encodePair q.2))
+      (fun pw => (!(acceptWitness p V pw.1 pw.2), pw)) :=
+    recodeOutput h1
+      (fun q : Bool × (List Bool × List Bool) =>
+        encodePair (bitEnc q.1, encodePair q.2))
+      (fun pw => (!(acceptWitness p V pw.1 pw.2), pw)) (fun _ => rfl)
+  have hSwap1 : TM2ComputableInPolyTime
+      (fun q : Bool × (List Bool × List Bool) =>
+        encodePair (bitEnc q.1, encodePair q.2))
+      (fun q : (List Bool × List Bool) × Bool =>
+        encodePair (encodePair q.1, bitEnc q.2))
+      (fun q => (q.2, q.1)) :=
+    swapPairEncComputableInPolyTime bitEnc encodePair
+  have h3 : TM2ComputableInPolyTime encodePair
+      (fun q : (List Bool × List Bool) × Bool =>
+        encodePair (encodePair q.1, bitEnc q.2))
+      (fun pw => (pw, !(acceptWitness p V pw.1 pw.2))) :=
+    comp_enc h2 hSwap1 (Polynomial.X + 3)
+      (by
+        intro pw
+        simp only [length_encodePair_bitEnc_fst, Polynomial.eval_add,
+          Polynomial.eval_X, Polynomial.eval_ofNat]
+        omega)
+  have h4 : TM2ComputableInPolyTime encodePair
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun pw => (pw, bitEnc (!(acceptWitness p V pw.1 pw.2)))) :=
+    recodeOutput h3
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      (fun pw => (pw, bitEnc (!(acceptWitness p V pw.1 pw.2)))) (fun _ => rfl)
+  -- Project the formula out of the surviving pair.
+  have hProj : TM2ComputableInPolyTime
+      (fun q : (List Bool × List Bool) × List Bool =>
+        encodePair (encodePair q.1, q.2))
+      encodePair (fun q => (q.1.1, q.2)) :=
+    mapFstEncComputableInPolyTime projFirstComputableInPolyTime Polynomial.X
+      (by
+        intro pw
+        simp only [idBitEnc, id_eq, Polynomial.eval_X, length_encodePair]
+        omega)
+  have h5 : TM2ComputableInPolyTime encodePair encodePair
+      (fun pw => (pw.1, bitEnc (!(acceptWitness p V pw.1 pw.2)))) :=
+    comp_enc h4 hProj (2 * Polynomial.X + 2)
+      (by
+        intro pw
+        simp only [length_encodePair_bitEnc_snd, Polynomial.eval_add,
+          Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_ofNat]
+        omega)
+  have hSwap2 : TM2ComputableInPolyTime encodePair encodePair
+      (fun q => (q.2, q.1)) :=
+    swapPairEncComputableInPolyTime idBitEnc idBitEnc
+  have h6 : TM2ComputableInPolyTime encodePair encodePair
+      (fun pw => (bitEnc (!(acceptWitness p V pw.1 pw.2)), pw.1)) :=
+    comp_enc h5 hSwap2 (2 * Polynomial.X + 2)
+      (by
+        intro pw
+        simp only [length_encodePair_bitEnc_snd, Polynomial.eval_add,
+          Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_ofNat]
+        have h := length_encodePair pw
+        omega)
+  have h7 : TM2ComputableInPolyTime encodePair
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2))
+      (fun pw => (!(acceptWitness p V pw.1 pw.2), pw.1)) :=
+    recodeOutput h6
+      (fun q : Bool × List Bool => encodePair (bitEnc q.1, q.2))
+      (fun pw => (!(acceptWitness p V pw.1 pw.2), pw.1)) (fun _ => rfl)
+  -- Cons the negated accept bit, then the certified conditional.
+  have h8 : TM2ComputableInPolyTime encodePair idBitEnc
+      (fun pw => (!(acceptWitness p V pw.1 pw.2)) :: pw.1) :=
+    comp_enc h7 consBitComputableInPolyTime (Polynomial.X + 3)
+      (by
+        intro pw
+        simp only [length_encodePair_bitEnc_fst, Polynomial.eval_add,
+          Polynomial.eval_X, Polynomial.eval_ofNat]
+        have h := length_encodePair pw
+        omega)
+  have h9 : TM2ComputableInPolyTime encodePair idBitEnc
+      (fun pw => liftValidationToTT ((!(acceptWitness p V pw.1 pw.2)) :: pw.1)) :=
+    comp_enc h8 liftValidationToTTComputableInPolyTime (Polynomial.X + 1)
+      (by
+        intro pw
+        simp only [idBitEnc, id_eq, List.length_cons, Polynomial.eval_add,
+          Polynomial.eval_X, Polynomial.eval_one]
+        have h := length_encodePair pw
+        omega)
+  exact recodeOutput h9 idBitEnc
+    (fun pw => if acceptWitness p V pw.1 pw.2 then pw.1 else encodeFormula tautSeed)
+    (fun pw => (liftValidationToTT_not_cons (acceptWitness p V pw.1 pw.2) pw.1).symm)
+
+/-- The sanitized NP verifier proof map. Differs from `proofSystemOfNPVerifier`
+only by first replacing an undecodable tape with the seed encoding, which the
+map sends to the seed anyway. -/
+def npProofSystem (p : Polynomial ℕ) (V : List Bool → List Bool → Bool)
+    (π : List Bool) : List Bool :=
+  proofSystemOfNPVerifier p V (encodePair ((decodePair π).getD tautSeedPair))
+
+theorem proofSystemOfNPVerifier_encodePair (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool) (pw : List Bool × List Bool) :
+    proofSystemOfNPVerifier p V (encodePair pw) =
+      if acceptWitness p V pw.1 pw.2 then pw.1 else encodeFormula tautSeed := by
+  rcases pw with ⟨φ, w⟩
+  simp [proofSystemOfNPVerifier, decodePair_encodePair, acceptWitness, lengthOk]
+
+theorem npProofSystem_eq (p : Polynomial ℕ) (V : List Bool → List Bool → Bool)
+    (π : List Bool) :
+    npProofSystem p V π =
+      (fun pw : List Bool × List Bool =>
+        if acceptWitness p V pw.1 pw.2 then pw.1 else encodeFormula tautSeed)
+        ((decodePair π).getD tautSeedPair) :=
+  proofSystemOfNPVerifier_encodePair p V _
+
+/-- Identity on well formed proofs: sanitizing is the identity there. -/
+theorem npProofSystem_encodePair (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool) (pw : List Bool × List Bool) :
+    npProofSystem p V (encodePair pw) = proofSystemOfNPVerifier p V (encodePair pw) := by
+  simp [npProofSystem, decodePair_encodePair]
+
+theorem npProofSystem_sound (p : Polynomial ℕ) (V : List Bool → List Bool → Bool)
+    (hV : ∀ φ, TAUT φ ↔ ∃ w, w.length ≤ p.eval φ.length ∧ V φ w = true)
+    (π : List Bool) : TAUT (npProofSystem p V π) :=
+  proofSystemOfNPVerifier_sound p V hV _
+
+theorem npProofSystem_complete (p : Polynomial ℕ) (V : List Bool → List Bool → Bool)
+    (hV : ∀ φ, TAUT φ ↔ ∃ w, w.length ≤ p.eval φ.length ∧ V φ w = true)
+    (φ : List Bool) (hφ : TAUT φ) : ∃ π, npProofSystem p V π = φ := by
+  rcases (hV φ).1 hφ with ⟨w, hlen, hacc⟩
+  refine ⟨encodePair (φ, w), ?_⟩
+  rw [npProofSystem_encodePair]
+  simp [proofSystemOfNPVerifier, decodePair_encodePair, hlen, hacc]
+
+theorem npProofSystem_polyBounded (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool)
+    (hV : ∀ φ, TAUT φ ↔ ∃ w, w.length ≤ p.eval φ.length ∧ V φ w = true) :
+    PolynomiallyBounded (npProofSystem p V) := by
+  refine ⟨2 * Polynomial.X + 1 + p, ?_⟩
+  intro φ hφ
+  rcases (hV φ).1 hφ with ⟨w, hlen, hacc⟩
+  refine ⟨encodePair (φ, w), ?_, ?_⟩
+  · rw [npProofSystem_encodePair]
+    simp [proofSystemOfNPVerifier, decodePair_encodePair, hlen, hacc]
+  · simp [length_encodePair, Polynomial.eval_add, Polynomial.eval_mul,
+      Polynomial.eval_X, Polynomial.eval_one, Polynomial.eval_ofNat]
+    omega
+
+/-- Full FinTM2 packaging of the sanitized NP verifier proof map. -/
+noncomputable def npProofSystemComputableInPolyTime (p : Polynomial ℕ)
+    (V : List Bool → List Bool → Bool)
+    (hV : TM2ComputableInPolyTime encodePair bitEnc (fun pw => V pw.1 pw.2)) :
+    TM2ComputableInPolyTime idBitEnc idBitEnc (npProofSystem p V) := by
+  have hcomp :=
+    comp_enc sanitizeProofComputableInPolyTime
+      (afterDecodeProofSystemComputableInPolyTime p V hV)
+      (3 * Polynomial.X + 11)
+      (by
+        intro π
+        simp only [idBitEnc, id_eq, Polynomial.eval_add, Polynomial.eval_mul,
+          Polynomial.eval_X, Polynomial.eval_ofNat]
+        exact length_sanitizeProof_le π)
+  exact recodeOutput hcomp idBitEnc (npProofSystem p V)
+    (fun π => npProofSystem_eq p V π)
+
+/-- Easy half of bridge theorem 1: `NP = coNP` yields a polynomially bounded
+propositional proof system. -/
+theorem bridge_theorem_1_easy (h : ClassNP_eq_ClassCoNP) :
+    ∃ f, Nonempty (IsPropProofSystem f) ∧ PolynomiallyBounded f := by
+  rcases TAUT_in_NP_of_NP_eq_coNP h with ⟨p, V, hVpoly, hV⟩
+  refine ⟨npProofSystem p V, ⟨?_⟩, npProofSystem_polyBounded p V hV⟩
+  exact
+    { poly := npProofSystemComputableInPolyTime p V hVpoly
+      sound := npProofSystem_sound p V hV
+      complete := npProofSystem_complete p V hV }
+
 /-! ## Summit corollary (from theorem 2 + easy direction of theorem 1) -/
 
 
@@ -10573,5 +10862,12 @@ theorem summit_corollary_of_easy
   have hNP := bridge_theorem_2 hP
   rcases heasy hNP with ⟨f, hf, hb⟩
   exact (h f hf) hb
+
+/-- Unconditional form: no polynomially bounded propositional proof system
+implies `P ≠ NP`. Both inputs are now certified. -/
+theorem summit_corollary
+    (h : ∀ f, Nonempty (IsPropProofSystem f) → ¬ PolynomiallyBounded f) :
+    ¬ ClassP_eq_ClassNP :=
+  summit_corollary_of_easy bridge_theorem_1_easy h
 
 end SATurday.Bridge

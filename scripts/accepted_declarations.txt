@@ -2383,3 +2383,12 @@ SATurday.Bridge.proofSystemOfNPVerifier_sound
 SATurday.Bridge.proofSystemOfNPVerifier_complete
 SATurday.Bridge.proofSystemOfNPVerifier_polyBounded
 SATurday.Bridge.summit_corollary_of_easy
+SATurday.Bridge.sanitizeProofComputableInPolyTime
+SATurday.Bridge.afterDecodeProofSystemComputableInPolyTime
+SATurday.Bridge.npProofSystem
+SATurday.Bridge.npProofSystem_sound
+SATurday.Bridge.npProofSystem_complete
+SATurday.Bridge.npProofSystem_polyBounded
+SATurday.Bridge.npProofSystemComputableInPolyTime
+SATurday.Bridge.bridge_theorem_1_easy
+SATurday.Bridge.summit_corollary

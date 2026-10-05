@@ -127,7 +127,7 @@ Cook Levin reduction (hard direction) remain. Do not restart
 
 - [x] Add `CookReckhow.lean` with bridge theorem 2 and `TAUT_in_coNP`
   (`sanitizeComputer` lifted decode + eval + notBit; axiom gate PASS)
-- [ ] Easy direction of theorem 1: package `proofSystemOfNPVerifier` as
+- [x] Easy direction of theorem 1: package `proofSystemOfNPVerifier` as
   `TM2ComputableInPolyTime idBitEnc idBitEnc` (functional sound,
   complete, polyBound, and `afterDecodeProofSystem` composition certified;
   `unaryLEComputableInPolyTime` certified under `encodePair`;
@@ -171,9 +171,9 @@ Cook Levin reduction (hard direction) remain. Do not restart
   Horner `polyEvalUnaryComputableInPolyTime` WF for arbitrary p
   (toUnarySelfPair, mapSnd IH, unaryMul, scaleAppend 1 coeff0);
   `lengthOkComputableInPolyTime` for opaque p (swap, mapSnd polyEval,
-  unaryLE); remaining: fan-out compose with `V` into acceptWitness,
-  `afterDecodeProofSystem` FinTM2 host, Cook Levin hard direction;
-  `summit_corollary_of_easy` waits)
+  unaryLE); `afterDecodeProofSystemComputableInPolyTime`, `sanitizeProofComputableInPolyTime`,
+  `npProofSystemComputableInPolyTime`, `bridge_theorem_1_easy` and
+  unconditional `summit_corollary` certified 2026-10-05; axiom gate PASS)
 - [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (semantic short-proof fragment `TAUT_short_proofs_of_polyBounded` is
   certified; `proofCheck_eq_bitsEqualPair` and `TAUT_in_NP_of_polyBounded`
