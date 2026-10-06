@@ -1231,7 +1231,9 @@ theorem run_deepLoopP {W t : ℕ} (hc : 0 < cm.c) {k : ℕ} (hk : k < cm.K) (b :
     ((cm.deepLoopP k).run b).out = b.out ++
       (List.range (W - 2 * cm.c)).flatMap (fun e => tmplBits (cm.Vf W t k e) (cm.deepT k)) ∧
     ((cm.deepLoopP k).run b).inp = b.inp ∧ ((cm.deepLoopP k).run b).bits = b.bits ∧
-    ∀ r, r ≠ 2 * cm.K + 2 → r ≠ 2 * cm.K + 3 → ((cm.deepLoopP k).run b).reg r = b.reg r := by
+    (∀ r, r ≠ 2 * cm.K + 2 → r ≠ 2 * cm.K + 3 → ((cm.deepLoopP k).run b).reg r = b.reg r) ∧
+    ((cm.deepLoopP k).run b).reg (2 * cm.K + 2) = cm.vA W t k (W - 2 * cm.c) 0 ∧
+    ((cm.deepLoopP k).run b).reg (2 * cm.K + 3) = cm.vA W (t + 1) k (W - 2 * cm.c) 0 := by
   have hne : cm.rN2 ≠ 2 * cm.K + 2 := by unfold rN2; omega
   have hne' : cm.rN2 ≠ 2 * cm.K + 3 := by unfold rN2; omega
   have e1 : (setReg (2 * cm.K + 2) (1 + k)).run b =
@@ -1285,15 +1287,23 @@ theorem run_deepLoopP {W t : ℕ} (hc : 0 < cm.c) {k : ℕ} (hk : k < cm.K) (b :
   rw [hN₂] at p4 p2 p3
   unfold deepLoopP
   rw [run_seq', run_seq']
-  refine ⟨?_, p5, p6, p7⟩
-  rw [← hb₁, ← hb₂]
-  exact p4
+  refine ⟨?_, p5, p6, p7, ?_, ?_⟩
+  · rw [← hb₁, ← hb₂]
+    exact p4
+  · rw [← hb₁, ← hb₂]
+    exact p2
+  · rw [← hb₁, ← hb₂]
+    exact p3
 
 theorem run_stepBlockP {W t : ℕ} (hc : 0 < cm.c) (b : AS) (hF : cm.FrameRegs W t b)
     (hN : b.reg cm.rN2 = W - 2 * cm.c) :
     (cm.stepBlockP.run b).out = b.out ++ consBits (cm.stepBlock W t) ∧
     (cm.stepBlockP.run b).inp = b.inp ∧ (cm.stepBlockP.run b).bits = b.bits ∧
-    ∀ r, r ≠ 2 * cm.K + 2 → r ≠ 2 * cm.K + 3 → (cm.stepBlockP.run b).reg r = b.reg r := by
+    (∀ r, r ≠ 2 * cm.K + 2 → r ≠ 2 * cm.K + 3 → (cm.stepBlockP.run b).reg r = b.reg r) ∧
+    (0 < cm.K → (cm.stepBlockP.run b).reg (2 * cm.K + 2) =
+        cm.vA W t (cm.K - 1) (W - 2 * cm.c) 0 ∧
+      (cm.stepBlockP.run b).reg (2 * cm.K + 3) =
+        cm.vA W (t + 1) (cm.K - 1) (W - 2 * cm.c) 0) := by
   have hne : cm.rN2 ≠ 2 * cm.K + 2 := by unfold rN2; omega
   have hne' : cm.rN2 ≠ 2 * cm.K + 3 := by unfold rN2; omega
   have hag := cm.agree_frame hF 0 0
@@ -1308,30 +1318,34 @@ theorem run_stepBlockP {W t : ℕ} (hc : 0 < cm.c) (b : AS) (hF : cm.FrameRegs W
         (List.range cm.c).flatMap (fun d => tmplBits (cm.Vf W t k' 0) (cm.topT k' d)) ++
         (List.range (W - 2 * cm.c)).flatMap (fun e => tmplBits (cm.Vf W t k' e) (cm.deepT k'))) ∧
       b'.inp = b₁.inp ∧ b'.bits = b₁.bits ∧
-      ∀ r, r ≠ 2 * cm.K + 2 → r ≠ 2 * cm.K + 3 → b'.reg r = b₁.reg r)
-    ⟨hF₁, hN₁, by simp, rfl, rfl, fun r _ _ => rfl⟩
+      (∀ r, r ≠ 2 * cm.K + 2 → r ≠ 2 * cm.K + 3 → b'.reg r = b₁.reg r) ∧
+      (0 < k → b'.reg (2 * cm.K + 2) = cm.vA W t (k - 1) (W - 2 * cm.c) 0 ∧
+        b'.reg (2 * cm.K + 3) = cm.vA W (t + 1) (k - 1) (W - 2 * cm.c) 0))
+    ⟨hF₁, hN₁, by simp, rfl, rfl, fun r _ _ => rfl, fun h => absurd h (lt_irrefl 0)⟩
     (by
-      intro k hk b' ⟨g1, g2, g3, g4, g5, g6⟩
+      intro k hk b' ⟨g1, g2, g3, g4, g5, g6, g7⟩
       obtain ⟨t1, t2, t3, t4⟩ := cm.run_topP hc hk b' g1
       set b'' := (cm.topP k).run b' with hb''
       have hF'' : cm.FrameRegs W t b'' := by
         refine cm.FrameRegs_of_lt g1 (fun r _ => ?_); rw [t2]
       have hN'' : b''.reg cm.rN2 = W - 2 * cm.c := by rw [t2]; exact g2
-      obtain ⟨d1, d2, d3, d4⟩ := cm.run_deepLoopP hc hk b'' hF'' hN''
+      obtain ⟨d1, d2, d3, d4, d5, d6⟩ := cm.run_deepLoopP hc hk b'' hF'' hN''
       rw [run_seq']
-      refine ⟨cm.FrameRegs_of_lt hF'' (fun r hr => d4 r (by omega) (by omega)), ?_, ?_, ?_, ?_, ?_⟩
+      refine ⟨cm.FrameRegs_of_lt hF'' (fun r hr => d4 r (by omega) (by omega)), ?_, ?_, ?_, ?_, ?_,
+        fun _ => ?_⟩
       · rw [d4 _ hne hne', t2]; exact g2
       · rw [d1, t1, g3]
         simp only [List.range_succ, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
           List.append_nil, List.append_assoc]
       · rw [d2, t3, g4]
       · rw [d3, t4, g5]
-      · intro r hr1 hr2; rw [d4 r hr1 hr2, t2, g6 r hr1 hr2])
-  obtain ⟨q1, q2, q3, q4, q5, q6⟩ := P
+      · intro r hr1 hr2; rw [d4 r hr1 hr2, t2, g6 r hr1 hr2]
+      · simp only [Nat.add_sub_cancel]; exact ⟨d5, d6⟩)
+  obtain ⟨q1, q2, q3, q4, q5, q6, q7⟩ := P
   have hfin : cm.stepBlockP.run b = (forK cm.K (fun k => FP.seq (cm.topP k) (cm.deepLoopP k))).run b₁ :=
     rfl
   rw [hfin]
-  refine ⟨?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, q7⟩
   · rw [q3, e1, consBits_stepBlock]
     simp [List.append_assoc]
   · rw [q4, e1]
@@ -1423,7 +1437,7 @@ theorem run_mainP {W : ℕ} (hc : 0 < cm.c) (b : AS) (hF : cm.FrameRegs W 0 b)
       set b₁ := cm.frameBlockP.run b' with hb₁
       have hF₁ : cm.FrameRegs W j b₁ := cm.FrameRegs_of_same g1 f4
       have hN₁ : b₁.reg cm.rN2 = W - 2 * cm.c := by rw [f4 _ hN']; exact g3
-      obtain ⟨s1, s2, s3, s4⟩ := cm.run_stepBlockP hc b₁ hF₁ hN₁
+      obtain ⟨s1, s2, s3, s4, -⟩ := cm.run_stepBlockP hc b₁ hF₁ hN₁
       set b₂ := cm.stepBlockP.run b₁ with hb₂
       have hF₂ : cm.FrameRegs W j b₂ := cm.FrameRegs_of_lt hF₁ (fun r hr => s4 r (by omega) (by omega))
       have hFr₂ : b₂.reg cm.rFR = cm.Fr W := by
@@ -1902,10 +1916,14 @@ def preP (C e : ℕ) : FP :=
 def genProg (C e : ℕ) : FP :=
   .seq (cm.preP C e) (.seq cm.mainP (.seq cm.accP (.emit (encodeFormula tautSeed))))
 
-theorem run_genProg (hc : 0 < cm.c) (hkin : cm.kin < cm.K) (hkout : cm.kout < cm.K)
+theorem run_preP (hc : 0 < cm.c) (hkin : cm.kin < cm.K) (hkout : cm.kout < cm.K)
     (C e : ℕ) (x : List Bool) :
-    ((cm.genProg C e).run (AS0 x)).out =
-      encodeFormula (tabFormula cm (C * (x.length + 1) ^ e) (C * (x.length + 1) ^ e) x) := by
+    cm.FrameRegs (C * (x.length + 1) ^ e) 0 ((cm.preP C e).run (AS0 x)) ∧
+    ((cm.preP C e).run (AS0 x)).reg cm.rP = C * (x.length + 1) ^ e ∧
+    ((cm.preP C e).run (AS0 x)).reg cm.rN2 = C * (x.length + 1) ^ e - 2 * cm.c ∧
+    ((cm.preP C e).run (AS0 x)).reg cm.rFR = cm.Fr (C * (x.length + 1) ^ e) ∧
+    ((cm.preP C e).run (AS0 x)).out =
+      [false, true] ++ consBits (cm.initL (C * (x.length + 1) ^ e) x) := by
   set P := C * (x.length + 1) ^ e with hP
   have rMne : cm.rM ≠ 2 * cm.K + 2 := by unfold rM; omega
   have rPne : cm.rP ≠ 2 * cm.K + 2 := by unfold rP; omega
@@ -1914,7 +1932,7 @@ theorem run_genProg (hc : 0 < cm.c) (hkin : cm.kin < cm.K) (hkout : cm.kout < cm
   have rN2ne : cm.rN2 ≠ 2 * cm.K + 2 := by unfold rN2; omega
   have rN3ne : cm.rN3 ≠ 2 * cm.K + 2 := by unfold rN3; omega
   have rN4ne : cm.rN4 ≠ 2 * cm.K + 2 := by unfold rN4; omega
-  simp only [genProg, preP, seqL, run_seq', run_skip']
+  simp only [preP, seqL, run_seq', run_skip']
   -- stage 1: P
   obtain ⟨p1, p2, p3, p4, p5, p6⟩ := cm.run_polyProg C e (AS0 x)
   set a1 := (cm.polyProg C e).run (AS0 x) with ha1
@@ -1999,6 +2017,19 @@ theorem run_genProg (hc : 0 < cm.c) (hkin : cm.kin < cm.K) (hkout : cm.kout < cm
   have a6P : a6.reg cm.rP = P := by rw [i4 _ rPne]; exact a4P
   have a6N2 : a6.reg cm.rN2 = P - 2 * cm.c := by rw [i4 _ rN2ne]; exact a4N2
   have a6F : a6.reg cm.rFR = cm.Fr P := by rw [i4 _ rFne]; exact a4F
+  have a5out : a5.out = [false, true] := by
+    show a4.out ++ [false, true] = _
+    rw [u1, a3out]; simp
+  exact ⟨hF6, a6P, a6N2, a6F, by rw [i1, a5out]⟩
+
+theorem run_genProg (hc : 0 < cm.c) (hkin : cm.kin < cm.K) (hkout : cm.kout < cm.K)
+    (C e : ℕ) (x : List Bool) :
+    ((cm.genProg C e).run (AS0 x)).out =
+      encodeFormula (tabFormula cm (C * (x.length + 1) ^ e) (C * (x.length + 1) ^ e) x) := by
+  obtain ⟨hF6, a6P, a6N2, a6F, a6out⟩ := cm.run_preP hc hkin hkout C e x
+  simp only [genProg, run_seq']
+  set P := C * (x.length + 1) ^ e with hP
+  set a6 := (cm.preP C e).run (AS0 x) with ha6
   -- stage 7: the time loop
   obtain ⟨m1, m2, m3, m4, m5⟩ := cm.run_mainP (W := P) hc a6 hF6 a6P a6N2 a6F
   set a7 := (cm.mainP).run a6 with ha7
@@ -2007,10 +2038,7 @@ theorem run_genProg (hc : 0 < cm.c) (hkin : cm.kin < cm.K) (hkout : cm.kout < cm
   set a8 := (cm.accP).run a7 with ha8
   rw [run_emit' (encodeFormula tautSeed) a8]
   show a8.out ++ encodeFormula tautSeed = _
-  have a5out : a5.out = [false, true] := by
-    show a4.out ++ [false, true] = _
-    rw [u1, a3out]; simp
-  rw [c1, m1, i1, a5out, encodeFormula_tabFormula]
+  rw [c1, m1, a6out, encodeFormula_tabFormula]
   simp [consL, consBits_append, List.append_assoc]
 
 
