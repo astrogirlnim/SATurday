@@ -1138,5 +1138,101 @@ theorem exec_compile (NR : ℕ) : ∀ (p : FP) (d : ℕ), p.Ok NR d → ∀ (a :
       · exact key _ (fS_ne_rS_aux hm) iS_ne_fS.symm xS_ne_fS.symm
       · simp only [FP.cost]; omega
 
+/-! ## Whole machines from register programs -/
+
+/-- Initial abstract state: all registers zero, input `x`. -/
+def AS0 (x : List Bool) : AS := ⟨fun _ => 0, [], x, []⟩
+
+/-- Program plus the final reversal of the output accumulator onto the output stack. -/
+def FP.toProg (NR : ℕ) (p : FP) : Prog (NR + 8) :=
+  .seq (p.compile NR 0) (.loop (oS NR) (.push (fS NR) false) (.push (fS NR) true))
+
+theorem sat_AS0 (NR : ℕ) (x : List Bool) : SatD NR 0 (AS0 x) (initSt (iS NR) x) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro r hr
+    simp [initSt, AS0, (rS_ne_iS hr)]
+  · simp [initSt, AS0, oS_ne_iS]
+  · simp [initSt, AS0, tS_ne_iS]
+  · intro e _ he; simp [initSt, AS0, sS_ne_iS he]
+  · simp [initSt, AS0]
+  · simp [initSt, AS0, iS_ne_xS.symm]
+
+theorem exec_finalize (NR : ℕ) (S : St (NR + 8)) (l : List Bool) (hl : S (oS NR) = l) :
+    ∃ c, c ≤ 2 * l.length + 1 ∧ Exec (.loop (oS NR) (.push (fS NR) false) (.push (fS NR) true)) S
+      (upd (upd S (oS NR) []) (fS NR) (l.reverse ++ S (fS NR))) c := by
+  let F : ℕ → St (NR + 8) := fun i =>
+    upd (upd S (oS NR) (l.drop i)) (fS NR) ((l.take i).reverse ++ S (fS NR))
+  have hF0 : F 0 = S := by
+    funext j
+    simp only [F, upd_apply]
+    by_cases h1 : j = fS NR
+    · subst h1; simp [oS_ne_fS.symm]
+    · by_cases h2 : j = oS NR
+      · subst h2; simp [hl, h1]
+      · simp [h1, h2]
+  obtain ⟨c, h, hc⟩ := exec_loop_list (oS NR) (.push (fS NR) false) (.push (fS NR) true) l 1 F
+    (by intro i _; simp [F, upd_apply, oS_ne_fS])
+    (by
+      intro i hi
+      refine ⟨1, ?_, le_rfl⟩
+      have htake : (l.take (i + 1)).reverse = l[i] :: (l.take i).reverse := by
+        rw [List.take_succ]; simp [List.getElem?_eq_getElem hi]
+      cases hb : l[i] with
+      | false =>
+          simp only [Bool.false_eq_true, if_false]
+          have := Exec.push (upd (F i) (oS NR) (l.drop (i + 1))) (fS NR) false
+          convert this using 1
+          funext j
+          simp only [F, upd_apply]
+          by_cases h1 : j = fS NR
+          · subst h1; simp [oS_ne_fS.symm, htake, hb]
+          · by_cases h2 : j = oS NR
+            · subst h2; simp [h1]
+            · simp [h1, h2]
+      | true =>
+          simp only [if_true]
+          have := Exec.push (upd (F i) (oS NR) (l.drop (i + 1))) (fS NR) true
+          convert this using 1
+          funext j
+          simp only [F, upd_apply]
+          by_cases h1 : j = fS NR
+          · subst h1; simp [oS_ne_fS.symm, htake, hb]
+          · by_cases h2 : j = oS NR
+            · subst h2; simp [h1]
+            · simp [h1, h2])
+  rw [hF0] at h
+  refine ⟨c, by nlinarith, ?_⟩
+  have hFl : F l.length = upd (upd S (oS NR) []) (fS NR) (l.reverse ++ S (fS NR)) := by
+    simp [F]
+  rw [hFl] at h
+  exact h
+
+/-- A register program computes a function within a polynomial number of instructions. -/
+theorem fp_computes (NR : ℕ) (p : FP) (hp : p.Ok NR 0) (f : List Bool → List Bool)
+    (T : Polynomial ℕ)
+    (hout : ∀ x, (p.run (AS0 x)).out = f x)
+    (hcost : ∀ x, p.cost (AS0 x) ≤ T.eval x.length) :
+    Computes (iS NR) (fS NR) (p.toProg NR) f (3 * T + 2 * Polynomial.X + 1) := by
+  refine ⟨fun x => ?_⟩
+  obtain ⟨S₁, c₁, h₁, hS₁, _, hk₁, hc₁⟩ := exec_compile NR p 0 hp (AS0 x) _ (sat_AS0 NR x)
+  have hS1o : S₁ (oS NR) = (f x).reverse := by rw [hS₁.2.1, hout x]
+  obtain ⟨c₂, hc₂, h₂⟩ := exec_finalize NR S₁ (f x).reverse hS1o
+  refine ⟨_, c₁ + c₂, Exec.seq h₁ h₂, ?_, ?_⟩
+  · have : S₁ (fS NR) = [] := by
+      rw [hk₁]; simp [initSt, iS_ne_fS.symm]
+    simp [upd_apply, this]
+  · have htot := exec_total_le h₁
+    have hlen : (S₁ (oS NR)).length ≤ total S₁ := by
+      unfold total
+      exact Finset.single_le_sum (f := fun i => (S₁ i).length) (fun _ _ => Nat.zero_le _)
+        (Finset.mem_univ _)
+    rw [total_initSt] at htot
+    have hl : (S₁ (oS NR)).length = (f x).length := by rw [hS1o]; simp
+    simp only [List.length_reverse] at hc₂
+    have := hcost x
+    simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_ofNat,
+      Polynomial.eval_one]
+    omega
+
 end SP
 end SATurday.Bridge

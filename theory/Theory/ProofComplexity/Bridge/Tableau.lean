@@ -1093,7 +1093,7 @@ def deepT (k : ℕ) : List TF :=
 /-- Initial constraints. -/
 def initL (W : ℕ) (x : List Bool) : List PropFormula :=
   instL (cm.Vf W 0 0 0) [TF.leaf 0 cm.q0] ++
-  (List.range x.length).flatMap (fun i =>
+  (List.range x.length).reverse.flatMap (fun i =>
     instL (cm.Vf W 0 cm.kin (2 * i))
       [TF.leaf (2 * cm.K + 2) (cm.inSym true),
        TF.leaf (2 * cm.K + 2) ((cm.A + 1) + cm.inSym (x.getD i false))]) ++
@@ -1110,24 +1110,34 @@ def initL (W : ℕ) (x : List Bool) : List PropFormula :=
       (List.range W).flatMap fun d =>
         instL (cm.Vf W 0 k d) [TF.leaf (2 * cm.K + 2) cm.A])
 
+/-- Per frame constraints at time `t`. -/
+def frameBlock (W t : ℕ) : List PropFormula :=
+  instL (cm.Vf W t 0 0) [exactlyOne 0 (List.range cm.Q)] ++
+  (List.range cm.K).flatMap (fun k =>
+    (List.range W).flatMap fun d =>
+      instL (cm.Vf W t k d) [exactlyOne (2 * cm.K + 2) (List.range (cm.A + 1))]) ++
+  (List.range cm.K).flatMap (fun k =>
+    instL (cm.Vf W t k (W - 2 * cm.c))
+      ((List.range (2 * cm.c)).map fun i => TF.leaf (2 * cm.K + 2) (i * (cm.A + 1) + cm.A)))
+
+/-- Step constraints from time `t` to `t + 1`. -/
+def stepBlock (W t : ℕ) : List PropFormula :=
+  instL (cm.Vf W t 0 0) cm.stepCtlT ++
+  (List.range cm.K).flatMap (fun k =>
+    (List.range cm.c).flatMap (fun d => instL (cm.Vf W t k 0) (cm.topT k d)) ++
+    (List.range (W - 2 * cm.c)).flatMap (fun e => instL (cm.Vf W t k e) (cm.deepT k)))
+
 /-- Per frame constraints for times `0 .. B`. -/
 def frameL (W B : ℕ) : List PropFormula :=
-  (List.range (B + 1)).flatMap fun t =>
-    instL (cm.Vf W t 0 0) [exactlyOne 0 (List.range cm.Q)] ++
-    (List.range cm.K).flatMap (fun k =>
-      (List.range W).flatMap fun d =>
-        instL (cm.Vf W t k d) [exactlyOne (2 * cm.K + 2) (List.range (cm.A + 1))]) ++
-    (List.range cm.K).flatMap (fun k =>
-      instL (cm.Vf W t k (W - 2 * cm.c))
-        ((List.range (2 * cm.c)).map fun i => TF.leaf (2 * cm.K + 2) (i * (cm.A + 1) + cm.A)))
+  (List.range (B + 1)).flatMap (cm.frameBlock W)
 
 /-- Step constraints for times `0 .. B-1`. -/
 def stepL (W B : ℕ) : List PropFormula :=
-  (List.range B).flatMap fun t =>
-    instL (cm.Vf W t 0 0) cm.stepCtlT ++
-    (List.range cm.K).flatMap (fun k =>
-      (List.range cm.c).flatMap (fun d => instL (cm.Vf W t k 0) (cm.topT k d)) ++
-      (List.range (W - 2 * cm.c)).flatMap (fun e => instL (cm.Vf W t k e) (cm.deepT k)))
+  (List.range B).flatMap (cm.stepBlock W)
+
+/-- Frame and step constraints in generation order. -/
+def mainL (W B : ℕ) : List PropFormula :=
+  (List.range B).flatMap (fun t => cm.frameBlock W t ++ cm.stepBlock W t) ++ cm.frameBlock W B
 
 /-- Acceptance constraints at time `B`. -/
 def accL (W B : ℕ) : List PropFormula :=
@@ -1138,7 +1148,7 @@ def accL (W B : ℕ) : List PropFormula :=
 
 /-- The full list of tableau constraints. -/
 def consL (W B : ℕ) (x : List Bool) : List PropFormula :=
-  cm.initL W x ++ cm.frameL W B ++ cm.stepL W B ++ cm.accL W B
+  cm.initL W x ++ cm.mainL W B ++ cm.accL W B
 
 theorem sat_acc {σ : ℕ → Bool} {W B : ℕ} (hk : cm.kout < cm.K) :
     SatL σ (cm.accL W B) ↔
@@ -1217,7 +1227,7 @@ theorem sat_init {σ : ℕ → Bool} {W : ℕ} {x : List Bool} (hk : cm.kin < cm
         σ (cm.vA W 0 cm.kin d cm.A) = true → σ (cm.vA W 0 cm.kin (d + 1) cm.A) = true) ∧
       (∀ k < cm.K, k ≠ cm.kin → ∀ d < W, σ (cm.vA W 0 k d cm.A) = true) := by
   unfold initL
-  simp only [SatL_append, SatL_flatMap, SatL_instL, List.mem_range, List.mem_cons,
+  simp only [SatL_append, SatL_flatMap, SatL_instL, List.mem_reverse, List.mem_range, List.mem_cons,
     List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq, TF.holds_leaf, TF.holds_or,
     holds_impT]
   have hD : ∀ d o, cm.Vf W 0 cm.kin d (2 * cm.K + 2) o = cm.vA W 0 cm.kin d 0 + o :=
@@ -1497,14 +1507,30 @@ theorem sat_step (hwf : cm.WF W) {σ : ℕ → Bool} {B : ℕ} :
     have ht' : t < B := by simpa using ht
     exact (key t).2 ⟨h1 t ht', h2 t ht'⟩
 
+theorem sat_main {σ : ℕ → Bool} {W B : ℕ} :
+    SatL σ (cm.mainL W B) ↔ SatL σ (cm.frameL W B) ∧ SatL σ (cm.stepL W B) := by
+  unfold mainL frameL stepL
+  rw [SatL_append, SatL_flatMap, SatL_flatMap, SatL_flatMap]
+  simp only [List.mem_range, SatL_append]
+  constructor
+  · rintro ⟨h1, h2⟩
+    refine ⟨?_, fun t ht => (h1 t ht).2⟩
+    intro t ht
+    by_cases htB : t < B
+    · exact (h1 t htB).1
+    · have : t = B := by omega
+      subst this; exact h2
+  · rintro ⟨h1, h2⟩
+    exact ⟨fun t ht => ⟨h1 t (by omega), h2 t ht⟩, h1 B (by omega)⟩
+
 theorem sat_consL_iff (hwf : cm.WF W) {B : ℕ} {x : List Bool} {σ : ℕ → Bool}
     (hx : 2 * x.length + 1 ≤ W) :
     SatL σ (cm.consL W B x) ↔ cm.Fam W B x σ := by
   unfold consL
-  rw [SatL_append, SatL_append, SatL_append, sat_init cm hwf.hkin hx, sat_frame, sat_step cm hwf,
+  rw [SatL_append, SatL_append, sat_init cm hwf.hkin hx, sat_main, sat_frame, sat_step cm hwf,
     sat_acc cm hwf.hkout]
   constructor
-  · rintro ⟨⟨⟨⟨i1, i2, i3, i4, i5, i6⟩, f1, f2, f3⟩, s1, s2⟩, a1⟩
+  · rintro ⟨⟨⟨i1, i2, i3, i4, i5, i6⟩, ⟨f1, f2, f3⟩, s1, s2⟩, a1⟩
     exact
       { frameC := f1, frameA := f2, margin := f3, initC := i1, initX := i2, initSep := i3,
         initW := i4, initContig := i5, initO := i6, stepC := s1,
@@ -1513,8 +1539,8 @@ theorem sat_consL_iff (hwf : cm.WF W) {B : ℕ} {x : List Bool} {σ : ℕ → Bo
           obtain ⟨⟨q, hq, hh, h1⟩, h2, h3⟩ := a1
           exact ⟨q, hq, hh, h1, h2, h3⟩ }
   · intro hF
-    refine ⟨⟨⟨⟨hF.initC, hF.initX, hF.initSep, hF.initW, hF.initContig, hF.initO⟩,
-      hF.frameC, hF.frameA, hF.margin⟩, hF.stepC,
+    refine ⟨⟨⟨hF.initC, hF.initX, hF.initSep, hF.initW, hF.initContig, hF.initO⟩,
+      ⟨hF.frameC, hF.frameA, hF.margin⟩, hF.stepC,
       fun t ht q hq p hp hg k hk d hd => hF.stepA t ht q hq p hp hg k hk d hd⟩, ?_⟩
     obtain ⟨q, hq, hh, h1, h2, h3⟩ := hF.acc
     exact ⟨⟨q, hq, hh, h1⟩, h2, h3⟩
