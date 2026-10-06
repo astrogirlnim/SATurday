@@ -183,6 +183,22 @@ Cook Levin reduction (hard direction) remain. Do not restart
   (tableau formula of a FinTM2 run, computed by a poly time FinTM2) plus
   closure of `InNP` under poly many one reductions, then
   `bridge_theorem_1_hard : (∃ f, IsPropProofSystem f ∧ PolynomiallyBounded f) → ClassNP_eq_ClassCoNP`)
+  Cook Levin plan (2026-10-06), sub-checklist, in order:
+  - [x] `Bridge/StackProg.lean`: structured Bool stack programs (`Prog`), big
+    step `Exec` with instruction cost, assembly, compilation to `FinTM2`
+    (`progTM`, `progTM_outputs`), cleanup of junk stacks, `Computes.toPoly`
+    packaging into `TM2ComputableInPolyTime idBitEnc idBitEnc`. Machines are now
+    verified at program level, not phase by phase.
+  - [ ] Unary / emission library over `Prog` (copy, add, emit bits, for-loop
+    invariant lemma `exec_loop_inv`).
+  - [ ] Coded machine `CM` (finite local step table over `Fin` symbols, windows
+    of depth `c`) and `tm → CM` simulation (semantic only).
+  - [ ] Tableau formula for `CM` (control one-hot, cells, step windows, accept)
+    with satisfiable iff accepting run, as a Lean level bit string built from
+    `flatMap` over time and cell ranges.
+  - [ ] Generator `Prog` emitting that bit string, `Computes` certified.
+  - [ ] `complement L ≤p TAUT` for `L ∈ NP`; `InNP` closed under it;
+    `bridge_theorem_1_hard`.
 - [x] Wire into `Theory.lean`; axiom gate PASS; zero Bridge sorries
 - [ ] Update rung memory; mark R5 certified (blocked on theorem 1)
 - [ ] Only then consider `satday auto` again
