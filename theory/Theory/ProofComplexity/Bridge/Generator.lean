@@ -1894,10 +1894,13 @@ theorem run_accP {W : ℕ} (hk : cm.kout < cm.K) (b : AS) (hF : cm.FrameRegs W W
   rw [e, accL_eq, consBits_instL]
   exact ⟨rfl, rfl, rfl, rfl⟩
 
+/-- Everything before the time loop. -/
+def preP (C e : ℕ) : FP :=
+  seqL [cm.polyProg C e, cm.constProg, cm.cntInit, cm.frameInit, .emit [false, true], cm.initP]
+
 /-- The whole generator. -/
 def genProg (C e : ℕ) : FP :=
-  seqL [cm.polyProg C e, cm.constProg, cm.cntInit, cm.frameInit, .emit [false, true], cm.initP,
-    cm.mainP, cm.accP, .emit (encodeFormula tautSeed)]
+  .seq (cm.preP C e) (.seq cm.mainP (.seq cm.accP (.emit (encodeFormula tautSeed))))
 
 theorem run_genProg (hc : 0 < cm.c) (hkin : cm.kin < cm.K) (hkout : cm.kout < cm.K)
     (C e : ℕ) (x : List Bool) :
@@ -1911,7 +1914,7 @@ theorem run_genProg (hc : 0 < cm.c) (hkin : cm.kin < cm.K) (hkout : cm.kout < cm
   have rN2ne : cm.rN2 ≠ 2 * cm.K + 2 := by unfold rN2; omega
   have rN3ne : cm.rN3 ≠ 2 * cm.K + 2 := by unfold rN3; omega
   have rN4ne : cm.rN4 ≠ 2 * cm.K + 2 := by unfold rN4; omega
-  simp only [genProg, seqL, run_seq']
+  simp only [genProg, preP, seqL, run_seq', run_skip']
   -- stage 1: P
   obtain ⟨p1, p2, p3, p4, p5, p6⟩ := cm.run_polyProg C e (AS0 x)
   set a1 := (cm.polyProg C e).run (AS0 x) with ha1
