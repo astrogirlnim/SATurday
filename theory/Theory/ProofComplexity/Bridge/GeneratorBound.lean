@@ -44,9 +44,9 @@ theorem costM_eq (M : ℕ) : ∀ p : FP, p.costM M = (p.cmP).eval M := by
   | addReg r s => simp [FP.costM, FP.cmP]
   | subReg r s => simp [FP.costM, FP.cmP]
   | clr r => simp [FP.costM, FP.cmP]
-  | forLoop c b ih => simp [FP.costM, FP.cmP, ih]; ring
+  | forLoop c b ih => simp [FP.costM, FP.cmP, ih]
   | forBits pf pt ihf iht => simp [FP.costM, FP.cmP, ihf, iht]
-  | countBits m => simp [FP.costM, FP.cmP]
+  | countBits m => simp [FP.costM, FP.cmP]; ring
 
 theorem cost_le_cmP (p : FP) (M : ℕ) (a : AS) (h : FP.Within M p a) :
     p.cost a ≤ (p.cmP).eval M := by
@@ -161,6 +161,83 @@ theorem MainInv.bd {W S1 : ℕ} {b0 b' : AS} {j : ℕ} (hj : j ≤ W) (hB : Bd S
   by_cases hr3 : r = 2 * cm.K + 3
   · subst hr3; exact g9
   · rw [g5 r (by omega)]; have := hB.1 r; omega
+
+
+/-- `P = C * (n + 1)^e` as a polynomial. -/
+noncomputable def Ppoly (C e : ℕ) : Polynomial ℕ :=
+  Polynomial.C C * (Polynomial.X + 1) ^ e
+
+/-- `Sx = S1 + (P + 2) * Fr P` as a polynomial in `n`. -/
+noncomputable def Sxpoly (C e : ℕ) : Polynomial ℕ :=
+  (cm.preP C e).bd + (Ppoly C e + Polynomial.C 2) *
+    (Polynomial.C cm.Q + Polynomial.C cm.K * (Ppoly C e * Polynomial.C (cm.A + 1)))
+
+noncomputable def genCostPoly (C e : ℕ) : Polynomial ℕ :=
+  (cm.preP C e).cmP.comp (cm.preP C e).bd +
+  (FP.forLoop cm.rP cm.mainBody).cmP.comp (cm.mainBody.bd.comp (cm.Sxpoly C e)) +
+  cm.frameBlockP.cmP.comp (cm.frameBlockP.bd.comp (cm.Sxpoly C e)) +
+  cm.accP.cmP.comp (cm.accP.bd.comp (cm.frameBlockP.bd.comp (cm.Sxpoly C e))) +
+  Polynomial.C ((encodeFormula tautSeed).length + 1)
+
+theorem cost_genProg_le (hc : 0 < cm.c) (hkin : cm.kin < cm.K) (hkout : cm.kout < cm.K)
+    (C e : ℕ) (x : List Bool) :
+    (cm.genProg C e).cost (AS0 x) ≤ (cm.genCostPoly C e).eval x.length := by
+  have hK : 0 < cm.K := by omega
+  set n := x.length with hn
+  set a0 := AS0 x with ha0
+  have hB0 : Bd n a0 := ⟨fun r => Nat.zero_le _, by simp [ha0, AS0], by simp [ha0, AS0, hn]⟩
+  obtain ⟨w1, b1⟩ := top (cm.preP C e) (cm.preP_LinOK C e) n a0 hB0
+  obtain ⟨hF6, a6P, a6N2, a6F, -⟩ := cm.run_preP hc hkin hkout C e x
+  set a6 := (cm.preP C e).run a0 with ha6
+  set M1 := ((cm.preP C e).bd).eval n with hM1
+  set P := C * (n + 1) ^ e with hP
+  set Sx := M1 + (P + 2) * cm.Fr P with hSx
+  have h0 : cm.MainInv P Sx a6 0 a6 :=
+    ⟨hF6, a6P, a6N2, a6F, fun _ _ => rfl, rfl, rfl,
+      (b1.1 _).trans (by omega), (b1.1 _).trans (by omega)⟩
+  have hloop := cm.mainLoop_inv hc hK (by omega) a6 h0
+  have hBd : ∀ j ≤ P, Bd Sx (cm.mainBody.run^[j] a6) := fun j hj =>
+    CM.MainInv.bd cm hj b1 (hloop j hj)
+  set M2 := (cm.mainBody.bd).eval Sx with hM2
+  have hwl : FP.Within M2 (FP.forLoop cm.rP cm.mainBody) a6 := by
+    refine .forLoop _ _ _ ?_ (fun j hj => ?_)
+    · rw [a6P]
+      have := b1.1 cm.rP
+      rw [a6P] at this
+      have := le_bd cm.mainBody Sx
+      omega
+    · rw [a6P] at hj
+      exact (top cm.mainBody cm.mainBody_LinOK Sx _ (hBd j hj.le)).1
+  have hL : (FP.forLoop cm.rP cm.mainBody).run a6 = cm.mainBody.run^[P] a6 := by
+    show cm.mainBody.run^[a6.reg cm.rP] a6 = _
+    rw [a6P]
+  have hBL : Bd Sx ((FP.forLoop cm.rP cm.mainBody).run a6) := by
+    rw [hL]; exact hBd P le_rfl
+  obtain ⟨w3, b3⟩ := top cm.frameBlockP cm.frameBlockP_LinOK Sx _ hBL
+  obtain ⟨w4, b4⟩ := top cm.accP cm.accP_LinOK _ _ b3
+  have c1 := cost_le_cmP _ _ _ w1
+  have c2 := cost_le_cmP _ _ _ hwl
+  have c3 := cost_le_cmP _ _ _ w3
+  have c4 := cost_le_cmP _ _ _ w4
+  have hcost : (cm.genProg C e).cost a0 = (cm.preP C e).cost a0 +
+      ((FP.forLoop cm.rP cm.mainBody).cost a6 +
+        cm.frameBlockP.cost ((FP.forLoop cm.rP cm.mainBody).run a6) +
+        (cm.accP.cost (cm.mainP.run a6) + ((encodeFormula tautSeed).length + 1))) := by
+    show _ = _
+    simp only [genProg, mainP, FP.cost, Nat.add_assoc]
+    rfl
+  have hSxe : (cm.Sxpoly C e).eval n = Sx := by
+    simp [Sxpoly, Ppoly, hSx, hM1, hP, Fr]
+  have hT : (cm.genCostPoly C e).eval n =
+      (cm.preP C e).cmP.eval M1 + (FP.forLoop cm.rP cm.mainBody).cmP.eval M2 +
+      cm.frameBlockP.cmP.eval ((cm.frameBlockP.bd).eval Sx) +
+      cm.accP.cmP.eval ((cm.accP.bd).eval ((cm.frameBlockP.bd).eval Sx)) +
+      ((encodeFormula tautSeed).length + 1) := by
+    simp [genCostPoly, Polynomial.eval_comp, hSxe, hM1, hM2]
+  rw [hcost, hT]
+  have e7 : cm.mainP.run a6 = cm.frameBlockP.run ((FP.forLoop cm.rP cm.mainBody).run a6) := rfl
+  rw [e7] at *
+  omega
 
 end CM
 
