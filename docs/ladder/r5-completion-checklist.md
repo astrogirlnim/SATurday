@@ -191,11 +191,12 @@ Cook Levin reduction (hard direction) remain. Do not restart
     verified at program level, not phase by phase.
   - [ ] Unary / emission library over `Prog` (copy, add, emit bits, for-loop
     invariant lemma `exec_loop_inv`).
-  - [ ] Coded machine `CM` (finite local step table over `Fin` symbols, windows
-    of depth `c`) and `tm → CM` simulation (semantic only).
-  - [ ] Tableau formula for `CM` (control one-hot, cells, step windows, accept)
-    with satisfiable iff accepting run, as a Lean level bit string built from
-    `flatMap` over time and cell ranges.
+  - [x] `Bridge/Tableau.lean`: coded machine `CM` (windows of depth `c`, top
+    relative arrays, no height variables), tableau constraint list `consL` built
+    from register relative templates `TF`, soundness and completeness
+    (`tabFormula_taut_iff`: tautology iff no accepting witness).
+  - [ ] `tm → CM` simulation (semantic only): reachable symbol lists, window
+    interpreter, `stepAux` window lemma, halting frozen, acceptance iff output.
   - [ ] Generator `Prog` emitting that bit string, `Computes` certified.
   - [ ] `complement L ≤p TAUT` for `L ∈ NP`; `InNP` closed under it;
     `bridge_theorem_1_hard`.

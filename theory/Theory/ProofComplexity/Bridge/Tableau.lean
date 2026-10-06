@@ -922,5 +922,647 @@ theorem completeness {W B : ℕ} {x w : List Bool} (hwf : cm.WF W)
 
 end CM
 
+/-! ## Satisfaction of constraint lists -/
+
+/-- All formulas in the list are true under `σ`. -/
+def SatL (σ : ℕ → Bool) (l : List PropFormula) : Prop := ∀ φ ∈ l, PropFormula.eval σ φ = true
+
+theorem SatL_append {σ : ℕ → Bool} {a b : List PropFormula} :
+    SatL σ (a ++ b) ↔ SatL σ a ∧ SatL σ b := by
+  simp [SatL, or_imp, forall_and]
+
+theorem SatL_flatMap {σ : ℕ → Bool} {α : Type} (l : List α) (f : α → List PropFormula) :
+    SatL σ (l.flatMap f) ↔ ∀ a ∈ l, SatL σ (f a) := by
+  simp only [SatL, List.mem_flatMap]
+  constructor
+  · intro h a ha φ hφ; exact h φ ⟨a, ha, hφ⟩
+  · rintro h φ ⟨a, ha, hφ⟩; exact h a ha φ hφ
+
+theorem SatL_nil {σ : ℕ → Bool} : SatL σ [] := by simp [SatL]
+
+theorem SatL_cons {σ : ℕ → Bool} {φ : PropFormula} {l : List PropFormula} :
+    SatL σ (φ :: l) ↔ PropFormula.eval σ φ = true ∧ SatL σ l := by
+  simp [SatL]
+
+/-- Instantiate a template list. -/
+def instL (V : ℕ → ℕ → ℕ) (l : List TF) : List PropFormula := l.map (TF.inst V)
+
+theorem SatL_instL {σ : ℕ → Bool} {V : ℕ → ℕ → ℕ} {l : List TF} :
+    SatL σ (instL V l) ↔ ∀ φ ∈ l, TF.holds σ V φ := by
+  simp [SatL, instL, TF.holds]
+
+theorem holds_exactlyOne {σ : ℕ → Bool} {V : ℕ → ℕ → ℕ} (r n : ℕ) :
+    TF.holds σ V (exactlyOne r (List.range n)) ↔
+      ExactlyOne (fun i => σ (V r i)) n := by
+  unfold exactlyOne ExactlyOne
+  simp only [TF.holds_and, holds_disjT, holds_conjT, List.mem_map, List.mem_range,
+    List.mem_flatMap, List.mem_filterMap]
+  constructor
+  · rintro ⟨⟨φ, ⟨o, ho, rfl⟩, h⟩, hu⟩
+    refine ⟨⟨o, ho, by simpa using h⟩, ?_⟩
+    intro i hi j hj hi' hj'
+    by_contra hne
+    rcases lt_or_gt_of_ne hne with hlt | hlt
+    · have := hu (.not (.and (.leaf r i) (.leaf r j))) ⟨i, hi, j, hj, by simp [hlt]⟩
+      simp at this
+      have h3 := this hi'
+      simp [hj'] at h3
+    · have := hu (.not (.and (.leaf r j) (.leaf r i))) ⟨j, hj, i, hi, by simp [hlt]⟩
+      simp at this
+      have h3 := this hj'
+      simp [hi'] at h3
+  · rintro ⟨⟨o, ho, h⟩, hu⟩
+    refine ⟨⟨_, ⟨o, ho, rfl⟩, by simpa using h⟩, ?_⟩
+    rintro φ ⟨o1, ho1, o2, ho2, hφ⟩
+    split_ifs at hφ with hlt
+    · simp only [Option.some.injEq] at hφ
+      subst hφ
+      simp only [TF.holds_not, TF.holds_and, TF.holds_leaf]
+      rintro ⟨h1, h2⟩
+      have := hu o1 ho1 o2 ho2 h1 h2
+      omega
+
+/-! ## Templates, register valuations and the constraint list -/
+
+namespace CM
+
+variable (cm : CM)
+
+/-- Register values for the template at time `t`, stack `k`, depth offset `dOff`. -/
+def valF (W t k dOff r : ℕ) : ℕ :=
+  if r = 0 then t * cm.Fr W
+  else if r ≤ cm.K then cm.vA W t (r - 1) 0 0
+  else if r = cm.K + 1 then (t + 1) * cm.Fr W
+  else if r ≤ 2 * cm.K + 1 then cm.vA W (t + 1) (r - cm.K - 2) 0 0
+  else if r = 2 * cm.K + 2 then cm.vA W t k dOff 0
+  else if r = 2 * cm.K + 3 then cm.vA W (t + 1) k dOff 0
+  else 0
+
+/-- Variable naming for templates. -/
+def Vf (W t k dOff : ℕ) : ℕ → ℕ → ℕ := fun r o => cm.valF W t k dOff r + o
+
+theorem vA_shift (W t k d e a : ℕ) :
+    cm.vA W t k (d + e) a = cm.vA W t k d 0 + e * (cm.A + 1) + a := by
+  unfold vA; ring
+
+theorem vA_zero_add (W t k d a : ℕ) : cm.vA W t k d a = cm.vA W t k d 0 + a := by
+  unfold vA; ring
+
+theorem vA_base (W t k d a : ℕ) :
+    cm.vA W t k d a = cm.vA W t k 0 0 + d * (cm.A + 1) + a := by
+  unfold vA; ring
+
+theorem Vf_C0 (W t k dOff o : ℕ) : cm.Vf W t k dOff 0 o = cm.vC W t o := by
+  simp [Vf, valF, vC]
+
+theorem Vf_C1 (W t k dOff o : ℕ) : cm.Vf W t k dOff (cm.K + 1) o = cm.vC W (t + 1) o := by
+  simp [Vf, valF, vC]
+
+theorem Vf_S (W t k dOff k' o : ℕ) (hk : k' < cm.K) :
+    cm.Vf W t k dOff (1 + k') o = cm.vA W t k' 0 0 + o := by
+  have h1 : 1 + k' ≠ 0 := by omega
+  have h2 : 1 + k' ≤ cm.K := by omega
+  simp [Vf, valF, h1, h2]
+
+theorem Vf_S' (W t k dOff k' o : ℕ) (hk : k' < cm.K) :
+    cm.Vf W t k dOff (cm.K + 2 + k') o = cm.vA W (t + 1) k' 0 0 + o := by
+  have h1 : cm.K + 2 + k' ≠ 0 := by omega
+  have h2 : ¬ cm.K + 2 + k' ≤ cm.K := by omega
+  have h3 : cm.K + 2 + k' ≠ cm.K + 1 := by omega
+  have h4 : cm.K + 2 + k' ≤ 2 * cm.K + 1 := by omega
+  simp [Vf, valF, h1, h2, h3, h4]
+  congr 2; omega
+
+theorem Vf_D (W t k dOff o : ℕ) :
+    cm.Vf W t k dOff (2 * cm.K + 2) o = cm.vA W t k dOff 0 + o := by
+  have h1 : 2 * cm.K + 2 ≠ 0 := by omega
+  have h2 : ¬ 2 * cm.K + 2 ≤ cm.K := by omega
+  have h3 : 2 * cm.K + 2 ≠ cm.K + 1 := by omega
+  have h4 : ¬ 2 * cm.K + 2 ≤ 2 * cm.K + 1 := by omega
+  simp [Vf, valF, h1, h2, h3, h4]
+
+theorem Vf_D' (W t k dOff o : ℕ) :
+    cm.Vf W t k dOff (2 * cm.K + 3) o = cm.vA W (t + 1) k dOff 0 + o := by
+  have h1 : 2 * cm.K + 3 ≠ 0 := by omega
+  have h2 : ¬ 2 * cm.K + 3 ≤ cm.K := by omega
+  have h3 : 2 * cm.K + 3 ≠ cm.K + 1 := by omega
+  have h4 : ¬ 2 * cm.K + 3 ≤ 2 * cm.K + 1 := by omega
+  have h5 : 2 * cm.K + 3 ≠ 2 * cm.K + 2 := by omega
+  simp [Vf, valF, h1, h2, h3, h4, h5]
+
+/-- All (control, window) cases. -/
+def casesL : List (ℕ × List ℕ) :=
+  (List.range cm.Q).flatMap fun q => (allPats cm.A (cm.K * cm.c)).map fun p => (q, p)
+
+theorem mem_casesL {q : ℕ} {p : List ℕ} :
+    (q, p) ∈ cm.casesL ↔ q < cm.Q ∧ p ∈ allPats cm.A (cm.K * cm.c) := by
+  simp [casesL]
+
+/-- Template of the guard of a case. -/
+def guardT (q : ℕ) (p : List ℕ) : List TF :=
+  TF.leaf 0 q :: (List.range (cm.K * cm.c)).map fun i =>
+    TF.leaf (1 + i / cm.c) ((i % cm.c) * (cm.A + 1) + p.getD i 0)
+
+/-- Control update constraints for one time step. -/
+def stepCtlT : List TF :=
+  cm.casesL.map fun qp =>
+    impT (conjT (cm.guardT qp.1 qp.2)) (TF.leaf (cm.K + 1) (cm.δ qp.1 qp.2).1)
+
+/-- Cell update constraints at a literal top depth `d < c`. -/
+def topT (k d : ℕ) : List TF :=
+  cm.casesL.flatMap fun qp =>
+    if d < (cm.eff qp.1 qp.2 k).2.length then
+      [impT (conjT (cm.guardT qp.1 qp.2))
+        (TF.leaf (cm.K + 2 + k) (d * (cm.A + 1) + (cm.eff qp.1 qp.2 k).2.getD d 0))]
+    else
+      (List.range (cm.A + 1)).map fun a =>
+        impT (conjT (cm.guardT qp.1 qp.2 ++
+          [TF.leaf (1 + k) ((d - (cm.eff qp.1 qp.2 k).2.length + (cm.eff qp.1 qp.2 k).1) *
+            (cm.A + 1) + a)]))
+          (TF.leaf (cm.K + 2 + k) (d * (cm.A + 1) + a))
+
+/-- Cell update constraints at depth `c + e` (register `D` at depth offset `e`). -/
+def deepT (k : ℕ) : List TF :=
+  cm.casesL.flatMap fun qp =>
+    (List.range (cm.A + 1)).map fun a =>
+      impT (conjT (cm.guardT qp.1 qp.2 ++
+        [TF.leaf (2 * cm.K + 2) ((cm.c - (cm.eff qp.1 qp.2 k).2.length +
+          (cm.eff qp.1 qp.2 k).1) * (cm.A + 1) + a)]))
+        (TF.leaf (2 * cm.K + 3) (cm.c * (cm.A + 1) + a))
+
+/-- Initial constraints. -/
+def initL (W : ℕ) (x : List Bool) : List PropFormula :=
+  instL (cm.Vf W 0 0 0) [TF.leaf 0 cm.q0] ++
+  (List.range x.length).flatMap (fun i =>
+    instL (cm.Vf W 0 cm.kin (2 * i))
+      [TF.leaf (2 * cm.K + 2) (cm.inSym true),
+       TF.leaf (2 * cm.K + 2) ((cm.A + 1) + cm.inSym (x.getD i false))]) ++
+  instL (cm.Vf W 0 cm.kin (2 * x.length)) [TF.leaf (2 * cm.K + 2) (cm.inSym false)] ++
+  (List.range (W - (2 * x.length + 1))).flatMap (fun e =>
+    instL (cm.Vf W 0 cm.kin (2 * x.length + 1 + e))
+      [TF.or (TF.leaf (2 * cm.K + 2) (cm.inSym false))
+        (TF.or (TF.leaf (2 * cm.K + 2) (cm.inSym true)) (TF.leaf (2 * cm.K + 2) cm.A))]) ++
+  (List.range (W - (2 * x.length + 2))).flatMap (fun e =>
+    instL (cm.Vf W 0 cm.kin (2 * x.length + 1 + e))
+      [impT (TF.leaf (2 * cm.K + 2) cm.A) (TF.leaf (2 * cm.K + 2) ((cm.A + 1) + cm.A))]) ++
+  (List.range cm.K).flatMap (fun k =>
+    if k = cm.kin then [] else
+      (List.range W).flatMap fun d =>
+        instL (cm.Vf W 0 k d) [TF.leaf (2 * cm.K + 2) cm.A])
+
+/-- Per frame constraints for times `0 .. B`. -/
+def frameL (W B : ℕ) : List PropFormula :=
+  (List.range (B + 1)).flatMap fun t =>
+    instL (cm.Vf W t 0 0) [exactlyOne 0 (List.range cm.Q)] ++
+    (List.range cm.K).flatMap (fun k =>
+      (List.range W).flatMap fun d =>
+        instL (cm.Vf W t k d) [exactlyOne (2 * cm.K + 2) (List.range (cm.A + 1))]) ++
+    (List.range cm.K).flatMap (fun k =>
+      instL (cm.Vf W t k (W - 2 * cm.c))
+        ((List.range (2 * cm.c)).map fun i => TF.leaf (2 * cm.K + 2) (i * (cm.A + 1) + cm.A)))
+
+/-- Step constraints for times `0 .. B-1`. -/
+def stepL (W B : ℕ) : List PropFormula :=
+  (List.range B).flatMap fun t =>
+    instL (cm.Vf W t 0 0) cm.stepCtlT ++
+    (List.range cm.K).flatMap (fun k =>
+      (List.range cm.c).flatMap (fun d => instL (cm.Vf W t k 0) (cm.topT k d)) ++
+      (List.range (W - 2 * cm.c)).flatMap (fun e => instL (cm.Vf W t k e) (cm.deepT k)))
+
+/-- Acceptance constraints at time `B`. -/
+def accL (W B : ℕ) : List PropFormula :=
+  instL (cm.Vf W B cm.kout 0)
+    [disjT (((List.range cm.Q).filter fun q => cm.halt q).map fun q => TF.leaf 0 q),
+     TF.leaf (1 + cm.kout) cm.outTrue,
+     TF.leaf (1 + cm.kout) ((cm.A + 1) + cm.A)]
+
+/-- The full list of tableau constraints. -/
+def consL (W B : ℕ) (x : List Bool) : List PropFormula :=
+  cm.initL W x ++ cm.frameL W B ++ cm.stepL W B ++ cm.accL W B
+
+theorem sat_acc {σ : ℕ → Bool} {W B : ℕ} (hk : cm.kout < cm.K) :
+    SatL σ (cm.accL W B) ↔
+      (∃ q < cm.Q, cm.halt q = true ∧ σ (cm.vC W B q) = true) ∧
+      σ (cm.vA W B cm.kout 0 cm.outTrue) = true ∧ σ (cm.vA W B cm.kout 1 cm.A) = true := by
+  unfold accL
+  rw [SatL_instL]
+  simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq,
+    holds_disjT, TF.holds_leaf, List.mem_map, List.mem_filter, List.mem_range]
+  rw [Vf_S cm W B cm.kout 0 cm.kout _ hk, Vf_S cm W B cm.kout 0 cm.kout _ hk]
+  have e1 : cm.vA W B cm.kout 0 0 + cm.outTrue = cm.vA W B cm.kout 0 cm.outTrue :=
+    (cm.vA_zero_add W B cm.kout 0 cm.outTrue).symm
+  have e2 : cm.vA W B cm.kout 0 0 + ((cm.A + 1) + cm.A) = cm.vA W B cm.kout 1 cm.A := by
+    rw [cm.vA_base W B cm.kout 1 cm.A]; ring
+  rw [e1, e2]
+  constructor
+  · rintro ⟨⟨φ, ⟨q, ⟨hq, hh⟩, rfl⟩, h⟩, h2, h3⟩
+    exact ⟨⟨q, hq, hh, by simpa [Vf_C0] using h⟩, h2, h3⟩
+  · rintro ⟨⟨q, hq, hh, h⟩, h2, h3⟩
+    exact ⟨⟨_, ⟨q, ⟨hq, hh⟩, rfl⟩, by simpa [Vf_C0] using h⟩, h2, h3⟩
+
+theorem sat_frame {σ : ℕ → Bool} {W B : ℕ} :
+    SatL σ (cm.frameL W B) ↔
+      (∀ t ≤ B, ExactlyOne (fun q => σ (cm.vC W t q)) cm.Q) ∧
+      (∀ t ≤ B, ∀ k < cm.K, ∀ d < W, ExactlyOne (fun a => σ (cm.vA W t k d a)) (cm.A + 1)) ∧
+      (∀ t ≤ B, ∀ k < cm.K, ∀ i < 2 * cm.c,
+        σ (cm.vA W t k (W - 2 * cm.c + i) cm.A) = true) := by
+  unfold frameL
+  rw [SatL_flatMap]
+  have key : ∀ t, SatL σ (instL (cm.Vf W t 0 0) [exactlyOne 0 (List.range cm.Q)] ++
+      (List.range cm.K).flatMap (fun k =>
+        (List.range W).flatMap fun d =>
+          instL (cm.Vf W t k d) [exactlyOne (2 * cm.K + 2) (List.range (cm.A + 1))]) ++
+      (List.range cm.K).flatMap (fun k =>
+        instL (cm.Vf W t k (W - 2 * cm.c))
+          ((List.range (2 * cm.c)).map fun i =>
+            TF.leaf (2 * cm.K + 2) (i * (cm.A + 1) + cm.A)))) ↔
+      (ExactlyOne (fun q => σ (cm.vC W t q)) cm.Q ∧
+      (∀ k < cm.K, ∀ d < W, ExactlyOne (fun a => σ (cm.vA W t k d a)) (cm.A + 1)) ∧
+      (∀ k < cm.K, ∀ i < 2 * cm.c, σ (cm.vA W t k (W - 2 * cm.c + i) cm.A) = true)) := by
+    intro t
+    rw [SatL_append, SatL_append, SatL_instL, SatL_flatMap, SatL_flatMap]
+    simp only [List.mem_singleton, forall_eq, holds_exactlyOne, SatL_flatMap, SatL_instL,
+      List.mem_range, List.forall_mem_map, and_assoc]
+    have e1 : (fun i => σ (cm.Vf W t 0 0 0 i)) = fun q => σ (cm.vC W t q) := by
+      funext i; rw [Vf_C0]
+    have e2 : ∀ k d, (fun i => σ (cm.Vf W t k d (2 * cm.K + 2) i)) =
+        fun a => σ (cm.vA W t k d a) := by
+      intro k d; funext i; rw [Vf_D, ← vA_zero_add]
+    have e3 : ∀ k j, σ (cm.Vf W t k (W - 2 * cm.c) (2 * cm.K + 2) (j * (cm.A + 1) + cm.A)) =
+        σ (cm.vA W t k (W - 2 * cm.c + j) cm.A) := by
+      intro k j; rw [Vf_D, vA_shift, Nat.add_assoc]
+    simp only [TF.holds_leaf, e1, e2, e3]
+  constructor
+  · intro h
+    refine ⟨fun t ht => ((key t).1 (h t (by simpa [Nat.lt_succ_iff] using ht))).1,
+      fun t ht => ((key t).1 (h t (by simpa [Nat.lt_succ_iff] using ht))).2.1,
+      fun t ht => ((key t).1 (h t (by simpa [Nat.lt_succ_iff] using ht))).2.2⟩
+  · rintro ⟨h1, h2, h3⟩ t ht
+    have ht' : t ≤ B := by simpa [Nat.lt_succ_iff] using ht
+    exact (key t).2 ⟨h1 t ht', h2 t ht', h3 t ht'⟩
+
+theorem sat_init {σ : ℕ → Bool} {W : ℕ} {x : List Bool} (hk : cm.kin < cm.K)
+    (hW : 2 * x.length + 1 ≤ W) :
+    SatL σ (cm.initL W x) ↔
+      σ (cm.vC W 0 cm.q0) = true ∧
+      (∀ i < x.length,
+        σ (cm.vA W 0 cm.kin (2 * i) (cm.inSym true)) = true ∧
+        σ (cm.vA W 0 cm.kin (2 * i + 1) (cm.inSym (x.getD i false))) = true) ∧
+      σ (cm.vA W 0 cm.kin (2 * x.length) (cm.inSym false)) = true ∧
+      (∀ d, 2 * x.length + 1 ≤ d → d < W →
+        (σ (cm.vA W 0 cm.kin d (cm.inSym false)) = true ∨
+          σ (cm.vA W 0 cm.kin d (cm.inSym true)) = true ∨
+          σ (cm.vA W 0 cm.kin d cm.A) = true)) ∧
+      (∀ d, 2 * x.length + 1 ≤ d → d + 1 < W →
+        σ (cm.vA W 0 cm.kin d cm.A) = true → σ (cm.vA W 0 cm.kin (d + 1) cm.A) = true) ∧
+      (∀ k < cm.K, k ≠ cm.kin → ∀ d < W, σ (cm.vA W 0 k d cm.A) = true) := by
+  unfold initL
+  simp only [SatL_append, SatL_flatMap, SatL_instL, List.mem_range, List.mem_cons,
+    List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq, TF.holds_leaf, TF.holds_or,
+    holds_impT]
+  have hD : ∀ d o, cm.Vf W 0 cm.kin d (2 * cm.K + 2) o = cm.vA W 0 cm.kin d 0 + o :=
+    fun d o => Vf_D cm W 0 cm.kin d o
+  simp only [Vf_C0, hD]
+  have hz : ∀ d a, cm.vA W 0 cm.kin d 0 + a = cm.vA W 0 cm.kin d a :=
+    fun d a => (cm.vA_zero_add W 0 cm.kin d a).symm
+  have hs1 : ∀ d a, cm.vA W 0 cm.kin d (cm.A + 1 + a) = cm.vA W 0 cm.kin (d + 1) a := by
+    intro d a; rw [vA_zero_add, vA_zero_add cm W 0 cm.kin (d + 1) a, vA_shift]; ring
+  simp only [hz, hs1]
+  have hif : ∀ a < cm.K, SatL σ (if a = cm.kin then [] else
+      List.flatMap (fun d => instL (cm.Vf W 0 a d) [TF.leaf (2 * cm.K + 2) cm.A])
+        (List.range W)) ↔ (a ≠ cm.kin → ∀ d < W, σ (cm.vA W 0 a d cm.A) = true) := by
+    intro a _
+    by_cases ha : a = cm.kin
+    · simp [ha, SatL_nil]
+    · rw [if_neg ha, SatL_flatMap]
+      simp only [List.mem_range, SatL_instL, List.mem_singleton, forall_eq, TF.holds_leaf,
+        Vf_D]
+      simp only [ne_eq, ha, not_false_eq_true, forall_const]
+      constructor <;> intro h d hd <;> have := h d hd <;> simpa [hz] using this
+  have hsh : ∀ P : ℕ → Prop, (∀ a < W - (2 * x.length + 1), P (2 * x.length + 1 + a)) ↔
+      (∀ d, 2 * x.length + 1 ≤ d → d < W → P d) := by
+    intro P
+    constructor
+    · intro h d h1 h2
+      obtain ⟨e, rfl⟩ := Nat.exists_eq_add_of_le h1
+      exact h e (by omega)
+    · intro h a ha
+      exact h _ (by omega) (by omega)
+  have hsh2 : ∀ P : ℕ → Prop, (∀ a < W - (2 * x.length + 2), P (2 * x.length + 1 + a)) ↔
+      (∀ d, 2 * x.length + 1 ≤ d → d + 1 < W → P d) := by
+    intro P
+    constructor
+    · intro h d h1 h2
+      obtain ⟨e, rfl⟩ := Nat.exists_eq_add_of_le h1
+      exact h e (by omega)
+    · intro h a ha
+      exact h _ (by omega) (by omega)
+  rw [hsh (fun d => σ (cm.vA W 0 cm.kin d (cm.inSym false)) = true ∨
+      σ (cm.vA W 0 cm.kin d (cm.inSym true)) = true ∨ σ (cm.vA W 0 cm.kin d cm.A) = true),
+    hsh2 (fun d => σ (cm.vA W 0 cm.kin d cm.A) = true →
+      σ (cm.vA W 0 cm.kin (d + 1) cm.A) = true)]
+  rw [show (∀ a < cm.K, SatL σ (if a = cm.kin then [] else
+      List.flatMap (fun d => instL (cm.Vf W 0 a d) [TF.leaf (2 * cm.K + 2) cm.A])
+        (List.range W))) ↔ (∀ a < cm.K, a ≠ cm.kin → ∀ d < W, σ (cm.vA W 0 a d cm.A) = true) from
+    forall_congr' fun a => forall_congr' fun ha => hif a ha]
+  simp only [and_assoc]
+
+/-- The cell update clause of one case at `(t, k, d)`. -/
+def Clause (σ : ℕ → Bool) (W t : ℕ) (q : ℕ) (p : List ℕ) (k d : ℕ) : Prop :=
+  (d < (cm.eff q p k).2.length →
+    σ (cm.vA W (t + 1) k d ((cm.eff q p k).2.getD d 0)) = true) ∧
+  ((cm.eff q p k).2.length ≤ d →
+    ∀ a ≤ cm.A,
+      σ (cm.vA W t k (d - (cm.eff q p k).2.length + (cm.eff q p k).1) a) = true →
+      σ (cm.vA W (t + 1) k d a) = true)
+
+theorem leaf_C0 {σ : ℕ → Bool} {W t k dOff : ℕ} (q : ℕ) :
+    TF.holds σ (cm.Vf W t k dOff) (TF.leaf 0 q) ↔ σ (cm.vC W t q) = true := by
+  rw [TF.holds_leaf, Vf_C0]
+
+theorem leaf_C1 {σ : ℕ → Bool} {W t k dOff : ℕ} (q : ℕ) :
+    TF.holds σ (cm.Vf W t k dOff) (TF.leaf (cm.K + 1) q) ↔ σ (cm.vC W (t + 1) q) = true := by
+  rw [TF.holds_leaf, Vf_C1]
+
+theorem leaf_S {σ : ℕ → Bool} {W t k dOff : ℕ} {k' : ℕ} (hk' : k' < cm.K) (d a : ℕ) :
+    TF.holds σ (cm.Vf W t k dOff) (TF.leaf (1 + k') (d * (cm.A + 1) + a)) ↔
+      σ (cm.vA W t k' d a) = true := by
+  have h : cm.vA W t k' 0 0 + (d * (cm.A + 1) + a) = cm.vA W t k' d a := by
+    rw [vA_base cm W t k' d a, Nat.add_assoc]
+  rw [TF.holds_leaf, Vf_S cm W t k dOff k' _ hk', h]
+
+theorem leaf_S' {σ : ℕ → Bool} {W t k dOff : ℕ} {k' : ℕ} (hk' : k' < cm.K) (d a : ℕ) :
+    TF.holds σ (cm.Vf W t k dOff) (TF.leaf (cm.K + 2 + k') (d * (cm.A + 1) + a)) ↔
+      σ (cm.vA W (t + 1) k' d a) = true := by
+  have h : cm.vA W (t + 1) k' 0 0 + (d * (cm.A + 1) + a) = cm.vA W (t + 1) k' d a := by
+    rw [vA_base cm W (t + 1) k' d a, Nat.add_assoc]
+  rw [TF.holds_leaf, Vf_S' cm W t k dOff k' _ hk', h]
+
+theorem leaf_D {σ : ℕ → Bool} {W t k dOff : ℕ} (e a : ℕ) :
+    TF.holds σ (cm.Vf W t k dOff) (TF.leaf (2 * cm.K + 2) (e * (cm.A + 1) + a)) ↔
+      σ (cm.vA W t k (dOff + e) a) = true := by
+  rw [TF.holds_leaf, Vf_D, vA_shift, Nat.add_assoc]
+
+theorem leaf_D' {σ : ℕ → Bool} {W t k dOff : ℕ} (e a : ℕ) :
+    TF.holds σ (cm.Vf W t k dOff) (TF.leaf (2 * cm.K + 3) (e * (cm.A + 1) + a)) ↔
+      σ (cm.vA W (t + 1) k (dOff + e) a) = true := by
+  rw [TF.holds_leaf, Vf_D', vA_shift, Nat.add_assoc]
+
+theorem holds_guardT {σ : ℕ → Bool} {W t k dOff : ℕ} (hc : 0 < cm.c) (q : ℕ) (p : List ℕ) :
+    TF.holds σ (cm.Vf W t k dOff) (conjT (cm.guardT q p)) ↔ cm.Guard σ W t q p := by
+  rw [holds_conjT]
+  unfold guardT Guard
+  simp only [List.mem_cons, forall_eq_or_imp, List.mem_map, List.mem_range,
+    forall_exists_index, and_imp]
+  rw [leaf_C0]
+  apply and_congr Iff.rfl
+  constructor
+  · intro h i hi
+    have hk : i / cm.c < cm.K := by
+      rw [Nat.div_lt_iff_lt_mul hc]; linarith
+    exact (leaf_S cm hk _ _).1 (h _ i hi rfl)
+  · intro h φ i hi hφ
+    subst hφ
+    have hk : i / cm.c < cm.K := by
+      rw [Nat.div_lt_iff_lt_mul hc]; linarith
+    exact (leaf_S cm hk _ _).2 (h i hi)
+
+theorem holds_conjT_append_leaf {σ : ℕ → Bool} {V : ℕ → ℕ → ℕ} (l : List TF) (x : TF) :
+    TF.holds σ V (conjT (l ++ [x])) ↔ TF.holds σ V (conjT l) ∧ TF.holds σ V x := by
+  rw [holds_conjT, holds_conjT]
+  simp only [List.mem_append, List.mem_singleton]
+  constructor
+  · intro h; exact ⟨fun φ hφ => h φ (Or.inl hφ), h x (Or.inr rfl)⟩
+  · rintro ⟨h1, h2⟩ φ (hφ | rfl)
+    · exact h1 φ hφ
+    · exact h2
+
+theorem holds_stepCtlT {σ : ℕ → Bool} {W t : ℕ} (hc : 0 < cm.c) :
+    (∀ φ ∈ cm.stepCtlT, TF.holds σ (cm.Vf W t 0 0) φ) ↔
+      ∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+        cm.Guard σ W t q p → σ (cm.vC W (t + 1) (cm.δ q p).1) = true := by
+  unfold stepCtlT
+  simp only [List.forall_mem_map, holds_impT, holds_guardT cm hc, leaf_C1]
+  constructor
+  · intro h q hq p hp
+    exact h (q, p) ((mem_casesL cm).2 ⟨hq, hp⟩)
+  · rintro h ⟨q, p⟩ hqp
+    obtain ⟨hq, hp⟩ := (mem_casesL cm).1 hqp
+    exact h q hq p hp
+
+theorem forall_mem_flatMap' {α β : Type} (l : List α) (f : α → List β) (P : β → Prop) :
+    (∀ φ ∈ l.flatMap f, P φ) ↔ ∀ a ∈ l, ∀ φ ∈ f a, P φ := by
+  simp only [List.mem_flatMap]
+  constructor
+  · intro h a ha φ hφ; exact h φ ⟨a, ha, hφ⟩
+  · rintro h φ ⟨a, ha, hφ⟩; exact h a ha φ hφ
+
+theorem holds_topT_case {σ : ℕ → Bool} {W t k d : ℕ} (hc : 0 < cm.c) (hk : k < cm.K)
+    (q : ℕ) (p : List ℕ) :
+    (∀ φ ∈ (if d < (cm.eff q p k).2.length then
+      [impT (conjT (cm.guardT q p))
+        (TF.leaf (cm.K + 2 + k) (d * (cm.A + 1) + (cm.eff q p k).2.getD d 0))]
+      else
+      (List.range (cm.A + 1)).map fun a =>
+        impT (conjT (cm.guardT q p ++
+          [TF.leaf (1 + k) ((d - (cm.eff q p k).2.length + (cm.eff q p k).1) *
+            (cm.A + 1) + a)]))
+          (TF.leaf (cm.K + 2 + k) (d * (cm.A + 1) + a))),
+        TF.holds σ (cm.Vf W t k 0) φ) ↔
+      (cm.Guard σ W t q p → cm.Clause σ W t q p k d) := by
+  unfold Clause
+  by_cases hlen : d < (cm.eff q p k).2.length
+  · rw [if_pos hlen]
+    simp only [List.mem_singleton, forall_eq, holds_impT, holds_guardT cm hc, leaf_S' cm hk]
+    constructor
+    · intro h hg; exact ⟨fun _ => h hg, fun h' => absurd hlen (by omega)⟩
+    · intro h hg; exact (h hg).1 hlen
+  · rw [if_neg hlen]
+    simp only [List.forall_mem_map, List.mem_range, holds_impT, holds_conjT_append_leaf,
+      holds_guardT cm hc, leaf_S cm hk, leaf_S' cm hk]
+    constructor
+    · intro h hg
+      refine ⟨fun h' => absurd h' hlen, ?_⟩
+      intro _ a ha hsrc
+      exact h a (by omega) ⟨hg, hsrc⟩
+    · intro h a ha ⟨hg, hsrc⟩
+      exact (h hg).2 (by omega) a (by omega) hsrc
+
+theorem holds_topT {σ : ℕ → Bool} {W t k d : ℕ} (hc : 0 < cm.c) (hk : k < cm.K) :
+    (∀ φ ∈ cm.topT k d, TF.holds σ (cm.Vf W t k 0) φ) ↔
+      ∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+        cm.Guard σ W t q p → cm.Clause σ W t q p k d := by
+  unfold topT
+  rw [forall_mem_flatMap']
+  constructor
+  · intro h q hq p hp
+    exact (holds_topT_case cm hc hk q p).1 (h (q, p) ((mem_casesL cm).2 ⟨hq, hp⟩))
+  · rintro h ⟨q, p⟩ hqp
+    obtain ⟨hq, hp⟩ := (mem_casesL cm).1 hqp
+    exact (holds_topT_case cm hc hk q p).2 (h q hq p hp)
+
+theorem holds_deepT_case {σ : ℕ → Bool} {W t k e : ℕ} (hc : 0 < cm.c)
+    (q : ℕ) (p : List ℕ) (hlen : (cm.eff q p k).2.length ≤ cm.c) :
+    (∀ φ ∈ (List.range (cm.A + 1)).map (fun a =>
+        impT (conjT (cm.guardT q p ++
+          [TF.leaf (2 * cm.K + 2) ((cm.c - (cm.eff q p k).2.length + (cm.eff q p k).1) *
+            (cm.A + 1) + a)]))
+          (TF.leaf (2 * cm.K + 3) (cm.c * (cm.A + 1) + a))),
+        TF.holds σ (cm.Vf W t k e) φ) ↔
+      (cm.Guard σ W t q p → cm.Clause σ W t q p k (cm.c + e)) := by
+  unfold Clause
+  simp only [List.forall_mem_map, List.mem_range, holds_impT, holds_conjT_append_leaf,
+    holds_guardT cm hc, leaf_D, leaf_D']
+  have e1 : e + (cm.c - (cm.eff q p k).2.length + (cm.eff q p k).1) =
+      cm.c + e - (cm.eff q p k).2.length + (cm.eff q p k).1 := by omega
+  have e2 : e + cm.c = cm.c + e := by omega
+  rw [e1, e2]
+  constructor
+  · intro h hg
+    refine ⟨fun h' => absurd h' (by omega), ?_⟩
+    intro _ a ha hsrc
+    exact h a (by omega) ⟨hg, hsrc⟩
+  · intro h a ha ⟨hg, hsrc⟩
+    exact (h hg).2 (by omega) a (by omega) hsrc
+
+theorem holds_deepT (hwf : cm.WF W) {σ : ℕ → Bool} {t k e : ℕ} (hc : 0 < cm.c) :
+    (∀ φ ∈ cm.deepT k, TF.holds σ (cm.Vf W t k e) φ) ↔
+      ∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+        cm.Guard σ W t q p → cm.Clause σ W t q p k (cm.c + e) := by
+  unfold deepT
+  rw [forall_mem_flatMap']
+  constructor
+  · intro h q hq p hp
+    exact (holds_deepT_case cm hc q p (hwf.hδj q p k).2).1 (h (q, p) ((mem_casesL cm).2 ⟨hq, hp⟩))
+  · rintro h ⟨q, p⟩ hqp
+    obtain ⟨hq, hp⟩ := (mem_casesL cm).1 hqp
+    exact (holds_deepT_case cm hc q p (hwf.hδj q p k).2).2 (h q hq p hp)
+
+theorem sat_step (hwf : cm.WF W) {σ : ℕ → Bool} {B : ℕ} :
+    SatL σ (cm.stepL W B) ↔
+      (∀ t < B, ∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+        cm.Guard σ W t q p → σ (cm.vC W (t + 1) (cm.δ q p).1) = true) ∧
+      (∀ t < B, ∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+        cm.Guard σ W t q p → ∀ k < cm.K, ∀ d, d + cm.c < W → cm.Clause σ W t q p k d) := by
+  have hc : 0 < cm.c := hwf.hc1
+  have hw2 := hwf.hc
+  unfold stepL
+  rw [SatL_flatMap]
+  have key : ∀ t, SatL σ (instL (cm.Vf W t 0 0) cm.stepCtlT ++
+      (List.range cm.K).flatMap (fun k =>
+        (List.range cm.c).flatMap (fun d => instL (cm.Vf W t k 0) (cm.topT k d)) ++
+        (List.range (W - 2 * cm.c)).flatMap (fun e => instL (cm.Vf W t k e) (cm.deepT k)))) ↔
+      ((∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+        cm.Guard σ W t q p → σ (cm.vC W (t + 1) (cm.δ q p).1) = true) ∧
+      (∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+        cm.Guard σ W t q p → ∀ k < cm.K, ∀ d, d + cm.c < W → cm.Clause σ W t q p k d)) := by
+    intro t
+    rw [SatL_append, SatL_instL, holds_stepCtlT cm hc, SatL_flatMap]
+    apply and_congr Iff.rfl
+    have hk : ∀ k < cm.K, SatL σ ((List.range cm.c).flatMap
+        (fun d => instL (cm.Vf W t k 0) (cm.topT k d)) ++
+        (List.range (W - 2 * cm.c)).flatMap (fun e => instL (cm.Vf W t k e) (cm.deepT k))) ↔
+        (∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+          cm.Guard σ W t q p → ∀ d, d + cm.c < W → cm.Clause σ W t q p k d) := by
+      intro k hk
+      rw [SatL_append, SatL_flatMap, SatL_flatMap]
+      simp only [List.mem_range, SatL_instL]
+      have ht : ∀ d, (∀ φ ∈ cm.topT k d, TF.holds σ (cm.Vf W t k 0) φ) ↔
+          ∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+            cm.Guard σ W t q p → cm.Clause σ W t q p k d := fun d => holds_topT cm hc hk
+      have hd : ∀ e, (∀ φ ∈ cm.deepT k, TF.holds σ (cm.Vf W t k e) φ) ↔
+          ∀ q < cm.Q, ∀ p ∈ allPats cm.A (cm.K * cm.c),
+            cm.Guard σ W t q p → cm.Clause σ W t q p k (cm.c + e) := fun e => holds_deepT cm hwf hc
+      simp only [ht, hd]
+      constructor
+      · rintro ⟨h1, h2⟩ q hq p hp hg d hdc
+        by_cases hdl : d < cm.c
+        · exact h1 d hdl q hq p hp hg
+        · obtain ⟨e, rfl⟩ := Nat.exists_eq_add_of_le (not_lt.1 hdl)
+          exact h2 e (by omega) q hq p hp hg
+      · intro h
+        exact ⟨fun d hdl q hq p hp hg => h q hq p hp hg d (by omega),
+          fun e he q hq p hp hg => h q hq p hp hg (cm.c + e) (by omega)⟩
+    simp only [List.mem_range]
+    constructor
+    · intro h q hq p hp hg k hkK d hdc
+      exact (hk k hkK).1 (h k hkK) q hq p hp hg d hdc
+    · intro h k hkK
+      exact (hk k hkK).2 (fun q hq p hp hg d hdc => h q hq p hp hg k hkK d hdc)
+  constructor
+  · intro h
+    refine ⟨fun t ht => ((key t).1 (h t (by simpa using ht))).1,
+      fun t ht => ((key t).1 (h t (by simpa using ht))).2⟩
+  · rintro ⟨h1, h2⟩ t ht
+    have ht' : t < B := by simpa using ht
+    exact (key t).2 ⟨h1 t ht', h2 t ht'⟩
+
+theorem sat_consL_iff (hwf : cm.WF W) {B : ℕ} {x : List Bool} {σ : ℕ → Bool}
+    (hx : 2 * x.length + 1 ≤ W) :
+    SatL σ (cm.consL W B x) ↔ cm.Fam W B x σ := by
+  unfold consL
+  rw [SatL_append, SatL_append, SatL_append, sat_init cm hwf.hkin hx, sat_frame, sat_step cm hwf,
+    sat_acc cm hwf.hkout]
+  constructor
+  · rintro ⟨⟨⟨⟨i1, i2, i3, i4, i5, i6⟩, f1, f2, f3⟩, s1, s2⟩, a1⟩
+    exact
+      { frameC := f1, frameA := f2, margin := f3, initC := i1, initX := i2, initSep := i3,
+        initW := i4, initContig := i5, initO := i6, stepC := s1,
+        stepA := fun t ht q hq p hp hg k hk d hd => s2 t ht q hq p hp hg k hk d hd,
+        acc := by
+          obtain ⟨⟨q, hq, hh, h1⟩, h2, h3⟩ := a1
+          exact ⟨q, hq, hh, h1, h2, h3⟩ }
+  · intro hF
+    refine ⟨⟨⟨⟨hF.initC, hF.initX, hF.initSep, hF.initW, hF.initContig, hF.initO⟩,
+      hF.frameC, hF.frameA, hF.margin⟩, hF.stepC,
+      fun t ht q hq p hp hg k hk d hd => hF.stepA t ht q hq p hp hg k hk d hd⟩, ?_⟩
+    obtain ⟨q, hq, hh, h1, h2, h3⟩ := hF.acc
+    exact ⟨⟨q, hq, hh, h1⟩, h2, h3⟩
+
+end CM
+
+/-! ## The tableau formula -/
+
+/-- Conjunction of a list of formulas, ending in the seed tautology. -/
+def conjF : List PropFormula → PropFormula
+  | [] => tautSeed
+  | φ :: l => .and φ (conjF l)
+
+theorem eval_conjF (σ : ℕ → Bool) (l : List PropFormula) :
+    PropFormula.eval σ (conjF l) = true ↔ SatL σ l := by
+  induction l with
+  | nil =>
+      simp [conjF, SatL_nil]
+      simp [tautSeed, PropFormula.eval, Bool.or_not_self]
+  | cons φ l ih => simp [conjF, PropFormula.eval, SatL_cons, ih]
+
+/-- The formula whose tautology encodes rejection of every witness. -/
+def tabFormula (cm : CM) (W B : ℕ) (x : List Bool) : PropFormula :=
+  .not (conjF (cm.consL W B x))
+
+theorem tabFormula_taut_iff (cm : CM) {W B : ℕ} {x : List Bool} (hwf : cm.WF W)
+    (hW : 2 * x.length + 1 + 2 * cm.c ≤ W) :
+    (tabFormula cm W B x).Tautology ↔
+      ¬ ∃ w : List Bool, 2 * x.length + 1 + w.length + 2 * cm.c ≤ W ∧
+        cm.NoOverflow W B (cm.initArr W x w) ∧
+        cm.Accepts (cm.runA W (cm.initArr W x w) B).1 (cm.runA W (cm.initArr W x w) B).2 := by
+  have hx : 2 * x.length + 1 ≤ W := by omega
+  constructor
+  · intro hT ⟨w, hs, hno, hacc⟩
+    obtain ⟨σ, hσ⟩ := cm.completeness hwf hs hno hacc
+    have h1 := hT σ
+    simp only [tabFormula, PropFormula.eval, Bool.not_eq_true'] at h1
+    have h2 : PropFormula.eval σ (conjF (cm.consL W B x)) = true :=
+      (eval_conjF σ _).2 ((cm.sat_consL_iff hwf hx).2 hσ)
+    rw [h2] at h1
+    exact absurd h1 (by simp)
+  · intro hn σ
+    simp only [tabFormula, PropFormula.eval]
+    by_contra hcon
+    have hc : PropFormula.eval σ (conjF (cm.consL W B x)) = true := by
+      cases h : PropFormula.eval σ (conjF (cm.consL W B x)) <;> simp_all
+    have hF := (cm.sat_consL_iff hwf hx).1 ((eval_conjF σ _).1 hc)
+    exact hn (cm.soundness hwf hF hW)
+
 end CL
 end SATurday.Bridge
