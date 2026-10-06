@@ -771,7 +771,488 @@ theorem sim_step (ia : tm.Γ tm.k₀ ≃ Bool) (oa : tm.Γ tm.k₁ ≃ Bool) {W 
         simp only [hK, if_false]
         exact (arrOf_outside tm W _ ia oa k' d hK).symm
 
+theorem goodS_stepF (c : tm.Cfg) (hG : GoodS tm c.stk) : GoodS tm (stepF tm c).stk := by
+  obtain ⟨l?, v, S⟩ := c
+  cases l? with
+  | none =>
+      have hstep : tm.step (⟨none, v, S⟩ : tm.Cfg) = none := rfl
+      have hF : stepF tm (⟨none, v, S⟩ : tm.Cfg) = ⟨none, v, S⟩ := by
+        unfold stepF; rw [hstep]; rfl
+      rw [hF]; exact hG
+  | some l =>
+      have hstep := stepAux_effAux (cc tm) S (tm.m l) v (fun _ => (0, []))
+        (by intro k; simp; exact (nodes_lt_cc tm l).le)
+      have hS0 : applyE S (fun _ => ((0 : ℕ), ([] : List _))) = S := by
+        funext k; simp [applyE]
+      rw [hS0] at hstep
+      have hF : stepF tm (⟨some l, v, S⟩ : tm.Cfg) =
+          ⟨(effAux (fun k => (S k).take (cc tm)) (tm.m l) v (fun _ => (0, []))).1,
+           (effAux (fun k => (S k).take (cc tm)) (tm.m l) v (fun _ => (0, []))).2.1,
+           applyE S (effAux (fun k => (S k).take (cc tm)) (tm.m l) v (fun _ => (0, []))).2.2⟩ := by
+        unfold stepF
+        show (some (TM2.stepAux (tm.m l) v S)).getD _ = _
+        rw [hstep]; rfl
+      rw [hF]
+      intro k g hg
+      simp only [applyE, List.mem_append] at hg
+      rcases hg with hg | hg
+      · exact effAux_pushed _ _ (tm.m l) v _ (pushOk_m tm l)
+          (by intro k g hg; simp at hg) k g hg
+      · exact hG k g (List.mem_of_mem_drop hg)
+
+/-- The real run, frozen after halting. -/
+def runF (n : ℕ) (c : tm.Cfg) : tm.Cfg := (stepF tm)^[n] c
+
+theorem goodS_runF (c : tm.Cfg) (hG : GoodS tm c.stk) (n : ℕ) : GoodS tm (runF tm n c).stk := by
+  induction n with
+  | zero => exact hG
+  | succ n ih =>
+      unfold runF at *
+      rw [Function.iterate_succ_apply']
+      exact goodS_stepF tm _ ih
+
+theorem sim_run (ia : tm.Γ tm.k₀ ≃ Bool) (oa : tm.Γ tm.k₁ ≃ Bool) {W : ℕ}
+    (hW : 2 * cc tm ≤ W) (c₀ : tm.Cfg) (hG : GoodS tm c₀.stk)
+    (hq : (tmCM tm ia oa).q0 = ctlCode tm (c₀.l, c₀.var)) (n : ℕ)
+    (hH : ∀ t < n, ∀ k, ((runF tm t c₀).stk k).length + cc tm ≤ W) :
+    (tmCM tm ia oa).runA W (arrOf tm W c₀.stk) n = cfgA tm W (runF tm n c₀) := by
+  induction n with
+  | zero => simp [CM.runA, cfgA, runF, hq]
+  | succ n ih =>
+      have ih' := ih (fun t ht => hH t (by omega))
+      simp only [CM.runA]
+      rw [ih']
+      have hGn := goodS_runF tm c₀ hG n
+      have := sim_step tm ia oa hW (runF tm n c₀) hGn (hH n (by omega))
+      unfold cfgA at this ⊢
+      simp only [] at this ⊢
+      rw [this]
+      unfold runF
+      rw [Function.iterate_succ_apply']
+
+theorem iterate_none (j : ℕ) : (flip bind tm.step)^[j] (none : Option tm.Cfg) = none := by
+  induction j with
+  | zero => rfl
+  | succ j ih => rw [Function.iterate_succ_apply]; exact ih
+
+theorem runF_of_evals (c c' : tm.Cfg) :
+    ∀ (j : ℕ), (flip bind tm.step)^[j] (some c) = some c' → runF tm j c = c' := by
+  intro j
+  induction j generalizing c with
+  | zero => intro h; simp at h; subst h; rfl
+  | succ j ih =>
+      intro h
+      rw [Function.iterate_succ_apply] at h
+      have h1 : (flip bind tm.step) (some c) = tm.step c := rfl
+      rw [h1] at h
+      cases hs : tm.step c with
+      | none =>
+          rw [hs] at h
+          rw [iterate_none] at h; simp at h
+      | some c₁ =>
+          rw [hs] at h
+          have := ih c₁ h
+          unfold runF at this ⊢
+          rw [Function.iterate_succ_apply]
+          have hF : stepF tm c = c₁ := by unfold stepF; rw [hs]; rfl
+          rw [hF]; exact this
+
+theorem stepF_haltList (out : List (tm.Γ tm.k₁)) : stepF tm (haltList tm out) = haltList tm out := by
+  unfold stepF
+  have : tm.step (haltList tm out) = none := rfl
+  rw [this]; rfl
+
+theorem runF_haltList (out : List (tm.Γ tm.k₁)) (n : ℕ) :
+    runF tm n (haltList tm out) = haltList tm out := by
+  induction n with
+  | zero => rfl
+  | succ n ih => unfold runF at *; rw [Function.iterate_succ_apply', ih, stepF_haltList]
+
+theorem runF_add (a b : ℕ) (c : tm.Cfg) : runF tm (a + b) c = runF tm a (runF tm b c) := by
+  unfold runF; rw [Function.iterate_add_apply]
+
+theorem stepF_of_none (c : tm.Cfg) (hh : c.l = none) : stepF tm c = c := by
+  obtain ⟨l?, v, S⟩ := c
+  simp only at hh
+  subst hh
+  have : tm.step (⟨none, v, S⟩ : tm.Cfg) = none := rfl
+  unfold stepF; rw [this]; rfl
+
+theorem runF_ge (j B : ℕ) (hB : j ≤ B) (c c' : tm.Cfg) (h : runF tm j c = c')
+    (hh : c'.l = none) : runF tm B c = c' := by
+  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hB
+  rw [Nat.add_comm, runF_add, h]
+  induction d with
+  | zero => rfl
+  | succ d ih =>
+      unfold runF at *
+      rw [Function.iterate_succ_apply', ih (by omega), stepF_of_none tm c' hh]
+
+theorem pushCount_le_nodes {K : Type} [DecidableEq K] {Γ : K → Type} {Λ σ : Type}
+    (s : TM2.Stmt Γ Λ σ) : TM2Bound.pushCount s ≤ s.nodes := by
+  induction s with
+  | push k f q ih => simp [TM2Bound.pushCount, TM2.Stmt.nodes]; omega
+  | peek k f q ih => simp [TM2Bound.pushCount, TM2.Stmt.nodes]; omega
+  | pop k f q ih => simp [TM2Bound.pushCount, TM2.Stmt.nodes]; omega
+  | load a q ih => simp [TM2Bound.pushCount, TM2.Stmt.nodes]; omega
+  | branch f q₁ q₂ ih₁ ih₂ => simp [TM2Bound.pushCount, TM2.Stmt.nodes]; omega
+  | goto f => simp [TM2Bound.pushCount, TM2.Stmt.nodes]
+  | halt => simp [TM2Bound.pushCount, TM2.Stmt.nodes]
+
+theorem stepBudget_lt_cc : TM2Bound.stepBudget tm < cc tm := by
+  unfold TM2Bound.stepBudget cc
+  have : (Finset.univ : Finset tm.Λ).sup (fun l => TM2Bound.pushCount (tm.m l)) ≤
+      (Finset.univ : Finset tm.Λ).sup (fun l => (tm.m l).nodes) := by
+    apply Finset.sup_le
+    intro l _
+    exact le_trans (pushCount_le_nodes (tm.m l))
+      (Finset.le_sup (f := fun l => (tm.m l).nodes) (Finset.mem_univ l))
+  omega
+
+theorem total_stepF (c : tm.Cfg) :
+    TM2Bound.total (stepF tm c).stk ≤ TM2Bound.total c.stk + TM2Bound.stepBudget tm := by
+  unfold stepF
+  cases h : tm.step c with
+  | none => simp
+  | some c' =>
+      have := TM2Bound.step_total_le tm c c' h
+      simpa using this
+
+theorem total_runF (c : tm.Cfg) (n : ℕ) :
+    TM2Bound.total (runF tm n c).stk ≤ TM2Bound.total c.stk + n * TM2Bound.stepBudget tm := by
+  induction n with
+  | zero => simp [runF]
+  | succ n ih =>
+      unfold runF at *
+      rw [Function.iterate_succ_apply']
+      have := total_stepF tm ((stepF tm)^[n] c)
+      rw [Nat.succ_mul]
+      omega
+
+theorem length_le_total (S : ∀ k, List (tm.Γ k)) (k : tm.K) : (S k).length ≤ TM2Bound.total S := by
+  unfold TM2Bound.total
+  exact Finset.single_le_sum (f := fun i => (S i).length) (fun _ _ => Nat.zero_le _)
+    (Finset.mem_univ k)
+
+theorem initList_stk_k0 (s : List (tm.Γ tm.k₀)) : (initList tm s).stk tm.k₀ = s := by
+  unfold initList; simp
+
+theorem initList_stk_ne (s : List (tm.Γ tm.k₀)) {k : tm.K} (h : k ≠ tm.k₀) :
+    (initList tm s).stk k = [] := by
+  unfold initList; simp [h]
+
+theorem haltList_stk_k1 (s : List (tm.Γ tm.k₁)) : (haltList tm s).stk tm.k₁ = s := by
+  unfold haltList; simp
+
+theorem haltList_stk_ne (s : List (tm.Γ tm.k₁)) {k : tm.K} (h : k ≠ tm.k₁) :
+    (haltList tm s).stk k = [] := by
+  unfold haltList; simp [h]
+
+theorem initArr_eq (ia : tm.Γ tm.k₀ ≃ Bool) (oa : tm.Γ tm.k₁ ≃ Bool) (W : ℕ) (x w : List Bool) :
+    (tmCM tm ia oa).initArr W x w =
+      arrOf tm W (initList tm ((encodePair (x, w)).map ia.symm)).stk := by
+  funext k' d
+  unfold CM.initArr
+  by_cases hk : k' < nK tm
+  · set k : tm.K := (eK tm).symm ⟨k', hk⟩ with hkdef
+    have hkidx : kIdx tm k = k' := by unfold kIdx; rw [hkdef]; simp
+    have hkof : kOf tm k' = some k := by unfold kOf; rw [dif_pos hk]
+    by_cases hkk : k = tm.k₀
+    · have hkof' : kOf tm k' = some tm.k₀ := by rw [hkof, hkk]
+      have hkin : k' = (tmCM tm ia oa).kin := by
+        show k' = kIdx tm tm.k₀
+        rw [← hkidx, hkk]
+      by_cases hd : d < W
+      · have hcond : k' = (tmCM tm ia oa).kin ∧ k' < (tmCM tm ia oa).K ∧ d < W :=
+          ⟨hkin, hk, hd⟩
+        rw [if_pos hcond]
+        unfold arrOf
+        rw [if_pos hd, hkof']
+        simp only [initList_stk_k0]
+        by_cases hlen : d < (encodePair (x, w)).length
+        · rw [if_pos hlen]
+          have : ((encodePair (x, w)).map ia.symm)[d]? = some (ia.symm ((encodePair (x, w)).getD d false)) := by
+            rw [List.getElem?_map, List.getElem?_eq_getElem hlen]
+            simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlen]
+          rw [this]
+          rfl
+        · rw [if_neg hlen]
+          have : ((encodePair (x, w)).map ia.symm)[d]? = none := by
+            rw [List.getElem?_map]
+            simp [List.getElem?_eq_none (by omega : (encodePair (x, w)).length ≤ d)]
+          rw [this]
+          rfl
+      · have hcond : ¬ (k' = (tmCM tm ia oa).kin ∧ k' < (tmCM tm ia oa).K ∧ d < W) :=
+          fun h => hd h.2.2
+        rw [if_neg hcond]
+        unfold arrOf
+        rw [if_neg hd]; rfl
+    · have hkin : ¬ k' = (tmCM tm ia oa).kin := by
+        intro h
+        apply hkk
+        apply kIdx_inj tm
+        rw [hkidx]; exact h
+      have hcond : ¬ (k' = (tmCM tm ia oa).kin ∧ k' < (tmCM tm ia oa).K ∧ d < W) :=
+        fun h => hkin h.1
+      rw [if_neg hcond]
+      unfold arrOf
+      rw [hkof]
+      by_cases hd : d < W
+      · rw [if_pos hd]
+        simp only [initList_stk_ne tm _ hkk]
+        simp; rfl
+      · rw [if_neg hd]; rfl
+  · have hcond : ¬ (k' = (tmCM tm ia oa).kin ∧ k' < (tmCM tm ia oa).K ∧ d < W) :=
+      fun h => hk h.2.1
+    rw [if_neg hcond, arrOf_ge tm W _ (by omega)]
+    rfl
+
+theorem tmCM_halt (ia : tm.Γ tm.k₀ ≃ Bool) (oa : tm.Γ tm.k₁ ≃ Bool) (c : Ctl tm) :
+    (tmCM tm ia oa).halt (ctlCode tm c) = true ↔ c.1 = none := by
+  show (match ctlDec tm (ctlCode tm c) with
+    | some (none, _) => true
+    | _ => false) = true ↔ _
+  rw [ctlDec_ctlCode]
+  obtain ⟨o, v⟩ := c
+  cases o <;> simp
+
+theorem heights_of_blank (W : ℕ) (hc : 0 < cc tm) (hW : 2 * cc tm ≤ W)
+    (S : ∀ k, List (tm.Γ k)) (hG : GoodS tm S)
+    (hb : ∀ k : tm.K, ∀ d, W - 2 * cc tm ≤ d → d < W →
+      arrOf tm W S (kIdx tm k) d = (symAll tm).length) :
+    ∀ k, (S k).length + 2 * cc tm ≤ W := by
+  intro k
+  by_contra hlt
+  have hd : W - 2 * cc tm < (S k).length := by omega
+  have hdW : W - 2 * cc tm < W := by omega
+  have := hb k (W - 2 * cc tm) le_rfl hdW
+  rw [arrOf_kIdx, if_pos hdW, List.getElem?_eq_getElem hd] at this
+  simp only at this
+  have hlt2 := encS_lt tm _ (hG k _ (List.getElem_mem hd))
+  omega
+
+theorem total_initList (s : List (tm.Γ tm.k₀)) : TM2Bound.total (initList tm s).stk = s.length := by
+  unfold TM2Bound.total
+  rw [Finset.sum_eq_single tm.k₀]
+  · rw [initList_stk_k0]
+  · intro k _ hk; rw [initList_stk_ne tm s hk]; rfl
+  · intro h; exact absurd (Finset.mem_univ _) h
+
+theorem goodS_initList (s : List (tm.Γ tm.k₀)) : GoodS tm (initList tm s).stk := by
+  intro k g hg
+  by_cases hk : k = tm.k₀
+  · subst hk
+    rw [initList_stk_k0] at hg
+    exact mem_symAll_input tm g
+  · rw [initList_stk_ne tm s hk] at hg; simp at hg
+
+theorem evals_prefix (c c' : tm.Cfg) (steps : ℕ) (h : (flip bind tm.step)^[steps] (some c) = some c')
+    (j : ℕ) (hj : j ≤ steps) : ∃ cj, (flip bind tm.step)^[j] (some c) = some cj := by
+  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hj
+  rw [Nat.add_comm, Function.iterate_add_apply] at h
+  cases hh : (flip bind tm.step)^[j] (some c) with
+  | none => rw [hh, iterate_none] at h; simp at h
+  | some cj => exact ⟨cj, rfl⟩
+
+theorem not_halted_before (c c' : tm.Cfg) (steps : ℕ)
+    (h : (flip bind tm.step)^[steps] (some c) = some c') (j : ℕ) (hj : j < steps) :
+    (runF tm j c).l ≠ none := by
+  obtain ⟨cj, hcj⟩ := evals_prefix tm c c' steps h j hj.le
+  have hr := runF_of_evals tm c cj j hcj
+  rw [hr]
+  intro hnone
+  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le (Nat.succ_le_of_lt hj)
+  rw [Nat.add_comm, Function.iterate_add_apply, Function.iterate_succ_apply'] at h
+  rw [hcj] at h
+  have : (flip bind tm.step) (some cj) = none := by
+    show tm.step cj = none
+    obtain ⟨l?, v, S⟩ := cj
+    simp only at hnone
+    subst hnone
+    rfl
+  rw [this, iterate_none] at h
+  simp at h
+
 end Build
+
+/-! ## Correctness of the coded machine for a poly time verifier -/
+
+section Correct
+
+open Classical
+
+attribute [local instance] FinTM2.kFin FinTM2.ΛFin FinTM2.σFin FinTM2.Γk₀Fin
+
+variable {f : List Bool × List Bool → Bool}
+  (h : TM2ComputableInPolyTime encodePair bitEnc f)
+
+/-- The coded machine of a verifier. -/
+noncomputable def verCM : CM := tmCM h.tm h.inputAlphabet h.outputAlphabet
+
+theorem verCM_c : (verCM h).c = cc h.tm := rfl
+
+theorem verCM_WF {W : ℕ} (hW : 2 * cc h.tm ≤ W) : (verCM h).WF W :=
+  tmCM_WF h.tm h.inputAlphabet h.outputAlphabet hW
+
+theorem accept_of_true (x w : List Bool) (hv : f (x, w) = true) {W B : ℕ}
+    (hW : 2 * cc h.tm ≤ W)
+    (hW2 : (encodePair (x, w)).length +
+      h.time.eval (encodePair (x, w)).length * TM2Bound.stepBudget h.tm + 2 * cc h.tm ≤ W)
+    (hB : h.time.eval (encodePair (x, w)).length ≤ B) :
+    (verCM h).NoOverflow W B ((verCM h).initArr W x w) ∧
+      (verCM h).Accepts ((verCM h).runA W ((verCM h).initArr W x w) B).1
+        ((verCM h).runA W ((verCM h).initArr W x w) B).2 := by
+  have hout := h.outputsFun (x, w)
+  obtain ⟨⟨steps, hevals⟩, hle⟩ := hout
+  set tm := h.tm with htm
+  set ia := h.inputAlphabet with hia
+  set oa := h.outputAlphabet with hoa
+  set enc := encodePair (x, w) with henc
+  let s : List (tm.Γ tm.k₀) := List.map ia.invFun enc
+  have hs : s = enc.map ia.symm := rfl
+  let c₀ : tm.Cfg := initList tm s
+  let out : List (tm.Γ tm.k₁) := List.map oa.invFun (bitEnc (f (x, w)))
+  have hevals' : (flip bind tm.step)^[steps] (some c₀) = some (haltList tm out) := hevals
+  have hle' : steps ≤ h.time.eval enc.length := hle
+  have hsteps : runF tm steps c₀ = haltList tm out := runF_of_evals tm c₀ _ steps hevals'
+  have hhalt : ∀ t, steps ≤ t → runF tm t c₀ = haltList tm out := by
+    intro t ht
+    obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le ht
+    rw [Nat.add_comm, runF_add, hsteps, runF_haltList]
+  have hGc : GoodS tm c₀.stk := goodS_initList tm s
+  have hq : (verCM h).q0 = ctlCode tm (c₀.l, c₀.var) := rfl
+  -- height bound
+  have hlen : s.length = enc.length := by simp [hs]
+  have hheight : ∀ t, ∀ k, ((runF tm t c₀).stk k).length ≤
+      enc.length + h.time.eval enc.length * TM2Bound.stepBudget tm := by
+    intro t k
+    have htot : ∀ t, steps ≤ t → TM2Bound.total (runF tm t c₀).stk ≤
+        enc.length + h.time.eval enc.length * TM2Bound.stepBudget tm := by
+      intro t ht
+      rw [hhalt t ht, ← hsteps]
+      have := total_runF tm c₀ steps
+      rw [total_initList, hlen] at this
+      have h2 : steps * TM2Bound.stepBudget tm ≤ h.time.eval enc.length * TM2Bound.stepBudget tm :=
+        Nat.mul_le_mul_right _ hle'
+      omega
+    by_cases ht : steps ≤ t
+    · exact le_trans (length_le_total tm _ k) (htot t ht)
+    · have := total_runF tm c₀ t
+      rw [total_initList, hlen] at this
+      have h2 : t * TM2Bound.stepBudget tm ≤ h.time.eval enc.length * TM2Bound.stepBudget tm :=
+        Nat.mul_le_mul_right _ (by omega)
+      exact le_trans (length_le_total tm _ k) (by omega)
+  have hH : ∀ t < B, ∀ k, ((runF tm t c₀).stk k).length + cc tm ≤ W := by
+    intro t _ k; have := hheight t k; omega
+  have hsim : ∀ n ≤ B, (verCM h).runA W ((verCM h).initArr W x w) n = cfgA tm W (runF tm n c₀) := by
+    intro n hn
+    have hia_eq : (verCM h).initArr W x w = arrOf tm W c₀.stk := initArr_eq tm ia oa W x w
+    rw [hia_eq]
+    exact sim_run tm ia oa hW c₀ hGc hq n (fun t ht => hH t (by omega))
+  refine ⟨?_, ?_⟩
+  · intro t ht k hk d hd1 hd2
+    have hd1' : W - 2 * cc tm ≤ d := hd1
+    rw [hsim t ht]
+    show arrOf tm W (runF tm t c₀).stk k d = (symAll tm).length
+    by_cases hk' : k < nK tm
+    · set kk : tm.K := (eK tm).symm ⟨k, hk'⟩ with hkk
+      have hkof : kOf tm k = some kk := by unfold kOf; rw [dif_pos hk']
+      unfold arrOf
+      rw [if_pos hd2, hkof]
+      have : ((runF tm t c₀).stk kk)[d]? = none := by
+        apply List.getElem?_eq_none
+        have := hheight t kk
+        have hh : 2 * cc tm ≤ W := hW
+        omega
+      simp only [this]
+    · exact arrOf_ge tm W _ (by omega) d
+  · have hB' : steps ≤ B := le_trans hle' hB
+    rw [hsim B le_rfl, hhalt B hB']
+    have hcc : 0 < cc tm := Nat.succ_pos _
+    have hW0 : 0 < W := by omega
+    have hoc : out = [oa.symm true] := by
+      simp [out, hv, bitEnc]
+    refine ⟨?_, ?_, ?_⟩
+    · exact (tmCM_halt tm ia oa ((haltList tm out).l, (haltList tm out).var)).2 rfl
+    · show arrOf tm W (haltList tm out).stk (kIdx tm tm.k₁) 0 = encS tm ⟨tm.k₁, oa.symm true⟩
+      rw [arrOf_kIdx, if_pos hW0, haltList_stk_k1, hoc]
+      rfl
+    · show arrOf tm W (haltList tm out).stk (kIdx tm tm.k₁) 1 = (symAll tm).length
+      rw [arrOf_kIdx]
+      by_cases h1 : 1 < W
+      · rw [if_pos h1, haltList_stk_k1, hoc]; rfl
+      · rw [if_neg h1]
+
+theorem true_of_accepts (x w : List Bool) {W B : ℕ} (hW : 2 * cc h.tm ≤ W)
+    (hno : (verCM h).NoOverflow W B ((verCM h).initArr W x w))
+    (hacc : (verCM h).Accepts ((verCM h).runA W ((verCM h).initArr W x w) B).1
+      ((verCM h).runA W ((verCM h).initArr W x w) B).2) :
+    f (x, w) = true := by
+  have hout := h.outputsFun (x, w)
+  obtain ⟨⟨steps, hevals⟩, hle⟩ := hout
+  set tm := h.tm with htm
+  set ia := h.inputAlphabet with hia
+  set oa := h.outputAlphabet with hoa
+  set enc := encodePair (x, w) with henc
+  let s : List (tm.Γ tm.k₀) := List.map ia.invFun enc
+  let c₀ : tm.Cfg := initList tm s
+  let out : List (tm.Γ tm.k₁) := List.map oa.invFun (bitEnc (f (x, w)))
+  have hevals' : (flip bind tm.step)^[steps] (some c₀) = some (haltList tm out) := hevals
+  have hsteps : runF tm steps c₀ = haltList tm out := runF_of_evals tm c₀ _ steps hevals'
+  have hhalt : ∀ t, steps ≤ t → runF tm t c₀ = haltList tm out := by
+    intro t ht
+    obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le ht
+    rw [Nat.add_comm, runF_add, hsteps, runF_haltList]
+  have hGc : GoodS tm c₀.stk := goodS_initList tm s
+  have hq : (verCM h).q0 = ctlCode tm (c₀.l, c₀.var) := rfl
+  have hcc : 0 < cc tm := Nat.succ_pos _
+  have hia_eq : (verCM h).initArr W x w = arrOf tm W c₀.stk := initArr_eq tm ia oa W x w
+  -- heights, by strong induction
+  have hH : ∀ t ≤ B, (verCM h).runA W ((verCM h).initArr W x w) t = cfgA tm W (runF tm t c₀) ∧
+      ∀ k, ((runF tm t c₀).stk k).length + 2 * cc tm ≤ W := by
+    intro t
+    induction t using Nat.strong_induction_on with
+    | _ t ih =>
+        intro ht
+        have hsim : (verCM h).runA W ((verCM h).initArr W x w) t = cfgA tm W (runF tm t c₀) := by
+          rw [hia_eq]
+          exact sim_run tm ia oa hW c₀ hGc hq t (fun t' ht' k => by
+            have := (ih t' ht' (by omega)).2 k; omega)
+        refine ⟨hsim, ?_⟩
+        apply heights_of_blank tm W hcc hW _ (goodS_runF tm c₀ hGc t)
+        intro k d hd1 hd2
+        have := hno t ht (kIdx tm k) (kIdx_lt tm k) d hd1 hd2
+        rw [hsim] at this
+        exact this
+  have hsimB : (verCM h).runA W ((verCM h).initArr W x w) B = cfgA tm W (runF tm B c₀) :=
+    (hH B le_rfl).1
+  rw [hsimB] at hacc
+  obtain ⟨hh1, hh2, hh3⟩ := hacc
+  have hnone : (runF tm B c₀).l = none :=
+    (tmCM_halt tm ia oa ((runF tm B c₀).l, (runF tm B c₀).var)).1 hh1
+  have hB' : steps ≤ B := by
+    by_contra hlt
+    exact not_halted_before tm c₀ _ steps hevals' B (by omega) hnone
+  rw [hhalt B hB'] at hh2
+  have hGB := goodS_runF tm c₀ hGc B
+  rw [hhalt B hB'] at hGB
+  have hW0 : 0 < W := by omega
+  have hcell : arrOf tm W (haltList tm out).stk (kIdx tm tm.k₁) 0 =
+      encS tm ⟨tm.k₁, oa.symm (f (x, w))⟩ := by
+    rw [arrOf_kIdx, if_pos hW0, haltList_stk_k1]
+    simp [out, bitEnc]
+  have h2 : arrOf tm W (haltList tm out).stk (kIdx tm tm.k₁) 0 = encS tm ⟨tm.k₁, oa.symm true⟩ := hh2
+  rw [hcell] at h2
+  have hmem : (⟨tm.k₁, oa.symm (f (x, w))⟩ : Σ k : tm.K, tm.Γ k) ∈ symAll tm := by
+    apply hGB tm.k₁
+    rw [haltList_stk_k1]
+    simp [out, bitEnc]
+  have h3 := (List.idxOf_inj hmem).1 h2
+  have h4 : oa.symm (f (x, w)) = oa.symm true := eq_of_heq (Sigma.mk.inj_iff.1 h3).2
+  have := oa.symm.injective h4
+  exact this
+
+end Correct
 
 end CL
 end SATurday.Bridge
