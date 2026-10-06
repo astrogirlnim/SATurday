@@ -2406,3 +2406,12 @@ SATurday.Bridge.TM2Bound.output_length_le
 SATurday.Bridge.outBound_of_computable
 SATurday.Bridge.proofCheckComputableInPolyTime
 SATurday.Bridge.TAUT_in_NP_of_polyBounded'
+SATurday.Bridge.CL.tabFormula_taut_iff
+SATurday.Bridge.CL.tab_iff_not_L
+SATurday.Bridge.CL.CM.run_genProg
+SATurday.Bridge.CL.CM.cost_genProg_le
+SATurday.Bridge.CL.CM.genProg_Ok
+SATurday.Bridge.CL.top
+SATurday.Bridge.CL.reduction_exists
+SATurday.Bridge.complement_InNP_of_polyBounded
+SATurday.Bridge.bridge_theorem_1_hard

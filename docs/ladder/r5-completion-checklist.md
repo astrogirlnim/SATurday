@@ -174,7 +174,7 @@ Cook Levin reduction (hard direction) remain. Do not restart
   unaryLE); `afterDecodeProofSystemComputableInPolyTime`, `sanitizeProofComputableInPolyTime`,
   `npProofSystemComputableInPolyTime`, `bridge_theorem_1_easy` and
   unconditional `summit_corollary` certified 2026-10-05; axiom gate PASS)
-- [ ] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
+- [x] Hard direction of theorem 1: Cook Levin style coNP to TAUT reduction
   (`Bridge/CookLevin.lean`, 2026-10-05: generic output length bound
   `outBound_of_computable` (stack growth per step, `stepBudget`),
   `proofCheckComputableInPolyTime` (apply `f`, swap, `bitsEqualPair`), and
@@ -189,19 +189,19 @@ Cook Levin reduction (hard direction) remain. Do not restart
     (`progTM`, `progTM_outputs`), cleanup of junk stacks, `Computes.toPoly`
     packaging into `TM2ComputableInPolyTime idBitEnc idBitEnc`. Machines are now
     verified at program level, not phase by phase.
-  - [ ] Unary / emission library over `Prog` (copy, add, emit bits, for-loop
+  - [x] Unary / emission library over `Prog` (copy, add, emit bits, for-loop
     invariant lemma `exec_loop_inv`).
   - [x] `Bridge/Tableau.lean`: coded machine `CM` (windows of depth `c`, top
     relative arrays, no height variables), tableau constraint list `consL` built
     from register relative templates `TF`, soundness and completeness
     (`tabFormula_taut_iff`: tautology iff no accepting witness).
-  - [ ] `tm → CM` simulation (semantic only): reachable symbol lists, window
+  - [x] `tm → CM` simulation (semantic only): reachable symbol lists, window
     interpreter, `stepAux` window lemma, halting frozen, acceptance iff output.
-  - [ ] Generator `Prog` emitting that bit string, `Computes` certified.
-  - [ ] `complement L ≤p TAUT` for `L ∈ NP`; `InNP` closed under it;
+  - [x] Generator `Prog` emitting that bit string, `Computes` certified.
+  - [x] `complement L ≤p TAUT` for `L ∈ NP`; `InNP` closed under it;
     `bridge_theorem_1_hard`.
 - [x] Wire into `Theory.lean`; axiom gate PASS; zero Bridge sorries
-- [ ] Update rung memory; mark R5 certified (blocked on theorem 1)
+- [x] Update rung memory; R5 certified 2026-10-06 (`bridge_theorem_1_hard` in `Bridge/Hard.lean`; axiom gate PASS, 2016 declarations)
 - [ ] Only then consider `satday auto` again
 ## Order rule
 
