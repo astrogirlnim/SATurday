@@ -805,6 +805,8 @@ def frontier_ns_for_module(module: str) -> str:
         return "ProofSystemFrontier"
     if mod.endswith("CSExpansion.lean") or "/CSExpansion.lean" in mod:
         return "CSExpansionFrontier"
+    if mod.endswith("CuttingPlanes.lean") or "/CuttingPlanes.lean" in mod:
+        return "CuttingPlanesFrontier"
     print(
         f"[saturday.proof_source] frontier_ns_for_module default "
         f"CSExpansionFrontier module={module!r}"
