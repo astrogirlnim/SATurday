@@ -928,6 +928,204 @@ theorem vals_bdd {M : ℕ} (hM : ∀ I ∈ L, (∀ i, |I.coef i| ≤ M) ∧ |I.r
 
 end Bdd
 
+/-! ## Interpolation into monotone Boolean circuits for CP* -/
+
+/-- Monotone Boolean interpolation for CP* (Bonet, Pitassi and Raz 1997). -/
+def CPStarMonotoneInterpolation : Prop :=
+  ∃ q : Polynomial ℕ, ∀ (A B : CNF) (P Q R : Finset ℕ) (L : List Ineq) (M : ℕ),
+    (∀ C ∈ A, ∀ l ∈ C, l.var ∈ P ∪ Q ∧ (l.var ∈ P → l.pos = true)) →
+    (∀ C ∈ B, ∀ l ∈ C, l.var ∈ P ∪ R) →
+    Disjoint P Q → Disjoint P R → Disjoint Q R →
+    CPStarRefutes M (A ∪ B) L →
+    ∃ C : List MGate, MCBool C ∧ MCInputsIn P C ∧
+      C.length ≤ q.eval (L.length + (P ∪ Q ∪ R).card + M) ∧
+      ∀ a, (cnfSat a A → mcEval a C = 1) ∧ (cnfSat a B → mcEval a C = 0)
+
+section AssembleC
+
+variable (A B : CNF) (P Q : Finset ℕ) (L : List Ineq) (f : ℕ)
+
+theorem circGateC_wf (hL : CPProof (A ∪ B) L) (hf : f < L.length) :
+    ∀ m < circLen P L + 1, ∀ g i i', circGateC A B P Q L f m = .op g i i' → i < m ∧ i' < m := by
+  intro m hm g i i' hg
+  unfold circGateC at hg
+  by_cases h1 : m < P.card
+  · rw [if_pos h1] at hg; cases hg
+  rw [if_neg h1] at hg
+  set k := (m - P.card) / (P.card + 1)
+  set r := (m - P.card) % (P.card + 1)
+  have hmk : m = bstart P k + r := by
+    unfold bstart
+    have h : (P.card + 1) * k + r = m - P.card := Nat.div_add_mod _ _
+    have hcomm : (P.card + 1) * k = k * (P.card + 1) := Nat.mul_comm _ _
+    omega
+  by_cases h2 : k < L.length
+  · rw [if_pos h2] at hg
+    by_cases h3 : r = 0
+    · rw [if_pos h3] at hg
+      have hmk' : bstart P k ≤ m := by omega
+      have hv := ruleAt_valid hL h2
+      unfold firstGateC at hg
+      generalize ruleAt (A ∪ B) L k = rr at hv hg
+      cases rr with
+      | hyp C => dsimp only at hg; split_ifs at hg <;> cases hg
+      | low j => dsimp only at hg; split_ifs at hg <;> cases hg
+      | up j => dsimp only at hg; split_ifs at hg <;> cases hg
+      | add j j' =>
+          dsimp only at hg; cases hg
+          exact ⟨(posN_lt_bstart P hv.1).trans_le hmk', (posN_lt_bstart P hv.2.1).trans_le hmk'⟩
+      | scale j c =>
+          dsimp only at hg; cases hg
+          exact ⟨(posN_lt_bstart P hv.1).trans_le hmk', (posN_lt_bstart P hv.1).trans_le hmk'⟩
+      | div j c =>
+          dsimp only at hg; cases hg
+          exact ⟨(posN_lt_bstart P hv.1).trans_le hmk', (posN_lt_bstart P hv.1).trans_le hmk'⟩
+    · rw [if_neg h3] at hg
+      unfold chainGate at hg
+      have hr : r ≤ P.card := by
+        have := Nat.mod_lt (m - P.card) (show 0 < P.card + 1 by omega); omega
+      split_ifs at hg <;> cases hg
+      · unfold bstart at hmk ⊢; constructor <;> omega
+      · constructor <;> omega
+  · rw [if_neg h2] at hg
+    unfold finalGateC at hg; cases hg
+    have h := posN_lt_bstart P (Nat.lt_succ_self f)
+    have h2' : (f + 1) * (P.card + 1) ≤ L.length * (P.card + 1) := Nat.mul_le_mul_right _ hf
+    unfold bstart at h; unfold circLen at hm
+    have h4 : L.length ≤ k := Nat.le_of_not_lt h2
+    have h5 : L.length * (P.card + 1) ≤ k * (P.card + 1) := Nat.mul_le_mul_right _ h4
+    unfold bstart at hmk
+    simp only [Nat.succ_eq_add_one] at h
+    constructor <;> omega
+
+theorem circGateC_inp {m v : ℕ} (h : circGateC A B P Q L f m = .inp v) : v ∈ P := by
+  unfold circGateC at h
+  by_cases h1 : m < P.card
+  · rw [if_pos h1] at h
+    cases h
+    have hl : m < (Pl P).length := by rw [Pl_length]; exact h1
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hl]
+    exact (Finset.mem_sort _).1 (List.getElem_mem hl)
+  rw [if_neg h1] at h
+  by_cases h2 : (m - P.card) / (P.card + 1) < L.length
+  · rw [if_pos h2] at h
+    by_cases h3 : (m - P.card) % (P.card + 1) = 0
+    · rw [if_pos h3] at h
+      unfold firstGateC at h
+      cases hr : ruleAt (A ∪ B) L ((m - P.card) / (P.card + 1)) <;> rw [hr] at h <;>
+        dsimp only at h <;> (try split_ifs at h) <;> cases h
+    · rw [if_neg h3] at h
+      unfold chainGate at h; split_ifs at h <;> cases h
+  · rw [if_neg h2] at h
+    unfold finalGateC at h; cases h
+
+end AssembleC
+
+theorem cpstar_interpolation : CPStarMonotoneInterpolation := by
+  refine ⟨Polynomial.C 53 * (Polynomial.X + 1) ^ 6, ?_⟩
+  intro A B P Q R L M hA hB hPQ hPR hQR hLr
+  obtain ⟨⟨hL, I, hI, h0, hpos⟩, hM⟩ := hLr
+  obtain ⟨f, hf, hfI⟩ := List.mem_iff_getElem.1 hI
+  have hline : lineAt L f = I := by rw [lineAt_of_lt hf]; simpa using hfI
+  set gt := circGateC A B P Q L f
+  set s := circLen P L + 1
+  set Rn : ℕ := M * (P.card + Q.card + 1) + 1
+  set U : Finset ℝ := (Finset.Icc (-(Rn : ℤ)) Rn).image fun z : ℤ => (z : ℝ)
+  have hT : ∀ a, ∀ m < s, gateValue a gt m ∈ U := by
+    intro a m _
+    obtain ⟨z, hz, hzb⟩ := vals_bdd a f hM m
+    rw [hz]
+    refine Finset.mem_image.2 ⟨z, Finset.mem_Icc.2 ?_, rfl⟩
+    rw [abs_le] at hzb
+    push_cast at hzb ⊢
+    exact hzb
+  have h1U : (1 : ℝ) ∈ U :=
+    Finset.mem_image.2 ⟨1, Finset.mem_Icc.2 ⟨by omega, by push_cast; omega⟩, by simp⟩
+  obtain ⟨Bc, hBool, hInp, hlen, heval⟩ := real_to_bool gt s U P (by omega)
+    (circGateC_wf A B P Q L f hL hf) (fun m _ => circGateC_mono A B P Q L f m)
+    (fun m _ v hv => circGateC_inp A B P Q L f hv) hT h1U
+  refine ⟨Bc, hBool, hInp, ?_, ?_⟩
+  · -- size
+    rw [hlen]
+    simp only [Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_add,
+      Polynomial.eval_X, Polynomial.eval_one]
+    set t := L.length + (P ∪ Q ∪ R).card + M
+    have hPc : P.card ≤ (P ∪ Q ∪ R).card :=
+      Finset.card_le_card (Finset.subset_union_left.trans Finset.subset_union_left)
+    have hQc : Q.card ≤ (P ∪ Q ∪ R).card :=
+      Finset.card_le_card (Finset.subset_union_right.trans Finset.subset_union_left)
+    have hPQc : P.card + Q.card ≤ (P ∪ Q ∪ R).card + (P ∪ Q ∪ R).card := by omega
+    have hUc : U.card ≤ 2 * Rn + 1 := by
+      refine Finset.card_image_le.trans ?_
+      rw [Int.card_Icc]; omega
+    have hct : P.card ≤ t := by omega
+    have hs : s ≤ (t + 1) ^ 2 := by
+      show P.card + L.length * (P.card + 1) + 1 ≤ (t + 1) ^ 2
+      have : L.length * (P.card + 1) ≤ t * (t + 1) := Nat.mul_le_mul (by omega) (by omega)
+      have e : (t + 1) ^ 2 = t * (t + 1) + t + 1 := by ring
+      omega
+    have hR : 2 * Rn + 1 ≤ 5 * (t + 1) ^ 2 := by
+      show 2 * (M * (P.card + Q.card + 1) + 1) + 1 ≤ 5 * (t + 1) ^ 2
+      have : M * (P.card + Q.card + 1) ≤ t * (2 * t + 1) := Nat.mul_le_mul (by omega) (by omega)
+      have e1 : (t + 1) ^ 2 = t * t + 2 * t + 1 := by ring
+      have e2 : t * (2 * t + 1) = 2 * (t * t) + t := by ring
+      omega
+    have hU5 : U.card ≤ 5 * (t + 1) ^ 2 := hUc.trans hR
+    unfold boolLen bw
+    calc 2 + s * U.card * (2 * U.card) + 1
+        ≤ 3 + (t + 1) ^ 2 * (5 * (t + 1) ^ 2) * (2 * (5 * (t + 1) ^ 2)) := by
+          have := Nat.mul_le_mul (Nat.mul_le_mul hs hU5) (Nat.mul_le_mul_left 2 hU5)
+          omega
+      _ ≤ 53 * (t + 1) ^ 6 := by
+          have : 1 ≤ (t + 1) ^ 6 := Nat.one_le_pow _ _ (by omega)
+          have e3 : (t + 1) ^ 2 * (5 * (t + 1) ^ 2) * (2 * (5 * (t + 1) ^ 2)) = 50 * (t + 1) ^ 6 := by
+            ring
+          omega
+  · intro a
+    rw [heval a]
+    -- value of the output gate
+    have hout : gateValue a gt (s - 1) =
+        if 0 ≤ ((-(DC A B P Q L a f).1 : ℤ) : ℝ) then 1 else 0 := by
+      show gateValue a gt (circLen P L) = _
+      unfold gateValue
+      rw [show gt (circLen P L) = finalGateC P Q L f from circGateC_final A B P Q L]
+      unfold finalGateC
+      simp only [MGate.val]
+      have hlt : posN P f < circLen P L := by
+        have h1 := posN_lt_bstart P (Nat.lt_succ_self f)
+        have h2 : (f + 1) * (P.card + 1) ≤ L.length * (P.card + 1) := Nat.mul_le_mul_right _ hf
+        unfold bstart at h1; unfold circLen
+        simp only [Nat.succ_eq_add_one] at h1
+        omega
+      rw [read_earlier a _ hlt, val_posNC a f (R := R) hL hA hB hPQ hQR f hf]
+    rw [hout]
+    have inv := DC_inv a (R := R) hL hA hB hPQ hQR f hf
+    have hSLf : SL Q L f = 0 := by
+      unfold SL absQ; rw [hline, h0]; simp
+    have hzP : partOn P (lineAt L f) a = 0 := by
+      rw [hline]; exact partOn_eq_zero (fun i _ => by rw [h0]; rfl) a
+    have hzQ : partOn Q (lineAt L f) a = 0 := by
+      rw [hline]; exact partOn_eq_zero (fun i _ => by rw [h0]; rfl) a
+    have hzL : (lineAt L f).lhs a = 0 := by
+      rw [hline]; unfold Ineq.lhs; rw [h0]; simp
+    rw [hSLf, hzP, hzQ, hzL, hline] at inv
+    obtain ⟨_, i1, i2, i3⟩ := inv
+    constructor
+    · intro ha
+      have := i2 ha
+      rw [if_pos (show (0 : ℝ) ≤ ((-(DC A B P Q L a f).1 : ℤ) : ℝ) by
+        exact_mod_cast (show (0 : ℤ) ≤ -(DC A B P Q L a f).1 by omega))]
+      norm_num
+    · intro hb
+      have := i3 hb
+      have hge : 1 ≤ (DC A B P Q L a f).1 := by
+        rcases i1 with h | h
+        · omega
+        · omega
+      rw [if_neg (show ¬ (0 : ℝ) ≤ ((-(DC A B P Q L a f).1 : ℤ) : ℝ) by
+        exact_mod_cast (show ¬ (0 : ℤ) ≤ -(DC A B P Q L a f).1 by omega))]
+      norm_num
+
 end
 
 end SATurday.ProofComplexity
