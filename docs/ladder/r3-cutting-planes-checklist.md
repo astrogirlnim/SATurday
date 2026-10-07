@@ -29,27 +29,32 @@ Krajíček Pudlák). This closes R3 only; it is not the R4 plan.
   MonoRealCliqueLB → CPCliqueColoringSuperpoly` (variable side conditions,
   disjointness, variable count, polynomial arithmetic).
 
-## Obligation 1: `cp_monotone_interpolation` (Pudlák 1997)
+## Obligation 1: `cp_monotone_interpolation` (Pudlák 1997) — certified 2026-10-07
+
+Certified as `cp_monotone_interpolation_proof` in `CuttingPlanesInterp.lean`
+(bounds `DD`, invariants `DD_inv`, circuit `interpCircuit` with `val_posN`; circuit size
+`|P| + lines·(|P|+1) + 1`, polynomial `(t + 1)^2`). The R3 target now follows from
+obligation 2 alone (`cp_superpoly_of_lb`).
 
 Micro plan, in order. Fix the `p` part of an assignment throughout.
 
-- [ ] I1. Split a line into its `P`, `Q` and `R` coefficient parts.
-- [ ] I2. For a fixed `p`, define along the proof a pair of integer bounds
+- [x] I1. Split a line into its `P`, `Q` and `R` coefficient parts.
+- [x] I2. For a fixed `p`, define along the proof a pair of integer bounds
   `(DA, DB)` per line: hypothesis clauses from `A` put everything on the A side,
   clauses from `B` on the B side, axioms on the side of their variable; sum and
   scaling act componentwise; division rounds each side (the `P` coefficients go
   to the A side so divisibility holds on each half).
-- [ ] I3. A side soundness: any `(p, q)` satisfying `A` satisfies
+- [x] I3. A side soundness: any `(p, q)` satisfying `A` satisfies
   `Q part ≥ DA` for every line.
-- [ ] I4. B side soundness: any `(p, r)` satisfying `B` satisfies
+- [x] I4. B side soundness: any `(p, r)` satisfying `B` satisfies
   `R part ≥ DB` for every line.
-- [ ] I5. Invariant `DA + DB ≥ rhs - (P part at p)` and, on the final line
+- [x] I5. Invariant `DA + DB ≥ rhs - (P part at p)` and, on the final line
   `0 ≥ b` with `b > 0`, `DA + DB ≥ 1`.
-- [ ] I6. Monotonicity: `- DA` is nondecreasing in `p` (since `p` occurs only
+- [x] I6. Monotonicity: `- DA` is nondecreasing in `p` (since `p` occurs only
   positively in `A`), computed by a block of monotone real gates per line
   (addition, positive scaling, ceiling of a division); output gate
   `[ -DA ≥ 0 ]`. Size at most a constant times (lines + variables).
-- [ ] I7. Assemble `CPMonotoneInterpolation` with an explicit polynomial.
+- [x] I7. Assemble `CPMonotoneInterpolation` with an explicit polynomial.
 
 ## Obligation 2: `monoReal_clique_lb`
 

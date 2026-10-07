@@ -25,7 +25,8 @@ This module holds the accepted surface:
    theorem `cp_superpoly_of_interp_lb` that derives the CP lower bound from the
    interpolation theorem and the circuit lower bound.
 
-The two research obligations live in `CuttingPlanesFrontier` at the end of the file.
+Obligation 1 (interpolation) is certified in `CuttingPlanesInterp.lean`. Obligation 2,
+the circuit lower bound, lives in `CuttingPlanesFrontier` at the end of the file.
 
 Interpolation is known not to extend above this level (Bonet Pitassi Raz;
 Krajíček Pudlák); this result is R3 only, not the R4 plan.
@@ -550,18 +551,12 @@ end
 
 namespace CuttingPlanesFrontier
 
-/-- R3 obligation 1 (Pudlák 1997, monotone feasible interpolation for CP). See
-docs/ladder/r3-cutting-planes-checklist.md for the micro lemma plan. -/
-theorem cp_monotone_interpolation : CPMonotoneInterpolation := by
-  sorry
-
-/-- R3 obligation 2 (monotone real circuits separating cliques from colorings). -/
+/-- R3 open obligation (monotone real circuits separating cliques from colorings).
+Obligation 1, monotone interpolation, is certified as
+`cp_monotone_interpolation_proof` (CuttingPlanesInterp.lean), and the R3 target follows
+from this pin by `cp_superpoly_of_lb`. -/
 theorem monoReal_clique_lb : MonoRealCliqueLB := by
   sorry
-
-/-- R3 target, from the two obligations by `cp_superpoly_of_interp_lb`. -/
-theorem cp_cliqueColoring_superpoly : CPCliqueColoringSuperpoly :=
-  cp_superpoly_of_interp_lb cp_monotone_interpolation monoReal_clique_lb
 
 end CuttingPlanesFrontier
 

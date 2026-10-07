@@ -82,7 +82,8 @@ satday auto
       `ccCNF_unsat` (non vacuity) and the packaging `cp_superpoly_of_interp_lb`;
       open pins `CuttingPlanesFrontier.cp_monotone_interpolation` and
       `CuttingPlanesFrontier.monoReal_clique_lb`.
-- [ ] Discharge `cp_monotone_interpolation` (Pudlák 1997).
+- [x] Discharge `cp_monotone_interpolation` (Pudlák 1997): certified 2026-10-07 as
+      `cp_monotone_interpolation_proof`.
 - [ ] Discharge `monoReal_clique_lb` (approximation method, real gates).
 - [ ] Formalize to axiom gate green; document technique reuse and walls toward R4.
 - [ ] Human gate: R3 `certified`.
@@ -134,9 +135,8 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R3: `cp_monotone_interpolation` through the pin plan and decompose micros
+1. R3: `monoReal_clique_lb`, the last open obligation of R3
    (`search/logs/pin_plans/r3-stronger-systems.json`).
-2. R3: `monoReal_clique_lb` after the interpolation micros drain.
 3. R2 and R5 are certified; do not reopen them.
 
 ## Live pointers

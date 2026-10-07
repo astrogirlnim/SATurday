@@ -463,10 +463,10 @@ R3_SEED_PLAN: dict[str, Any] = {
         {
             "id": "cp_monotone_interpolation",
             "title": "Monotone feasible interpolation for CP (Pudlak 1997)",
-            "status": "live",
+            "status": "done",
             "lean_decl": "CuttingPlanesFrontier.cp_monotone_interpolation",
             "method_family": "interpolation",
-            "ready_for_auto": True,
+            "ready_for_auto": False,
             "notes": (
                 "Decompose before formalizing: per line real valued A part and "
                 "B part bounds, one monotone gate block per CP rule. See the "
@@ -498,7 +498,7 @@ R3_SEED_PLAN: dict[str, Any] = {
         {
             "id": "r3_interpolation",
             "title": "Discharge cp_monotone_interpolation",
-            "status": "pending",
+            "status": "done",
             "preferred_action": "formalize",
             "pin_id": "cp_monotone_interpolation",
             "notes": "Driven by the live pin plus decompose micros.",

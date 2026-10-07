@@ -110,8 +110,9 @@ R4-class results plus the certified R5 bridge.
   - memory: docs/ladder/rungs/r3-stronger-systems.md
   - checklist: docs/ladder/r3-cutting-planes-checklist.md
   - lean: CuttingPlanes.lean (CP soundness, `ccCNF_unsat`, packaging
-    `cp_superpoly_of_interp_lb` certified; Frontier pins
-    `cp_monotone_interpolation`, `monoReal_clique_lb`)
+    `cp_superpoly_of_interp_lb` certified; Frontier pin `monoReal_clique_lb`);
+    CuttingPlanesInterp.lean (`cp_monotone_interpolation_proof` certified 2026-10-07,
+    `cp_superpoly_of_lb`)
 
 - R4 open frontier
   - status: proposed

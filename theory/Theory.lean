@@ -14,6 +14,7 @@ import Theory.ProofComplexity.MGG.Factor2Inv4
 import Theory.ProofComplexity.Tseitin
 import Theory.ProofComplexity.CSExpansion
 import Theory.ProofComplexity.CuttingPlanes
+import Theory.ProofComplexity.CuttingPlanesInterp
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding

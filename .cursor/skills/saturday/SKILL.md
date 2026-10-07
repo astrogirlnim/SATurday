@@ -287,7 +287,7 @@ memory file at the same time.
 | Workstream | Rung memory (exclusive) | Lean targets (exclusive) |
 | --- | --- | --- |
 | R2 | `docs/ladder/rungs/r2-width-machinery.md` | Tseitin / CSExpansion related Lean under `theory/Theory/ProofComplexity/` (not under `Bridge/`, not `CuttingPlanes.lean`) |
-| R3 | `docs/ladder/rungs/r3-stronger-systems.md` | `theory/Theory/ProofComplexity/CuttingPlanes.lean` (Frontier: `CuttingPlanesFrontier`) |
+| R3 | `docs/ladder/rungs/r3-stronger-systems.md` | `theory/Theory/ProofComplexity/CuttingPlanes.lean`, `CuttingPlanesInterp.lean` (Frontier: `CuttingPlanesFrontier`) |
 
 R5 (`Bridge/`) is certified as of 2026-10-06 and has no live workstream; edits
 there need a human request.

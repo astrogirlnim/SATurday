@@ -2420,3 +2420,8 @@ SATurday.Bridge.bridge_theorem_1_hard
 SATurday.ProofComplexity.cpRefutes_unsat
 SATurday.ProofComplexity.ccCNF_unsat
 SATurday.ProofComplexity.cp_superpoly_of_interp_lb
+# R3 obligation 1: monotone feasible interpolation for CP (2026-10-07)
+SATurday.ProofComplexity.DD_inv
+SATurday.ProofComplexity.val_posN
+SATurday.ProofComplexity.cp_monotone_interpolation_proof
+SATurday.ProofComplexity.cp_superpoly_of_lb
