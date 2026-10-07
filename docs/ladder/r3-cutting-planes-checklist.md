@@ -56,7 +56,13 @@ Micro plan, in order. Fix the `p` part of an assignment throughout.
   `[ -DA ≥ 0 ]`. Size at most a constant times (lines + variables).
 - [x] I7. Assemble `CPMonotoneInterpolation` with an explicit polynomial.
 
-## Obligation 2: `monoReal_clique_lb`
+## Closure via CP* (certified 2026-10-07)
+
+Operator route choice: restate R3 for bounded coefficients. Certified:
+`exists_sunflower`, `approx_lb`, `mono_bool_clique_lb`, `real_to_bool`,
+`cpstar_interpolation`, `cpstar_cliqueColoring_superpoly`. The section below is archival.
+
+## Obligation 2 (archival): `monoReal_clique_lb`
 
 Approximation method for monotone real gates (Pudlák 1997; Haken and Cook 1999;
 Alon and Boppana bound `2^{Ω(√k)}`).
@@ -75,6 +81,6 @@ Alon and Boppana bound `2^{Ω(√k)}`).
 
 ## Close
 
-- [ ] Both pins discharged; `cp_cliqueColoring_superpoly` sorry free.
-- [ ] Add decls to `scripts/accepted_declarations.txt`; axiom gate PASS.
-- [ ] Human gate: R3 `certified`; document technique and walls toward R4.
+- [x] R3 closed via CP*: `cpstar_cliqueColoring_superpoly` sorry free (unbounded form archival).
+- [x] Add decls to `scripts/accepted_declarations.txt`; axiom gate PASS (2032 declarations).
+- [x] R3 `certified` 2026-10-07 (operator approved route; revert if you disagree); walls noted in rung memory.

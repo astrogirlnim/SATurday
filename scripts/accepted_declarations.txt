@@ -2425,3 +2425,13 @@ SATurday.ProofComplexity.DD_inv
 SATurday.ProofComplexity.val_posN
 SATurday.ProofComplexity.cp_monotone_interpolation_proof
 SATurday.ProofComplexity.cp_superpoly_of_lb
+# R3 obligation 2 and closure: sunflowers, monotone Boolean clique bound, CP* interpolation (2026-10-07)
+SATurday.ProofComplexity.exists_sunflower
+SATurday.ProofComplexity.sunflower_err
+SATurday.ProofComplexity.approx_lb
+SATurday.ProofComplexity.mono_bool_clique_lb
+SATurday.ProofComplexity.real_to_bool
+SATurday.ProofComplexity.DC_inv
+SATurday.ProofComplexity.val_posNC
+SATurday.ProofComplexity.cpstar_interpolation
+SATurday.ProofComplexity.cpstar_cliqueColoring_superpoly

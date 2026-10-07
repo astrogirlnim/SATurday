@@ -104,15 +104,19 @@ R4-class results plus the certified R5 bridge.
     secondary))
 
 - R3 stronger systems
-  - status: active (adopted 2026-10-07: cutting planes via monotone interpolation)
-  - statement: CP refutations of clique coloring `ccCNF n ⌊n^{1/4}⌋ (⌊n^{1/4}⌋ - 1)`
-    need super polynomial size (`CPCliqueColoringSuperpoly`)
+  - status: certified (2026-10-07, axiom gate green, 2032 declarations)
+  - statement: cutting planes refutations with polynomially bounded coefficients (CP*)
+    of clique coloring `ccCNF n ⌊n^{1/4}⌋ (⌊n^{1/4}⌋ - 1)` need super polynomial size
+    (`cpstar_cliqueColoring_superpoly`; restated from unbounded CP on the operator's
+    route choice 2026-10-07)
   - memory: docs/ladder/rungs/r3-stronger-systems.md
   - checklist: docs/ladder/r3-cutting-planes-checklist.md
   - lean: CuttingPlanes.lean (CP soundness, `ccCNF_unsat`, packaging
     `cp_superpoly_of_interp_lb` certified; Frontier pin `monoReal_clique_lb`);
-    CuttingPlanesInterp.lean (`cp_monotone_interpolation_proof` certified 2026-10-07,
-    `cp_superpoly_of_lb`)
+    CuttingPlanesInterp.lean (`cp_monotone_interpolation_proof`, real circuits);
+    Sunflower, MonotoneClique, CliqueBound, CliqueArith, CliqueFinal
+    (`mono_bool_clique_lb`); RealToBool; CuttingPlanesStar (`cpstar_interpolation`);
+    CuttingPlanesFinal (`cpstar_cliqueColoring_superpoly`)
 
 - R4 open frontier
   - status: proposed

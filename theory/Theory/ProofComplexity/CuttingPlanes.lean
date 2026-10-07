@@ -551,10 +551,9 @@ end
 
 namespace CuttingPlanesFrontier
 
-/-- R3 open obligation (monotone real circuits separating cliques from colorings).
-Obligation 1, monotone interpolation, is certified as
-`cp_monotone_interpolation_proof` (CuttingPlanesInterp.lean), and the R3 target follows
-from this pin by `cp_superpoly_of_lb`. -/
+/-- ARCHIVAL (2026-10-07): the unbounded coefficient form of R3. R3 was closed on the
+bounded coefficient route (`cpstar_cliqueColoring_superpoly`, CuttingPlanesFinal.lean);
+this pin (Pudlák's real gate approximation) is off the critical path. -/
 theorem monoReal_clique_lb : MonoRealCliqueLB := by
   sorry
 

@@ -476,7 +476,7 @@ R3_SEED_PLAN: dict[str, Any] = {
         {
             "id": "monoReal_clique_lb",
             "title": "Monotone real circuit lower bound, cliques vs colorings",
-            "status": "live",
+            "status": "archival",
             "lean_decl": "CuttingPlanesFrontier.monoReal_clique_lb",
             "method_family": "approximation",
             "ready_for_auto": True,

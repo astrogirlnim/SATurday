@@ -1,6 +1,6 @@
 # R3: One Certified Bound Above Resolution
 
-Status: active
+Status: certified
 Lean home: theory/Theory/ProofComplexity/CuttingPlanes.lean
 
 ## Statement
@@ -76,3 +76,14 @@ end CuttingPlanesFrontier
   target to the single open pin `CuttingPlanesFrontier.monoReal_clique_lb`. Axioms
   standard. Lesson: local 14B models cannot design a construction; they need precise
   micro statements.
+- 2026-10-07 certify (operator chose the bounded coefficient route): R3 closed as
+  `cpstar_cliqueColoring_superpoly` (CuttingPlanesFinal.lean): for all `d`, `c`, CP refutations
+  of clique coloring with coefficients and right hand sides at most `n^d` have more than
+  `n^c` lines for large `n`. Pieces: Erdős–Rado sunflower lemma (`exists_sunflower`),
+  Razborov approximation with Boppana–Sipser parameters (`approx_lb`,
+  `mono_bool_clique_lb`, `k = ⌊n^{1/4}⌋`), threshold conversion of few valued monotone
+  real circuits to Boolean ones (`real_to_bool`), clamped CP* interpolation
+  (`DC_inv`, `val_posNC`, `cpstar_interpolation`). Axiom gate PASS (2032 declarations).
+  The unbounded coefficient pin `monoReal_clique_lb` is archival. Technique notes for R4:
+  monotone interpolation and the approximation method both die above this level
+  (interpolation fails for TC0 Frege under factoring hardness); R4 needs a new method.

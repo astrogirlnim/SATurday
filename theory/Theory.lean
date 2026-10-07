@@ -15,6 +15,14 @@ import Theory.ProofComplexity.Tseitin
 import Theory.ProofComplexity.CSExpansion
 import Theory.ProofComplexity.CuttingPlanes
 import Theory.ProofComplexity.CuttingPlanesInterp
+import Theory.ProofComplexity.Sunflower
+import Theory.ProofComplexity.MonotoneClique
+import Theory.ProofComplexity.CliqueBound
+import Theory.ProofComplexity.CliqueArith
+import Theory.ProofComplexity.CliqueFinal
+import Theory.ProofComplexity.RealToBool
+import Theory.ProofComplexity.CuttingPlanesStar
+import Theory.ProofComplexity.CuttingPlanesFinal
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding

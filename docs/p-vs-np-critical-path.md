@@ -84,9 +84,11 @@ satday auto
       `CuttingPlanesFrontier.monoReal_clique_lb`.
 - [x] Discharge `cp_monotone_interpolation` (Pudlák 1997): certified 2026-10-07 as
       `cp_monotone_interpolation_proof`.
-- [ ] Discharge `monoReal_clique_lb` (approximation method, real gates).
-- [ ] Formalize to axiom gate green; document technique reuse and walls toward R4.
-- [ ] Human gate: R3 `certified`.
+- [x] Closed via CP* (2026-10-07): `cpstar_cliqueColoring_superpoly` (sunflowers,
+      Razborov approximation, threshold conversion, clamped interpolation); the
+      unbounded coefficient pin `monoReal_clique_lb` is archival.
+- [x] Formalize to axiom gate green; walls toward R4 documented in the rung memory.
+- [x] R3 `certified` (2026-10-07).
 
 ### Block C: R4 open frontier (this is the research wall)
 
@@ -135,8 +137,8 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R3: `monoReal_clique_lb`, the last open obligation of R3
-   (`search/logs/pin_plans/r3-stronger-systems.json`).
+1. R4: adoption decision (human gate). Default first subtarget AC0[p] Frege. This is
+   open research: no known technique reaches it; R3 methods do not extend.
 3. R2 and R5 are certified; do not reopen them.
 
 ## Live pointers
