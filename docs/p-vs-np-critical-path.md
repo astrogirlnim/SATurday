@@ -1,6 +1,6 @@
 # P vs NP Remaining Critical Path
 
-One page checklist from current HEAD (`2776f2a`, 2026-08-11) to a machine
+One page checklist from HEAD (`f5171c5`, refreshed 2026-10-07) to a machine
 checkable `P != NP` argument under the locked proof complexity attack.
 Statuses are taken from `docs/ladder/ladder.md` and rung memories; do not treat
 this file as a second ladder. Update only when a saturday cycle changes a listed
@@ -10,7 +10,8 @@ item.
 
 Super polynomial lower bounds for all propositional proof systems imply
 `NP != coNP` (Cook Reckhow), which implies `P != NP`. Summit needs R4 class
-hardness plus a fully certified R5 bridge. Neither is complete.
+hardness plus a fully certified R5 bridge. R5 is certified (2026-10-06);
+R4 class hardness is open research.
 
 Live ladder snapshot (do not duplicate status here; regenerate anytime):
 
@@ -75,10 +76,14 @@ satday auto
 
 ### Block B: R3 one bound above resolution (blocks credible R4)
 
-- [ ] Adopt R3 (human gate): choose one of Res(k), cutting planes via
-      interpolation, or bounded depth Frege PHP
-      (`docs/ladder/rungs/r3-stronger-systems.md`).
-- [ ] Prove cycle: pin Lean statement, gaps, falsification test.
+- [x] Adopt R3 (human gate, 2026-10-07): cutting planes via monotone feasible
+      interpolation for clique coloring (`docs/ladder/r3-cutting-planes-checklist.md`).
+- [x] Pin Lean statement (2026-10-07): `CuttingPlanes.lean` certifies CP soundness,
+      `ccCNF_unsat` (non vacuity) and the packaging `cp_superpoly_of_interp_lb`;
+      open pins `CuttingPlanesFrontier.cp_monotone_interpolation` and
+      `CuttingPlanesFrontier.monoReal_clique_lb`.
+- [ ] Discharge `cp_monotone_interpolation` (Pudlák 1997).
+- [ ] Discharge `monoReal_clique_lb` (approximation method, real gates).
 - [ ] Formalize to axiom gate green; document technique reuse and walls toward R4.
 - [ ] Human gate: R3 `certified`.
 
@@ -105,15 +110,12 @@ Complexity half is done. Remaining modules from the R5 plan
 - [x] `Bridge/ProofSystem.lean` cluster 1: `IsPropProofSystem`, `PolynomiallyBounded`,
       truth table map sound and complete (2026-08-21). Still open: TM2 poly witness
       and not poly bounded.
-- [ ] Lemma C (Bridge theorem 1, =>): poly bounded proof system implies
-      `ClassNP = ClassCoNP`. Hard gap: poly time many one reduction from every
-      coNP language to TAUT (or NP to SAT).
-- [ ] Lemma D (Bridge theorem 1, <=): `ClassNP = ClassCoNP` implies a poly
-      bounded proof system exists.
-- [ ] Lemma E (summit corollary): no poly bounded system implies
-      `ClassP != ClassNP` (from Lemmas C and B; no lower bound as axiom).
-- [ ] `Bridge/CookReckhow.lean` packaging; root import when gate ready.
-- [ ] Human gate: R5 `certified` only when 9 to 11 in the R5 pin are accepted.
+- [x] Lemma C (Bridge theorem 1, =>): `bridge_theorem_1_hard` (`Bridge/Hard.lean`,
+      Cook Levin tableau reduction, 2026-10-06).
+- [x] Lemma D (Bridge theorem 1, <=): `bridge_theorem_1_easy` (2026-10-05).
+- [x] Lemma E (summit corollary): `summit_corollary` (2026-10-05).
+- [x] Packaging and root imports; axiom gate PASS.
+- [x] Human gate: R5 `certified` (2026-10-06).
 
 ### Block E: Summit packaging
 
@@ -132,20 +134,17 @@ Complexity half is done. Remaining modules from the R5 plan
 
 ## Suggested saturday priority when you resume
 
-1. R2: formalize or prove `MGGFrontier.mggGraph_hasExpansionInv`
-   (`HasExpansionInv (mggGraph m _) mggInvK` for `m ≥ mggInformativeFloor`),
-   then cubicize toward `exists_cubic_hasExpansionInv_family`.
-   Do not hunt unbounded `HasExpansion _ 1`. Do not Nat chase Spreads.
-2. In parallel sessions only: R5 Cluster C continue with mutual
-   `assignmentAtList` equals `allBitstrings` (definitional; no summit claim
-   until Lemmas C to E).
-3. R2 is certified (2026-09-25). R3 may open via adopt gate on
-   `docs/ladder/rungs/r3-stronger-systems.md`.
+1. R3: `cp_monotone_interpolation` through the pin plan and decompose micros
+   (`search/logs/pin_plans/r3-stronger-systems.json`).
+2. R3: `monoReal_clique_lb` after the interpolation micros drain.
+3. R2 and R5 are certified; do not reopen them.
 
 ## Live pointers
 
 - Ladder: `docs/ladder/ladder.md`
 - R2 memory: `docs/ladder/rungs/r2-width-machinery.md`
+- R3 memory: `docs/ladder/rungs/r3-stronger-systems.md`
+- R3 checklist: `docs/ladder/r3-cutting-planes-checklist.md`
 - R5 memory: `docs/ladder/rungs/r5-cook-reckhow-bridge.md`
 - Attack lock: `docs/p-vs-np-main-attack.md`
 - Lemma chain: `docs/p-vs-np-lemma-chain.md`

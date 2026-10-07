@@ -2406,6 +2406,7 @@ SATurday.Bridge.TM2Bound.output_length_le
 SATurday.Bridge.outBound_of_computable
 SATurday.Bridge.proofCheckComputableInPolyTime
 SATurday.Bridge.TAUT_in_NP_of_polyBounded'
+# R5 Block C Cook Levin hard direction (2026-10-06)
 SATurday.Bridge.CL.tabFormula_taut_iff
 SATurday.Bridge.CL.tab_iff_not_L
 SATurday.Bridge.CL.CM.run_genProg
@@ -2415,3 +2416,7 @@ SATurday.Bridge.CL.top
 SATurday.Bridge.CL.reduction_exists
 SATurday.Bridge.complement_InNP_of_polyBounded
 SATurday.Bridge.bridge_theorem_1_hard
+# R3 cutting planes surface: CP soundness, clique coloring non vacuity, packaging (2026-10-07)
+SATurday.ProofComplexity.cpRefutes_unsat
+SATurday.ProofComplexity.ccCNF_unsat
+SATurday.ProofComplexity.cp_superpoly_of_interp_lb

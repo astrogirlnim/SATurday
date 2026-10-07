@@ -401,7 +401,7 @@ def _guess_lean_target(ctx: CycleContext, choice: ActionChoice) -> Path:
         "r1-php-haken": "theory/Theory/ProofComplexity/PHP.lean",
         # Default R2 home is CSExpansionFrontier; MGG override above when hinted
         "r2-width-machinery": "theory/Theory/ProofComplexity/CSExpansion.lean",
-        "r3-stronger-systems": "theory/Theory/ProofComplexity/Resolution.lean",
+        "r3-stronger-systems": "theory/Theory/ProofComplexity/CuttingPlanes.lean",
         "r4-frontier": "theory/Theory/ProofComplexity/CSExpansion.lean",
         "r5-cook-reckhow-bridge": "theory/Theory/ProofComplexity/Bridge/ProofSystem.lean",
     }

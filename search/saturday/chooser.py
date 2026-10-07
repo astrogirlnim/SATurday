@@ -5,7 +5,9 @@ Rule based (no LLM): mirrors .cursor/skills/saturday/SKILL.md Step 1.
 
 Parallel workstreams (skill Parallelization):
 - R2 owns docs/ladder/rungs/r2-width-machinery.md and non Bridge ProofComplexity Lean
-- R5 owns docs/ladder/rungs/r5-cook-reckhow-bridge.md and Bridge Lean
+  (except CuttingPlanes.lean)
+- R3 owns docs/ladder/rungs/r3-stronger-systems.md and CuttingPlanes.lean
+- R5 is certified (2026-10-06); its workstream is retired
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from search.saturday.context import ACTIVE_LIKE, RUNG_IDS, CycleContext
 # Disjoint ownership from saturday skill Parallelization table
 WORKSTREAM_BY_RUNG = {
     "r2-width-machinery": "R2",
-    "r5-cook-reckhow-bridge": "R5",
+    "r3-stronger-systems": "R3",
 }
 
 
@@ -192,12 +194,15 @@ def _suggest_pin_plan(ctx: CycleContext, rung_id: str):
     try:
         from search.saturday.pin_plans import (
             R2_SEED_PLAN,
+            R3_SEED_PLAN,
             ensure_seed_plan,
             suggest_pin_plan_action,
         )
 
         if rung_id == "r2-width-machinery":
             ensure_seed_plan(ctx.repo_root, rung_id, R2_SEED_PLAN)
+        elif rung_id == "r3-stronger-systems":
+            ensure_seed_plan(ctx.repo_root, rung_id, R3_SEED_PLAN)
         return suggest_pin_plan_action(ctx.repo_root, rung_id)
     except Exception as exc:
         print(f"[saturday.chooser] pin_plan suggest skipped: {exc}")
@@ -484,7 +489,7 @@ def list_parallel_choices(ctx: CycleContext) -> List[ActionChoice]:
     Disjoint next paths safe to run together (one cycle each).
 
     Only rungs with an exclusive workstream id are included, at most one per
-    workstream. Typical split: R2 formalize plus R5 prove or formalize.
+    workstream. Typical split: R2 plus R3 (R5 is certified and retired).
     """
     print("[saturday.chooser] list_parallel_choices")
     ordered = [rid for rid in RUNG_IDS if rid in ctx.rungs]

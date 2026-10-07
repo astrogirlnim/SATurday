@@ -43,7 +43,7 @@ LEAN_BY_RUNG: Dict[str, List[str]] = {
         "theory/Theory/ProofComplexity/PHP.lean",
     ],
     "r3-stronger-systems": [
-        "theory/Theory/ProofComplexity/Resolution.lean",
+        "theory/Theory/ProofComplexity/CuttingPlanes.lean",
     ],
     "r4-frontier": [
         "theory/Theory/ProofComplexity/CSExpansion.lean",

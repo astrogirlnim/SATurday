@@ -50,11 +50,13 @@ OUTER_END_BY_RUNG = {
     "r5-cook-reckhow-bridge": "end SATurday.Bridge",
     "r0-resolution-foundations": "end SATurday.ProofComplexity",
     "r1-php-haken": "end SATurday.ProofComplexity",
+    "r3-stronger-systems": "end SATurday.ProofComplexity",
 }
 
 DEFAULT_FRONTIER_NS = {
     "r2-width-machinery": "CSExpansionFrontier",
     "r5-cook-reckhow-bridge": "ProofSystemFrontier",
+    "r3-stronger-systems": "CuttingPlanesFrontier",
 }
 
 
@@ -67,6 +69,8 @@ def frontier_ns_for_lean_path(lean_path: Path | str, rung_id: str) -> str:
         return "ProofSystemFrontier"
     if path.endswith("CSExpansion.lean") or "/CSExpansion.lean" in path:
         return "CSExpansionFrontier"
+    if path.endswith("CuttingPlanes.lean") or "/CuttingPlanes.lean" in path:
+        return "CuttingPlanesFrontier"
     return DEFAULT_FRONTIER_NS.get(rung_id, "LocalDraftFrontier")
 
 
@@ -281,6 +285,7 @@ def insert_fragment(original: str, fragment: str, rung_id: str) -> str:
     frontier_end = {
         "r2-width-machinery": "end CSExpansionFrontier",
         "r5-cook-reckhow-bridge": "end ProofSystemFrontier",
+        "r3-stronger-systems": "end CuttingPlanesFrontier",
     }.get(rung_id)
     # R2 also owns MGGFrontier in MGG.lean; prefer the Frontier end that
     # actually appears in this file (and matches the draft namespace).

@@ -4,14 +4,15 @@ Target: a complete, correct proof that `P != NP` or `P = NP`, with machine-check
 core arguments. Reboot of 2026-08-03: main attack relocked to the proof complexity
 ladder after the program audit (see docs/postmortems/).
 
-Remaining ordered work: `docs/p-vs-np-critical-path.md` (from HEAD 2026-08-11).
+Remaining ordered work: `docs/p-vs-np-critical-path.md` (refreshed 2026-10-07).
 
 ## 0) Lock Problem Statement
 - [x] Fix exact target chain: proof system lower bounds -> NP != coNP -> P != NP
       (`P != NP` primary, `P = NP` secondary branch via a poly-bounded proof system).
 - [x] Fix accepted proof standards (zero sorries, standard axioms only, axiom gate).
 - [x] Fix stop conditions (barrier failure, vacuous statements, budget breaches).
-- [ ] Formalize the target chain statement in Lean without opaque constants (rung R5;
+- [x] Formalize the target chain statement in Lean without opaque constants (rung R5
+      certified 2026-10-06: bridge theorem 1 both directions and `summit_corollary`;
       Encoding Complexity, InP and NP nonvacuity, composition surgery, InP implies InNP,
       P complement closure, PeqNP implies NPeqcoNP certified 2026-08-11;
       FormulaEncoding cluster 2 round trip certified 2026-08-21;

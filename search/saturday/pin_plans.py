@@ -40,6 +40,8 @@ FORMALIZE_REFUSE_PIN_STATUSES = frozenset(
 RUNG_ALIASES = {
     "R2": "r2-width-machinery",
     "r2": "r2-width-machinery",
+    "R3": "r3-stronger-systems",
+    "r3": "r3-stronger-systems",
     "R5": "r5-cook-reckhow-bridge",
     "r5": "r5-cook-reckhow-bridge",
 }
@@ -444,6 +446,77 @@ R2_SEED_PLAN: dict[str, Any] = {
             "at": "2026-09-25T00:00:00Z",
             "kind": "seed",
             "text": "Seeded from R2 Block A closeout (items 6-7 certified).",
+        }
+    ],
+}
+
+
+# R3 seed (adopted 2026-10-07): cutting planes via monotone interpolation for
+# clique coloring. The packaging `cp_superpoly_of_interp_lb` is certified, so
+# the rung closes exactly when both Frontier pins are discharged.
+R3_SEED_PLAN: dict[str, Any] = {
+    "checklist_ref": "docs/ladder/r3-cutting-planes-checklist.md",
+    "paused": False,
+    "pause_reason": "",
+    "ambient_red_streak": 0,
+    "pins": [
+        {
+            "id": "cp_monotone_interpolation",
+            "title": "Monotone feasible interpolation for CP (Pudlak 1997)",
+            "status": "live",
+            "lean_decl": "CuttingPlanesFrontier.cp_monotone_interpolation",
+            "method_family": "interpolation",
+            "ready_for_auto": True,
+            "notes": (
+                "Decompose before formalizing: per line real valued A part and "
+                "B part bounds, one monotone gate block per CP rule. See the "
+                "R3 checklist micro plan."
+            ),
+        },
+        {
+            "id": "monoReal_clique_lb",
+            "title": "Monotone real circuit lower bound, cliques vs colorings",
+            "status": "live",
+            "lean_decl": "CuttingPlanesFrontier.monoReal_clique_lb",
+            "method_family": "approximation",
+            "ready_for_auto": True,
+            "notes": (
+                "Approximation method with sunflowers, real gate version. "
+                "Second in order; start after interpolation micros are drained."
+            ),
+        },
+    ],
+    "checklist": [
+        {
+            "id": "r3_surface",
+            "title": "CP, clique coloring, monotone real circuits, packaging",
+            "status": "done",
+            "preferred_action": "formalize",
+            "pin_id": "",
+            "notes": "cpRefutes_unsat, ccCNF_unsat, cp_superpoly_of_interp_lb certified.",
+        },
+        {
+            "id": "r3_interpolation",
+            "title": "Discharge cp_monotone_interpolation",
+            "status": "pending",
+            "preferred_action": "formalize",
+            "pin_id": "cp_monotone_interpolation",
+            "notes": "Driven by the live pin plus decompose micros.",
+        },
+        {
+            "id": "r3_circuit_lb",
+            "title": "Discharge monoReal_clique_lb",
+            "status": "pending",
+            "preferred_action": "formalize",
+            "pin_id": "monoReal_clique_lb",
+            "notes": "Driven by the live pin plus decompose micros.",
+        },
+    ],
+    "notes": [
+        {
+            "at": "2026-10-07T00:00:00Z",
+            "kind": "seed",
+            "text": "Seeded at R3 adoption (cutting planes, clique coloring).",
         }
     ],
 }

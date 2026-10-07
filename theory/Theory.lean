@@ -13,6 +13,7 @@ import Theory.ProofComplexity.MGG
 import Theory.ProofComplexity.MGG.Factor2Inv4
 import Theory.ProofComplexity.Tseitin
 import Theory.ProofComplexity.CSExpansion
+import Theory.ProofComplexity.CuttingPlanes
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding
@@ -42,6 +43,7 @@ after the program audit; see docs/postmortems/ for the reasons.
 ## Modules
 - `Theory.Basic`: fundamental smoke lemmas verifying the Lean setup
 - `Theory.ProofComplexity.*`: the active ladder (resolution first)
+- `Theory.ProofComplexity.CuttingPlanes`: R3 cutting planes and clique coloring
 - `Theory.ProofComplexity.Bridge.*`: R5 Cook Reckhow bridge (P NP coNP)
 
 Acceptance bar for anything imported here: compiles, zero sorries, and

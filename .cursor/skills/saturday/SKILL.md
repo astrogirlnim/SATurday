@@ -41,7 +41,8 @@ binary can stay on the internal disk. On 16GB machines keep the existing
 14B pair; do not pull larger models for RAM.
 
 `satday auto` defaults to serial (one rung per wake; `loop_parallel_default:
-false`) so shared lake builds do not race. Pass `--parallel` for R2+R5 together.
+false`) so shared lake builds do not race. Pass `--parallel` for R2+R3 together
+(R5 is certified; its workstream is retired).
 Continues immediately when a wake finishes (no arbitrary sleep). OpenRouter
 pacing is per-request cooldown. Formalize auto-applies Frontier drafts into
 `theory/` when lake build stays green (`saturday_loop.auto_apply`).
@@ -277,16 +278,19 @@ rung, one action, one rung memory append, one session record) per wake. Do not
 collapse multiple cycles into one agent turn.
 
 When Multitask Mode or multiple agents are available, a **coordinator** may
-launch independent workstreams in parallel. Typical split: R2 Block A and R5
-Block D. Never assign two agents to the same Lean module or the same rung
+launch independent workstreams in parallel. Typical split: R2 Block A and R3
+cutting planes. Never assign two agents to the same Lean module or the same rung
 memory file at the same time.
 
 ### Disjoint ownership
 
 | Workstream | Rung memory (exclusive) | Lean targets (exclusive) |
 | --- | --- | --- |
-| R2 | `docs/ladder/rungs/r2-width-machinery.md` | Tseitin / CSExpansion related Lean under `theory/Theory/ProofComplexity/` (not under `Bridge/`) |
-| R5 | `docs/ladder/rungs/r5-cook-reckhow-bridge.md` | Bridge Lean under `theory/Theory/ProofComplexity/Bridge/` |
+| R2 | `docs/ladder/rungs/r2-width-machinery.md` | Tseitin / CSExpansion related Lean under `theory/Theory/ProofComplexity/` (not under `Bridge/`, not `CuttingPlanes.lean`) |
+| R3 | `docs/ladder/rungs/r3-stronger-systems.md` | `theory/Theory/ProofComplexity/CuttingPlanes.lean` (Frontier: `CuttingPlanesFrontier`) |
+
+R5 (`Bridge/`) is certified as of 2026-10-06 and has no live workstream; edits
+there need a human request.
 
 Parallel agents must use disjoint targets and files only. If a needed edit would
 cross ownership, serialize that work on one agent or wait for the other cycle to
@@ -296,7 +300,7 @@ finish.
 
 Each parallel cycle still appends exactly one JSON line to
 `search/logs/saturday_sessions.jsonl`. Include a workstream id in `notes` when
-helpful (for example `workstream: R2` or `workstream: R5`). Do not merge two
+helpful (for example `workstream: R2` or `workstream: R3`). Do not merge two
 cycles into one session line.
 
 ### Human gates

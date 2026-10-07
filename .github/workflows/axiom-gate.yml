@@ -1,0 +1,41 @@
+name: axiom-gate
+
+# Independent recheck of the accepted tree: lake build, sorry quarantine, and
+# standard axioms only for every entry in scripts/accepted_declarations.txt.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Cache project build
+        uses: actions/cache@v4
+        with:
+          path: theory/.lake
+          key: lake-${{ hashFiles('theory/lean-toolchain', 'theory/lake-manifest.json') }}-${{ hashFiles('theory/Theory/**/*.lean', 'theory/Theory.lean') }}
+          restore-keys: |
+            lake-${{ hashFiles('theory/lean-toolchain', 'theory/lake-manifest.json') }}-
+
+      - name: Fetch Mathlib cache
+        working-directory: theory
+        run: lake exe cache get
+
+      - name: Axiom gate
+        run: bash scripts/check_axioms.sh

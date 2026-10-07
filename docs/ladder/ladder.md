@@ -104,10 +104,14 @@ R4-class results plus the certified R5 bridge.
     secondary))
 
 - R3 stronger systems
-  - status: proposed
-  - statement: one certified lower bound above resolution (Res(k), cutting planes
-    via interpolation, or bounded-depth Frege PHP)
+  - status: active (adopted 2026-10-07: cutting planes via monotone interpolation)
+  - statement: CP refutations of clique coloring `ccCNF n ⌊n^{1/4}⌋ (⌊n^{1/4}⌋ - 1)`
+    need super polynomial size (`CPCliqueColoringSuperpoly`)
   - memory: docs/ladder/rungs/r3-stronger-systems.md
+  - checklist: docs/ladder/r3-cutting-planes-checklist.md
+  - lean: CuttingPlanes.lean (CP soundness, `ccCNF_unsat`, packaging
+    `cp_superpoly_of_interp_lb` certified; Frontier pins
+    `cp_monotone_interpolation`, `monoReal_clique_lb`)
 
 - R4 open frontier
   - status: proposed
