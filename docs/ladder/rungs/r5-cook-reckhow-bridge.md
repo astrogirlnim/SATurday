@@ -6849,3 +6849,8 @@ end ProofSystemFrontier
 - 2026-09-29 formalize (Block C easy scaffolding): result=partial; artifacts: theory/Theory/ProofComplexity/Bridge/CookReckhow.lean, docs/ladder/r5-completion-checklist.md; learned: `afterDecodeProofSystem` equals `proofSystemOfNPVerifier` after `decodePairResult`. `unaryLEComputableInPolyTime` packages lockstep length compare under `encodePair`. `polyEvalUnary` is the semantic budget tape for `lengthOk`. Still open: FinTM2 for poly eval of the witness bound, composition with an arbitrary NP verifier `V`, full `afterDecodeProofSystem` host machine, Cook Levin hard direction, and `bridge_theorem_1`. Do not restart `satday auto`.
 
 - 2026-09-29 formalize (Block C polyEval deg le one): result=partial; artifacts: theory/Theory/ProofComplexity/Bridge/CookReckhow.lean, docs/ladder/r5-completion-checklist.md; learned: `scaleAppendComputableInPolyTime` and `polyEvalUnaryDegLeOneComputableInPolyTime` package exact unary budgets for degree at most one. `polyEvalUnary_divX` is the Horner step for higher degree. `unaryPow_two_toUnary` closes the square identity. Remaining: FinTM2 for arbitrary degree via divX or Horner, lengthOk host under encodePair, compose with V, afterDecodeProofSystem, Cook Levin hard direction, bridge_theorem_1. Do not restart satday auto.
+
+- 2026-10-06: certified. `bridge_theorem_1_hard` (Bridge/Hard.lean): a polynomially bounded
+  propositional proof system gives NP = coNP, via the tableau reduction of the complement of an
+  NP language to TAUT (poly time generator certified through the FP register language).
+  Axiom gate PASS (2016 declarations).

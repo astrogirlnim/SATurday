@@ -116,15 +116,16 @@ R4-class results plus the certified R5 bridge.
   - memory: docs/ladder/rungs/r4-frontier.md
 
 - R5 Cook-Reckhow bridge
-  - status: active (Block C partial: theorem 2 and TAUT in coNP certified)
+  - status: certified (2026-10-06, axiom gate green; theorem 1 both directions, theorem 2)
   - statement: P, NP, coNP, proof systems, and the bridge theorems formalized;
     poly-bounded system exists iff NP = coNP; P = NP implies NP = coNP
   - memory: docs/ladder/rungs/r5-cook-reckhow-bridge.md
   - lean: Encoding.lean and Complexity.lean (classes and bridge theorem 2);
     FormulaEncoding.lean cluster 2 (general encode or decode round trip, 2026-08-21);
     ProofSystem.lean cluster 1 (IsPropProofSystem, TT semantic map, soft pin B closed);
-    CookReckhow.lean (theorem 2, TAUT_in_coNP, easy direction scaffolding; theorem 1
-    FinTM2 packaging and Cook Levin hard direction remain)
+    CookReckhow.lean (theorem 2, TAUT_in_coNP, easy direction, `summit_corollary`);
+    CookLevin.lean, StackProg, Tableau, FProg, Generator*, TM2CM, Reduction, Hard.lean
+    (`bridge_theorem_1_hard`, Cook Levin tableau reduction, poly time generator)
 
 ## Edge conditions
 
