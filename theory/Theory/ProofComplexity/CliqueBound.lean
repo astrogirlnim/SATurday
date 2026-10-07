@@ -691,6 +691,172 @@ theorem approx_lb {k Kc s : ℕ} (hp : 2 ≤ p) (hℓ : 2 ≤ ℓ) (hk : ℓ + 1
     have := Nat.mul_le_mul_right Kc hinj
     omega
 
+/-! ## Test assignments -/
+
+theorem eVar_div {n : ℕ} {u w : Fin n} (h : u ≠ w) :
+    eVar n u w / n = min u.val w.val ∧ eVar n u w % n = max u.val w.val := by
+  unfold eVar
+  have hn : 0 < n := by have := u.isLt; omega
+  have hmax : max u.val w.val < n := max_lt u.isLt w.isLt
+  constructor
+  · rw [Nat.add_comm, Nat.add_mul_div_right _ _ hn, Nat.div_eq_of_lt hmax]; simp
+  · rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hmax]
+
+theorem min_ne_max_val {n : ℕ} {u w : Fin n} (h : u ≠ w) : min u.val w.val ≠ max u.val w.val := by
+  have : u.val ≠ w.val := fun e => h (Fin.ext e)
+  omega
+
+/-- Edge part of an assignment from a graph on vertex indices. -/
+def edgePart (n : ℕ) (E : ℕ → ℕ → Prop) (v : ℕ) : Bool :=
+  decide (v / n < n ∧ v % n < n ∧ v / n ≠ v % n ∧ E (v / n) (v % n))
+
+theorem edgePart_eVar {n : ℕ} (E : ℕ → ℕ → Prop) (hE : ∀ x y, E x y ↔ E y x) {u w : Fin n}
+    (h : u ≠ w) : edgePart n E (eVar n u w) = true ↔ E u.val w.val := by
+  unfold edgePart
+  obtain ⟨h1, h2⟩ := eVar_div h
+  rw [h1, h2, decide_eq_true_iff]
+  have hne := min_ne_max_val h
+  constructor
+  · rintro ⟨_, _, _, hE'⟩
+    rcases le_total u.val w.val with hle | hle
+    · rwa [min_eq_left hle, max_eq_right hle] at hE'
+    · rw [min_eq_right hle, max_eq_left hle] at hE'; exact (hE _ _).1 hE'
+  · intro hE'
+    refine ⟨min_lt_iff.2 (Or.inl u.isLt), max_lt u.isLt w.isLt, hne, ?_⟩
+    rcases le_total u.val w.val with hle | hle
+    · rwa [min_eq_left hle, max_eq_right hle]
+    · rw [min_eq_right hle, max_eq_left hle]; exact (hE _ _).1 hE'
+
+/-- Positive test assignment: edges of the clique `K` and its clique variables. -/
+def posAssign (n k : ℕ) (K : Finset (Fin n)) (hK : K.card = k) : Assignment := fun v =>
+  if v < n * n then edgePart n (fun x y => ∃ hx : x < n, ∃ hy : y < n,
+      (⟨x, hx⟩ : Fin n) ∈ K ∧ (⟨y, hy⟩ : Fin n) ∈ K) v
+  else decide (∃ u : Fin k, v = n * n + u.val * n + (K.orderEmbOfFin hK u).val)
+
+/-- Negative test assignment: edges between different colors and the color variables. -/
+def negAssign (n k : ℕ) (c : Fin n → Fin (k - 1)) : Assignment := fun v =>
+  if v < n * n then edgePart n (fun x y => ∃ hx : x < n, ∃ hy : y < n,
+      c ⟨x, hx⟩ ≠ c ⟨y, hy⟩) v
+  else decide (∃ i : Fin n, v = n * n + k * n + i.val * (k - 1) + (c i).val)
+
+theorem posAssign_edge {n k : ℕ} (K : Finset (Fin n)) (hK : K.card = k) {u w : Fin n}
+    (h : u ≠ w) : posAssign n k K hK (eVar n u w) = true ↔ u ∈ K ∧ w ∈ K := by
+  unfold posAssign
+  rw [if_pos (eVar_lt u w), edgePart_eVar _ (by
+    intro x y; constructor <;> rintro ⟨hx, hy, h1, h2⟩ <;> exact ⟨hy, hx, h2, h1⟩) h]
+  constructor
+  · rintro ⟨_, _, h1, h2⟩; exact ⟨h1, h2⟩
+  · rintro ⟨h1, h2⟩; exact ⟨u.isLt, w.isLt, h1, h2⟩
+
+theorem negAssign_edge {n k : ℕ} (c : Fin n → Fin (k - 1)) {u w : Fin n} (h : u ≠ w) :
+    negAssign n k c (eVar n u w) = true ↔ c u ≠ c w := by
+  unfold negAssign
+  rw [if_pos (eVar_lt u w), edgePart_eVar _ (by
+    intro x y; constructor <;> rintro ⟨hx, hy, h1⟩ <;> exact ⟨hy, hx, Ne.symm h1⟩) h]
+  constructor
+  · rintro ⟨_, _, h1⟩; exact h1
+  · intro h1; exact ⟨u.isLt, w.isLt, h1⟩
+
+theorem qVar_ge {n k : ℕ} (u : Fin k) (i : Fin n) : n * n ≤ qVar n u i := by
+  unfold qVar; omega
+
+theorem rVar_ge {n k m : ℕ} (i : Fin n) (c : Fin m) : n * n + k * n ≤ rVar n k i c := by
+  unfold rVar; omega
+
+theorem posAssign_q {n k : ℕ} (K : Finset (Fin n)) (hK : K.card = k) (u : Fin k) (i : Fin n) :
+    posAssign n k K hK (qVar n u i) = true ↔ K.orderEmbOfFin hK u = i := by
+  unfold posAssign
+  rw [if_neg (by have := qVar_ge (k := k) u i; omega), decide_eq_true_iff]
+  unfold qVar
+  constructor
+  · rintro ⟨u', he⟩
+    have hi := i.isLt
+    have hu := u.isLt; have hu' := u'.isLt
+    have hv := (K.orderEmbOfFin hK u').isLt
+    -- decode `u * n + i` uniquely
+    have e1 : u.val * n + i.val = u'.val * n + (K.orderEmbOfFin hK u').val := by omega
+    have hd1 : (u.val * n + i.val) / n = u.val := by
+      rw [Nat.add_comm, Nat.add_mul_div_right _ _ (by omega), Nat.div_eq_of_lt hi]; simp
+    have hd2 : (u'.val * n + (K.orderEmbOfFin hK u').val) / n = u'.val := by
+      rw [Nat.add_comm, Nat.add_mul_div_right _ _ (by omega), Nat.div_eq_of_lt hv]; simp
+    have huu : u = u' := Fin.ext (by rw [← hd1, e1, hd2])
+    subst huu
+    exact Fin.ext (by omega)
+  · intro he; exact ⟨u, by rw [he]⟩
+
+theorem negAssign_r {n k : ℕ} (c : Fin n → Fin (k - 1)) (i : Fin n) (col : Fin (k - 1)) :
+    negAssign n k c (rVar n k i col) = true ↔ c i = col := by
+  unfold negAssign
+  rw [if_neg (by have h1 := rVar_ge (k := k) i col; omega),
+    decide_eq_true_iff]
+  unfold rVar
+  constructor
+  · rintro ⟨i', he⟩
+    have hc := col.isLt
+    have hc' := (c i').isLt
+    have e1 : i.val * (k - 1) + col.val = i'.val * (k - 1) + (c i').val := by omega
+    have hd1 : (i.val * (k - 1) + col.val) / (k - 1) = i.val := by
+      rw [Nat.add_comm, Nat.add_mul_div_right _ _ (by omega), Nat.div_eq_of_lt hc]; simp
+    have hd2 : (i'.val * (k - 1) + (c i').val) / (k - 1) = i'.val := by
+      rw [Nat.add_comm, Nat.add_mul_div_right _ _ (by omega), Nat.div_eq_of_lt hc']; simp
+    have hii : i = i' := Fin.ext (by rw [← hd1, e1, hd2])
+    subst hii
+    exact Fin.ext (by omega)
+  · intro he; exact ⟨i, by rw [he]⟩
+
+theorem posAssign_sat {n k : ℕ} (K : Finset (Fin n)) (hK : K.card = k) :
+    cnfSat (posAssign n k K hK) (cliqueCNF n k) := by
+  intro C hC
+  simp only [cliqueCNF, Finset.mem_union, Finset.mem_image, Finset.mem_filter,
+    Finset.mem_univ, true_and] at hC
+  rcases hC with (⟨u, rfl⟩ | ⟨t, ht, rfl⟩) | ⟨t, ht, rfl⟩
+  · exact ⟨⟨qVar n u (K.orderEmbOfFin hK u), true⟩,
+      Finset.mem_image.2 ⟨_, Finset.mem_univ _, rfl⟩, (posAssign_q K hK u _).2 rfl⟩
+  · by_cases h1 : K.orderEmbOfFin hK t.1 = t.2.2
+    · refine ⟨⟨qVar n t.2.1 t.2.2, false⟩, by simp, ?_⟩
+      show posAssign n k K hK (qVar n t.2.1 t.2.2) = false
+      rw [Bool.eq_false_iff]
+      intro h2
+      rw [posAssign_q] at h2
+      exact ht ((K.orderEmbOfFin hK).injective (h1.trans h2.symm))
+    · exact ⟨⟨qVar n t.1 t.2.2, false⟩, by simp, by
+        show posAssign n k K hK (qVar n t.1 t.2.2) = false
+        rw [Bool.eq_false_iff]; intro h2; rw [posAssign_q] at h2; exact h1 h2⟩
+  · by_cases h1 : K.orderEmbOfFin hK t.1 = t.2.2.1
+    · by_cases h2 : K.orderEmbOfFin hK t.2.1 = t.2.2.2
+      · refine ⟨⟨eVar n t.2.2.1 t.2.2.2, true⟩, by simp, ?_⟩
+        show posAssign n k K hK (eVar n t.2.2.1 t.2.2.2) = true
+        rw [posAssign_edge K hK ht.2]
+        rw [← h1, ← h2]
+        exact ⟨Finset.orderEmbOfFin_mem _ _ _, Finset.orderEmbOfFin_mem _ _ _⟩
+      · exact ⟨⟨qVar n t.2.1 t.2.2.2, false⟩, by simp, by
+          show posAssign n k K hK (qVar n t.2.1 t.2.2.2) = false
+          rw [Bool.eq_false_iff]; intro h; rw [posAssign_q] at h; exact h2 h⟩
+    · exact ⟨⟨qVar n t.1 t.2.2.1, false⟩, by simp, by
+        show posAssign n k K hK (qVar n t.1 t.2.2.1) = false
+        rw [Bool.eq_false_iff]; intro h; rw [posAssign_q] at h; exact h1 h⟩
+
+theorem negAssign_sat {n k : ℕ} (c : Fin n → Fin (k - 1)) :
+    cnfSat (negAssign n k c) (colorCNF n k (k - 1)) := by
+  intro C hC
+  simp only [colorCNF, Finset.mem_union, Finset.mem_image, Finset.mem_filter,
+    Finset.mem_univ, true_and] at hC
+  rcases hC with ⟨i, rfl⟩ | ⟨t, ht, rfl⟩
+  · exact ⟨⟨rVar n k i (c i), true⟩, Finset.mem_image.2 ⟨_, Finset.mem_univ _, rfl⟩,
+      (negAssign_r c i _).2 rfl⟩
+  · by_cases h1 : c t.1 = t.2.2
+    · by_cases h2 : c t.2.1 = t.2.2
+      · refine ⟨⟨eVar n t.1 t.2.1, false⟩, by simp, ?_⟩
+        show negAssign n k c (eVar n t.1 t.2.1) = false
+        rw [Bool.eq_false_iff]
+        intro h; rw [negAssign_edge c ht] at h; exact h (h1.trans h2.symm)
+      · exact ⟨⟨rVar n k t.2.1 t.2.2, false⟩, by simp, by
+          show negAssign n k c (rVar n k t.2.1 t.2.2) = false
+          rw [Bool.eq_false_iff]; intro h; rw [negAssign_r] at h; exact h2 h⟩
+    · exact ⟨⟨rVar n k t.1 t.2.2, false⟩, by simp, by
+        show negAssign n k c (rVar n k t.1 t.2.2) = false
+        rw [Bool.eq_false_iff]; intro h; rw [negAssign_r] at h; exact h1 h⟩
+
 end
 
 end SATurday.ProofComplexity
