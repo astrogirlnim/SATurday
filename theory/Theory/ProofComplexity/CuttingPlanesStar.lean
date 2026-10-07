@@ -643,6 +643,291 @@ theorem val_posNC {R : Finset ℕ} (hL : CPProof (A ∪ B) L)
 
 end ValuesC
 
+section MonoC
+
+variable (A B : CNF) (P Q : Finset ℕ) (L : List Ineq)
+
+theorem satIf_mono {S Si Sj : ℤ} (hS : 0 ≤ S) (hSi : 0 ≤ Si) (hSj : 0 ≤ Sj)
+    {g : ℝ → ℝ → ℝ} (hg : ∀ x x' y y', x ≤ x' → y ≤ y' → g x y ≤ g x' y') :
+    ∀ x x' y y' : ℝ, x ≤ x' → y ≤ y' →
+      (if cV Si x ≤ -((Si : ℝ) + 1) ∨ cV Sj y ≤ -((Sj : ℝ) + 1) then -((S : ℝ) + 1)
+        else cV S (g (cV Si x) (cV Sj y))) ≤
+      (if cV Si x' ≤ -((Si : ℝ) + 1) ∨ cV Sj y' ≤ -((Sj : ℝ) + 1) then -((S : ℝ) + 1)
+        else cV S (g (cV Si x') (cV Sj y'))) := by
+  intro x x' y y' hx hy
+  have mx := cV_mono hSi hx
+  have my := cV_mono hSj hy
+  split_ifs with h1 h2 h2
+  · exact le_rfl
+  · exact cV_ge S hS _
+  · exfalso
+    rcases h2 with h2 | h2
+    · exact h1 (Or.inl (mx.trans h2))
+    · exact h1 (Or.inr (my.trans h2))
+  · exact cV_mono hS (hg _ _ _ _ mx my)
+
+theorem firstGateC_mono (k : ℕ) : (firstGateC A B P Q L k).Mono := by
+  have hk := SL_nonneg Q L k
+  unfold firstGateC
+  cases ruleAt (A ∪ B) L k with
+  | hyp C => dsimp only; split_ifs <;> trivial
+  | low i => dsimp only; split_ifs <;> trivial
+  | up i => dsimp only; split_ifs <;> trivial
+  | add i j =>
+      intro x x' y y' hx hy
+      unfold SR
+      exact satIf_mono hk (SL_nonneg Q L i) (SL_nonneg Q L j) (g := fun u v => u + v)
+        (fun _ _ _ _ h1 h2 => add_le_add h1 h2) x x' y y' hx hy
+  | scale i c =>
+      intro x x' y y' hx _
+      unfold SR
+      have := satIf_mono hk (SL_nonneg Q L i) (SL_nonneg Q L i) (g := fun u _ => (c : ℝ) * u)
+        (fun _ _ _ _ h1 _ => mul_le_mul_of_nonneg_left h1 (by positivity)) x x' x x' hx hx
+      simpa only [or_self] using this
+  | div i c =>
+      intro x x' y y' hx _
+      unfold SR
+      have := satIf_mono hk (SL_nonneg Q L i) (SL_nonneg Q L i)
+        (g := fun u _ => ((⌊u / (c : ℝ)⌋ : ℤ) : ℝ))
+        (fun _ _ _ _ h1 _ => Int.cast_le.mpr (Int.floor_le_floor
+          (div_le_div_of_nonneg_right h1 (by positivity)))) x x' x x' hx hx
+      simpa only [or_self] using this
+
+theorem finalGateC_mono (f : ℕ) : (finalGateC P Q L f).Mono := by
+  intro x x' y y' hx _
+  have := cV_mono (SL_nonneg Q L f) hx
+  simp only
+  split_ifs with h1 h2 h2
+  · exact le_rfl
+  · exact absurd (h1.trans this) h2
+  · norm_num
+  · exact le_rfl
+
+theorem circGateC_mono (f m : ℕ) : (circGateC A B P Q L f m).Mono := by
+  unfold circGateC
+  split_ifs
+  · trivial
+  · exact firstGateC_mono A B P Q L _
+  · exact chainGate_mono A B P L _ _
+  · exact finalGateC_mono P Q L f
+
+end MonoC
+
+section Bdd
+
+variable (A B : CNF) (P Q : Finset ℕ) (L : List Ineq) (a : Assignment) (f : ℕ)
+
+/-- Integer value of absolute value at most `R`. -/
+def IntB (R : ℤ) (x : ℝ) : Prop := ∃ z : ℤ, x = z ∧ |z| ≤ R
+
+theorem cV_intB {S : ℤ} (hS : 0 ≤ S) {R : ℤ} (hR : S + 1 ≤ R) (z : ℤ) :
+    IntB R (cV S (z : ℝ)) := by
+  have h := cV_neg_int hS (-z)
+  rw [Int.cast_neg, neg_neg] at h
+  refine ⟨-clampA S (-z), h, ?_⟩
+  obtain ⟨h1, h2⟩ := clampA_range (x := -z) hS
+  rw [abs_le]; constructor <;> omega
+
+theorem lineAt_bound {M : ℕ} (hM : ∀ I ∈ L, (∀ i, |I.coef i| ≤ M) ∧ |I.rhs| ≤ M) (k : ℕ) :
+    (∀ i, |(lineAt L k).coef i| ≤ M) ∧ |(lineAt L k).rhs| ≤ M := by
+  by_cases hk : k < L.length
+  · rw [lineAt_of_lt hk]; exact hM _ (List.get_mem _ _)
+  · have : lineAt L k = zeroIneq := by
+      unfold lineAt; rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (Nat.le_of_not_lt hk)]; rfl
+    rw [this]; simp [zeroIneq]
+
+theorem SL_le {M : ℕ} (hM : ∀ I ∈ L, (∀ i, |I.coef i| ≤ M) ∧ |I.rhs| ≤ M) (k : ℕ) :
+    SL Q L k ≤ M * Q.card := by
+  unfold SL absQ
+  calc ∑ i ∈ Q, |(lineAt L k).coef i| ≤ ∑ _i ∈ Q, (M : ℤ) :=
+        Finset.sum_le_sum fun i _ => (lineAt_bound L hM k).1 i
+    _ = M * Q.card := by rw [Finset.sum_const, nsmul_eq_mul]; ring
+
+theorem read_intB {g : ℕ → MGate} {R : ℤ} (hR : 0 ≤ R) {m : ℕ}
+    (ih : ∀ m' < m, IntB R (gateValue a g m')) (i : ℕ) :
+    IntB R ((mcVals a ((List.range m).map g)).getD i 0) := by
+  rw [read_val g a m i]
+  split_ifs with h
+  · exact ih i h
+  · exact ⟨0, by simp, by simpa using hR⟩
+
+variable {A B P Q L} in
+theorem vals_bdd {M : ℕ} (hM : ∀ I ∈ L, (∀ i, |I.coef i| ≤ M) ∧ |I.rhs| ≤ M) :
+    ∀ m, IntB (M * (P.card + Q.card + 1) + 1) (gateValue a (circGateC A B P Q L f) m) := by
+  set R : ℤ := M * (P.card + Q.card + 1) + 1 with hRdef
+  have hR0 : (0 : ℤ) ≤ R := by positivity
+  have hSR : ∀ k, SL Q L k + 1 ≤ R := by
+    intro k
+    have := SL_le Q L hM k
+    have : (M : ℤ) * Q.card ≤ M * (P.card + Q.card + 1) :=
+      mul_le_mul_of_nonneg_left (by omega) (by positivity)
+    omega
+  have hrhs : ∀ k, |(lineAt L k).rhs| ≤ R := by
+    intro k
+    have := (lineAt_bound L hM k).2
+    have : (M : ℤ) ≤ M * (P.card + Q.card + 1) :=
+      le_mul_of_one_le_right (by positivity) (by omega)
+    omega
+  have h01 : ∀ x : ℝ, (x = 0 ∨ x = 1) → IntB R x := by
+    rintro x (rfl | rfl)
+    · exact ⟨0, by simp, by simpa using hR0⟩
+    · refine ⟨1, by simp, ?_⟩
+      rw [abs_one, hRdef]
+      have : (0 : ℤ) ≤ M * (P.card + Q.card + 1) := by positivity
+      omega
+  intro m
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+  have hread := read_intB a hR0 ih
+  -- first gate values
+  have hfirstB : ∀ k, bstart P k ≤ m → (∀ m' < bstart P k, IntB R
+      (gateValue a (circGateC A B P Q L f) m')) →
+      IntB R ((firstGateC A B P Q L k).val a
+        (mcVals a ((List.range (bstart P k)).map (circGateC A B P Q L f)))) := by
+    intro k _ ihk
+    have hrd := read_intB a hR0 ihk
+    have hS := SL_nonneg Q L k
+    unfold firstGateC
+    cases ruleAt (A ∪ B) L k with
+    | hyp C =>
+        dsimp only
+        split_ifs
+        · exact ⟨-(lineAt L k).rhs, by simp [MGate.val], by rw [abs_neg]; exact hrhs k⟩
+        · exact h01 _ (Or.inl rfl)
+    | low i =>
+        dsimp only
+        split_ifs
+        · refine ⟨-clampA (SL Q L k) (lineAt L k).rhs, rfl, ?_⟩
+          obtain ⟨h1, h2⟩ := clampA_range (x := (lineAt L k).rhs) hS
+          have := hSR k
+          rw [abs_le]; constructor <;> omega
+        · exact h01 _ (Or.inl rfl)
+    | up i =>
+        dsimp only
+        split_ifs
+        · refine ⟨-clampA (SL Q L k) (lineAt L k).rhs, rfl, ?_⟩
+          obtain ⟨h1, h2⟩ := clampA_range (x := (lineAt L k).rhs) hS
+          have := hSR k
+          rw [abs_le]; constructor <;> omega
+        · exact h01 _ (Or.inl rfl)
+    | add i j =>
+        dsimp only; simp only [MGate.val]
+        obtain ⟨zi, hzi, _⟩ := hrd (posN P i)
+        obtain ⟨zj, hzj, _⟩ := hrd (posN P j)
+        rw [hzi, hzj]
+        obtain ⟨wi, hwi, _⟩ := cV_intB (SL_nonneg Q L i) (hSR i) zi
+        obtain ⟨wj, hwj, _⟩ := cV_intB (SL_nonneg Q L j) (hSR j) zj
+        rw [hwi, hwj]
+        split_ifs
+        · refine ⟨-(SL Q L k + 1), by unfold SR; push_cast; ring, ?_⟩
+          have := hSR k; rw [abs_le]; constructor <;> omega
+        · rw [show ((wi : ℝ) + wj) = ((wi + wj : ℤ) : ℝ) by push_cast; ring]
+          exact cV_intB hS (hSR k) _
+    | scale i c =>
+        dsimp only; simp only [MGate.val]
+        obtain ⟨zi, hzi, _⟩ := hrd (posN P i)
+        rw [hzi]
+        obtain ⟨wi, hwi, _⟩ := cV_intB (SL_nonneg Q L i) (hSR i) zi
+        rw [hwi]
+        split_ifs
+        · refine ⟨-(SL Q L k + 1), by unfold SR; push_cast; ring, ?_⟩
+          have := hSR k; rw [abs_le]; constructor <;> omega
+        · rw [show ((c : ℝ) * wi) = (((c : ℤ) * wi : ℤ) : ℝ) by push_cast; ring]
+          exact cV_intB hS (hSR k) _
+    | div i c =>
+        dsimp only; simp only [MGate.val]
+        obtain ⟨zi, hzi, _⟩ := hrd (posN P i)
+        rw [hzi]
+        obtain ⟨wi, hwi, _⟩ := cV_intB (SL_nonneg Q L i) (hSR i) zi
+        rw [hwi]
+        split_ifs
+        · refine ⟨-(SL Q L k + 1), by unfold SR; push_cast; ring, ?_⟩
+          have := hSR k; rw [abs_le]; constructor <;> omega
+        · exact cV_intB hS (hSR k) _
+  -- case split on the gate index
+  by_cases hin : m < P.card
+  · have : gateValue a (circGateC A B P Q L f) m = bitR a ((Pl P).getD m 0) :=
+      val_inputC A B P Q L a f hin
+    rw [this]; unfold bitR; split_ifs
+    · exact h01 _ (Or.inr rfl)
+    · exact h01 _ (Or.inl rfl)
+  by_cases hblk : (m - P.card) / (P.card + 1) < L.length
+  · set k := (m - P.card) / (P.card + 1)
+    set r := (m - P.card) % (P.card + 1)
+    have hmr : m = bstart P k + r := by
+      unfold bstart
+      have h : (P.card + 1) * k + r = m - P.card := Nat.div_add_mod _ _
+      have hcomm : (P.card + 1) * k = k * (P.card + 1) := Nat.mul_comm _ _
+      omega
+    have hr : r ≤ P.card := by have := Nat.mod_lt (m - P.card) (show 0 < P.card + 1 by omega); omega
+    have hbk : bstart P k ≤ m := by omega
+    have ihk : ∀ m' < bstart P k, IntB R (gateValue a (circGateC A B P Q L f) m') :=
+      fun m' hm' => ih m' (by omega)
+    have hF := hfirstB k hbk ihk
+    have hfirstV : gateValue a (circGateC A B P Q L f) (bstart P k) =
+        (firstGateC A B P Q L k).val a
+          (mcVals a ((List.range (bstart P k)).map (circGateC A B P Q L f))) := by
+      unfold gateValue
+      rw [show bstart P k = bstart P k + 0 by rfl, circGateC_block A B P Q L hblk (Nat.zero_le _)]
+      rfl
+    rw [hmr, val_chainC A B P Q L a f hblk r hr, hfirstV]
+    by_cases hH : IsHypA A B L k
+    · rw [if_pos hH]
+      obtain ⟨C, hrule, hCA⟩ := hH
+      have hval : (firstGateC A B P Q L k).val a
+          (mcVals a ((List.range (bstart P k)).map (circGateC A B P Q L f))) =
+          -((lineAt L k).rhs : ℝ) := by
+        unfold firstGateC; rw [hrule]; simp [hCA, MGate.val]
+      rw [hval]
+      -- the partial sum is an integer between 0 and r M
+      have hsum : ∀ t ≤ P.card, ∃ z : ℤ,
+          (((Pl P).take t).map fun v => wt L k v * bitR a v).sum = z ∧ 0 ≤ z ∧ z ≤ t * M := by
+        intro t
+        induction t with
+        | zero => intro _; exact ⟨0, by simp, le_rfl, by simp⟩
+        | succ t iht =>
+            intro ht
+            obtain ⟨z, hz, hz0, hzt⟩ := iht (by omega)
+            have htl : t < (Pl P).length := by rw [Pl_length]; omega
+            rw [List.take_add_one, List.getElem?_eq_getElem htl]
+            simp only [Option.toList_some, List.map_append, List.sum_append, List.map_singleton,
+              List.sum_singleton]
+            set v := (Pl P)[t]
+            have hc := (lineAt_bound L hM k).1 v
+            set w := max ((lineAt L k).coef v) 0
+            have hw0 : 0 ≤ w := le_max_right _ _
+            have hwM : w ≤ M := max_le (le_of_abs_le hc) (by positivity)
+            have hwt : wt L k v = (w : ℝ) := by unfold wt; simp only [w, Int.cast_max, Int.cast_zero]
+            rw [hwt, bitR_eq, hz]
+            refine ⟨z + w * bitZ a v, by push_cast; ring, ?_, ?_⟩
+            · have := bitZ_nonneg a v; positivity
+            · have h1 := bitZ_le_one a v
+              have h0 := bitZ_nonneg a v
+              have : w * bitZ a v ≤ M := by nlinarith
+              push_cast; nlinarith
+      obtain ⟨z, hz, hz0, hzr⟩ := hsum r hr
+      rw [hz]
+      refine ⟨-(lineAt L k).rhs + z, by push_cast; ring, ?_⟩
+      have h1 := (lineAt_bound L hM k).2
+      have h2 : (r : ℤ) * M ≤ P.card * M := mul_le_mul_of_nonneg_right (by exact_mod_cast hr)
+        (by positivity)
+      have h3 : (P.card : ℤ) * M + M ≤ M * (P.card + Q.card + 1) := by nlinarith
+      rw [abs_le] at h1 ⊢
+      constructor <;> push_cast at hzr <;> nlinarith
+    · rw [if_neg hH, add_zero]; exact hF
+  · -- the output gate (and beyond)
+    have hval : gateValue a (circGateC A B P Q L f) m = 0 ∨
+        gateValue a (circGateC A B P Q L f) m = 1 := by
+      unfold gateValue circGateC
+      rw [if_neg hin, if_neg hblk]
+      unfold finalGateC; simp only [MGate.val]
+      split_ifs
+      · right; rfl
+      · left; rfl
+    exact h01 _ hval
+
+end Bdd
+
 end
 
 end SATurday.ProofComplexity
