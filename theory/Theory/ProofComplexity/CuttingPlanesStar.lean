@@ -323,6 +323,326 @@ theorem DC_inv {R : Finset ℕ} (hL : CPProof (A ∪ B) L)
 
 end Bounds
 
+/-! ## Clamping on circuit values (`V = - DA`) -/
+
+/-- Real clamp of `V = - DA` into `[-(S+1), S]`. -/
+def cV (S : ℤ) (x : ℝ) : ℝ := if x ≤ -((S : ℝ) + 1) then -((S : ℝ) + 1) else min x S
+
+theorem cV_mono {S : ℤ} (hS : 0 ≤ S) {x y : ℝ} (h : x ≤ y) : cV S x ≤ cV S y := by
+  unfold cV
+  have hS' : (0 : ℝ) ≤ S := by exact_mod_cast hS
+  split_ifs with h1 h2 h2
+  · exact le_rfl
+  · push_neg at h2
+    exact le_min h2.le (by linarith)
+  · linarith
+  · exact min_le_min h le_rfl
+
+theorem cV_ge (S : ℤ) (hS : 0 ≤ S) (x : ℝ) : -((S : ℝ) + 1) ≤ cV S x := by
+  unfold cV
+  have hS' : (0 : ℝ) ≤ S := by exact_mod_cast hS
+  split_ifs with h
+  · exact le_rfl
+  · push_neg at h
+    exact le_min h.le (by linarith)
+
+theorem cV_le (S : ℤ) (hS : 0 ≤ S) (x : ℝ) : cV S x ≤ S := by
+  unfold cV
+  have hS' : (0 : ℝ) ≤ S := by exact_mod_cast hS
+  split_ifs
+  · linarith
+  · exact min_le_right _ _
+
+theorem cV_neg_int {S : ℤ} (hS : 0 ≤ S) (z : ℤ) : cV S (-(z : ℝ)) = ((-clampA S z : ℤ) : ℝ) := by
+  unfold cV clampA
+  by_cases h : S + 1 ≤ z
+  · have h' : -(z : ℝ) ≤ -((S : ℝ) + 1) := by
+      have : ((S + 1 : ℤ) : ℝ) ≤ z := by exact_mod_cast h
+      push_cast at this; linarith
+    rw [if_pos h', if_pos h]; push_cast; ring
+  · have hz : (z : ℝ) < S + 1 := by
+      have : (z : ℝ) < ((S + 1 : ℤ) : ℝ) := by exact_mod_cast (lt_of_not_ge h)
+      push_cast at this; linarith
+    rw [if_neg (by linarith), if_neg h]
+    rcases le_total z (-S) with h2 | h2
+    · rw [max_eq_right h2]
+      have : (z : ℝ) ≤ -S := by exact_mod_cast h2
+      push_cast; rw [min_eq_right (by linarith)]; ring
+    · rw [max_eq_left h2]
+      have : (-S : ℝ) ≤ z := by exact_mod_cast h2
+      push_cast; rw [min_eq_left (by linarith)]
+
+/-! ## The clamped circuit (same layout as `interpCircuit`) -/
+
+section CircuitC
+
+variable (A B : CNF) (P Q : Finset ℕ) (L : List Ineq)
+
+/-- Saturation level as a real. -/
+def SR (k : ℕ) : ℝ := (SL Q L k : ℝ)
+
+def firstGateC (k : ℕ) : MGate :=
+  match ruleAt (A ∪ B) L k with
+  | .hyp C => if C ∈ A then .cst (-((lineAt L k).rhs : ℝ)) else .cst 0
+  | .low i => if i ∈ Q then .cst ((-clampA (SL Q L k) (lineAt L k).rhs : ℤ) : ℝ) else .cst 0
+  | .up i => if i ∈ Q then .cst ((-clampA (SL Q L k) (lineAt L k).rhs : ℤ) : ℝ) else .cst 0
+  | .add i j => .op (fun x y =>
+      if cV (SL Q L i) x ≤ -(SR Q L i + 1) ∨ cV (SL Q L j) y ≤ -(SR Q L j + 1) then
+        -(SR Q L k + 1)
+      else cV (SL Q L k) (cV (SL Q L i) x + cV (SL Q L j) y)) (posN P i) (posN P j)
+  | .scale i c => .op (fun x _ =>
+      if cV (SL Q L i) x ≤ -(SR Q L i + 1) then -(SR Q L k + 1)
+      else cV (SL Q L k) ((c : ℝ) * cV (SL Q L i) x)) (posN P i) (posN P i)
+  | .div i c => .op (fun x _ =>
+      if cV (SL Q L i) x ≤ -(SR Q L i + 1) then -(SR Q L k + 1)
+      else cV (SL Q L k) ((⌊cV (SL Q L i) x / (c : ℝ)⌋ : ℤ) : ℝ)) (posN P i) (posN P i)
+
+def finalGateC (f : ℕ) : MGate :=
+  .op (fun x _ => if 0 ≤ cV (SL Q L f) x then 1 else 0) (posN P f) (posN P f)
+
+def circGateC (f m : ℕ) : MGate :=
+  if m < P.card then .inp ((Pl P).getD m 0)
+  else if (m - P.card) / (P.card + 1) < L.length then
+    (if (m - P.card) % (P.card + 1) = 0 then firstGateC A B P Q L ((m - P.card) / (P.card + 1))
+     else chainGate A B P L ((m - P.card) / (P.card + 1)) ((m - P.card) % (P.card + 1) - 1))
+  else finalGateC P Q L f
+
+theorem circGateC_block {f k r : ℕ} (hk : k < L.length) (hr : r ≤ P.card) :
+    circGateC A B P Q L f (bstart P k + r) =
+      if r = 0 then firstGateC A B P Q L k else chainGate A B P L k (r - 1) := by
+  unfold circGateC bstart
+  have h1 : ¬ (P.card + k * (P.card + 1) + r < P.card) := by omega
+  have e : P.card + k * (P.card + 1) + r - P.card = r + k * (P.card + 1) := by omega
+  have hd : (r + k * (P.card + 1)) / (P.card + 1) = k := by
+    rw [Nat.add_mul_div_right _ _ (by omega), Nat.div_eq_of_lt (by omega)]; simp
+  have hm : (r + k * (P.card + 1)) % (P.card + 1) = r := by
+    rw [Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)]
+  rw [if_neg h1, e, hd, hm, if_pos hk]
+
+theorem circGateC_final {f : ℕ} : circGateC A B P Q L f (circLen P L) = finalGateC P Q L f := by
+  unfold circGateC circLen
+  have h1 : ¬ (P.card + L.length * (P.card + 1) < P.card) := by omega
+  have e : P.card + L.length * (P.card + 1) - P.card = 0 + L.length * (P.card + 1) := by omega
+  have hd : (0 + L.length * (P.card + 1)) / (P.card + 1) = L.length := by
+    rw [Nat.add_mul_div_right _ _ (by omega)]; simp
+  rw [if_neg h1, e, hd, if_neg (lt_irrefl _)]
+
+theorem circGateC_input {f t : ℕ} (ht : t < P.card) :
+    circGateC A B P Q L f t = .inp ((Pl P).getD t 0) := by
+  unfold circGateC; rw [if_pos ht]
+
+variable (a : Assignment) (f : ℕ)
+
+theorem val_inputC {t : ℕ} (ht : t < P.card) :
+    gateValue a (circGateC A B P Q L f) t = bitR a ((Pl P).getD t 0) := by
+  unfold gateValue; rw [circGateC_input A B P Q L ht]; rfl
+
+theorem val_chainC {k : ℕ} (hk : k < L.length) :
+    ∀ t ≤ P.card, gateValue a (circGateC A B P Q L f) (bstart P k + t) =
+      gateValue a (circGateC A B P Q L f) (bstart P k) +
+        (if IsHypA A B L k then
+          (((Pl P).take t).map fun v => wt L k v * bitR a v).sum else 0) := by
+  intro t
+  induction t with
+  | zero => intro _; simp
+  | succ t ih =>
+      intro ht
+      have hprev := ih (by omega)
+      have hg := circGateC_block A B P Q L (f := f) hk (r := t + 1) ht
+      simp only [Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel] at hg
+      have hm : bstart P k + (t + 1) = bstart P k + t + 1 := by omega
+      have htl : t < (Pl P).length := by rw [Pl_length]; omega
+      have htake : (Pl P).take (t + 1) = (Pl P).take t ++ [(Pl P).getD t 0] := by
+        rw [List.take_add_one, List.getElem?_eq_getElem htl,
+          List.getD_eq_getElem?_getD, List.getElem?_eq_getElem htl]
+        rfl
+      have hbs : t < bstart P k + t + 1 := by unfold bstart; omega
+      have hval : gateValue a (circGateC A B P Q L f) (bstart P k + (t + 1)) =
+          (chainGate A B P L k t).val a
+            (mcVals a ((List.range (bstart P k + t + 1)).map (circGateC A B P Q L f))) := by
+        unfold gateValue; rw [hg, hm]
+      have r1 : (mcVals a ((List.range (bstart P k + t + 1)).map (circGateC A B P Q L f))).getD
+          (bstart P k + t) 0 = gateValue a (circGateC A B P Q L f) (bstart P k + t) :=
+        read_earlier a _ (by omega)
+      rw [hval]
+      unfold chainGate
+      by_cases hH : IsHypA A B L k
+      · have r2 : (mcVals a ((List.range (bstart P k + t + 1)).map (circGateC A B P Q L f))).getD
+            t 0 = gateValue a (circGateC A B P Q L f) t := read_earlier a _ hbs
+        rw [if_pos hH]
+        simp only [MGate.val]
+        rw [r1, r2, hprev, if_pos hH, if_pos hH, val_inputC A B P Q L a f (t := t) (by omega),
+          htake, List.map_append, List.sum_append, List.map_singleton, List.sum_singleton]
+        ring
+      · rw [if_neg hH]
+        simp only [MGate.val]
+        rw [r1, hprev, if_neg hH, if_neg hH]
+
+end CircuitC
+
+section ValuesC
+
+variable (A B : CNF) (P Q : Finset ℕ) (L : List Ineq) (a : Assignment) (f : ℕ)
+
+theorem clampA_idem {S : ℤ} (hS : 0 ≤ S) (x : ℤ) : clampA S (clampA S x) = clampA S x := by
+  obtain ⟨h1, h2⟩ := clampA_range (x := x) hS
+  unfold clampA at *
+  split_ifs at * <;> omega
+
+theorem clampA_zero {S : ℤ} (hS : 0 ≤ S) : clampA S 0 = 0 := by
+  unfold clampA; split_ifs <;> omega
+
+theorem clampA_top {S : ℤ} : clampA S (S + 1) = S + 1 := by
+  unfold clampA; rw [if_pos le_rfl]
+
+theorem cV_zero {S : ℤ} (hS : 0 ≤ S) : cV S 0 = 0 := by
+  have := cV_neg_int hS 0
+  simp only [Int.cast_zero, neg_zero] at this
+  rw [this, clampA_zero hS]; simp
+
+theorem SL_nonneg (k : ℕ) : 0 ≤ SL Q L k := absQ_nonneg _ _
+
+variable {A B P Q L} in
+/-- Each block computes `- DA'` after clamping. -/
+theorem val_posNC {R : Finset ℕ} (hL : CPProof (A ∪ B) L)
+    (hA : ∀ C ∈ A, ∀ l ∈ C, l.var ∈ P ∪ Q ∧ (l.var ∈ P → l.pos = true))
+    (hB : ∀ C ∈ B, ∀ l ∈ C, l.var ∈ P ∪ R) (hPQ : Disjoint P Q) (hQR : Disjoint Q R) :
+    ∀ k < L.length, cV (SL Q L k) (gateValue a (circGateC A B P Q L f) (posN P k)) =
+      ((-(DC A B P Q L a k).1 : ℤ) : ℝ) := by
+  intro k
+  induction k using Nat.strong_induction_on with
+  | _ k ih =>
+  intro hk
+  have hS := SL_nonneg Q L k
+  have hchain := val_chainC A B P Q L a f hk P.card le_rfl
+  have hfirst := circGateC_block A B P Q L (f := f) hk (r := 0) (Nat.zero_le _)
+  simp only [if_true, Nat.add_zero] at hfirst
+  have hv := ruleAt_valid hL hk
+  unfold posN
+  rw [hchain]
+  have hfv : gateValue a (circGateC A B P Q L f) (bstart P k) =
+      (firstGateC A B P Q L k).val a (mcVals a ((List.range (bstart P k)).map
+        (circGateC A B P Q L f))) := by
+    unfold gateValue; rw [hfirst]
+  rw [hfv, DC_eq]
+  have hlt : ∀ i < k, posN P i < bstart P k := fun i hi => posN_lt_bstart P hi
+  -- children: saturation test and value
+  have hchild : ∀ i < k, cV (SL Q L i) ((mcVals a ((List.range (bstart P k)).map
+      (circGateC A B P Q L f))).getD (posN P i) 0) = ((-(DC A B P Q L a i).1 : ℤ) : ℝ) := by
+    intro i hi
+    rw [read_earlier a _ (hlt i hi)]
+    exact ih i hi (by omega)
+  have hsatiff : ∀ i < k, ((-(DC A B P Q L a i).1 : ℤ) : ℝ) ≤ -(SR Q L i + 1) ↔
+      (DC A B P Q L a i).1 = SL Q L i + 1 := by
+    intro i hi
+    have hr := (DC_inv a (R := R) hL hA hB hPQ hQR i (by omega)).1
+    unfold SR
+    constructor
+    · intro h
+      have : ((-(DC A B P Q L a i).1 : ℤ) : ℝ) ≤ ((-(SL Q L i + 1) : ℤ) : ℝ) := by
+        push_cast at h ⊢; linarith
+      have := Int.cast_le.1 this
+      omega
+    · intro h; rw [h]; push_cast; linarith
+  unfold firstGateC stepC
+  unfold IsHypA
+  generalize ruleAt (A ∪ B) L k = r at hv ⊢
+  cases r with
+  | hyp C =>
+      obtain ⟨hC, hI⟩ := hv
+      by_cases hCA : C ∈ A
+      · simp only [if_pos hCA, MGate.val]
+        have hH : ∃ C', Rule.hyp C = Rule.hyp C' ∧ C' ∈ A := ⟨C, rfl, hCA⟩
+        rw [if_pos hH, List.take_of_length_le (by rw [Pl_length]), sum_Pl]
+        have hw : ∀ v ∈ P, wt L k v * bitR a v = ((lineAt L k).coef v * bitZ a v : ℤ) := by
+          intro v hv'
+          have hnn : 0 ≤ (lineAt L k).coef v := by
+            rw [hI]
+            exact clauseIneq_coef_nonneg (fun l hl he => (hA C hCA l hl).2 (he ▸ hv'))
+          unfold wt
+          rw [max_eq_left (by exact_mod_cast hnn), bitR_eq]
+          push_cast; ring
+        rw [Finset.sum_congr rfl hw]
+        have e : -((lineAt L k).rhs : ℝ) + ∑ v ∈ P, (((lineAt L k).coef v * bitZ a v : ℤ) : ℝ) =
+            -(((lineAt L k).rhs - partOn P (lineAt L k) a : ℤ) : ℝ) := by
+          unfold partOn; push_cast; ring
+        rw [e, cV_neg_int hS]
+      · simp only [if_neg hCA, MGate.val]
+        have hH : ¬ ∃ C', Rule.hyp C = Rule.hyp C' ∧ C' ∈ A := by
+          rintro ⟨C', h1, h2⟩; cases h1; exact hCA h2
+        rw [if_neg hH, add_zero, cV_zero hS]; simp
+  | low i =>
+      have hH : ¬ ∃ C', Rule.low i = Rule.hyp C' ∧ C' ∈ A := by rintro ⟨C', h1, _⟩; cases h1
+      rw [if_neg hH, add_zero]
+      by_cases hi : i ∈ Q
+      · simp only [if_pos hi, MGate.val]
+        rw [show ((-clampA (SL Q L k) (lineAt L k).rhs : ℤ) : ℝ) =
+            -((clampA (SL Q L k) (lineAt L k).rhs : ℤ) : ℝ) by push_cast; ring,
+          cV_neg_int hS, clampA_idem hS]
+        push_cast; ring
+      · simp only [if_neg hi, MGate.val]; rw [cV_zero hS]; simp
+  | up i =>
+      have hH : ¬ ∃ C', Rule.up i = Rule.hyp C' ∧ C' ∈ A := by rintro ⟨C', h1, _⟩; cases h1
+      rw [if_neg hH, add_zero]
+      by_cases hi : i ∈ Q
+      · simp only [if_pos hi, MGate.val]
+        rw [show ((-clampA (SL Q L k) (lineAt L k).rhs : ℤ) : ℝ) =
+            -((clampA (SL Q L k) (lineAt L k).rhs : ℤ) : ℝ) by push_cast; ring,
+          cV_neg_int hS, clampA_idem hS]
+        push_cast; ring
+      · simp only [if_neg hi, MGate.val]; rw [cV_zero hS]; simp
+  | add i j =>
+      obtain ⟨hi, hj, _⟩ := hv
+      have hH : ¬ ∃ C', Rule.add i j = Rule.hyp C' ∧ C' ∈ A := by rintro ⟨C', h1, _⟩; cases h1
+      rw [if_neg hH, add_zero]
+      simp only [MGate.val, if_pos hi, if_pos hj]
+      rw [hchild i hi, hchild j hj]
+      simp only [hsatiff i hi, hsatiff j hj]
+      split_ifs with hs
+      · rw [show -(SR Q L k + 1) = -((SL Q L k + 1 : ℤ) : ℝ) by unfold SR; push_cast; ring,
+          cV_neg_int hS, clampA_top]
+      · rw [show ((-(DC A B P Q L a i).1 : ℤ) : ℝ) + ((-(DC A B P Q L a j).1 : ℤ) : ℝ) =
+            -(((DC A B P Q L a i).1 + (DC A B P Q L a j).1 : ℤ) : ℝ) by push_cast; ring,
+          cV_neg_int hS, show ((-clampA (SL Q L k) ((DC A B P Q L a i).1 +
+            (DC A B P Q L a j).1) : ℤ) : ℝ) = -((clampA (SL Q L k) ((DC A B P Q L a i).1 +
+            (DC A B P Q L a j).1) : ℤ) : ℝ) by push_cast; ring, cV_neg_int hS, clampA_idem hS]
+        push_cast; ring
+  | scale i c =>
+      obtain ⟨hi, _⟩ := hv
+      have hH : ¬ ∃ C', Rule.scale i c = Rule.hyp C' ∧ C' ∈ A := by rintro ⟨C', h1, _⟩; cases h1
+      rw [if_neg hH, add_zero]
+      simp only [MGate.val, if_pos hi]
+      rw [hchild i hi]
+      simp only [hsatiff i hi]
+      split_ifs with hs
+      · rw [show -(SR Q L k + 1) = -((SL Q L k + 1 : ℤ) : ℝ) by unfold SR; push_cast; ring,
+          cV_neg_int hS, clampA_top]
+      · rw [show (c : ℝ) * ((-(DC A B P Q L a i).1 : ℤ) : ℝ) =
+            -(((c : ℤ) * (DC A B P Q L a i).1 : ℤ) : ℝ) by push_cast; ring,
+          cV_neg_int hS, show ((-clampA (SL Q L k) ((c : ℤ) * (DC A B P Q L a i).1) : ℤ) : ℝ) =
+            -((clampA (SL Q L k) ((c : ℤ) * (DC A B P Q L a i).1) : ℤ) : ℝ) by push_cast; ring,
+          cV_neg_int hS, clampA_idem hS]
+        push_cast; ring
+  | div i c =>
+      obtain ⟨hi, hc, _⟩ := hv
+      have hH : ¬ ∃ C', Rule.div i c = Rule.hyp C' ∧ C' ∈ A := by rintro ⟨C', h1, _⟩; cases h1
+      rw [if_neg hH, add_zero]
+      simp only [MGate.val, if_pos hi]
+      rw [hchild i hi]
+      simp only [hsatiff i hi]
+      split_ifs with hs
+      · rw [show -(SR Q L k + 1) = -((SL Q L k + 1 : ℤ) : ℝ) by unfold SR; push_cast; ring,
+          cV_neg_int hS, clampA_top]
+      · rw [Int.floor_div_natCast, Int.floor_intCast]
+        rw [show (((-(DC A B P Q L a i).1) / (c : ℤ) : ℤ) : ℝ) =
+            -((ceilDiv (DC A B P Q L a i).1 c : ℤ) : ℝ) by unfold ceilDiv; push_cast; ring,
+          cV_neg_int hS, show ((-clampA (SL Q L k) (ceilDiv (DC A B P Q L a i).1 c) : ℤ) : ℝ) =
+            -((clampA (SL Q L k) (ceilDiv (DC A B P Q L a i).1 c) : ℤ) : ℝ) by push_cast; ring,
+          cV_neg_int hS, clampA_idem hS]
+        push_cast; ring
+
+end ValuesC
+
 end
 
 end SATurday.ProofComplexity
