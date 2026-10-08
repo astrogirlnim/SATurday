@@ -31,15 +31,15 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 
 ### 1A Circuit analogue: Razborov–Smolensky (Smolensky's form, odd p, parity)
 
-- [ ] 1A.1 AC0[p] circuits as straight line programs (inputs, NOT, unbounded fan in AND,
+- [x] 1A.1 AC0[p] circuits as straight line programs (inputs, NOT, unbounded fan in AND,
   OR, MOD_{p,r}), semantics, depth and size.
-- [ ] 1A.2 Low degree functions over F_p on the Boolean cube (multilinear coefficient form),
+- [x] 1A.2 Low degree functions over F_p on the Boolean cube (multilinear coefficient form),
   closed under sums and products with degree bounds.
-- [ ] 1A.3 Gate approximation: for OR (and AND by duality) some choice of `ℓ` random subsets
+- [x] 1A.3 Gate approximation: for OR (and AND by duality) some choice of `ℓ` random subsets
   gives a degree `(p - 1) ℓ` approximant wrong on at most a `2^{-ℓ}` fraction of inputs;
   MOD_{p,r} and NOT are exact.
-- [ ] 1A.4 Circuit approximation: a depth `d`, size `s` circuit agrees with a function of degree
-  `((p - 1) ℓ)^d` on all but `s 2^{n - ℓ}` inputs.
+- [x] 1A.4 Circuit approximation: a depth `d`, size `s` circuit agrees with a function of degree
+  `((p - 1) ℓ)^d` on all but `s 2^{n - ℓ}` inputs (`circuit_approx`, Smolensky.lean).
 - [ ] 1A.5 Smolensky's argument for parity (p odd): on an agreement set `G` every function is
   of degree at most `n/2 + D`, so `|G| ≤ 2^{n-1} + (D + 1) C(n, ⌊n/2⌋)`; central binomial bound.
 - [ ] 1A.6 Theorem: for odd prime `p` and fixed depth `d`, AC0[p] circuits computing parity on

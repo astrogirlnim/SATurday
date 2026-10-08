@@ -392,6 +392,319 @@ theorem exists_good_choice (ℓ : ℕ) (v : ℕ → (Fin n → Bool) → Bool) (
 
 end OrApx
 
+/-! ## Approximating a whole circuit -/
+
+section CircApx
+
+variable {n : ℕ} {p : ℕ} [hp : Fact p.Prime] (ℓ : ℕ) (g : ℕ → CG)
+
+/-- Children values as read by gate `m`. -/
+def rdV (m : ℕ) : ℕ → (Fin n → Bool) → Bool := fun i x =>
+  if i < m then cval p g x i else false
+
+/-- Negated children values (for AND gates). -/
+def rdVn (m : ℕ) : ℕ → (Fin n → Bool) → Bool := fun i x => !(rdV (p := p) g m i x)
+
+/-- Chosen subsets for an OR gate. -/
+def orChoice (m : ℕ) (S : Finset ℕ) : Fin ℓ → Finset ℕ :=
+  (exists_good_choice (n := n) (p := p) ℓ (rdV (p := p) g m) S).choose
+
+/-- Chosen subsets for an AND gate (OR of the negated children). -/
+def andChoice (m : ℕ) (S : Finset ℕ) : Fin ℓ → Finset ℕ :=
+  (exists_good_choice (n := n) (p := p) ℓ (rdVn (p := p) g m) S).choose
+
+/-- The approximant of gate `m`. -/
+def apxF : ℕ → (Fin n → Bool) → ZMod p
+  | m => fun x => match g m with
+    | .inp i => if h : i < n then bitF p x ⟨i, h⟩ else 0
+    | .neg j => 1 - (if h : j < m then apxF j x else 0)
+    | .or l => 1 - ∏ t : Fin ℓ, (1 - (∑ i ∈ orChoice (n := n) (p := p) ℓ g m l.toFinset t,
+        (if h : i < m then apxF i x else 0)) ^ (p - 1))
+    | .and l => ∏ t : Fin ℓ, (1 - (∑ i ∈ andChoice (n := n) (p := p) ℓ g m l.toFinset t,
+        (1 - (if h : i < m then apxF i x else 0))) ^ (p - 1))
+    | .mod r l => 1 - ((l.attach.map fun i => if h : i.1 < m then apxF i.1 x else 0).sum -
+        (r : ZMod p)) ^ (p - 1)
+decreasing_by all_goals exact h
+
+/-- Error set of gate `m`. -/
+def errSet (m : ℕ) : Finset (Fin n → Bool) :=
+  match g m with
+  | .or l => Finset.univ.filter fun x => bz p (orVal (rdV (p := p) g m) l.toFinset x) ≠
+      orApx (p := p) (rdV (p := p) g m) (orChoice (n := n) (p := p) ℓ g m l.toFinset) x
+  | .and l => Finset.univ.filter fun x => bz p (orVal (rdVn (p := p) g m) l.toFinset x) ≠
+      orApx (p := p) (rdVn (p := p) g m) (andChoice (n := n) (p := p) ℓ g m l.toFinset) x
+  | _ => ∅
+
+theorem errSet_card (m : ℕ) : (errSet (n := n) (p := p) ℓ g m).card * 2 ^ ℓ ≤ 2 ^ n := by
+  unfold errSet
+  cases g m with
+  | or l => exact (exists_good_choice (n := n) (p := p) ℓ (rdV (p := p) g m) l.toFinset).choose_spec.2
+  | and l => exact (exists_good_choice (n := n) (p := p) ℓ (rdVn (p := p) g m) l.toFinset).choose_spec.2
+  | _ => simp
+
+theorem bz_not (b : Bool) : (1 : ZMod p) - bz p b = bz p (!b) := by
+  cases b <;> simp [bz]
+
+theorem sum_bz_countP (l : List ℕ) (f : ℕ → Bool) :
+    (l.map fun i => bz p (f i)).sum = ((l.countP f : ℕ) : ZMod p) := by
+  induction l with
+  | nil => simp
+  | cons a l ih =>
+      rw [List.map_cons, List.sum_cons, ih, List.countP_cons]
+      cases f a <;> simp [bz] <;> ring
+
+theorem cval_eq (x : Fin n → Bool) (m : ℕ) : cval p g x m = match g m with
+    | .inp i => if h : i < n then x ⟨i, h⟩ else false
+    | .neg j => !(rdV (p := p) g m j x)
+    | .and l => l.all fun j => rdV (p := p) g m j x
+    | .or l => l.any fun j => rdV (p := p) g m j x
+    | .mod r l => decide ((l.countP fun j => rdV (p := p) g m j x) % p = r % p) := by
+  rw [cval]
+  cases g m <;> simp [rdV]
+
+theorem orVal_any (v : ℕ → (Fin n → Bool) → Bool) (l : List ℕ) (x : Fin n → Bool) :
+    orVal v l.toFinset x = l.any fun j => v j x := by
+  unfold orVal
+  rw [Bool.eq_iff_iff]
+  simp
+
+/-- Outside the error sets the approximant is exact. -/
+theorem apxF_correct : ∀ m (x : Fin n → Bool), (∀ m' ≤ m, x ∉ errSet (n := n) (p := p) ℓ g m') →
+    apxF (p := p) ℓ g m x = bz p (cval p g x m) := by
+  intro m
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+  intro x hx
+  have hrd : ∀ i, (if h : i < m then apxF (p := p) ℓ g i x else 0) = bz p (rdV (p := p) g m i x) := by
+    intro i
+    unfold rdV
+    split_ifs with h
+    · exact ih i h x (fun m' hm' => hx m' (by omega))
+    · simp [bz]
+  have herr := hx m le_rfl
+  rw [apxF, cval_eq]
+  unfold errSet at herr
+  cases hg : g m with
+  | inp i =>
+      simp only
+      split_ifs <;> simp [bitF, bz]
+  | neg j =>
+      simp only
+      rw [hrd, bz_not]
+  | or l =>
+      simp only
+      simp only [hg, Finset.mem_filter, Finset.mem_univ, true_and, not_not] at herr
+      simp only [hrd]
+      rw [show (1 - ∏ t : Fin ℓ, (1 - (∑ i ∈ orChoice (n := n) (p := p) ℓ g m l.toFinset t,
+          bz p (rdV (p := p) g m i x)) ^ (p - 1))) =
+          orApx (p := p) (rdV (p := p) g m) (orChoice (n := n) (p := p) ℓ g m l.toFinset) x
+        from rfl, ← herr, orVal_any]
+  | and l =>
+      simp only
+      simp only [hg, Finset.mem_filter, Finset.mem_univ, true_and, not_not] at herr
+      simp only [hrd, bz_not]
+      have e : (∏ t : Fin ℓ, (1 - (∑ i ∈ andChoice (n := n) (p := p) ℓ g m l.toFinset t,
+          bz p (rdVn (p := p) g m i x)) ^ (p - 1))) =
+          1 - orApx (p := p) (rdVn (p := p) g m) (andChoice (n := n) (p := p) ℓ g m l.toFinset) x := by
+        unfold orApx subSum; ring
+      rw [show (fun i => bz p (!rdV (p := p) g m i x)) = fun i => bz p (rdVn (p := p) g m i x)
+        from rfl, e, ← herr, orVal_any, bz_not]
+      congr 1
+      unfold rdVn
+      rw [Bool.eq_iff_iff]
+      simp [List.all_eq_true, List.any_eq_true]
+  | mod r l =>
+      simp only
+      have hs : (l.attach.map fun i => if h : i.1 < m then apxF (p := p) ℓ g i.1 x else 0).sum =
+          ((l.countP fun j => rdV (p := p) g m j x : ℕ) : ZMod p) := by
+        rw [← sum_bz_countP]
+        congr 1
+        have hf : (fun i : {j // j ∈ l} => if h : i.1 < m then apxF (p := p) ℓ g i.1 x else 0) =
+            fun i => bz p (rdV (p := p) g m i.1 x) := funext fun i => hrd i.1
+        rw [hf]
+        simp
+      rw [hs]
+      have hp1 : p - 1 ≠ 0 := by have := hp.out.two_le; omega
+      by_cases hc : (l.countP fun j => rdV (p := p) g m j x) % p = r % p
+      · have : ((l.countP fun j => rdV (p := p) g m j x : ℕ) : ZMod p) = (r : ZMod p) :=
+          (ZMod.natCast_eq_natCast_iff' _ _ _).2 hc
+        rw [this, sub_self, zero_pow hp1, sub_zero, decide_eq_true hc]; simp [bz]
+      · have hne : ((l.countP fun j => rdV (p := p) g m j x : ℕ) : ZMod p) - (r : ZMod p) ≠ 0 := by
+          intro h
+          exact hc ((ZMod.natCast_eq_natCast_iff' _ _ _).1 (sub_eq_zero.1 h))
+        rw [pow_card_sub_one hne, sub_self, decide_eq_false hc]; simp [bz]
+
+theorem apxF_eq (m : ℕ) : apxF (n := n) (p := p) ℓ g m = fun x => match g m with
+    | .inp i => if h : i < n then bitF p x ⟨i, h⟩ else 0
+    | .neg j => 1 - (if h : j < m then apxF (p := p) ℓ g j x else 0)
+    | .or l => 1 - ∏ t : Fin ℓ, (1 - (∑ i ∈ orChoice (n := n) (p := p) ℓ g m l.toFinset t,
+        (if h : i < m then apxF (p := p) ℓ g i x else 0)) ^ (p - 1))
+    | .and l => ∏ t : Fin ℓ, (1 - (∑ i ∈ andChoice (n := n) (p := p) ℓ g m l.toFinset t,
+        (1 - (if h : i < m then apxF (p := p) ℓ g i x else 0))) ^ (p - 1))
+    | .mod r l => 1 - ((l.attach.map fun i => if h : i.1 < m then apxF (p := p) ℓ g i.1 x else 0).sum -
+        (r : ZMod p)) ^ (p - 1) := by
+  funext x
+  rw [apxF]
+
+theorem cdepth_eq (m : ℕ) : cdepth g m = match g m with
+    | .inp _ => 0
+    | .neg j => if j < m then cdepth g j else 0
+    | .and l => (l.map fun j => if j < m then cdepth g j else 0).foldr max 0 + 1
+    | .or l => (l.map fun j => if j < m then cdepth g j else 0).foldr max 0 + 1
+    | .mod _ l => (l.map fun j => if j < m then cdepth g j else 0).foldr max 0 + 1 := by
+  rw [cdepth]
+  cases g m <;> simp
+
+theorem le_foldr_max {l : List ℕ} {a : ℕ} (h : a ∈ l) : a ≤ l.foldr max 0 := by
+  induction l with
+  | nil => simp at h
+  | cons b l ih =>
+      simp only [List.foldr_cons]
+      rcases List.mem_cons.1 h with rfl | h
+      · exact le_max_left _ _
+      · exact (ih h).trans (le_max_right _ _)
+
+theorem LowDeg.const_le {D : ℕ} (k : ZMod p) : LowDeg p n D (fun _ => k) :=
+  (LowDeg.const k).mono_deg (Nat.zero_le D)
+
+theorem LowDeg.listSum {D : ℕ} {ι : Type*} (l : List ι) {f : ι → (Fin n → Bool) → ZMod p}
+    (hf : ∀ i ∈ l, LowDeg p n D (f i)) : LowDeg p n D (fun x => (l.map fun i => f i x).sum) := by
+  induction l with
+  | nil => simpa using (LowDeg.const_le (n := n) (p := p) (D := D) 0)
+  | cons a l ih =>
+      have h1 := (hf a (by simp)).add (ih fun i hi => hf i (by simp [hi]))
+      simpa using h1
+
+/-- Degree of the approximants: `((p - 1) ℓ)^depth`. -/
+theorem apxF_deg (hℓ : 1 ≤ ℓ) : ∀ m, LowDeg p n (((p - 1) * ℓ) ^ cdepth g m)
+    (apxF (p := p) ℓ g m) := by
+  have hp2 := hp.out.two_le
+  have hK : 1 ≤ (p - 1) * ℓ := Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero (by omega) (by omega))
+  intro m
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+  -- reading an earlier approximant
+  have hrd : ∀ (i D : ℕ), (i < m → ((p - 1) * ℓ) ^ cdepth g i ≤ D) →
+      LowDeg p n D (fun x => if h : i < m then apxF (p := p) ℓ g i x else 0) := by
+    intro i D hD
+    by_cases h : i < m
+    · have := (ih i h).mono_deg (hD h)
+      refine ⟨this.choose, this.choose_spec.1, fun x => ?_⟩
+      dsimp only; rw [dif_pos h]; exact this.choose_spec.2 x
+    · simpa [dif_neg h] using (LowDeg.const_le (n := n) (p := p) (D := D) 0)
+  rw [apxF_eq, cdepth_eq]
+  cases hg : g m with
+  | inp i =>
+      simp only [pow_zero]
+      by_cases h : i < n
+      · simpa [dif_pos h] using LowDeg.var (p := p) ⟨i, h⟩
+      · simpa [dif_neg h] using (LowDeg.const_le (n := n) (p := p) (D := 1) 0)
+  | neg j =>
+      simp only
+      have h1 := hrd j (((p - 1) * ℓ) ^ (if j < m then cdepth g j else 0)) (fun hj => by
+        rw [if_pos hj])
+      exact (LowDeg.const_le 1).sub h1
+  | or l =>
+      simp only
+      set M := (l.map fun j => if j < m then cdepth g j else 0).foldr max 0
+      have hch : ∀ i ∈ l.toFinset, LowDeg p n (((p - 1) * ℓ) ^ M)
+          (fun x => if h : i < m then apxF (p := p) ℓ g i x else 0) := by
+        intro i hi
+        refine hrd i _ (fun him => Nat.pow_le_pow_right hK ?_)
+        have := le_foldr_max (l := l.map fun j => if j < m then cdepth g j else 0)
+          (a := if i < m then cdepth g i else 0) (List.mem_map.2 ⟨i, List.mem_toFinset.1 hi, rfl⟩)
+        rwa [if_pos him] at this
+      have hsum : ∀ t : Fin ℓ, LowDeg p n (((p - 1) * ℓ) ^ M) (fun x =>
+          ∑ i ∈ orChoice (n := n) (p := p) ℓ g m l.toFinset t,
+            (if h : i < m then apxF (p := p) ℓ g i x else 0)) := by
+        intro t
+        refine LowDeg.sum _ fun i hi => hch i ?_
+        exact (exists_good_choice (n := n) (p := p) ℓ (rdV (p := p) g m) l.toFinset).choose_spec.1
+          t hi
+      have hfac : ∀ t ∈ (Finset.univ : Finset (Fin ℓ)), LowDeg p n ((p - 1) * ((p - 1) * ℓ) ^ M)
+          (fun x => 1 - (∑ i ∈ orChoice (n := n) (p := p) ℓ g m l.toFinset t,
+            (if h : i < m then apxF (p := p) ℓ g i x else 0)) ^ (p - 1)) :=
+        fun t _ => (LowDeg.const_le 1).sub ((hsum t).pow (p - 1))
+      have hprod := LowDeg.prod _ hfac
+      rw [Finset.card_univ, Fintype.card_fin] at hprod
+      have e : ℓ * ((p - 1) * ((p - 1) * ℓ) ^ M) = ((p - 1) * ℓ) ^ (M + 1) := by ring
+      rw [e] at hprod
+      exact (LowDeg.const_le 1).sub hprod
+  | and l =>
+      simp only
+      set M := (l.map fun j => if j < m then cdepth g j else 0).foldr max 0
+      have hch : ∀ i ∈ l.toFinset, LowDeg p n (((p - 1) * ℓ) ^ M)
+          (fun x => 1 - if h : i < m then apxF (p := p) ℓ g i x else 0) := by
+        intro i hi
+        refine (LowDeg.const_le 1).sub (hrd i _ (fun him => Nat.pow_le_pow_right hK ?_))
+        have := le_foldr_max (l := l.map fun j => if j < m then cdepth g j else 0)
+          (a := if i < m then cdepth g i else 0) (List.mem_map.2 ⟨i, List.mem_toFinset.1 hi, rfl⟩)
+        rwa [if_pos him] at this
+      have hsum : ∀ t : Fin ℓ, LowDeg p n (((p - 1) * ℓ) ^ M) (fun x =>
+          ∑ i ∈ andChoice (n := n) (p := p) ℓ g m l.toFinset t,
+            (1 - if h : i < m then apxF (p := p) ℓ g i x else 0)) := by
+        intro t
+        refine LowDeg.sum _ fun i hi => hch i ?_
+        exact (exists_good_choice (n := n) (p := p) ℓ (rdVn (p := p) g m) l.toFinset).choose_spec.1
+          t hi
+      have hfac : ∀ t ∈ (Finset.univ : Finset (Fin ℓ)), LowDeg p n ((p - 1) * ((p - 1) * ℓ) ^ M)
+          (fun x => 1 - (∑ i ∈ andChoice (n := n) (p := p) ℓ g m l.toFinset t,
+            (1 - if h : i < m then apxF (p := p) ℓ g i x else 0)) ^ (p - 1)) :=
+        fun t _ => (LowDeg.const_le 1).sub ((hsum t).pow (p - 1))
+      have hprod := LowDeg.prod _ hfac
+      rw [Finset.card_univ, Fintype.card_fin] at hprod
+      have e : ℓ * ((p - 1) * ((p - 1) * ℓ) ^ M) = ((p - 1) * ℓ) ^ (M + 1) := by ring
+      rw [e] at hprod
+      exact hprod
+  | mod r l =>
+      simp only
+      set M := (l.map fun j => if j < m then cdepth g j else 0).foldr max 0
+      have hch : ∀ i ∈ l.attach, LowDeg p n (((p - 1) * ℓ) ^ M)
+          (fun x => if h : i.1 < m then apxF (p := p) ℓ g i.1 x else 0) := by
+        intro i _
+        refine hrd i.1 _ (fun him => Nat.pow_le_pow_right hK ?_)
+        have := le_foldr_max (l := l.map fun j => if j < m then cdepth g j else 0)
+          (a := if i.1 < m then cdepth g i.1 else 0) (List.mem_map.2 ⟨i.1, i.2, rfl⟩)
+        rwa [if_pos him] at this
+      have hs := LowDeg.listSum l.attach hch
+      have h1 := (hs.sub (LowDeg.const_le (r : ZMod p))).pow (p - 1)
+      have h2 := (LowDeg.const_le 1).sub h1
+      refine h2.mono_deg ?_
+      rw [pow_succ]
+      calc (p - 1) * ((p - 1) * ℓ) ^ M ≤ (p - 1) * ℓ * ((p - 1) * ℓ) ^ M :=
+            Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_right _ hℓ)
+        _ = ((p - 1) * ℓ) ^ M * ((p - 1) * ℓ) := by ring
+
+/-- Circuit approximation: a depth `d`, size `s` AC0[p] circuit computing `f` agrees with a
+function of degree `((p - 1) ℓ)^d` outside at most `s 2^n / 2^ℓ` inputs. -/
+theorem circuit_approx (hℓ : 1 ≤ ℓ) {s d : ℕ} {f : (Fin n → Bool) → Bool}
+    (hC : CComputes p g s d f) :
+    ∃ P : (Fin n → Bool) → ZMod p, LowDeg p n (((p - 1) * ℓ) ^ d) P ∧
+      (Finset.univ.filter fun x => P x ≠ bz p (f x)).card * 2 ^ ℓ ≤ s * 2 ^ n := by
+  obtain ⟨hs, hd, hf⟩ := hC
+  have hK : 1 ≤ (p - 1) * ℓ := by
+    have := hp.out.two_le; exact Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero (by omega) (by omega))
+  refine ⟨apxF (p := p) ℓ g (s - 1), (apxF_deg (p := p) ℓ g hℓ (s - 1)).mono_deg
+    (Nat.pow_le_pow_right hK (hd _ (by omega))), ?_⟩
+  have hsub : (Finset.univ.filter fun x => apxF (p := p) ℓ g (s - 1) x ≠ bz p (f x)) ⊆
+      (Finset.range s).biUnion fun m => errSet (n := n) (p := p) ℓ g m := by
+    intro x hx
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx
+    by_contra hno
+    apply hx
+    rw [← hf x]
+    refine apxF_correct (p := p) ℓ g (s - 1) x fun m' hm' hxm => hno ?_
+    exact Finset.mem_biUnion.2 ⟨m', Finset.mem_range.2 (by omega), hxm⟩
+  calc _ ≤ ((Finset.range s).biUnion fun m => errSet (n := n) (p := p) ℓ g m).card * 2 ^ ℓ :=
+        Nat.mul_le_mul_right _ (Finset.card_le_card hsub)
+    _ ≤ (∑ m ∈ Finset.range s, (errSet (n := n) (p := p) ℓ g m).card) * 2 ^ ℓ :=
+        Nat.mul_le_mul_right _ Finset.card_biUnion_le
+    _ = ∑ m ∈ Finset.range s, (errSet (n := n) (p := p) ℓ g m).card * 2 ^ ℓ := Finset.sum_mul _ _ _
+    _ ≤ ∑ _m ∈ Finset.range s, 2 ^ n := Finset.sum_le_sum fun m _ => errSet_card (p := p) ℓ g m
+    _ = s * 2 ^ n := by simp
+
+end CircApx
+
 end
 
 end SATurday.ProofComplexity
