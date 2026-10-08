@@ -94,7 +94,12 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 - [x] 1D.1 Literature pass with citations recorded in the rung memory (2026-10-08; entries
   marked (verify) still need a citation check).
 - [ ] 1D.2 Count_q lower bound for bounded depth Frege with Count_p axioms.
-- [ ] 1D.3 Res(⊕) lower bounds known so far (regular or bounded depth variants).
+- [x] 1D.3 Res(⊕) lower bounds, tree-like variant: parity decision trees solving the search
+  problem of `PHP_n ∘ MAJ₃` have `≥ 2^n` leaves (`RL.pdt_lifted_php`, stifling simulation with a
+  matching adversary), hence tree-like Res(⊕) refutations have `≥ 2^n` axiom leaves
+  (`RL.treelike_reslin_php`); the lifted formula is unsatisfiable (`RL.lifted_unsat`)
+  (ResLin.lean, 2026-10-08). Regular and bounded depth (dag) variants (Efremenko–Garlik–
+  Itsykson 2024 and later) are not formalized.
 
 ## Phase 2: intermediate open targets (research)
 

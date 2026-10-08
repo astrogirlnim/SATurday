@@ -2498,3 +2498,10 @@ SATurday.ProofComplexity.ccomputes_restrict
 SATurday.ProofComplexity.S2.basis
 SATurday.ProofComplexity.S2.agree_card_le3
 SATurday.ProofComplexity.smolensky_mod3
+SATurday.ProofComplexity.RL.adv_clause
+SATurday.ProofComplexity.RL.caseB
+SATurday.ProofComplexity.RL.pdt_leaves
+SATurday.ProofComplexity.RL.pdt_lifted_php
+SATurday.ProofComplexity.RL.tree_to_pdt
+SATurday.ProofComplexity.RL.treelike_reslin_php
+SATurday.ProofComplexity.RL.lifted_unsat

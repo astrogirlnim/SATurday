@@ -156,3 +156,9 @@ AC0[p] Frege and subsystems (the R4 frontier).
   circuits computing MOD_3 need super polynomial size. Two inputs fixed to constants give the
   three residue circuits; over `F_4` with `y = ω^x`, `∏ y_i = ω^{|x|}` is a combination of the
   three residue approximations and `y⁻¹ = y²` is affine in `x`.
+- 2026-10-08 formalize (Phase 1D.3): tree-like Res(⊕) lower bound certified (ResLin.lean):
+  `treelike_reslin_php`: every tree-like Res(⊕) refutation of `PHP_n ∘ MAJ₃` has `≥ 2^n` axiom
+  leaves. Route: refutation → parity decision tree (`tree_to_pdt`); stifling simulation keeps an
+  affine parametrisation of solutions with stifled blocks fixed by a PHP matching adversary;
+  every non constant query splits it, and a leaf needs `n` base queries. Dag-like (regular,
+  bounded depth, general) Res(⊕) remain beyond this: general Res(⊕) is Phase 2.1.
