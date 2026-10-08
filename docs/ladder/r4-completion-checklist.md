@@ -58,8 +58,8 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   `mswitching_ratio` (Matching.lean, MatchingSwitch.lean, 2026-10-08).
 - [x] 1B.4 k evaluations for bounded depth Frege proofs: `Good`/`Local` conditions over a
   matching restriction, soundness of all 18 rules for mod free proofs (`step_sound`,
-  `keval_sound`, `keval_no_refutation`), PHP clauses are hit (`php_clauseHit`), `php_unsat`
-  (KEval.lean, PHP.lean, 2026-10-08).
+  `keval_sound`, `keval_no_refutation`), clauses of the R1 `phpCNF` are hit
+  (`php_clauseHit`) (KEval.lean, PHPKEval.lean, 2026-10-08).
 - [ ] 1B.5 Theorem: bounded depth Frege refutations of PHP need exponential size.
 
 ### 1C Algebraic systems over F_p

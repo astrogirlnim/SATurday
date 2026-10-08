@@ -135,10 +135,10 @@ theorem mem_dsOf {S : Seq} {ψ : Fm} : ψ ∈ dsOf S ↔ (∃ φ ∈ S.1, ψ = .
 abbrev Eval := Fm → Finset Mt × Finset Mt
 
 /-- Local conditions tying an evaluation to the connectives. -/
-def Local (P H : Finset ℕ) (ρ : Mt) (E : Eval) : Fm → Prop
-  | .var v => Nat.unpair v ∈ P ×ˢ H →
-      (∀ α ∈ (E (.var v)).1, Nat.unpair v ∈ α ∪ ρ) ∧
-      (∀ α ∈ (E (.var v)).2, ¬ IsMatch (insert (Nat.unpair v) (α ∪ ρ)))
+def Local (P H : Finset ℕ) (vx : ℕ → ℕ × ℕ) (ρ : Mt) (E : Eval) : Fm → Prop
+  | .var v => vx v ∈ P ×ˢ H →
+      (∀ α ∈ (E (.var v)).1, vx v ∈ α ∪ ρ) ∧
+      (∀ α ∈ (E (.var v)).2, ¬ IsMatch (insert (vx v) (α ∪ ρ)))
   | .neg ψ => E (.neg ψ) = ((E ψ).2, (E ψ).1)
   | .and l => (∀ α ∈ (E (.and l)).2, ∃ ψ ∈ l, ∃ β ∈ (E ψ).2, β ⊆ α) ∧
       (∀ α ∈ (E (.and l)).1, ∀ ψ ∈ l, ∀ β ∈ (E ψ).2, ¬ Compat α β)
@@ -147,24 +147,24 @@ def Local (P H : Finset ℕ) (ρ : Mt) (E : Eval) : Fm → Prop
   | .mod _ _ => True
 
 /-- A formula well evaluated at depth `k` over `ρ`. -/
-structure Good (P H : Finset ℕ) (ρ : Mt) (k : ℕ) (E : Eval) (φ : Fm) : Prop where
+structure Good (P H : Finset ℕ) (vx : ℕ → ℕ × ℕ) (ρ : Mt) (k : ℕ) (E : Eval) (φ : Fm) : Prop where
   mem : ∀ α ∈ (E φ).1 ∪ (E φ).2, α ⊆ freeE P H ρ ∧ IsMatch α ∧ α.card ≤ k
   inc : ∀ α ∈ (E φ).1, ∀ β ∈ (E φ).2, ¬ Compat α β
   cov : ∀ π, π ⊆ freeE P H ρ → IsMatch π → π.card + 3 * k ≤ (fH H ρ).card →
     ∃ α ∈ (E φ).1 ∪ (E φ).2, Compat α π
-  loc : Local P H ρ E φ
+  loc : Local P H vx ρ E φ
 
 /-- Every clause of `F` is hit, against any small free matching, by a true branch of one of its
 literals. -/
-def ClauseHit (P H : Finset ℕ) (ρ : Mt) (k : ℕ) (E : Eval) (F : CNF) : Prop :=
-  ∀ C ∈ F, (∀ φ ∈ subs (clauseFm C), Good P H ρ k E φ) → ∀ β, β ⊆ freeE P H ρ → IsMatch β → β.card ≤ k →
+def ClauseHit (P H : Finset ℕ) (vx : ℕ → ℕ × ℕ) (ρ : Mt) (k : ℕ) (E : Eval) (F : CNF) : Prop :=
+  ∀ C ∈ F, (∀ φ ∈ subs (clauseFm C), Good P H vx ρ k E φ) → ∀ β, β ⊆ freeE P H ρ → IsMatch β → β.card ≤ k →
     ∃ l ∈ C, ∃ γ ∈ (E (litFm l)).1, Compat γ β
 
 section Sound
 
-variable {P H : Finset ℕ} {ρ : Mt} {k : ℕ} {E : Eval}
+variable {P H : Finset ℕ} {vx : ℕ → ℕ × ℕ} {ρ : Mt} {k : ℕ} {E : Eval}
 
-theorem good_neg {ψ : Fm} (h : Good P H ρ k E (.neg ψ)) :
+theorem good_neg {ψ : Fm} (h : Good P H vx ρ k E (.neg ψ)) :
     (E (.neg ψ)).1 = (E ψ).2 ∧ (E (.neg ψ)).2 = (E ψ).1 := by
   have := h.loc; simp only [Local] at this; rw [this]; exact ⟨rfl, rfl⟩
 
@@ -174,13 +174,13 @@ theorem union_small {α β : Mt} (hα : α ⊆ freeE P H ρ) (hβ : β ⊆ freeE
   ⟨union_subset hα hβ, hc, (card_union_le _ _).trans (by omega)⟩
 
 /-- Coverage for matchings of at most `2 k` edges. -/
-theorem cov2 {φ : Fm} (hG : Good P H ρ k E φ) (hroom : 5 * k ≤ (fH H ρ).card) {π : Mt}
+theorem cov2 {φ : Fm} (hG : Good P H vx ρ k E φ) (hroom : 5 * k ≤ (fH H ρ).card) {π : Mt}
     (hπ : π ⊆ freeE P H ρ) (hπm : IsMatch π) (hπk : π.card ≤ 2 * k) :
     ∃ α ∈ (E φ).1 ∪ (E φ).2, Compat α π :=
   hG.cov π hπ hπm (by omega)
 
 /-- A line with no false branch is hit by a true branch of a disjunct. -/
-theorem premise_hit {T : Seq} (hG : Good P H ρ k E (lineF T)) (hT : (E (lineF T)).2 = ∅)
+theorem premise_hit {T : Seq} (hG : Good P H vx ρ k E (lineF T)) (hT : (E (lineF T)).2 = ∅)
     (hroom : 5 * k ≤ (fH H ρ).card) {π : Mt} (hπ : π ⊆ freeE P H ρ) (hπm : IsMatch π)
     (hπk : π.card ≤ 2 * k) : ∃ ψ ∈ dsOf T, ∃ γ ∈ (E ψ).1, Compat γ π := by
   obtain ⟨ε, hε, hc⟩ := cov2 hG hroom hπ hπm hπk
@@ -189,7 +189,7 @@ theorem premise_hit {T : Seq} (hG : Good P H ρ k E (lineF T)) (hT : (E (lineF T
   obtain ⟨ψ, hψ, γ, hγ, hγε⟩ := hl.1 ε hε
   exact ⟨ψ, hψ, γ, hγ, compat_mono hc hγε subset_rfl⟩
 
-theorem false_branch {S : Seq} (hG : Good P H ρ k E (lineF S)) {α : Mt}
+theorem false_branch {S : Seq} (hG : Good P H vx ρ k E (lineF S)) {α : Mt}
     (hα : α ∈ (E (lineF S)).2) :
     (α ⊆ freeE P H ρ ∧ IsMatch α ∧ α.card ≤ k) ∧
       ∀ ψ ∈ dsOf S, ∀ γ ∈ (E ψ).1, ¬ Compat α γ := by
@@ -198,13 +198,13 @@ theorem false_branch {S : Seq} (hG : Good P H ρ k E (lineF S)) {α : Mt}
   exact hl.2 α hα
 
 /-- All subformulas of the line formula of `T` are well evaluated. -/
-def GoodLine (P H : Finset ℕ) (ρ : Mt) (k : ℕ) (E : Eval) (T : Seq) : Prop :=
-  ∀ φ ∈ subs (lineF T), Good P H ρ k E φ
+def GoodLine (P H : Finset ℕ) (vx : ℕ → ℕ × ℕ) (ρ : Mt) (k : ℕ) (E : Eval) (T : Seq) : Prop :=
+  ∀ φ ∈ subs (lineF T), Good P H vx ρ k E φ
 
-theorem goodLine_line {T : Seq} (h : GoodLine P H ρ k E T) : Good P H ρ k E (lineF T) :=
+theorem goodLine_line {T : Seq} (h : GoodLine P H vx ρ k E T) : Good P H vx ρ k E (lineF T) :=
   h _ (self_mem_subs _)
 
-theorem goodLine_ds {T : Seq} (h : GoodLine P H ρ k E T) {ψ : Fm} (hψ : ψ ∈ dsOf T) :
+theorem goodLine_ds {T : Seq} (h : GoodLine P H vx ρ k E T) {ψ : Fm} (hψ : ψ ∈ dsOf T) :
     ψ ∈ subs (lineF T) := sub_or (self_mem_subs _) hψ
 
 theorem compat_left {γ α β : Mt} (h : Compat γ (α ∪ β)) : Compat γ α :=
@@ -216,15 +216,15 @@ theorem compat_right {γ α β : Mt} (h : Compat γ (α ∪ β)) : Compat γ β 
 /-- One inference preserves "no false branch". -/
 theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FStep p F prev S)
     (hroom : 5 * k ≤ (fH H ρ).card)
-    (hprev : ∀ T ∈ prev, (E (lineF T)).2 = ∅) (hGprev : ∀ T ∈ prev, GoodLine P H ρ k E T)
-    (hGS : GoodLine P H ρ k E S) (hmf : ∀ φ ∈ S.1 ++ S.2, ∀ ψ ∈ subs φ, isMod ψ = false)
-    (hF : ClauseHit P H ρ k E F) : (E (lineF S)).2 = ∅ := by
+    (hprev : ∀ T ∈ prev, (E (lineF T)).2 = ∅) (hGprev : ∀ T ∈ prev, GoodLine P H vx ρ k E T)
+    (hGS : GoodLine P H vx ρ k E S) (hmf : ∀ φ ∈ S.1 ++ S.2, ∀ ψ ∈ subs φ, isMod ψ = false)
+    (hF : ClauseHit P H vx ρ k E F) : (E (lineF S)).2 = ∅ := by
   have hLS := goodLine_line hGS
   ext α
   simp only [Finset.notMem_empty, iff_false]
   intro hα
   obtain ⟨⟨hαf, hαm, hαk⟩, hαx⟩ := false_branch hLS hα
-  have hdS : ∀ ψ ∈ dsOf S, Good P H ρ k E ψ := fun ψ hψ => hGS ψ (goodLine_ds hGS hψ)
+  have hdS : ∀ ψ ∈ dsOf S, Good P H vx ρ k E ψ := fun ψ hψ => hGS ψ (goodLine_ds hGS hψ)
   have hαk2 : α.card ≤ 2 * k := by omega
   -- the mod free hypothesis rules out the MOD axioms
   have hnm : ∀ φ ∈ S.1 ++ S.2, isMod φ = false := fun φ hφ => hmf φ hφ φ (self_mem_subs φ)
@@ -249,7 +249,7 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
     have hd1 : Fm.neg φ ∈ dsOf ([φ], [φ]) := by simp [dsOf]
     have hd2 : φ ∈ dsOf ([φ], [φ]) := by simp [dsOf]
     have hGn := hdS _ hd1
-    have hG : Good P H ρ k E φ := hGS φ (sub_neg (goodLine_ds hGS hd1))
+    have hG : Good P H vx ρ k E φ := hGS φ (sub_neg (goodLine_ds hGS hd1))
     obtain ⟨β, hβ, hc⟩ := cov2 hG hroom hαf hαm hαk2
     rcases mem_union.1 hβ with hβ | hβ
     · exact hαx φ hd2 β hβ (compat_symm hc)
@@ -265,7 +265,7 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
   · -- OR [] ⊢
     have hd : Fm.neg (.or []) ∈ dsOf ([.or []], []) := by simp [dsOf]
     have hGn := hdS _ hd
-    have hG : Good P H ρ k E (.or []) := hGS _ (sub_neg (goodLine_ds hGS hd))
+    have hG : Good P H vx ρ k E (.or []) := hGS _ (sub_neg (goodLine_ds hGS hd))
     obtain ⟨β, hβ, hc⟩ := cov2 hG hroom hαf hαm hαk2
     have hl := hG.loc; simp only [Local] at hl
     rcases mem_union.1 hβ with hβ | hβ
@@ -285,7 +285,7 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
     · exact mem_dsOf.2 (Or.inl ⟨χ, h1 hχ, rfl⟩)
     · exact mem_dsOf.2 (Or.inr (h2 hψ))
   · -- cut
-    have hGφ : Good P H ρ k E φ := hGprev _ h1 φ (goodLine_ds (hGprev _ h1) (by simp [dsOf]))
+    have hGφ : Good P H vx ρ k E φ := hGprev _ h1 φ (goodLine_ds (hGprev _ h1) (by simp [dsOf]))
     obtain ⟨β, hβ, hc⟩ := cov2 hGφ hroom hαf hαm hαk2
     obtain ⟨hβf, hβm, hβk⟩ := hGφ.mem β hβ
     obtain ⟨huf, hum, huk⟩ := union_small hβf hαf hc hβk hαk
@@ -294,7 +294,7 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
         hroom huf hum huk
       rcases mem_dsOf.1 hψ with ⟨χ, hχ, rfl⟩ | hψ
       · rcases List.mem_cons.1 hχ with rfl | hχ
-        · have hGn : Good P H ρ k E (.neg χ) := hGprev _ h2 _ (goodLine_ds (hGprev _ h2) hψ)
+        · have hGn : Good P H vx ρ k E (.neg χ) := hGprev _ h2 _ (goodLine_ds (hGprev _ h2) hψ)
           rw [(good_neg hGn).1] at hγ
           exact hGφ.inc β hβ γ hγ (compat_symm (compat_left hcγ))
         · exact hαx _ (mem_dsOf.2 (Or.inl ⟨χ, hχ, rfl⟩)) γ hγ (compat_symm (compat_right hcγ))
@@ -314,7 +314,7 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
     · rcases List.mem_cons.1 hψ with rfl | hψ
       · have hd : Fm.neg (.neg ψ) ∈ dsOf (.neg ψ :: Γ, Δ) := by simp [dsOf]
         have hGnn := hdS _ hd
-        have hGn : Good P H ρ k E (.neg ψ) := hGS _ (sub_neg (goodLine_ds hGS hd))
+        have hGn : Good P H vx ρ k E (.neg ψ) := hGS _ (sub_neg (goodLine_ds hGS hd))
         refine hαx _ hd γ ?_ (compat_symm hc)
         rw [(good_neg hGnn).1, (good_neg hGn).2]; exact hγ
       · exact hαx _ (mem_dsOf.2 (Or.inr hψ)) γ hγ (compat_symm hc)
@@ -329,12 +329,12 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
   · -- AND left
     have hd : Fm.neg (.and l) ∈ dsOf (.and l :: Γ, Δ) := by simp [dsOf]
     have hGna := hdS _ hd
-    have hGa : Good P H ρ k E (.and l) := hGS _ (sub_neg (goodLine_ds hGS hd))
+    have hGa : Good P H vx ρ k E (.and l) := hGS _ (sub_neg (goodLine_ds hGS hd))
     obtain ⟨ψ, hψ, γ, hγ, hc⟩ := premise_hit (goodLine_line (hGprev _ h1)) (hprev _ h1) hroom
       hαf hαm hαk2
     rcases mem_dsOf.1 hψ with ⟨χ, hχ, rfl⟩ | hψ
     · rcases List.mem_cons.1 hχ with rfl | hχ
-      · have hGn : Good P H ρ k E (.neg χ) := hGprev _ h1 _ (goodLine_ds (hGprev _ h1) hψ)
+      · have hGn : Good P H vx ρ k E (.neg χ) := hGprev _ h1 _ (goodLine_ds (hGprev _ h1) hψ)
         have hγ' : γ ∈ (E χ).2 := by rw [← (good_neg hGn).1]; exact hγ
         obtain ⟨hγf, hγm, hγk⟩ := hGn.mem γ (mem_union.2 (Or.inl hγ))
         obtain ⟨huf, hum, huk⟩ := union_small hγf hαf hc hγk hαk
@@ -354,7 +354,7 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
     · exact hαx _ hd ε hε (compat_symm hcε)
     · have hl := hGa.loc; simp only [Local] at hl
       obtain ⟨φ, hφl, δ, hδ, hδε⟩ := hl.1 ε hε
-      have hGφ : Good P H ρ k E φ := hGS _ (sub_and (goodLine_ds hGS hd) hφl)
+      have hGφ : Good P H vx ρ k E φ := hGS _ (sub_and (goodLine_ds hGS hd) hφl)
       obtain ⟨hεf, hεm, hεk⟩ := hGa.mem ε (mem_union.2 (Or.inr hε))
       obtain ⟨huf, hum, huk⟩ := union_small hεf hαf hcε hεk hαk
       obtain ⟨ψ, hψ, η, hη, hc⟩ := premise_hit (goodLine_line (hGprev _ (h1 φ hφl)))
@@ -368,19 +368,19 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
   · -- OR left
     have hd : Fm.neg (.or l) ∈ dsOf (.or l :: Γ, Δ) := by simp [dsOf]
     have hGno := hdS _ hd
-    have hGo : Good P H ρ k E (.or l) := hGS _ (sub_neg (goodLine_ds hGS hd))
+    have hGo : Good P H vx ρ k E (.or l) := hGS _ (sub_neg (goodLine_ds hGS hd))
     obtain ⟨ε, hε, hcε⟩ := cov2 hGo hroom hαf hαm hαk2
     rcases mem_union.1 hε with hε | hε
     · have hl := hGo.loc; simp only [Local] at hl
       obtain ⟨φ, hφl, δ, hδ, hδε⟩ := hl.1 ε hε
-      have hGφ : Good P H ρ k E φ := hGS _ (sub_or (sub_neg (goodLine_ds hGS hd)) hφl)
+      have hGφ : Good P H vx ρ k E φ := hGS _ (sub_or (sub_neg (goodLine_ds hGS hd)) hφl)
       obtain ⟨hεf, hεm, hεk⟩ := hGo.mem ε (mem_union.2 (Or.inl hε))
       obtain ⟨huf, hum, huk⟩ := union_small hεf hαf hcε hεk hαk
       obtain ⟨ψ, hψ, η, hη, hc⟩ := premise_hit (goodLine_line (hGprev _ (h1 φ hφl)))
         (hprev _ (h1 φ hφl)) hroom huf hum huk
       rcases mem_dsOf.1 hψ with ⟨χ, hχ, rfl⟩ | hψ
       · rcases List.mem_cons.1 hχ with rfl | hχ
-        · have hGn : Good P H ρ k E (.neg χ) :=
+        · have hGn : Good P H vx ρ k E (.neg χ) :=
             hGprev _ (h1 χ hφl) _ (goodLine_ds (hGprev _ (h1 χ hφl)) hψ)
           rw [(good_neg hGn).1] at hη
           exact hGφ.inc δ hδ η hη (compat_symm (compat_mono (compat_left hc) subset_rfl hδε))
@@ -396,7 +396,7 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
     rcases mem_dsOf.1 hψ with ⟨χ, hχ, rfl⟩ | hψ
     · exact hαx _ (mem_dsOf.2 (Or.inl ⟨χ, hχ, rfl⟩)) γ hγ (compat_symm hc)
     · rcases List.mem_cons.1 hψ with rfl | hψ
-      · have hGψ : Good P H ρ k E ψ := hGprev _ h1 _ (goodLine_ds (hGprev _ h1) (by simp [dsOf]))
+      · have hGψ : Good P H vx ρ k E ψ := hGprev _ h1 _ (goodLine_ds (hGprev _ h1) (by simp [dsOf]))
         obtain ⟨hγf, hγm, hγk⟩ := hGψ.mem γ (mem_union.2 (Or.inl hγ))
         obtain ⟨huf, hum, huk⟩ := union_small hγf hαf hc hγk hαk
         obtain ⟨ε, hε, hcε⟩ := cov2 hGo hroom huf hum huk
@@ -408,7 +408,7 @@ theorem step_sound {p : ℕ} {F : CNF} {prev : List Seq} {S : Seq} (hstep : FSte
 
 /-- **k-evaluation soundness**: every line of a mod free proof has no false branch. -/
 theorem keval_sound {p : ℕ} {F : CNF} {L : List Seq} (hL : FProof p F L) (hmf : ModFree L)
-    (hE : ∀ S ∈ L, GoodLine P H ρ k E S) (hF : ClauseHit P H ρ k E F)
+    (hE : ∀ S ∈ L, GoodLine P H vx ρ k E S) (hF : ClauseHit P H vx ρ k E F)
     (hroom : 5 * k ≤ (fH H ρ).card) : ∀ S ∈ L, (E (lineF S)).2 = ∅ := by
   have key : ∀ j (hj : j < L.length), (E (lineF (L.get ⟨j, hj⟩))).2 = ∅ := by
     intro j
@@ -429,7 +429,7 @@ theorem keval_sound {p : ℕ} {F : CNF} {L : List Seq} (hL : FProof p F L) (hmf 
 
 /-- No mod free proof with a `k`-evaluation contains the empty sequent. -/
 theorem keval_no_refutation {p : ℕ} {F : CNF} {L : List Seq} (hL : FProof p F L)
-    (hmf : ModFree L) (hE : ∀ S ∈ L, GoodLine P H ρ k E S) (hF : ClauseHit P H ρ k E F)
+    (hmf : ModFree L) (hE : ∀ S ∈ L, GoodLine P H vx ρ k E S) (hF : ClauseHit P H vx ρ k E F)
     (hroom : 5 * k ≤ (fH H ρ).card) : ([], []) ∉ L := by
   intro h
   have h0 := keval_sound hL hmf hE hF hroom _ h
