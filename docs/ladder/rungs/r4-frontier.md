@@ -69,3 +69,9 @@ passes the barrier audit before formalization effort is spent.
   `|R^{ℓ-s}| (4w)^s`. Proof by Razborov's encoding: `encode` builds, for each bad
   restriction, an extension with `s` fewer stars and a code (blocks of positions inside
   terms plus answers) from which `dec` recovers it; `codes_card` bounds the codes by `(4w)^s`.
+- 2026-10-08 formalize (Phase 1B.3): PHP switching lemma certified (Matching.lean,
+  MatchingSwitch.lean). Canonical matching decision trees with block queries (`mdepth`,
+  counting term edges); `cover_of_mdepth` (a depth `s` tree decides the DNF along a branch of at
+  most `2 s` edges compatible with any free matching that leaves room); `mencode`/`mdec`
+  encoding with partner codes relative to the image restriction; `mswitching_ratio`:
+  `#bad · (m + 1 - |ρ0|)^s ≤ #R_m · ((|P| - m)(|H| - m) · 2 w C²)^s`.

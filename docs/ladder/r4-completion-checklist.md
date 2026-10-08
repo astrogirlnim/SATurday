@@ -53,7 +53,9 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 - [x] 1B.2 Håstad's switching lemma (Razborov's encoding proof): restrictions with `ℓ` stars
   whose canonical tree has depth `≥ s` number at most `|R^{ℓ-s}| (4w)^s`
   (`switching_lemma`, 2026-10-08).
-- [ ] 1B.3 Matching restrictions and the PHP switching lemma.
+- [x] 1B.3 Matching restrictions and the PHP switching lemma: canonical matching trees
+  (`mdepth`), coverage (`cover_of_mdepth`), Razborov style encoding (`mencode`), counting form
+  `mswitching_ratio` (Matching.lean, MatchingSwitch.lean, 2026-10-08).
 - [ ] 1B.4 k evaluations for bounded depth Frege proofs.
 - [ ] 1B.5 Theorem: bounded depth Frege refutations of PHP need exponential size.
 

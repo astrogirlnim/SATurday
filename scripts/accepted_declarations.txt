@@ -2453,3 +2453,9 @@ SATurday.ProofComplexity.cdtDepth
 SATurday.ProofComplexity.encode
 SATurday.ProofComplexity.codes_card
 SATurday.ProofComplexity.switching_lemma
+SATurday.ProofComplexity.mdepth
+SATurday.ProofComplexity.cover_of_mdepth
+SATurday.ProofComplexity.mencode
+SATurday.ProofComplexity.mswitching
+SATurday.ProofComplexity.Rm_add
+SATurday.ProofComplexity.mswitching_ratio
