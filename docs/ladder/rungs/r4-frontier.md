@@ -100,3 +100,10 @@ passes the barrier audit before formalization effort is spent.
   prime `p ∤ q`. Route: substitute Lagrange indicators over `CyclotomicField q F_p`, derive the
   clause images from `y_e^q - 1` and the vertex binomials by the Combinatorial
   Nullstellensatz, then apply the binomial bound.
+- 2026-10-08 formalize (Phase 1C.3): size–degree tradeoff and exponential PC size for Tseitin
+  mod q over F_p certified (PCSizeDegree.lean, TseitinSize.lean). Multilinear polynomials as
+  `Finset ℕ →₀ F`; restrictions are combinatorial; `ips` restricts a variable occurring in many
+  fat monomials, combining the two branches with `+2` degree on the killing branch.
+  `tseitin_ml_size`: size `≥ 2^m`, `m = E / (2(|V|/E + 1))`, `E` a third of the linear degree
+  bound. Phase 1C is complete: Tseitin mod q, a primary R4 candidate, is exponentially hard for
+  polynomial calculus over F_p (the algebraic part of AC0[p] Frege lower bound attempts).

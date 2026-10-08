@@ -2488,3 +2488,8 @@ SATurday.ProofComplexity.TseitinPC.tcnf_unsat
 SATurday.ProofComplexity.TseitinPC.simulate
 SATurday.ProofComplexity.TseitinPC.tseitin_bool_degree
 SATurday.ProofComplexity.TseitinPC.tseitin_bool_degree_Fp
+SATurday.ProofComplexity.MLPC.combine
+SATurday.ProofComplexity.MLPC.ips
+SATurday.ProofComplexity.MLPC.size_degree
+SATurday.ProofComplexity.MLPC.translate
+SATurday.ProofComplexity.TseitinPC.tseitin_ml_size

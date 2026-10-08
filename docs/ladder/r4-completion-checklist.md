@@ -82,7 +82,11 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   `tseitin_bool_degree_Fp`: for primes `p ∤ q`, on cubic expanders, no PC refutation over
   `ZMod p` of degree `((n-2)/1312 - q(q+3))/(q-1)`; unsatisfiability `tcnf_unsat`
   (TseitinBool.lean, 2026-10-08).
-- [ ] 1C.3 Size–degree tradeoff for polynomial calculus.
+- [x] 1C.3 Size–degree tradeoff for polynomial calculus (multilinear proofs as line lists):
+  `MLPC.ips` (Impagliazzo–Pudlák–Sgall induction), explicit form `MLPC.size_degree`,
+  translation to PC `MLPC.translate`; consequence `TseitinPC.tseitin_ml_size`: over `ZMod p`
+  (`p ∤ q`), multilinear PC refutations of one hot Tseitin mod q on cubic expanders have size
+  `2^{Ω(n)}` (explicit exponent) (PCSizeDegree.lean, TseitinSize.lean, 2026-10-08).
 
 ### 1D Known partial results toward AC0[p] Frege
 

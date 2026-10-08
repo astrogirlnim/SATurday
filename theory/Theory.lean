@@ -36,6 +36,8 @@ import Theory.ProofComplexity.PHPFrege
 import Theory.ProofComplexity.PolyCalc
 import Theory.ProofComplexity.TseitinPC
 import Theory.ProofComplexity.TseitinBool
+import Theory.ProofComplexity.PCSizeDegree
+import Theory.ProofComplexity.TseitinSize
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding
