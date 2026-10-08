@@ -2447,3 +2447,9 @@ SATurday.ProofComplexity.fourier
 SATurday.ProofComplexity.agree_card_le
 SATurday.ProofComplexity.choose_half_sq_le
 SATurday.ProofComplexity.smolensky_parity
+
+# R4 Phase 1B: Hastad switching lemma, Razborov encoding (2026-10-08)
+SATurday.ProofComplexity.cdtDepth
+SATurday.ProofComplexity.encode
+SATurday.ProofComplexity.codes_card
+SATurday.ProofComplexity.switching_lemma

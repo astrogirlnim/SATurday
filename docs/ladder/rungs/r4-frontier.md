@@ -63,3 +63,9 @@ passes the barrier audit before formalization effort is spent.
   agreement set count (`agree_card_le`), central binomial bound. This is the circuit analogue
   of the R4 target; the proof analogue needs a different idea (the approximation does not
   transfer to proofs directly).
+- 2026-10-08 formalize (Phase 1B.1-1B.2): Håstad's switching lemma certified,
+  `switching_lemma` (Switching.lean): for a DNF of width `w` with consistent terms, the
+  restrictions with `ℓ` stars whose canonical decision tree has depth `≥ s` number at most
+  `|R^{ℓ-s}| (4w)^s`. Proof by Razborov's encoding: `encode` builds, for each bad
+  restriction, an extension with `s` fewer stars and a code (blocks of positions inside
+  terms plus answers) from which `dec` recovers it; `codes_card` bounds the codes by `(4w)^s`.
