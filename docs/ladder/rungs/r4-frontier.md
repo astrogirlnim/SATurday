@@ -80,3 +80,11 @@ passes the barrier audit before formalization effort is spent.
   (free partial matchings of size `≤ k`) with incompatibility, coverage (room `|π| + 3k ≤ ℓ`)
   and connective conditions. `keval_no_refutation`: with `5k ≤ ℓ` and all PHP clauses hit
   (`php_clauseHit`), no mod free proof contains the empty sequent.
+- 2026-10-08 formalize (Phase 1B.5): bounded depth Frege PHP lower bound certified,
+  `php_bdfrege_superpoly` (PHPFrege.lean): for every depth `d` and exponent `c`, for all large
+  `n`, every mod free depth `d` refutation of `phpCNF n` in the R4 sequent calculus has size
+  `> n^c`. Construction (KEvalBuild.lean): restriction of evaluations (`good_res`), depth zero
+  base (`good_E0`), canonical step from shallow matching trees (`level_step`); union bound over
+  random matching extensions (`exists_shallow_ext`) iterated over `d + 1` levels (`levels`)
+  with free hole counts `M^{7^{T-t}}`, `s = 2·7^T·c + 2`, `k = 2s`. This is the mod free special
+  case of the R4 target for PHP; the MOD_p axioms are exactly what the method cannot handle.

@@ -60,7 +60,11 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   matching restriction, soundness of all 18 rules for mod free proofs (`step_sound`,
   `keval_sound`, `keval_no_refutation`), clauses of the R1 `phpCNF` are hit
   (`php_clauseHit`) (KEval.lean, PHPKEval.lean, 2026-10-08).
-- [ ] 1B.5 Theorem: bounded depth Frege refutations of PHP need exponential size.
+- [x] 1B.5 Theorem: bounded depth Frege refutations of PHP need super polynomial size
+  (`php_bdfrege_superpoly`: for every `d`, `c`, all large `n`, every mod free depth `d`
+  refutation of `phpCNF n` has `fSize > n^c`; KEvalBuild.lean, PHPFrege.lean, 2026-10-08).
+  The exponential rate (`2^{n^{ε_d}}`) is not formalized; the super polynomial form matches
+  the shape of `AC0pFregeLB`.
 
 ### 1C Algebraic systems over F_p
 

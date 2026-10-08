@@ -31,6 +31,8 @@ import Theory.ProofComplexity.Matching
 import Theory.ProofComplexity.MatchingSwitch
 import Theory.ProofComplexity.KEval
 import Theory.ProofComplexity.PHPKEval
+import Theory.ProofComplexity.KEvalBuild
+import Theory.ProofComplexity.PHPFrege
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding

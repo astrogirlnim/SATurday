@@ -2464,3 +2464,9 @@ SATurday.ProofComplexity.step_sound
 SATurday.ProofComplexity.keval_sound
 SATurday.ProofComplexity.keval_no_refutation
 SATurday.ProofComplexity.php_clauseHit
+SATurday.ProofComplexity.good_res
+SATurday.ProofComplexity.good_E0
+SATurday.ProofComplexity.level_step
+SATurday.ProofComplexity.exists_shallow_ext
+SATurday.ProofComplexity.levels
+SATurday.ProofComplexity.php_bdfrege_superpoly
