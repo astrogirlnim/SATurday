@@ -88,3 +88,10 @@ passes the barrier audit before formalization effort is spent.
   random matching extensions (`exists_shallow_ext`) iterated over `d + 1` levels (`levels`)
   with free hole counts `M^{7^{T-t}}`, `s = 2·7^T·c + 2`, `k = 2s`. This is the mod free special
   case of the R4 target for PHP; the MOD_p axioms are exactly what the method cannot handle.
+- 2026-10-08 formalize (Phase 1C.1-1C.2): polynomial calculus (PolyCalc.lean: `PCD`, `PCD₀`,
+  soundness) and the Tseitin mod q degree lower bound in the binomial encoding
+  (TseitinPC.lean): R-operator sending a monomial to its phase times the minimum degree
+  monomial of its class modulo coboundaries; expansion gives unique small potentials, so the
+  phase is additive on small vectors. Linear degree on the R2 cubic MGG expanders
+  (`tseitin_pc_degree_cubic`). Open sub item 1C.2b: transfer to the Boolean one hot encoding
+  over F_p.

@@ -70,7 +70,15 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 
 - [x] 1C.1 Polynomial calculus over a field: degree `d` derivations `PCD`, line degrees
   (`pcd_deg`), soundness (`pcd_sound`, `pc_cnf_unsat`) (PolyCalc.lean, 2026-10-08).
-- [ ] 1C.2 Degree lower bound for Tseitin mod q over F_p (q ≠ p).
+- [x] 1C.2 Degree lower bound for Tseitin mod q, binomial (Fourier) encoding: over any field with
+  `ω^q = 1`, on a graph with inverse expansion `k` and max degree `≤ d`, `8kd + 2 ≤ n` rules out
+  degree `d` PC refutations (`TseitinPC.tseitin_pc_degree`, Razborov R-operator); the system is
+  unsatisfiable for primitive `ω` and nonzero total charge (`bt_no_root`); linear degree
+  `(n - 2)/1312` on the certified cubic MGG expanders (`tseitin_pc_degree_cubic`)
+  (TseitinPC.lean, 2026-10-08).
+- [ ] 1C.2b Transfer to the Boolean encoding (`x_{e,j}`, one hot) over F_p: substitution
+  `x_{e,j} ↦ (1/q) Σ_k ω^{-jk} y_e^k` in an extension `GF(p^m)` containing `ω` (degree blow up
+  `q - 1`), plus low degree derivations of the substituted clauses.
 - [ ] 1C.3 Size–degree tradeoff for polynomial calculus.
 
 ### 1D Known partial results toward AC0[p] Frege

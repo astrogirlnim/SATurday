@@ -46,6 +46,21 @@ theorem pcd_deg {Ax : Set (MvPolynomial ℕ F)} {d : ℕ} {f : MvPolynomial ℕ 
     · exact (totalDegree_mul _ _).trans (by rw [totalDegree_C]; omega)
   | mul i _ hd _ => exact hd
 
+/-- Polynomial calculus without Boolean axioms (for non Boolean encodings). -/
+inductive PCD₀ (Ax : Set (MvPolynomial ℕ F)) (d : ℕ) : MvPolynomial ℕ F → Prop
+  | ax {f} : f ∈ Ax → f.totalDegree ≤ d → PCD₀ Ax d f
+  | lin {f g} (a b : F) : PCD₀ Ax d f → PCD₀ Ax d g → PCD₀ Ax d (C a * f + C b * g)
+  | mul {f} (i : ℕ) : PCD₀ Ax d f → (X i * f).totalDegree ≤ d → PCD₀ Ax d (X i * f)
+
+/-- Boolean polynomial calculus is the plain one with the Boolean axioms added. -/
+theorem pcd_to_pcd₀ {Ax : Set (MvPolynomial ℕ F)} {d : ℕ} {f : MvPolynomial ℕ F}
+    (h : PCD Ax d f) : PCD₀ (Ax ∪ {g | ∃ i, g = X i ^ 2 - X i}) d f := by
+  induction h with
+  | ax hf hd => exact PCD₀.ax (Or.inl hf) hd
+  | bool i h2 => exact PCD₀.ax (Or.inr ⟨i, rfl⟩) (pcd_deg (PCD.bool (Ax := Ax) i h2))
+  | lin a b _ _ ihf ihg => exact PCD₀.lin a b ihf ihg
+  | mul i _ hd ih => exact PCD₀.mul i ih hd
+
 /-- A Boolean point of `F`. -/
 def BoolPt (a : ℕ → F) : Prop := ∀ i, a i = 0 ∨ a i = 1
 

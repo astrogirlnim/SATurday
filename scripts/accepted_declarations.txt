@@ -2475,3 +2475,10 @@ SATurday.ProofComplexity.php_bdfrege_superpoly
 SATurday.ProofComplexity.pcd_deg
 SATurday.ProofComplexity.pcd_sound
 SATurday.ProofComplexity.pc_cnf_unsat
+SATurday.ProofComplexity.pcd_to_pcd₀
+SATurday.ProofComplexity.TseitinPC.level
+SATurday.ProofComplexity.TseitinPC.uniq
+SATurday.ProofComplexity.TseitinPC.Rmon_mul
+SATurday.ProofComplexity.TseitinPC.tseitin_pc_degree
+SATurday.ProofComplexity.TseitinPC.bt_no_root
+SATurday.ProofComplexity.TseitinPC.tseitin_pc_degree_cubic
