@@ -2470,3 +2470,8 @@ SATurday.ProofComplexity.level_step
 SATurday.ProofComplexity.exists_shallow_ext
 SATurday.ProofComplexity.levels
 SATurday.ProofComplexity.php_bdfrege_superpoly
+
+# R4 Phase 1C: algebraic systems (2026-10-08)
+SATurday.ProofComplexity.pcd_deg
+SATurday.ProofComplexity.pcd_sound
+SATurday.ProofComplexity.pc_cnf_unsat

@@ -68,7 +68,8 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 
 ### 1C Algebraic systems over F_p
 
-- [ ] 1C.1 Polynomial calculus over F_p: definitions, soundness, degree.
+- [x] 1C.1 Polynomial calculus over a field: degree `d` derivations `PCD`, line degrees
+  (`pcd_deg`), soundness (`pcd_sound`, `pc_cnf_unsat`) (PolyCalc.lean, 2026-10-08).
 - [ ] 1C.2 Degree lower bound for Tseitin mod q over F_p (q ≠ p).
 - [ ] 1C.3 Size–degree tradeoff for polynomial calculus.
 
