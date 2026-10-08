@@ -95,3 +95,8 @@ passes the barrier audit before formalization effort is spent.
   phase is additive on small vectors. Linear degree on the R2 cubic MGG expanders
   (`tseitin_pc_degree_cubic`). Open sub item 1C.2b: transfer to the Boolean one hot encoding
   over F_p.
+- 2026-10-08 formalize (Phase 1C.2b): Boolean one hot Tseitin mod q over F_p certified
+  (TseitinBool.lean, `tseitin_bool_degree_Fp`): linear PC degree on cubic expanders for every
+  prime `p ∤ q`. Route: substitute Lagrange indicators over `CyclotomicField q F_p`, derive the
+  clause images from `y_e^q - 1` and the vertex binomials by the Combinatorial
+  Nullstellensatz, then apply the binomial bound.

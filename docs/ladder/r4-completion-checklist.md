@@ -76,9 +76,12 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   unsatisfiable for primitive `ω` and nonzero total charge (`bt_no_root`); linear degree
   `(n - 2)/1312` on the certified cubic MGG expanders (`tseitin_pc_degree_cubic`)
   (TseitinPC.lean, 2026-10-08).
-- [ ] 1C.2b Transfer to the Boolean encoding (`x_{e,j}`, one hot) over F_p: substitution
-  `x_{e,j} ↦ (1/q) Σ_k ω^{-jk} y_e^k` in an extension `GF(p^m)` containing `ω` (degree blow up
-  `q - 1`), plus low degree derivations of the substituted clauses.
+- [x] 1C.2b Transfer to the Boolean one hot encoding over F_p: substitution
+  `x_{e,j} ↦ L_j(y_e)` (Lagrange indicators) into `CyclotomicField q F_p`, clause images
+  derived via Alon's Combinatorial Nullstellensatz (`derive_grid`), simulation `simulate`;
+  `tseitin_bool_degree_Fp`: for primes `p ∤ q`, on cubic expanders, no PC refutation over
+  `ZMod p` of degree `((n-2)/1312 - q(q+3))/(q-1)`; unsatisfiability `tcnf_unsat`
+  (TseitinBool.lean, 2026-10-08).
 - [ ] 1C.3 Size–degree tradeoff for polynomial calculus.
 
 ### 1D Known partial results toward AC0[p] Frege

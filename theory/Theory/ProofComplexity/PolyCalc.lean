@@ -61,6 +61,77 @@ theorem pcd_to_pcd₀ {Ax : Set (MvPolynomial ℕ F)} {d : ℕ} {f : MvPolynomia
   | lin a b _ _ ihf ihg => exact PCD₀.lin a b ihf ihg
   | mul i _ hd ih => exact PCD₀.mul i ih hd
 
+/-! ## Closure properties of plain derivations -/
+
+section Closure
+
+variable {Ax : Set (MvPolynomial ℕ F)} {D : ℕ}
+
+theorem pcd₀_zero {g : MvPolynomial ℕ F} (hg : PCD₀ Ax D g) : PCD₀ Ax D 0 := by
+  have := PCD₀.lin 0 0 hg hg; simpa using this
+
+theorem pcd₀_add {f g : MvPolynomial ℕ F} (hf : PCD₀ Ax D f) (hg : PCD₀ Ax D g) :
+    PCD₀ Ax D (f + g) := by
+  have := PCD₀.lin 1 1 hf hg; simpa using this
+
+theorem pcd₀_smul {f : MvPolynomial ℕ F} (a : F) (hf : PCD₀ Ax D f) : PCD₀ Ax D (C a * f) := by
+  have := PCD₀.lin a 0 hf hf; simpa using this
+
+theorem pcd₀_sum {ι : Type} (s : Finset ι) (f : ι → MvPolynomial ℕ F) (h0 : PCD₀ Ax D 0)
+    (hf : ∀ i ∈ s, PCD₀ Ax D (f i)) : PCD₀ Ax D (∑ i ∈ s, f i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simpa using h0
+  | insert a s ha ih =>
+    rw [Finset.sum_insert ha]
+    exact pcd₀_add (hf a (Finset.mem_insert_self _ _)) (ih fun i hi => hf i (Finset.mem_insert_of_mem hi))
+
+theorem pcd₀_monomial_mul {g : MvPolynomial ℕ F} (hg : PCD₀ Ax D g) :
+    ∀ m (s : ℕ →₀ ℕ), Finsupp.degree s = m → m + g.totalDegree ≤ D →
+      PCD₀ Ax D (monomial s 1 * g) := by
+  intro m
+  induction m with
+  | zero =>
+    intro s hs _
+    rw [(Finsupp.degree_eq_zero_iff s).1 hs, monomial_zero', C_1, one_mul]; exact hg
+  | succ m ih =>
+    intro s hs hD
+    have hne : s ≠ 0 := by rintro rfl; simp at hs
+    obtain ⟨i, hi⟩ := Finsupp.ne_iff.1 hne
+    simp only [Finsupp.coe_zero, Pi.zero_apply] at hi
+    set t := s - Finsupp.single i 1
+    have hst : s = t + Finsupp.single i 1 := by
+      ext j; simp only [t, Finsupp.coe_add, Finsupp.coe_tsub, Pi.add_apply, Pi.sub_apply,
+        Finsupp.single_apply]
+      split_ifs with h
+      · subst h; omega
+      · omega
+    have ht : Finsupp.degree t = m := by
+      rw [hst, map_add, Finsupp.degree_single] at hs; omega
+    have hmul : monomial s (1 : F) * g = X i * (monomial t 1 * g) := by
+      rw [hst, ← mul_assoc, X, monomial_mul, add_comm, one_mul]
+    rw [hmul]
+    refine PCD₀.mul i (ih t ht (by omega)) ?_
+    refine (totalDegree_mul _ _).trans ?_
+    rw [totalDegree_X]
+    refine (Nat.add_le_add_left (totalDegree_mul _ _) 1).trans ?_
+    rw [totalDegree_monomial _ one_ne_zero]
+    have : (t.sum fun _ e => e) = m := ht
+    omega
+
+/-- Multiplying a derived polynomial by any polynomial of small enough degree. -/
+theorem pcd₀_mul {g h : MvPolynomial ℕ F} (hg : PCD₀ Ax D g)
+    (hD : h.totalDegree + g.totalDegree ≤ D) : PCD₀ Ax D (h * g) := by
+  rw [h.as_sum, Finset.sum_mul]
+  refine pcd₀_sum _ _ (pcd₀_zero hg) fun s hs => ?_
+  rw [show monomial s (coeff s h) = C (coeff s h) * monomial s 1 by rw [C_mul_monomial, mul_one],
+    mul_assoc]
+  refine pcd₀_smul _ (pcd₀_monomial_mul hg _ s rfl ?_)
+  have := le_totalDegree hs
+  exact le_trans (Nat.add_le_add_right this _) hD
+
+end Closure
+
 /-- A Boolean point of `F`. -/
 def BoolPt (a : ℕ → F) : Prop := ∀ i, a i = 0 ∨ a i = 1
 

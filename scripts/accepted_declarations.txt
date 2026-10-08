@@ -2482,3 +2482,9 @@ SATurday.ProofComplexity.TseitinPC.Rmon_mul
 SATurday.ProofComplexity.TseitinPC.tseitin_pc_degree
 SATurday.ProofComplexity.TseitinPC.bt_no_root
 SATurday.ProofComplexity.TseitinPC.tseitin_pc_degree_cubic
+SATurday.ProofComplexity.pcd₀_mul
+SATurday.ProofComplexity.TseitinPC.derive_grid
+SATurday.ProofComplexity.TseitinPC.tcnf_unsat
+SATurday.ProofComplexity.TseitinPC.simulate
+SATurday.ProofComplexity.TseitinPC.tseitin_bool_degree
+SATurday.ProofComplexity.TseitinPC.tseitin_bool_degree_Fp
