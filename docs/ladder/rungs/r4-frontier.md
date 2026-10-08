@@ -1,7 +1,7 @@
 # R4: The Open Frontier
 
-Status: proposed
-Lean home: theory/Theory/ProofComplexity/ (Frontier namespaces until proved)
+Status: active
+Lean home: theory/Theory/ProofComplexity/AC0pFrege.lean (Frontier: AC0pFregeFrontier)
 
 ## Statement
 
@@ -42,3 +42,17 @@ passes the barrier audit before formalization effort is spent.
 
 - 2026-08-03 reboot: rung proposed. No active candidate argument. Prose search
   begins after R1 certification; empirical calibration may start earlier.
+- 2026-10-08 adopt (operator "go"): first subtarget AC0[p] Frege. Lean surface certified
+  in AC0pFrege.lean: formulas with MOD_p connectives (`Fm`), a dag like sequent calculus with
+  MOD_p defining axioms (`FRefutes p d F L`), soundness (`frefutes_unsat`), and the non
+  vacuity witness: every unsatisfiable CNF has a depth one refutation, by simulating
+  resolution (`frefutes_of_unsat`). Locked target: `AC0pFregeFrontier.r4_target :
+  ∀ p prime, AC0pFregeLB p` (some polynomial size unsatisfiable family needs super
+  polynomial size refutations at every fixed depth). Primary candidate families: Tseitin
+  mod q on expanders (q ≠ p), Count_q, onto PHP, random k CNF.
+  Kill conditions: (T4.1) a quasi polynomial size AC0[p] Frege refutation of a candidate
+  family kills that family; (T4.2) an argument that would also separate systems known
+  to be equal, give a lower bound for a system with known short proofs of the family, or
+  break a standard pseudorandom generator assumption fails the barrier audit. Three failed
+  attempts on one method kill that method branch.
+  Plan and checklist: docs/ladder/r4-research-plan.md, docs/ladder/r4-completion-checklist.md.

@@ -402,7 +402,7 @@ def _guess_lean_target(ctx: CycleContext, choice: ActionChoice) -> Path:
         # Default R2 home is CSExpansionFrontier; MGG override above when hinted
         "r2-width-machinery": "theory/Theory/ProofComplexity/CSExpansion.lean",
         "r3-stronger-systems": "theory/Theory/ProofComplexity/CuttingPlanes.lean",
-        "r4-frontier": "theory/Theory/ProofComplexity/CSExpansion.lean",
+        "r4-frontier": "theory/Theory/ProofComplexity/AC0pFrege.lean",
         "r5-cook-reckhow-bridge": "theory/Theory/ProofComplexity/Bridge/ProofSystem.lean",
     }
     rel = mapping.get(choice.rung, "theory/Theory/ProofComplexity/Resolution.lean")

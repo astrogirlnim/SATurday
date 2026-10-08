@@ -46,7 +46,7 @@ LEAN_BY_RUNG: Dict[str, List[str]] = {
         "theory/Theory/ProofComplexity/CuttingPlanes.lean",
     ],
     "r4-frontier": [
-        "theory/Theory/ProofComplexity/CSExpansion.lean",
+        "theory/Theory/ProofComplexity/AC0pFrege.lean",
     ],
 }
 

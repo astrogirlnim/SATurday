@@ -42,6 +42,8 @@ RUNG_ALIASES = {
     "r2": "r2-width-machinery",
     "R3": "r3-stronger-systems",
     "r3": "r3-stronger-systems",
+    "R4": "r4-frontier",
+    "r4": "r4-frontier",
     "R5": "r5-cook-reckhow-bridge",
     "r5": "r5-cook-reckhow-bridge",
 }
@@ -517,6 +519,52 @@ R3_SEED_PLAN: dict[str, Any] = {
             "at": "2026-10-07T00:00:00Z",
             "kind": "seed",
             "text": "Seeded at R3 adoption (cutting planes, clique coloring).",
+        }
+    ],
+}
+
+
+# R4 seed (adopted 2026-10-08). The target pin is an open problem: the loop must not
+# chase it directly. Phase 1 infrastructure items are ready for prove/formalize cycles.
+R4_SEED_PLAN: dict[str, Any] = {
+    "checklist_ref": "docs/ladder/r4-completion-checklist.md",
+    "paused": False,
+    "pause_reason": "",
+    "ambient_red_streak": 0,
+    "pins": [
+        {
+            "id": "r4_target",
+            "title": "AC0[p] Frege super polynomial lower bound (open problem)",
+            "status": "blocked_missing_surface",
+            "lean_decl": "AC0pFregeFrontier.r4_target",
+            "method_family": "open",
+            "ready_for_auto": False,
+            "notes": "Open since the late 1980s. Do not formalize directly; work Phase 1.",
+        },
+    ],
+    "checklist": [
+        {
+            "id": "r4_phase0",
+            "title": "Adopt and lock target (definitions, soundness, non vacuity, pin)",
+            "status": "done",
+            "preferred_action": "formalize",
+            "pin_id": "",
+            "notes": "AC0pFrege.lean: frefutes_unsat, frefutes_of_unsat, r4_target pin.",
+        },
+        {
+            "id": "r4_1A",
+            "title": "Razborov-Smolensky: AC0[p] circuits cannot compute MOD_q",
+            "status": "pending",
+            "preferred_action": "prove",
+            "pin_id": "",
+            "notes": "Checklist 1A.1 to 1A.6.",
+        },
+    ],
+    "notes": [
+        {
+            "at": "2026-10-08T00:00:00Z",
+            "kind": "seed",
+            "text": "Seeded at R4 adoption (AC0[p] Frege).",
         }
     ],
 }

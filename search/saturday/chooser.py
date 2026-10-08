@@ -7,6 +7,7 @@ Parallel workstreams (skill Parallelization):
 - R2 owns docs/ladder/rungs/r2-width-machinery.md and non Bridge ProofComplexity Lean
   (except CuttingPlanes.lean)
 - R3 owns docs/ladder/rungs/r3-stronger-systems.md and CuttingPlanes.lean
+- R4 owns docs/ladder/rungs/r4-frontier.md and AC0pFrege.lean
 - R5 is certified (2026-10-06); its workstream is retired
 """
 
@@ -21,6 +22,7 @@ from search.saturday.context import ACTIVE_LIKE, RUNG_IDS, CycleContext
 WORKSTREAM_BY_RUNG = {
     "r2-width-machinery": "R2",
     "r3-stronger-systems": "R3",
+    "r4-frontier": "R4",
 }
 
 
@@ -195,6 +197,7 @@ def _suggest_pin_plan(ctx: CycleContext, rung_id: str):
         from search.saturday.pin_plans import (
             R2_SEED_PLAN,
             R3_SEED_PLAN,
+            R4_SEED_PLAN,
             ensure_seed_plan,
             suggest_pin_plan_action,
         )
@@ -203,6 +206,8 @@ def _suggest_pin_plan(ctx: CycleContext, rung_id: str):
             ensure_seed_plan(ctx.repo_root, rung_id, R2_SEED_PLAN)
         elif rung_id == "r3-stronger-systems":
             ensure_seed_plan(ctx.repo_root, rung_id, R3_SEED_PLAN)
+        elif rung_id == "r4-frontier":
+            ensure_seed_plan(ctx.repo_root, rung_id, R4_SEED_PLAN)
         return suggest_pin_plan_action(ctx.repo_root, rung_id)
     except Exception as exc:
         print(f"[saturday.chooser] pin_plan suggest skipped: {exc}")

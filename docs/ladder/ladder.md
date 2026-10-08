@@ -119,10 +119,12 @@ R4-class results plus the certified R5 bridge.
     CuttingPlanesFinal (`cpstar_cliqueColoring_superpoly`)
 
 - R4 open frontier
-  - status: proposed
+  - status: active (adopted 2026-10-08; Phase 0 locked: `AC0pFregeFrontier.r4_target`)
   - statement: super-polynomial lower bound for a system with no known bounds,
     first subtarget AC0[p]-Frege
   - memory: docs/ladder/rungs/r4-frontier.md
+  - checklist: docs/ladder/r4-completion-checklist.md
+  - lean: AC0pFrege.lean (formulas, sequent calculus, soundness, non vacuity, target pin)
 
 - R5 Cook-Reckhow bridge
   - status: certified (2026-10-06, axiom gate green; theorem 1 both directions, theorem 2)

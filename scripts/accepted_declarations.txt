@@ -2435,3 +2435,8 @@ SATurday.ProofComplexity.DC_inv
 SATurday.ProofComplexity.val_posNC
 SATurday.ProofComplexity.cpstar_interpolation
 SATurday.ProofComplexity.cpstar_cliqueColoring_superpoly
+# R4 Phase 0: AC0[p] Frege surface, soundness, non vacuity (2026-10-08)
+SATurday.ProofComplexity.fstep_sound
+SATurday.ProofComplexity.frefutes_unsat
+SATurday.ProofComplexity.sim_resolution
+SATurday.ProofComplexity.frefutes_of_unsat
