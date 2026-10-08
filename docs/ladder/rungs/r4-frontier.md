@@ -152,3 +152,7 @@ AC0[p] Frege and subsystems (the R4 frontier).
   algebraic proofs", AC0[p] Frege vs IPS fragments) and Grochow–Pitassi 2014 (IPS); Pich–Santhanam
   style natural-proof-like barriers for proof systems (verify). These feed the Phase 3.1
   barrier audit.
+- 2026-10-08 formalize (Phase 1A.7): `smolensky_mod3` certified (Smolensky2.lean): AC0[2]
+  circuits computing MOD_3 need super polynomial size. Two inputs fixed to constants give the
+  three residue circuits; over `F_4` with `y = ω^x`, `∏ y_i = ω^{|x|}` is a combination of the
+  three residue approximations and `y⁻¹ = y²` is affine in `x`.

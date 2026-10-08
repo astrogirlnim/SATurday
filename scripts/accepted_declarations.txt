@@ -2493,3 +2493,8 @@ SATurday.ProofComplexity.MLPC.ips
 SATurday.ProofComplexity.MLPC.size_degree
 SATurday.ProofComplexity.MLPC.translate
 SATurday.ProofComplexity.TseitinPC.tseitin_ml_size
+SATurday.ProofComplexity.cval_restrict
+SATurday.ProofComplexity.ccomputes_restrict
+SATurday.ProofComplexity.S2.basis
+SATurday.ProofComplexity.S2.agree_card_le3
+SATurday.ProofComplexity.smolensky_mod3

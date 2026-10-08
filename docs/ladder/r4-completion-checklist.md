@@ -44,7 +44,8 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   of degree at most `n/2 + D`, so `|G| ≤ 2^{n-1} + (D + 1) C(n, ⌊n/2⌋)`; central binomial bound.
 - [x] 1A.6 Theorem: for odd prime `p` and fixed depth `d`, AC0[p] circuits computing parity on
   `n` bits have super polynomial size (`smolensky_parity`, SmolenskyParity.lean, 2026-10-08).
-- [ ] 1A.7 The case `p = 2` (MOD_3 or majority; needs F_4 roots of unity), deferred.
+- [x] 1A.7 The case `p = 2`: AC0[2] circuits computing MOD_3 need super polynomial size
+  (`smolensky_mod3`, over `GaloisField 2 2`; Smolensky2.lean, 2026-10-08).
 
 ### 1B Bounded depth Frege: switching and PHP
 

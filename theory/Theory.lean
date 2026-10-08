@@ -26,6 +26,7 @@ import Theory.ProofComplexity.CuttingPlanesFinal
 import Theory.ProofComplexity.AC0pFrege
 import Theory.ProofComplexity.Smolensky
 import Theory.ProofComplexity.SmolenskyParity
+import Theory.ProofComplexity.Smolensky2
 import Theory.ProofComplexity.Switching
 import Theory.ProofComplexity.Matching
 import Theory.ProofComplexity.MatchingSwitch
