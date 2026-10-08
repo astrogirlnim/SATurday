@@ -2459,3 +2459,9 @@ SATurday.ProofComplexity.mencode
 SATurday.ProofComplexity.mswitching
 SATurday.ProofComplexity.Rm_add
 SATurday.ProofComplexity.mswitching_ratio
+SATurday.ProofComplexity.subs_trans
+SATurday.ProofComplexity.step_sound
+SATurday.ProofComplexity.keval_sound
+SATurday.ProofComplexity.keval_no_refutation
+SATurday.ProofComplexity.php_unsat
+SATurday.ProofComplexity.php_clauseHit

@@ -75,3 +75,8 @@ passes the barrier audit before formalization effort is spent.
   most `2 s` edges compatible with any free matching that leaves room); `mencode`/`mdec`
   encoding with partner codes relative to the image restriction; `mswitching_ratio`:
   `#bad · (m + 1 - |ρ0|)^s ≤ #R_m · ((|P| - m)(|H| - m) · 2 w C²)^s`.
+- 2026-10-08 formalize (Phase 1B.4): k-evaluations certified (KEval.lean, PHP.lean). Each
+  sequent is read as its line formula `OR(¬Γ, Δ)`; an evaluation gives true/false branch sets
+  (free partial matchings of size `≤ k`) with incompatibility, coverage (room `|π| + 3k ≤ ℓ`)
+  and connective conditions. `keval_no_refutation`: with `5k ≤ ℓ` and all PHP clauses hit
+  (`php_clauseHit`), no mod free proof contains the empty sequent.

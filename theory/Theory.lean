@@ -29,6 +29,8 @@ import Theory.ProofComplexity.SmolenskyParity
 import Theory.ProofComplexity.Switching
 import Theory.ProofComplexity.Matching
 import Theory.ProofComplexity.MatchingSwitch
+import Theory.ProofComplexity.KEval
+import Theory.ProofComplexity.PHP
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding
