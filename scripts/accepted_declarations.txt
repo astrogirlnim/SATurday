@@ -2440,3 +2440,10 @@ SATurday.ProofComplexity.fstep_sound
 SATurday.ProofComplexity.frefutes_unsat
 SATurday.ProofComplexity.sim_resolution
 SATurday.ProofComplexity.frefutes_of_unsat
+# R4 Phase 1A: Razborov-Smolensky for parity, odd p (2026-10-08)
+SATurday.ProofComplexity.exists_good_choice
+SATurday.ProofComplexity.circuit_approx
+SATurday.ProofComplexity.fourier
+SATurday.ProofComplexity.agree_card_le
+SATurday.ProofComplexity.choose_half_sq_le
+SATurday.ProofComplexity.smolensky_parity

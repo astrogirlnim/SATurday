@@ -24,6 +24,8 @@ import Theory.ProofComplexity.RealToBool
 import Theory.ProofComplexity.CuttingPlanesStar
 import Theory.ProofComplexity.CuttingPlanesFinal
 import Theory.ProofComplexity.AC0pFrege
+import Theory.ProofComplexity.Smolensky
+import Theory.ProofComplexity.SmolenskyParity
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding

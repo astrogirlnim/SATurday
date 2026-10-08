@@ -56,3 +56,10 @@ passes the barrier audit before formalization effort is spent.
   break a standard pseudorandom generator assumption fails the barrier audit. Three failed
   attempts on one method kill that method branch.
   Plan and checklist: docs/ladder/r4-research-plan.md, docs/ladder/r4-completion-checklist.md.
+- 2026-10-08 formalize (Phase 1A): Smolensky's theorem certified, `smolensky_parity`: for an
+  odd prime `p` and every depth `d`, AC0[p] circuits computing parity need super polynomial
+  size. Pieces: OR approximation by random subset sums (`exists_good_choice`), circuit
+  approximation (`circuit_approx`), `±1` Fourier expansion over F_p (`fourier`), the
+  agreement set count (`agree_card_le`), central binomial bound. This is the circuit analogue
+  of the R4 target; the proof analogue needs a different idea (the approximation does not
+  transfer to proofs directly).

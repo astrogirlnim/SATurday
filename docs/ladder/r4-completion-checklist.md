@@ -40,10 +40,10 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   MOD_{p,r} and NOT are exact.
 - [x] 1A.4 Circuit approximation: a depth `d`, size `s` circuit agrees with a function of degree
   `((p - 1) ℓ)^d` on all but `s 2^{n - ℓ}` inputs (`circuit_approx`, Smolensky.lean).
-- [ ] 1A.5 Smolensky's argument for parity (p odd): on an agreement set `G` every function is
+- [x] 1A.5 Smolensky's argument for parity (p odd): on an agreement set `G` every function is
   of degree at most `n/2 + D`, so `|G| ≤ 2^{n-1} + (D + 1) C(n, ⌊n/2⌋)`; central binomial bound.
-- [ ] 1A.6 Theorem: for odd prime `p` and fixed depth `d`, AC0[p] circuits computing parity on
-  `n` bits have super polynomial size.
+- [x] 1A.6 Theorem: for odd prime `p` and fixed depth `d`, AC0[p] circuits computing parity on
+  `n` bits have super polynomial size (`smolensky_parity`, SmolenskyParity.lean, 2026-10-08).
 - [ ] 1A.7 The case `p = 2` (MOD_3 or majority; needs F_4 roots of unity), deferred.
 
 ### 1B Bounded depth Frege: switching and PHP
