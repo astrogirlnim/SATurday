@@ -107,3 +107,48 @@ passes the barrier audit before formalization effort is spent.
   `tseitin_ml_size`: size `≥ 2^m`, `m = E / (2(|V|/E + 1))`, `E` a third of the linear degree
   bound. Phase 1C is complete: Tseitin mod q, a primary R4 candidate, is exponentially hard for
   polynomial calculus over F_p (the algebraic part of AC0[p] Frege lower bound attempts).
+
+## Literature (1D.1, 2026-10-08)
+
+Recorded from working knowledge; entries marked (verify) need a citation check against the
+papers before they are used in a certified statement.
+
+Circuits.
+- Razborov 1987 (AC0[⊕] majority); Smolensky 1987 (AC0[p] cannot compute MOD_q, q ≠ p^k).
+  Certified analogue here: `smolensky_parity` (odd p).
+
+Bounded depth Frege.
+- Ajtai 1988 (PHP superpolynomial); Pitassi–Beame–Impagliazzo 1993 and Krajíček–Pudlák–Woods
+  1995 (exponential, k-evaluations / matching switching). Certified here:
+  `php_bdfrege_superpoly` (super polynomial, mod free).
+- Ben-Sasson 2002, Pitassi–Rossman–Servedio–Tan 2016, Håstad 2017/2021 (Tseitin on grids and
+  expanders for bounded depth Frege).
+
+Algebraic systems.
+- Beame–Impagliazzo–Krajíček–Pitassi–Pudlák 1994 (Nullstellensatz degree, designs).
+- Buss–Impagliazzo–Krajíček–Pudlák–Razborov–Sgall 1996/97: Count_q needs exponential size in
+  bounded depth Frege with Count_p axioms (q not a power of p), via Nullstellensatz degree.
+  This is item 1D.2.
+- Clegg–Edmonds–Impagliazzo 1996 (polynomial calculus); Razborov 1998 (PHP degree);
+  Impagliazzo–Pudlák–Sgall 1999 (size–degree; certified: `MLPC.ips`);
+  Buss–Grigoriev–Impagliazzo–Pitassi 2001 (Tseitin mod q linear degree over F_p; certified:
+  `tseitin_bool_degree_Fp`, `tseitin_ml_size`); Alekhnovich–Razborov 2001/03 (expanding
+  systems, non binomial case).
+
+AC0[p] Frege and subsystems (the R4 frontier).
+- Super polynomial AC0[p] Frege lower bounds: open (Razborov, Krajíček surveys; Buss list of
+  open problems).
+- Maciel–Pitassi–Woods 2002 and later work: short AC0[p]-type proofs of weak PHP and counting
+  principles (upper bounds that kill naive candidates) (verify exact statements).
+- Garlik–Kołodziejczyk 2018: lower bounds for subsystems of constant depth Frege with parity
+  (verify).
+- Res(⊕) (resolution over parities, the depth 1 case for p = 2): tree like lower bounds
+  (Itsykson–Sokolov 2014/2020); regular Res(⊕) lower bounds (Efremenko–Garlik–Itsykson,
+  STOC 2024); further bounded depth and regular results via lifting
+  (Bhattacharya–Chattopadhyay–Dvořák 2024; Alekseev–Itsykson 2025) (verify). Unrestricted
+  Res(⊕) super polynomial lower bounds: open as far as recorded here (verify against 2025-26
+  preprints before Phase 2.1).
+- Barriers: Impagliazzo–Mouli–Pitassi 2019/20 ("The surprising power of constant depth
+  algebraic proofs", AC0[p] Frege vs IPS fragments) and Grochow–Pitassi 2014 (IPS); Pich–Santhanam
+  style natural-proof-like barriers for proof systems (verify). These feed the Phase 3.1
+  barrier audit.

@@ -90,7 +90,8 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 
 ### 1D Known partial results toward AC0[p] Frege
 
-- [ ] 1D.1 Literature pass with citations recorded in the rung memory.
+- [x] 1D.1 Literature pass with citations recorded in the rung memory (2026-10-08; entries
+  marked (verify) still need a citation check).
 - [ ] 1D.2 Count_q lower bound for bounded depth Frege with Count_p axioms.
 - [ ] 1D.3 Res(⊕) lower bounds known so far (regular or bounded depth variants).
 
