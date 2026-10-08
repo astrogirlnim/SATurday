@@ -29,16 +29,22 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 
 ## Phase 1: certified infrastructure (known mathematics)
 
-### 1A Circuit analogue: Razborov–Smolensky
+### 1A Circuit analogue: Razborov–Smolensky (Smolensky's form, odd p, parity)
 
-- [ ] 1A.1 AC0[p] circuits (unbounded fan in AND, OR, NOT, MOD_p) and their depth and size.
-- [ ] 1A.2 Polynomials over F_p as functions on the Boolean cube; degree.
-- [ ] 1A.3 Probabilistic approximation of OR by degree `(p - 1) ℓ` polynomials.
-- [ ] 1A.4 Every depth `d`, size `s` AC0[p] circuit agrees with a polynomial of degree
-  `((p - 1) ℓ)^d` on all but `s 2^n / p^ℓ` inputs.
-- [ ] 1A.5 Smolensky's dimension argument: MOD_q (q ≠ p prime) cannot be approximated by low
-  degree polynomials over F_p on more than a constant fraction of inputs.
-- [ ] 1A.6 Theorem: AC0[p] circuits computing MOD_q need size `2^{Ω(n^{1/(2d)})}`.
+- [ ] 1A.1 AC0[p] circuits as straight line programs (inputs, NOT, unbounded fan in AND,
+  OR, MOD_{p,r}), semantics, depth and size.
+- [ ] 1A.2 Low degree functions over F_p on the Boolean cube (multilinear coefficient form),
+  closed under sums and products with degree bounds.
+- [ ] 1A.3 Gate approximation: for OR (and AND by duality) some choice of `ℓ` random subsets
+  gives a degree `(p - 1) ℓ` approximant wrong on at most a `2^{-ℓ}` fraction of inputs;
+  MOD_{p,r} and NOT are exact.
+- [ ] 1A.4 Circuit approximation: a depth `d`, size `s` circuit agrees with a function of degree
+  `((p - 1) ℓ)^d` on all but `s 2^{n - ℓ}` inputs.
+- [ ] 1A.5 Smolensky's argument for parity (p odd): on an agreement set `G` every function is
+  of degree at most `n/2 + D`, so `|G| ≤ 2^{n-1} + (D + 1) C(n, ⌊n/2⌋)`; central binomial bound.
+- [ ] 1A.6 Theorem: for odd prime `p` and fixed depth `d`, AC0[p] circuits computing parity on
+  `n` bits have super polynomial size.
+- [ ] 1A.7 The case `p = 2` (MOD_3 or majority; needs F_4 roots of unity), deferred.
 
 ### 1B Bounded depth Frege: switching and PHP
 
