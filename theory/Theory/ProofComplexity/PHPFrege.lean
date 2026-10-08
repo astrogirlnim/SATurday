@@ -489,6 +489,80 @@ theorem php_bdfrege_superpoly (p d c : ℕ) :
     (by have := hdepth φ (mem_phiOf hS hφ); omega))
     (php_clauseHit rfl rfl rfl hρ hρU hk hroom) hroom hR.2.2
 
+/-- **Exponential bounded depth Frege lower bound for PHP**: with `M = ⌊n^{1/7^{d+1}}⌋`
+(the largest `M` with `M^{7^{d+1}} ≤ n`), every mod free depth `d` refutation of `phpCNF n`
+has size at least `2^{M/72} / 8`, for all large `n`. -/
+theorem php_bdfrege_exp (p d : ℕ) :
+    ∃ N, ∀ n ≥ N, ∀ L, FRefutes p d (phpCNF n) L → ModFree L →
+      2 ^ (Nat.findGreatest (fun M => M ^ 7 ^ (d + 1) ≤ n) n / 72) ≤ 8 * fSize L := by
+  set T := d + 1 with hT
+  set E := 7 ^ T with hEdef
+  refine ⟨144 ^ E, fun n hn L hR hmf => ?_⟩
+  have hE1 : 1 ≤ E := Nat.one_le_pow _ _ (by norm_num)
+  have hbig : 144 ≤ n := le_trans (Nat.le_self_pow (by omega) _) hn
+  set M := Nat.findGreatest (fun M => M ^ E ≤ n) n with hMdef
+  have hM1 : M ^ E ≤ n := Nat.findGreatest_spec (P := fun M => M ^ E ≤ n) (m := 0)
+    (Nat.zero_le _) (by simp only; rw [zero_pow (by omega)]; exact Nat.zero_le _)
+  have hM2 : 144 ≤ M := Nat.le_findGreatest (P := fun M => M ^ E ≤ n) (by omega) hn
+  set s := M / 72 with hs
+  set k := 2 * s with hkdef
+  have hs2 : 2 ≤ s := by rw [hs]; omega
+  have h72 : 72 * s ≤ M := by rw [hs]; exact Nat.mul_div_le M 72
+  have hk : 1 ≤ k := by omega
+  by_contra hsz
+  push Not at hsz
+  set ℓ : ℕ → ℕ := fun t => if t = 0 then n else M ^ (7 ^ (T - t)) with hℓdef
+  have hMpow : ∀ j, M ≤ M ^ (7 ^ j) := fun j =>
+    Nat.le_self_pow (Nat.pos_iff_ne_zero.1 (Nat.one_le_pow _ _ (by norm_num))) _
+  have hpowle : ∀ j ≤ T, M ^ (7 ^ j) ≤ n := fun j hj =>
+    le_trans (Nat.pow_le_pow_right (by omega) (Nat.pow_le_pow_right (by norm_num) hj)) hM1
+  have hpow7 : ∀ j, (M ^ (7 ^ j)) ^ 7 = M ^ (7 ^ (j + 1)) := fun j => by
+    rw [← pow_mul, pow_succ]
+  set Φ := phiOf L
+  have hΦlen : 2 * Φ.length < 2 ^ (s + 1) := by
+    have h1 : Φ.length ≤ 3 * fSize L + 1 := phiOf_length L
+    have h2 : 2 ≤ 2 ^ s := le_trans (by norm_num) (Nat.pow_le_pow_right (by norm_num) (show 1 ≤ s by omega))
+    rw [pow_succ]
+    omega
+  obtain ⟨ρ, Ev, hρ, hρU, hρc, hG⟩ := levels (vx := phpVx n) (phiOf_closed L)
+    (phiOf_modfree hmf) (n := n) (k := k) (s := s) (T := T) ℓ (by simp [hℓdef])
+    (fun t ht => by
+      have h1 : ℓ (t + 1) = M ^ (7 ^ (T - (t + 1))) := by simp [hℓdef]
+      rw [h1]
+      by_cases h0 : t = 0
+      · subst h0; simp only [hℓdef, if_pos rfl]; exact hpowle _ (by omega)
+      · simp only [hℓdef, if_neg h0]
+        exact Nat.pow_le_pow_right (by omega) (Nat.pow_le_pow_right (by norm_num) (by omega)))
+    (fun t ht => by
+      by_cases h0 : t = 0
+      · subst h0; simp only [hℓdef, if_pos rfl]; exact le_rfl
+      · simp only [hℓdef, if_neg h0]; exact hpowle _ (by omega))
+    hk (by omega)
+    (fun t ht => by
+      have hℓ1 : ℓ (t + 1) = M ^ (7 ^ (T - (t + 1))) := by simp [hℓdef]
+      have hR : (ℓ (t + 1)) ^ 7 ≤ ℓ t := by
+        rw [hℓ1, hpow7]
+        by_cases h0 : t = 0
+        · subst h0
+          simp only [hℓdef, if_pos rfl]
+          rw [show T - (0 + 1) + 1 = T by omega]; exact hM1
+        · simp only [hℓdef, if_neg h0]
+          rw [show T - (t + 1) + 1 = T - t by omega]
+      have hML : M ≤ ℓ (t + 1) := hℓ1 ▸ hMpow _
+      refine arith_step hk (by omega) hR ?_
+      calc 2 * Φ.length < 2 ^ (s + 1) := hΦlen
+        _ ≤ (ℓ (t + 1)) ^ (s + 1) := Nat.pow_le_pow_left (by omega) _)
+    T le_rfl
+  have hℓT : ℓ T = M := by simp [hℓdef, hT]
+  have hfree : (fH (range n) ρ).card = M := by
+    have hMn : M ≤ n := Nat.findGreatest_le n
+    rw [fH_card hρ (hols_sub hρU), card_range, hρc, hℓT]; omega
+  have hroom : 5 * k ≤ (fH (range n) ρ).card := by rw [hfree]; omega
+  have hdepth := phiOf_depth hR.2.1
+  exact keval_no_refutation hR.1 hmf (fun S hS φ hφ => hG φ (mem_phiOf hS hφ)
+    (by have := hdepth φ (mem_phiOf hS hφ); omega))
+    (php_clauseHit rfl rfl rfl hρ hρU hk hroom) hroom hR.2.2
+
 end
 
 end SATurday.ProofComplexity

@@ -64,8 +64,7 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 - [x] 1B.5 Theorem: bounded depth Frege refutations of PHP need super polynomial size
   (`php_bdfrege_superpoly`: for every `d`, `c`, all large `n`, every mod free depth `d`
   refutation of `phpCNF n` has `fSize > n^c`; KEvalBuild.lean, PHPFrege.lean, 2026-10-08).
-  The exponential rate (`2^{n^{ε_d}}`) is not formalized; the super polynomial form matches
-  the shape of `AC0pFregeLB`.
+  Exponential form `php_bdfrege_exp`: size `≥ 2^{⌊n^{1/7^{d+1}}⌋/72} / 8`.
 
 ### 1C Algebraic systems over F_p
 
