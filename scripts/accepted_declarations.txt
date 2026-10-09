@@ -2539,3 +2539,5 @@ SATurday.ProofComplexity.QP.countp_lines
 SATurday.ProofComplexity.QP.levels_q
 SATurday.ProofComplexity.QP.countq_bdfrege_exp
 SATurday.ProofComplexity.QP.countq_refutable
+SATurday.ProofComplexity.RL.dag_sound
+SATurday.ProofComplexity.RL.rld_dagRefutes
