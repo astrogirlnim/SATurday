@@ -2515,3 +2515,10 @@ SATurday.ProofComplexity.QP.vanish
 SATurday.ProofComplexity.QP.stepD
 SATurday.ProofComplexity.QP.exists_iter
 SATurday.ProofComplexity.QP.exists_design
+SATurday.ProofComplexity.QP.branch_eq
+SATurday.ProofComplexity.QP.wsum_comm
+SATurday.ProofComplexity.QP.count_mass_false
+SATurday.ProofComplexity.QP.qencode
+SATurday.ProofComplexity.QP.qswitching
+SATurday.ProofComplexity.QP.Rq_succ
+SATurday.ProofComplexity.QP.qswitching_ratio
