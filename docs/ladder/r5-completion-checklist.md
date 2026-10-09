@@ -1,21 +1,20 @@
 # R5 completion plan (manual)
 
-Status: active (Block C in progress; diverted from `satday auto`)
+Status: certified (2026-10-06, axiom gate green; theorem 1 both directions, theorem 2),
+matching `docs/ladder/ladder.md`.
 
-**Constraint:** Bridge pins A and B are closed. No `sorry` remains in
-`theory/Theory/ProofComplexity/Bridge/ProofSystem.lean`. Do not invent
-`Turing.*` names. Block C (`CookReckhow.lean`) is open: theorem 2 and
-`TAUT ∈ coNP` are certified; the FinTM2 packaging of
-`proofSystemOfNPVerifier` (easy direction of theorem 1) and the
-Cook Levin reduction (hard direction) remain. Do not restart
-`satday auto` until C is certified.
+**Outcome:** Bridge pins A and B are closed and Block C is certified:
+`bridge_theorem_2`, `TAUT_in_coNP`, the easy direction of theorem 1
+(`proofSystemOfNPVerifier`), and the hard direction (`bridge_theorem_1_hard`,
+Cook Levin coNP to TAUT reduction in `Bridge/Hard.lean`). Zero Bridge sorries.
+Restarting `satday auto` remains an operator decision (last item below).
 
 ## Files
 
-- Edit: `theory/Theory/ProofComplexity/Bridge/ProofSystem.lean`
-- Later (after pins): new `Bridge/CookReckhow.lean` (not yet present)
+- `theory/Theory/ProofComplexity/Bridge/ProofSystem.lean` (pins A and B)
+- `theory/Theory/ProofComplexity/Bridge/CookReckhow.lean` (theorem 2, `TAUT_in_coNP`,
+  easy direction), `Bridge/Hard.lean` and supporting modules (hard direction)
 - Gate: `lake build` + `scripts/check_axioms.sh`
-- No auto-loop until both pins close
 
 ## Open Frontier pins
 
@@ -202,7 +201,8 @@ Cook Levin reduction (hard direction) remain. Do not restart
     `bridge_theorem_1_hard`.
 - [x] Wire into `Theory.lean`; axiom gate PASS; zero Bridge sorries
 - [x] Update rung memory; R5 certified 2026-10-06 (`bridge_theorem_1_hard` in `Bridge/Hard.lean`; axiom gate PASS, 2016 declarations)
-- [ ] Only then consider `satday auto` again
+- [ ] Only then consider `satday auto` again (operator decision)
+
 ## Order rule
 
 A → B → C. Soft pin is blocked on A's poly witness. One micro-lemma commit
