@@ -2554,3 +2554,8 @@ SATurday.ProofComplexity.Closure.cl_card_le
 SATurday.ProofComplexity.Closure.cl_mono
 SATurday.ProofComplexity.Closure.finrank_eq_map_add
 SATurday.ProofComplexity.Closure.not_safe_restrict
+SATurday.ProofComplexity.Rado.rado_def
+SATurday.ProofComplexity.Closure.pivot
+SATurday.ProofComplexity.RL.solve_gadget
+SATurday.ProofComplexity.RL.solve_closure
+SATurday.ProofComplexity.RL.exists_solution
