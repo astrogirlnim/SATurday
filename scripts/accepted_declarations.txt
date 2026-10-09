@@ -2522,3 +2522,13 @@ SATurday.ProofComplexity.QP.qencode
 SATurday.ProofComplexity.QP.qswitching
 SATurday.ProofComplexity.QP.Rq_succ
 SATurday.ProofComplexity.QP.qswitching_ratio
+SATurday.ProofComplexity.QP.ht_canonT
+SATurday.ProofComplexity.QP.canonT_one
+SATurday.ProofComplexity.QP.canonT_zero
+SATurday.ProofComplexity.QP.restrict_props
+SATurday.ProofComplexity.QP.exists_branch
+SATurday.ProofComplexity.QP.qkeval_sound
+SATurday.ProofComplexity.QP.tgood_sgood
+SATurday.ProofComplexity.QP.tgood_restrict
+SATurday.ProofComplexity.QP.tgood_ET0
+SATurday.ProofComplexity.QP.level_step_q

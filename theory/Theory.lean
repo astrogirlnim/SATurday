@@ -44,6 +44,9 @@ import Theory.ProofComplexity.QPart
 import Theory.ProofComplexity.Designs
 import Theory.ProofComplexity.CountMass
 import Theory.ProofComplexity.QSwitch
+import Theory.ProofComplexity.QTree
+import Theory.ProofComplexity.QKEval
+import Theory.ProofComplexity.QLevel
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding
