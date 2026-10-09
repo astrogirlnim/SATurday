@@ -184,6 +184,54 @@ theorem rld_dagRefutes {Ax : Set Clause} {s : ℕ} (h : RLD Ax ∅ s) : DagRefut
   have := card_insert_le (∅ : LClause) P
   omega
 
+/-! ## Ordinary resolution is dag-like `Res(⊕)`; non vacuity -/
+
+theorem ofClause_resolvent (C D : Clause) (x : ℕ) :
+    ofClause (resolvent C D x) = (ofClause (C.erase ⟨x, true⟩)) ∪ ofClause (D.erase ⟨x, false⟩) := by
+  unfold resolvent ofClause; exact image_union _ _
+
+/-- A resolution derivation of `C` of tree size `s` gives a dag-like derivation containing
+`ofClause C` with at most `s` lines. -/
+theorem resolution_to_der {F : CNF} {C : Clause} (d : Derivation F C) :
+    ∃ P : Finset LClause, Der (↑F : Set Clause) P ∧ ofClause C ∈ P ∧ P.card ≤ d.size := by
+  induction d with
+  | hyp C hC =>
+    refine ⟨{ofClause C}, ?_, mem_singleton_self _, by simp [Derivation.size]⟩
+    simpa using Der.add Der.empty (Step.ax (Ax := (↑F : Set Clause)) (by exact_mod_cast hC))
+  | @res x C D dC dD hx hnx ihC ihD =>
+    obtain ⟨P1, h1, m1, c1⟩ := ihC
+    obtain ⟨P2, h2, m2, c2⟩ := ihD
+    have iC : Imp (ofClause C) (insert ({x}, 1) (ofClause (C.erase ⟨x, true⟩))) := by
+      intro y ⟨e, he, hv⟩
+      obtain ⟨l, hl, rfl⟩ := mem_image.1 he
+      by_cases hlx : l = ⟨x, true⟩
+      · subst hlx
+        exact ⟨({x}, 1), mem_insert_self _ _, by simpa [lf, bv] using hv⟩
+      · exact ⟨_, mem_insert_of_mem (mem_image.2 ⟨l, mem_erase.2 ⟨hlx, hl⟩, rfl⟩), hv⟩
+    have iD : Imp (ofClause D) (insert ({x}, 1 + 1) (ofClause (D.erase ⟨x, false⟩))) := by
+      intro y ⟨e, he, hv⟩
+      obtain ⟨l, hl, rfl⟩ := mem_image.1 he
+      by_cases hlx : l = ⟨x, false⟩
+      · subst hlx
+        refine ⟨({x}, 1 + 1), mem_insert_self _ _, ?_⟩
+        have : (1 : ZMod 2) + 1 = 0 := by decide
+        simpa [lf, bv, this] using hv
+      · exact ⟨_, mem_insert_of_mem (mem_image.2 ⟨l, mem_erase.2 ⟨hlx, hl⟩, rfl⟩), hv⟩
+    have hs := Step.res (Ax := (↑F : Set Clause)) (P := P1 ∪ P2) (f := {x}) (a := 1)
+      (mem_union_left _ m1) (mem_union_right _ m2) iC iD
+    refine ⟨insert _ (P1 ∪ P2), Der.add (h1.union h2) hs, ?_, ?_⟩
+    · rw [ofClause_resolvent]; exact mem_insert_self _ _
+    · have := card_insert_le (ofClause (C.erase ⟨x, true⟩) ∪ ofClause (D.erase ⟨x, false⟩)) (P1 ∪ P2)
+      have := card_union_le P1 P2
+      simp only [Derivation.size]; omega
+
+/-- **Non vacuity**: every unsatisfiable CNF has a dag-like `Res(⊕)` refutation. -/
+theorem dagRefutes_of_unsat {F : CNF} (h : ¬ Satisfiable F) :
+    ∃ s, DagRefutes (↑F : Set Clause) s := by
+  obtain ⟨d⟩ := resolution_complete h
+  obtain ⟨P, hD, hm, hc⟩ := resolution_to_der d
+  exact ⟨d.size, P, hD, by simpa [ofClause] using hm, hc⟩
+
 end
 
 end RL
