@@ -111,7 +111,9 @@ passes the barrier audit before formalization effort is spent.
 ## Literature (1D.1, 2026-10-08)
 
 Recorded from working knowledge; entries marked (verify) need a citation check against the
-papers before they are used in a certified statement.
+papers before they are used in a certified statement. Maciel–Pitassi–Woods, Garlík–Kołodziejczyk,
+the Res(⊕) entries and Impagliazzo–Mouli–Pitassi were checked against abstracts and search
+results on 2026-10-09 (see below); this is a citation check, not a read of the full papers.
 
 Circuits.
 - Razborov 1987 (AC0[⊕] majority); Smolensky 1987 (AC0[p] cannot compute MOD_q, q ≠ p^k).
@@ -138,20 +140,45 @@ Algebraic systems.
 AC0[p] Frege and subsystems (the R4 frontier).
 - Super polynomial AC0[p] Frege lower bounds: open (Razborov, Krajíček surveys; Buss list of
   open problems).
-- Maciel–Pitassi–Woods 2002 and later work: short AC0[p]-type proofs of weak PHP and counting
-  principles (upper bounds that kill naive candidates) (verify exact statements).
-- Garlik–Kołodziejczyk 2018: lower bounds for subsystems of constant depth Frege with parity
-  (verify).
-- Res(⊕) (resolution over parities, the depth 1 case for p = 2): tree like lower bounds
-  (Itsykson–Sokolov 2014/2020); regular Res(⊕) lower bounds (Efremenko–Garlik–Itsykson,
-  STOC 2024); further bounded depth and regular results via lifting
-  (Bhattacharya–Chattopadhyay–Dvořák 2024; Alekseev–Itsykson 2025) (verify). Unrestricted
-  Res(⊕) super polynomial lower bounds: open as far as recorded here (verify against 2025-26
-  preprints before Phase 2.1).
-- Barriers: Impagliazzo–Mouli–Pitassi 2019/20 ("The surprising power of constant depth
-  algebraic proofs", AC0[p] Frege vs IPS fragments) and Grochow–Pitassi 2014 (IPS); Pich–Santhanam
-  style natural-proof-like barriers for proof systems (verify). These feed the Phase 3.1
-  barrier audit.
+- Maciel–Pitassi–Woods, "A New Proof of the Weak Pigeonhole Principle" (STOC 2000; journal
+  version 2002 not confirmed): quasi-polynomial size bounded depth proofs of weak PHP. Earlier
+  entry said "AC0[p]-type proofs"; no AC0[p] content was found in the paper (checked 2026-10-09
+  from search snippets only). Maciel–Pitassi separately give a quasi-polynomial simulation of
+  AC0[p] proof systems by depth 3 threshold proofs (not re-checked).
+- Garlík–Kołodziejczyk, "Some subsystems of constant-depth Frege with parity", ACM TOCL 19(4),
+  29:1-29:34 (2018): confirmed. Tree-like PK(⊕) is quasi-polynomially equivalent to constant
+  depth Frege with parity axioms; superpolynomial separation of dag-like PK(⊕) from AC0[2]-Frege;
+  exponential lower bound for a system containing an extension of tree-like Res(lin).
+- Res(⊕) (resolution over parities, the depth 1 case for p = 2), checked 2026-10-09:
+  - Tree-like: Itsykson–Sokolov, "Resolution over linear equations modulo two", Ann. Pure Appl.
+    Logic 171(1), 102722 (2020) (earlier MFCS 2014 version): exponential tree-like bounds
+    (2-fold Tseitin, PHP encodings); Res and tree-like Res(⊕) are incomparable. Weak bit PHP
+    tree-like 2^{Ω(n)}: Efremenko–Garlík–Itsykson.
+  - Regular: Efremenko–Garlík–Itsykson, STOC 2024 (ECCC TR23-187; SIAM J. Comput. 54(4), 2025):
+    regular Res(⊕) refutations of bit PHP with n+1 pigeons need size 2^{Ω(n^{1/3}/log n)}.
+  - Regular vs general: Bhattacharya–Chattopadhyay–Dvořák, CCC 2024 (arXiv 2402.04364): formulas
+    with polynomial size resolution proofs (depth O(√n)) that need regular Res(⊕) size
+    2^{Ω(√n)}. This is a separation, not a bounded depth result (earlier entry corrected).
+  - Lifting: Alekseev–Itsykson, "Lifting to Bounded-Depth and Regular Resolutions over Parities
+    via Games", STOC 2025 (ECCC TR24-128): resolution width w lifted by a 1-stifling gadget
+    (Maj3) gives Res(⊕) rank ≥ w; exponential regular bound with Maj5; exponential bound for
+    depth ≤ c·N log log N.
+  - Bounded depth, larger depth: Efremenko–Itsykson (depth O(N log N)); Bhattacharya–Chattopadhyay
+    (arXiv 2507.23008): Tseitin on expanders with inner product gadget, size exp(Ω~(N^ε)) at
+    depth O(N^{2-ε}); Byramji–Impagliazzo (arXiv 2511.20023): bit PHP and t-BPHP in bounded
+    depth Res(⊕); Itsykson–Podolskii–Shekhovtsov, CCC 2026 (ECCC TR26-018): width lifts to
+    quadratic size for unrestricted Res(⊕); Itsykson–Knop, ITCS 2026 (supercritical size/depth
+    tradeoff).
+  - Unrestricted dag-like Res(⊕): a claimed exponential lower bound for bit PHP, Braun,
+    arXiv 2609.23015 (19 Sep 2026), size > exp(n/(32768 ℓ²)) for n = 2^ℓ holes, ℓ ≥ 32. Single
+    author, AI-assisted, not peer reviewed, with a claimed Lean 4 formalization that this
+    project has not yet built or independently checked. Treat as unconfirmed. Earlier text
+    "open as far as recorded here" is superseded by this entry.
+- Barriers: Impagliazzo–Mouli–Pitassi, "The Surprising Power of Constant Depth Algebraic
+  Proofs", LICS 2020 (ECCC TR19-024), not CCC (AC0[p] Frege vs IPS fragments) and
+  Grochow–Pitassi 2014 (IPS; not re-checked); Pich–Santhanam style natural-proof-like barriers
+  for proof systems (not found / not checked, still (verify)). These feed the Phase 3.1 barrier
+  audit.
 - 2026-10-08 formalize (Phase 1A.7): `smolensky_mod3` certified (Smolensky2.lean): AC0[2]
   circuits computing MOD_3 need super polynomial size. Two inputs fixed to constants give the
   three residue circuits; over `F_4` with `y = ω^x`, `∏ y_i = ω^{|x|}` is a combination of the
