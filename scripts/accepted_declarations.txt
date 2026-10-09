@@ -2547,3 +2547,10 @@ SATurday.ProofComplexity.RL.bphpCNF_unsat
 SATurday.ProofComplexity.RL.bphp_dagRefutable
 SATurday.ProofComplexity.Rado.rado_exists
 SATurday.ProofComplexity.RL.duplicator_no_refutation
+SATurday.ProofComplexity.Closure.cl_safe
+SATurday.ProofComplexity.Closure.cl_min
+SATurday.ProofComplexity.Closure.cl_size
+SATurday.ProofComplexity.Closure.cl_card_le
+SATurday.ProofComplexity.Closure.cl_mono
+SATurday.ProofComplexity.Closure.finrank_eq_map_add
+SATurday.ProofComplexity.Closure.not_safe_restrict
