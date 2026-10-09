@@ -2546,3 +2546,4 @@ SATurday.ProofComplexity.RL.rk_mono
 SATurday.ProofComplexity.RL.bphpCNF_unsat
 SATurday.ProofComplexity.RL.bphp_dagRefutable
 SATurday.ProofComplexity.Rado.rado_exists
+SATurday.ProofComplexity.RL.duplicator_no_refutation
