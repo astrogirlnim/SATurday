@@ -2555,3 +2555,4 @@ SATurday.ProofComplexity.Closure.cl_mono
 SATurday.ProofComplexity.Closure.finrank_eq_map_add
 SATurday.ProofComplexity.Closure.not_safe_restrict
 SATurday.ProofComplexity.Rado.rado_def
+SATurday.ProofComplexity.Closure.pivot
