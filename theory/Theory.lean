@@ -40,6 +40,8 @@ import Theory.ProofComplexity.TseitinBool
 import Theory.ProofComplexity.PCSizeDegree
 import Theory.ProofComplexity.TseitinSize
 import Theory.ProofComplexity.ResLin
+import Theory.ProofComplexity.QPart
+import Theory.ProofComplexity.Designs
 import Theory.ProofComplexity.Bridge.Encoding
 import Theory.ProofComplexity.Bridge.Complexity
 import Theory.ProofComplexity.Bridge.FormulaEncoding

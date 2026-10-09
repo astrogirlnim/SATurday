@@ -2506,3 +2506,12 @@ SATurday.ProofComplexity.RL.tree_to_pdt
 SATurday.ProofComplexity.RL.treelike_reslin_php
 SATurday.ProofComplexity.RL.lifted_unsat
 SATurday.ProofComplexity.php_bdfrege_exp
+SATurday.ProofComplexity.QP.mass
+SATurday.ProofComplexity.QP.padD
+SATurday.ProofComplexity.QP.mapD
+SATurday.ProofComplexity.QP.sym_zero
+SATurday.ProofComplexity.QP.defect
+SATurday.ProofComplexity.QP.vanish
+SATurday.ProofComplexity.QP.stepD
+SATurday.ProofComplexity.QP.exists_iter
+SATurday.ProofComplexity.QP.exists_design
