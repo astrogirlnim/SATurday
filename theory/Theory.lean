@@ -44,6 +44,7 @@ import Theory.ProofComplexity.ResLinDag
 import Theory.ProofComplexity.ResLinBPHP
 import Theory.ProofComplexity.Rado
 import Theory.ProofComplexity.ResLinGame
+import Theory.ProofComplexity.Closure
 import Theory.ProofComplexity.QPart
 import Theory.ProofComplexity.Designs
 import Theory.ProofComplexity.CountMass
