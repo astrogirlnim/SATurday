@@ -2532,3 +2532,10 @@ SATurday.ProofComplexity.QP.tgood_sgood
 SATurday.ProofComplexity.QP.tgood_restrict
 SATurday.ProofComplexity.QP.tgood_ET0
 SATurday.ProofComplexity.QP.level_step_q
+SATurday.ProofComplexity.QP.countq_unsat
+SATurday.ProofComplexity.QP.countSeq_valid
+SATurday.ProofComplexity.QP.countq_clauseHit
+SATurday.ProofComplexity.QP.countp_lines
+SATurday.ProofComplexity.QP.levels_q
+SATurday.ProofComplexity.QP.countq_bdfrege_exp
+SATurday.ProofComplexity.QP.countq_refutable

@@ -162,3 +162,16 @@ AC0[p] Frege and subsystems (the R4 frontier).
   affine parametrisation of solutions with stifled blocks fixed by a PHP matching adversary;
   every non constant query splits it, and a leaf needs `n` base queries. Dag-like (regular,
   bounded depth, general) Res(⊕) remain beyond this: general Res(⊕) is Phase 2.1.
+- 2026-10-09 formalize (Phase 1D.2): Count_q lower bound for bounded depth Frege with Count_p
+  axioms certified (`QP.countq_bdfrege_exp`, CountQ.lean): for a prime `p ∤ q`, `q ≥ 2`,
+  every mod free depth `d` refutation of `countqCNF q N` in the sequent calculus plus all
+  Count_p^M instances (`p ∤ M`, arbitrary formulas) has size `≥ 2^K / 8`, with
+  `K = ⌊M^{1/(p+q+2)}⌋`, `M = ⌊N^{1/(q²+q+5)^{d+1}}⌋`. Route (modules QPart, Designs,
+  CountMass, QSwitch, QTree, QKEval, QLevel, CountQ): tree valued k-evaluations over partial
+  q-partition restrictions (q-analog of the PHP pipeline, with a Razborov encoding switching
+  lemma using local point indices); Count_p instance lines are made sound by a design mass
+  argument (`count_mass_false`): masses of the `1`-branches around each point sum to one, so
+  `M = p Σ π_g = 0` in `ZMod p`; designs of degree `2^i - 1` exist on every universe of
+  `≥ (p+q)^i q` points by the BIKPPRS Lemma 4.3 doubling (`stepD`, via a symmetry lemma over
+  selections and an isolated-edge counting argument), padding and transport. Non vacuity:
+  `countq_unsat`, `countSeq_valid`, `countq_refutable`.

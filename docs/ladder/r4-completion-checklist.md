@@ -92,7 +92,11 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 
 - [x] 1D.1 Literature pass with citations recorded in the rung memory (2026-10-08; entries
   marked (verify) still need a citation check).
-- [ ] 1D.2 Count_q lower bound for bounded depth Frege with Count_p axioms.
+- [x] 1D.2 Count_q lower bound for bounded depth Frege with Count_p axioms: for a prime
+  `p ∤ q` (`q ≥ 2`), mod free depth `d` refutations of `countqCNF q N` using arbitrary Count_p
+  axiom instances have size `≥ 2^{N^{Ω_d(1)}}` (`QP.countq_bdfrege_exp`; designs, design mass
+  against Count_p lines, q-partition switching lemma, tree valued k-evaluations; CountQ.lean and
+  QPart/Designs/CountMass/QSwitch/QTree/QKEval/QLevel, 2026-10-09).
 - [x] 1D.3 Res(⊕) lower bounds, tree-like variant: parity decision trees solving the search
   problem of `PHP_n ∘ MAJ₃` have `≥ 2^n` leaves (`RL.pdt_lifted_php`, stifling simulation with a
   matching adversary), hence tree-like Res(⊕) refutations have `≥ 2^n` axiom leaves
