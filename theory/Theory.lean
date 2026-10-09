@@ -41,6 +41,7 @@ import Theory.ProofComplexity.PCSizeDegree
 import Theory.ProofComplexity.TseitinSize
 import Theory.ProofComplexity.ResLin
 import Theory.ProofComplexity.ResLinDag
+import Theory.ProofComplexity.ResLinBPHP
 import Theory.ProofComplexity.QPart
 import Theory.ProofComplexity.Designs
 import Theory.ProofComplexity.CountMass
