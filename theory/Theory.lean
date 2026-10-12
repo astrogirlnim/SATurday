@@ -47,6 +47,8 @@ import Theory.ProofComplexity.ResLinGame
 import Theory.ProofComplexity.Closure
 import Theory.ProofComplexity.ClosurePivot
 import Theory.ProofComplexity.Lift
+import Theory.ProofComplexity.LiftDup
+import Theory.ProofComplexity.LiftPHP
 import Theory.ProofComplexity.QPart
 import Theory.ProofComplexity.Designs
 import Theory.ProofComplexity.CountMass

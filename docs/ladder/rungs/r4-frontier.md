@@ -202,3 +202,11 @@ AC0[p] Frege and subsystems (the R4 frontier).
   `≥ (p+q)^i q` points by the BIKPPRS Lemma 4.3 doubling (`stepD`, via a symmetry lemma over
   selections and an isolated-edge counting argument), padding and transport. Non vacuity:
   `countq_unsat`, `countSeq_valid`, `countq_refutable`.
+- 2026-10-12 formalize (MAJ3 lifting warm-up, step 4; LiftDup.lean, LiftPHP.lean): a base
+  Duplicator family `BaseDup F0 W G` on block sets lifts through MAJ3 to a Res(⊕) Duplicator
+  (`hset_duplicator`; realizability by `solve_closure`, closure by `Closure.cl`, rank bound by the
+  closure size), hence `maj3_lifting`/`maj3_lifting_rank`: no dag-like Res(⊕) refutation of
+  `F0 ∘ MAJ3` has all lines of rank `≤ W`. Instance `php_maj3_rank`: every dag-like refutation of
+  `PHP_n ∘ MAJ3` has a line of rank `≥ n - 1`. Caveat: the wide PHP axioms already have rank `2n`,
+  so this instance is weak; the general theorem is meant for narrow encodings and size bounds
+  need a further step (rank to size, Itsykson–Podolskii–Shekhovtsov or regular/depth variants).
