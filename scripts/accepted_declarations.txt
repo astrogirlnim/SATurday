@@ -2564,3 +2564,7 @@ SATurday.ProofComplexity.RL.maj3_lifting
 SATurday.ProofComplexity.RL.maj3_lifting_rank
 SATurday.ProofComplexity.RL.phpBase
 SATurday.ProofComplexity.RL.php_maj3_rank
+SATurday.ProofComplexity.RL.Braun.holds_toP
+SATurday.ProofComplexity.RL.Braun.dag_to_pdag
+SATurday.ProofComplexity.RL.Braun.bphp_dag_to_pdag
+SATurday.ProofComplexity.RL.Braun.braun_implies_dag_lb
