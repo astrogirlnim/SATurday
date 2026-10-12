@@ -210,3 +210,10 @@ AC0[p] Frege and subsystems (the R4 frontier).
   `PHP_n ∘ MAJ3` has a line of rank `≥ n - 1`. Caveat: the wide PHP axioms already have rank `2n`,
   so this instance is weak; the general theorem is meant for narrow encodings and size bounds
   need a further step (rank to size, Itsykson–Podolskii–Shekhovtsov or regular/depth variants).
+- 2026-10-12 formalize (Phase 2.1, Braun port layer 0; BraunDag.lean): plan in
+  `r4-braun-port-plan.md`. Ported K. Braun's finite affine clause DAG calculus (arXiv 2609.23015;
+  credited in the docstring) as `Braun.PClause/PStep/PDag`, with the dictionary to our
+  `LClause` (`toP`, `holds_toP`), `dag_to_pdag` (our `DagRefutes` with `s` lines gives a `PDag`
+  with at most `s` nodes ending in the empty clause), `bphp_dag_to_pdag` (axioms of `bphpCNF` land
+  in his `usualInitials`), and `BraunBitPHP` (his theorem as a Prop, not assumed) with
+  `braun_implies_dag_lb`. The bound itself is not yet reproved (next: plan layers 1 and 2).
