@@ -2559,3 +2559,8 @@ SATurday.ProofComplexity.Closure.pivot
 SATurday.ProofComplexity.RL.solve_gadget
 SATurday.ProofComplexity.RL.solve_closure
 SATurday.ProofComplexity.RL.exists_solution
+SATurday.ProofComplexity.RL.hset_duplicator
+SATurday.ProofComplexity.RL.maj3_lifting
+SATurday.ProofComplexity.RL.maj3_lifting_rank
+SATurday.ProofComplexity.RL.phpBase
+SATurday.ProofComplexity.RL.php_maj3_rank
