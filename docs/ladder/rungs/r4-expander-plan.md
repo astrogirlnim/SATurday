@@ -140,3 +140,18 @@ integrality, transfer between characteristic 0 and p). Second: AR-A (long but th
   admissibility property (2) of the order. Mismatches vs paper: (a) hypothesis |J_i| >= l >= 1 added (paper
   tacitly needs f_i not identically 0); (b) strictness in Lemma 3.11 gives degree > bound as claimed; (c) OCR of
   Def 2.3 / Thm 4.4 constants still unverified, AR-B not started.
+- 2026-10-13 (AR-A DONE, uncertified, no sorry): PCLocalThm (Lemma 3.5 `Lam_mem`, Thm 3.1 `isLT_of_isLT_inter`,
+  Cor 3.7 `rdc_inter`), ARSup/ARSup2/ARSup3 (derivations `Der`, `Sup`, Lemma 3.11 `Sup_card`, Lemma 3.12
+  `rdc_Sup_eq`), ARBound (operator `Rop`, `ar_no_refutation` = Thm 3.8). Statement of `ar_no_refutation`: rows
+  `i : ι` (Fintype) with column sets `J i`, root sets `Z i` (local to `J i`, `ℓ`-immune over F), expander in boundary
+  form (`bdry`), `1 ≤ r`, `1 ≤ ℓ`, `4(s-c) < ℓ`, `s ≤ r(ℓ/4-(s-c))`; axioms: p with `ml p` supported in some `J i`
+  and vanishing on `Z i`; conclusion `¬ PCD Ax d 1` for every `d ≤ r(ℓ/4-(s-c))`.
+  Mismatches vs the paper, honestly: (1) semantic form (root sets) instead of polynomials f_i; Thm 3.1 is proved
+  for sets ZP (independent of z), ZQ (local to v ∪ z, (2|v|+1)-immune) rather than polynomials P, Q; (2) my
+  Thm 3.1 proof avoids R^theta's irreducibility argument; the key step (Lam maps V_{P,Q} into V_P) is exact, not
+  only modulo irreducible terms; Cor 3.7 first shows rdc_P(t) is z-free (paper: "obviously") and uses Thm 3.1 in
+  contrapositive; (3) the OCR of inference (8) is garbled; I use "row i is added when 4*|J_i ∩ (J(t) ∪ ∪_I J)| > l"
+  (strict), consistent with the uses in Lemmas 3.11 and 3.12; with it Lemma 3.11 holds for deg t <= D (paper: < D)
+  and the hypothesis s < D weakens to s <= D; (4) hypotheses 1 <= r, 1 <= l added (needed for Sup(1)=empty and the
+  strict count); no hypothesis |J_i| >= l needed: if |J_i| < l then immunity forces the axiom to be 0; (5) c, s are
+  real, boundary bound c|I| <= |bdry I| for all |I| <= r (AR Def 2.2 form). D1 not started; AR-B not started.

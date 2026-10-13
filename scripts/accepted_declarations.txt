@@ -2609,3 +2609,10 @@ SATurday.ProofComplexity.Expander.ggSys_rayleigh
 SATurday.ProofComplexity.Expander.gg_mixing
 SATurday.ProofComplexity.Expander.ggw_boundary_card
 SATurday.ProofComplexity.Expander.ggw_expansion
+SATurday.ProofComplexity.PCL.no_refutation_of_operator
+SATurday.ProofComplexity.PCL.isLT_of_isLT_inter
+SATurday.ProofComplexity.PCL.rdc_inter
+SATurday.ProofComplexity.PCL.Lam_mem
+SATurday.ProofComplexity.PCL.Sup_card
+SATurday.ProofComplexity.PCL.rdc_Sup_eq
+SATurday.ProofComplexity.PCL.ar_no_refutation
