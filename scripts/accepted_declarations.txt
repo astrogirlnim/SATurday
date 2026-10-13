@@ -2592,3 +2592,10 @@ SATurday.ProofComplexity.reslin_tseitin_size
 SATurday.ProofComplexity.DDer.restrict
 SATurday.ProofComplexity.bsw_dag_width_of_fatCount
 SATurday.ProofComplexity.bsw_dag_size_lower_bound
+SATurday.ProofComplexity.RLF.rldag_sound
+SATurday.ProofComplexity.RLF.atom_refutation
+SATurday.ProofComplexity.RLF.rldag_refutes_unit_pair
+SATurday.ProofComplexity.RLF.res_step
+SATurday.ProofComplexity.RLF.atom_refutation_pcd
+SATurday.ProofComplexity.RLF.reslin_dag_size_of_pc_degree
+SATurday.ProofComplexity.reslin_tseitin_dag_size
