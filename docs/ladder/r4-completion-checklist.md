@@ -115,9 +115,8 @@ propext, Classical.choice, Quot.sound; new declarations listed in
     instance `php_maj3_rank` (a weak rank bound: PHP axioms already have rank `2n`; no size
     bound yet) (Rado, Closure, ClosurePivot, LiftDup, LiftPHP);
   - port of Braun's dag-like Res(⊕) bit PHP bound (arXiv 2609.23015), plan in
-    `docs/ladder/rungs/r4-braun-port-plan.md`: layers 0 to 5 and 7 merged, layer 6 part 1 merged
-    but conditional on the explicit hypothesis `MatchingMomentFilling` (chessboard homology,
-    still to be proved). Layer 8 and the headline `BraunBitPHP` (super polynomial size of dag-like
+    `docs/ladder/rungs/r4-braun-port-plan.md`: layers 0 to 7 merged (layer 6 homology done:
+    `matchingMomentFilling` proves the chessboard filling hypothesis unconditionally). Layer 8 and the headline `BraunBitPHP` (super polynomial size of dag-like
     Res(⊕) refutations of bit PHP) are not yet proved, so 2.1 is not checked off.
 - [ ] 2.2 Res(lin F_p).
 - [ ] 2.3 Depth 2 AC0[p] Frege.

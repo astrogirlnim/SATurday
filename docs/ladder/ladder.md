@@ -138,8 +138,8 @@ R4-class results plus the certified R5 bridge.
     ResLinBPHP), Rado.lean, Closure.lean, ClosurePivot.lean, LiftDup.lean, LiftPHP.lean (MAJ3
     lifting theorem `maj3_lifting_rank`, instance `php_maj3_rank`, a weak rank bound); port of
     Braun's bit PHP bound in Braun*.lean per docs/ladder/rungs/r4-braun-port-plan.md: layers 0
-    to 5 and 7 merged, layer 6 part 1 merged conditional on `MatchingMomentFilling`; homology
-    part of layer 6 and layer 8 not done, `BraunBitPHP` is not proved
+    to 5, 6 (including the chessboard homology, `matchingMomentFilling` proved) and 7 merged;
+    layer 8 not done, `BraunBitPHP` is not proved
 
 - R5 Cook-Reckhow bridge
   - status: certified (2026-10-06, axiom gate green; theorem 1 both directions, theorem 2)
