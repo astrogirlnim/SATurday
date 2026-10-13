@@ -76,13 +76,15 @@ row equation computations), `BraunMatchingMomentCompleteness` (with `annihilator
 `BraunMatchingMomentCycles` (moment layers are cycles), `BraunMatchingMomentRelabeling`,
 `BraunMatchingMomentExtension`, `BraunMatchingFiltration` (`functionalUnary_pc_eq_ns`,
 `matching_normalized_annihilator`) and `BraunCubeResidualDualSeparation` (layer 7's deferred theorem).
-The one homology input, his `matching_moment_filling`, is the explicit `Prop`
-`MatchingMomentFilling` (in `BraunMatchingMomentCycles`); every theorem that needs it takes
-`hfill : MatchingMomentFilling` as first argument, including `cube_residual_dual_separation`. Remaining in
-layer 6: the homology part (`AugmentedChains*`, `CoverDoubleComplex`, `FiniteComplexCover`, `Chessboard*`,
-`HomologicalCover`) to prove `MatchingMomentFilling` for `N >= 2s-1` (his `chessboard_homological_bound`
-with `chessboardNu_stable_range`), after which `hfill` is discharged everywhere. Layer 8 can be started now
-with `hfill` threaded through.
+Layer 6 part 2 (done, merged): the homology. `BraunAugComplex` (abstract augmented F2 complexes: `boundary`,
+`boundary_boundary`, cones, simplex boundary exactness, relabeling `push`, `exactAt_subcomplex`), `BraunAugCover`
+(nerve, intersections, the cover double complex, `homological_cover`), `BraunAugChessboard` (first row star cover,
+star intersections, nerve is a simplex boundary, parameter arithmetic `chessboardNu`,
+`chessboard_homological_bound`) and `BraunChessboardFilling` (`matchingMomentFilling : MatchingMomentFilling`, valid
+for all `s >= 1`, plus unconditional wrappers `matching_normalized_annihilator_unconditional`,
+`functionalUnary_no_pc_refutation_unconditional`, `cube_residual_dual_separation_unconditional`). All new
+declarations are in namespace `SATurday.ProofComplexity.BraunPC.Aug` (except the final bridge). The earlier
+theorems keep their `hfill` argument; pass `matchingMomentFilling`. Layer 6 is complete. Remaining: layer 8 only.
 
 Layer 6 (matching moments and homology), original estimate. Remaining his lines: `MatchingNormalForm`
 (332, minus the prelude already ported), `MatchingMomentCompleteness` (233), `...Cycles` (133),
@@ -106,7 +108,7 @@ exist, since the final theorem composes them with layers 4, 5 and 7. Suggested b
 layer 6.
 
 Order: 0, then 1 -> 2 -> 3 -> 4 -> 5 in a chain; 6 and 7 can proceed in parallel after 2; 8 last.
-Estimated total 8000 to 9000 Lean lines. Layers 0 to 5, 7 and the non homology part of 6 are merged (conditional on `MatchingMomentFilling`); the homology part of 6 is the blocker, layer 8 can proceed conditionally.
+Estimated total 8000 to 9000 Lean lines. Layers 0 to 7 are merged (layer 6 homology proved, `matchingMomentFilling`); only layer 8 remains.
 
 ## Policy notes
 
