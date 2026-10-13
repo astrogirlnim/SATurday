@@ -223,3 +223,13 @@ AC0[p] Frege and subsystems (the R4 frontier).
   `MatchingMomentFilling` (`matchingMomentFilling`); layer 8 remains, and `BraunBitPHP` is
   not yet proved. Details and line counts in `r4-braun-port-plan.md`. Phase 1 is complete; R4
   itself stays active and uncertified.
+- 2026-10-13 formalize (Phase 2.2, Part-Tzameret tree-like Res(lin F_p) for Tseitin mod q; plan in
+  `r4-phase22-plan.md`): layers 1, 2 and the width half of the assembly are in. ResLinF.lean:
+  tree-like Res(lin F) derivations over a field with soundness (`rld_sound`). ResLinFPC.lean:
+  Theorem 45, width `w` gives polynomial calculus degree `w + 1` (`rld_to_pcd₀`, `rld_cnf_pcd`).
+  ResLinTseitin.lean: `reslin_tseitin_width`, every Res(lin F_p) tree-like refutation of the one
+  hot Tseitin mod q CNF on the cubic expanders (p prime, p not dividing q) has width linear in
+  the number of vertices. Not yet proved: the tree-like size-width relation (Theorem 44), so no
+  size bound yet. Caveats: one hot formula, not the paper's Boolean edge variable formula; the
+  combination rule carries a side condition (paper's Case 4 does not treat the resolvent already
+  occurring in the side clauses). Rung stays active and uncertified.
