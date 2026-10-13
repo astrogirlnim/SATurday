@@ -53,6 +53,7 @@ import Theory.ProofComplexity.ResLinFLift
 import Theory.ProofComplexity.ResLinFWidth
 import Theory.ProofComplexity.ResLinFSize
 import Theory.ProofComplexity.ResLinTseitin
+import Theory.ProofComplexity.ResDag
 import Theory.ProofComplexity.Closure
 import Theory.ProofComplexity.ClosurePivot
 import Theory.ProofComplexity.Lift
