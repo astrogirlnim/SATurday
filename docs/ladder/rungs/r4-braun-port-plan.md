@@ -108,7 +108,39 @@ exist, since the final theorem composes them with layers 4, 5 and 7. Suggested b
 layer 6.
 
 Order: 0, then 1 -> 2 -> 3 -> 4 -> 5 in a chain; 6 and 7 can proceed in parallel after 2; 8 last.
-Estimated total 8000 to 9000 Lean lines. Layers 0 to 7 are merged (layer 6 homology proved, `matchingMomentFilling`); only layer 8 remains.
+Estimated total 8000 to 9000 Lean lines. Layers 0 to 8 are merged (layer 6 homology proved, `matchingMomentFilling`; layer 8 assembly gives `braunBitPHP`).
+
+## Layer 8 status and statement fidelity check (2026-10-13)
+
+Layer 8 is done: `BraunParameterBounds` (`uniformKernel`, `eventually_affine_parameters`,
+`bitPHP_exponential_room`) and `BraunAssembly` (`registry_system_eq_ensFamily`,
+`affine_family_exclusion_of_square`, `affine_family_exclusion`, `affine_family_polylog_exclusion`,
+`bitPHP_exponential`, `bitPHP_exponential_base_two`, `bitPHP_superpolynomial`, then
+`RL.Braun.braunBitPHP : BraunBitPHP`, `bphp_dag_superpolynomial`, `bphp_dag_exponential`). All use
+`matchingMomentFilling` through `cube_residual_dual_separation_unconditional`; nothing is conditional.
+
+Fidelity check against his `bitPHP_superpolynomial` and `bitPHP_exponential`:
+* `BraunBitPHP` is his `bitPHP_superpolynomial` verbatim in shape: `K > 0`, `exists L`, `forall l >= L`,
+  `n + 1 = 2^l + 1` pigeons, `l` bits per pigeon (`BitVar (2^l+1) l`), initial clauses `usualInitials`,
+  a node family `C : Fin S -> clause` (not required injective), a node `f` with `C f = empty`, and the
+  strict bound `(2^l)^K < S` with the real power `Real.rpow`. No constant was changed.
+* The exponential form is proved with his constants: for `l >= 32` (his explicit threshold), `S >
+  exp(2^l / (32768 l^2))`, and base two. The threshold `l >= 32` is a hypothesis of `bphp_dag_exponential`
+  and `bitPHP_exponential`; the superpolynomial form only asserts a threshold `L` exists, as in his.
+* Mismatch 1 (type valued vs prop valued): his `AffineDAG` is `Type` valued, our `PDag` is `Prop` valued.
+  Equivalent for these statements (`pdag_to_affineDAG`); the exponential and superpolynomial theorems
+  are stated for `PDag`, which is the weaker looking but equal hypothesis.
+* Mismatch 2 (what the size counts): in his theorems `S` is the number of nodes (indexed family, repeats
+  allowed). Ours for `RL.DagRefutes` is `s`, the number of lines of a finset based derivation. The
+  bridge `bphp_dag_to_pdag` gives a dag with `S <= s` nodes, so the bound on `S` implies the same bound on
+  `s`; the corollary about `DagRefutes` is therefore at least as strong a statement in the direction of
+  lower bounds (it bounds `s`, which is `>= S`).
+* Mismatch 3 (calculus): our `RL.DagRefutes` has the rules axiom, weakening, resolution; his `PDag` has
+  also a binary semantic rule and semantic weakening. Our refutations embed into his, so his bound
+  applies to ours; the converse is not claimed.
+* Mismatch 4 (variables): `bphpCNF l m` uses variables `i*l+j` in `N`, translated to `BitVar m l` by
+  `finProdFinEquiv` with all extra variables read as 0; this is the dictionary of `BraunDag`.
+No claim is weakened. Nothing here is certified; the gate status is reported separately.
 
 ## Policy notes
 

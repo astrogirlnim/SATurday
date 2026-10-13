@@ -36,8 +36,9 @@ Statuses live in `docs/ladder/rungs/` and are summarized by `satday status`.
   Phase 1 (certified infrastructure: Razborov-Smolensky, switching lemma, bounded depth Frege
   for PHP, polynomial calculus, Count_q) are complete. Phase 2.1 (Res(xor)) is underway:
   dag-like Res(xor) foundations, the MAJ3 lifting theorem with a PHP rank instance, and a port
-  of Braun's bit PHP bound (layers 0 to 7 merged, the chessboard filling lemma proved as
-  `matchingMomentFilling`; layer 8 outstanding). No R4 lower bound for AC0[p] Frege is certified.
+  of Braun's bit PHP bound (layers 0 to 8 merged: chessboard filling lemma proved as
+  `matchingMomentFilling`, and `BraunBitPHP` proved as `braunBitPHP`, an unconditional size bound for
+  dag-like Res(xor) refutations of bit PHP). No R4 lower bound for AC0[p] Frege is certified.
 - R5 (certified): Cook Reckhow bridge over a real machine model
 
 Summit: R4 class hardness plus certified R5 imply the packaging path to
