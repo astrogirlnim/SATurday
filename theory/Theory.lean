@@ -60,6 +60,8 @@ import Theory.ProofComplexity.ResLinFBack
 import Theory.ProofComplexity.ResLinDagSize
 import Theory.ProofComplexity.ExpanderMixing
 import Theory.ProofComplexity.ExpanderMGG
+import Theory.ProofComplexity.ExpanderParams
+import Theory.ProofComplexity.ARBound
 import Theory.ProofComplexity.Closure
 import Theory.ProofComplexity.ClosurePivot
 import Theory.ProofComplexity.Lift
