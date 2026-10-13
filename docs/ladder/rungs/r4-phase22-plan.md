@@ -74,3 +74,20 @@ The dag-like case is not covered (the paper proves tree-like only for finite fie
   tree-like Res(lin F_p) refutation of `tcnf G q b` (w >= q+3) on the cubic expanders has
   w >= ((n-2)/1312 - q(q+3))/(q-1). Remaining: L3, the tree-like size-width relation (Theorem 44),
   which turns this width bound into the size bound 2^{Omega(n)}.
+- 2026-10-13 OWNER DECISION (via coordinator, R4 channel): the target formula is the paper's exact
+  Boolean-edge Tseitin mod p formula, not the one-hot `tcnf`. Plan: finish Theorem 44 (size-width,
+  formula independent), then port the Alekhnovich-Razborov non-binomial PC degree bound for the
+  paper's formula, then assemble the final size bound for that formula. Supersedes difference 1
+  above once done; until then `reslin_tseitin_width` (one-hot) is an interim width result.
+- 2026-10-13 Combination-rule caveat re-examined. Lines are sets (paper: duplicates contracted
+  automatically). Paper Theorem 45 Case 4 fails as written when the new equation e3 already occurs
+  in the side clauses (product then carries eq3 twice). Repair found: eq3*P(S) is derivable at
+  degree |S|+1, multiply by eq3^(p-2), and use eq3^p - eq3 = sum c_i (x_i^p - x_i) (Frobenius over
+  F_p), a multiple of Boolean axioms: degree w+p. So the side condition is REMOVED from RLD (system
+  now matches the paper: set lines, simplification of any 0=c, c!=0) and Theorem 45 gives degree
+  w+p. The caveat therefore does not affect the final statement (only the additive constant).
+  Also: Boolean axioms now live in the axiom set (`boolAx`), no `bool` rule.
+- Theorem 44 route (own proof, following paper but at plain width): clean normal form (lines free
+  of false constants, root = two unit premises), pivot elimination restriction, lift lemmas,
+  Prop 12 (image clause) and Prop 14 (chain), induction on number of variables with width
+  w0+(q-1)k for size <= 2^k.
