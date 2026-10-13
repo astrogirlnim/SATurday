@@ -63,6 +63,10 @@ import Theory.ProofComplexity.ExpanderMGG
 import Theory.ProofComplexity.ExpanderParams
 import Theory.ProofComplexity.ARBound
 import Theory.ProofComplexity.TseitinEdgeCNF
+import Theory.ProofComplexity.GreenBinom
+import Theory.ProofComplexity.GreenImmunity
+import Theory.ProofComplexity.GreenTseitin
+import Theory.ProofComplexity.ResLinTseitinEdge
 import Theory.ProofComplexity.Closure
 import Theory.ProofComplexity.ClosurePivot
 import Theory.ProofComplexity.Lift

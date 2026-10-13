@@ -183,3 +183,40 @@ integrality, transfer between characteristic 0 and p). Second: AR-A (long but th
   once 8^k/(4q(q-1)) > 1, which is true for k >= k0 q after enlarging k0 slightly (q >= 2); this is a numeric
   side condition to add when AR-B lands. Green's weak-degree theorem is only cited in AR (not reproduced), so
   AR-B is a genuinely new proof (Fourier/cyclotomic); not started. Also Cor 4.5 states Omega(dn) with Ramanujan G.
+- 2026-10-13 (AR-B DONE, F DONE, uncertified, no sorry) New modules `GreenBinom`, `GreenImmunity`, `GreenTseitin`,
+  `ResLinTseitinEdge`. Elementary Beck-Li route, no Fourier/cyclotomics, no averaging, any characteristic.
+  * `GreenBinom.rank_lemma`: if `(q:F) != 0` and `sum_{k<N} c_k C(a+iq,k) = 0` for `i<N` (c_k = 0 for k >= N)
+    then all `c_k = 0`. Proved WITHOUT the determinant identity: the Pascal step `pS c = c_v + c_{v+1}` realizes
+    `w -> w+1` on binomial expansions (`phi_pS`), `(pS^q - 1)c` has degree one less with top coefficient
+    `q * c_top` (`iter_top`), induct on N. No `1/k!` appears, so small characteristic is not an issue; the
+    hypothesis `char F != q` enters exactly once, at `q * c_top = 0 => c_top = 0`.
+  * `GreenImmunity.green_immune` (`Green.green_main`, `sym_deg`, `restrict_exists`): for `q >= 2`, `(q:F) != 0`,
+    any finite set A of variables, any residue s, every nonzero multilinear g (any support) vanishing on all
+    Boolean points of A-weight `= s mod q` has `deg g >= (|A|+1)/q` (nat division). Symmetrization as
+    announced in the green note but organised as a strong induction on |A| instead of choosing a minimum degree
+    element: either g is invariant under all transpositions of A (then `g T` depends only on `|T|`, `sym_card`,
+    and the rank lemma applies to the weights `s.val + i q`, `sym_deg`), or for some pair (i,j) the difference
+    `g - (i j)g = (x_i - x_j) h` with `h = hdiff` nonzero on `A \ {i,j}`, `deg h + 1 <= deg g`, and h vanishes
+    on the class `s-1` (`hdiff_vanish`), then `(n+1)/q <= 1 + (n-1)/q` for q >= 2. The reduction to g supported in A
+    (`restrict_exists`) fixes the outside variables to the minimal term T0. Note: the note's `(n-q+2)/q` minimisation
+    over l is not needed; the floor bound `(n+1)/q` is cleaner and dominates it.
+  * `GreenTseitin`: `ggw_himm` (immunity `(8^k+1)/q` of every vertex root set of `GGW m k`, because left vertices
+    only emit and right vertices only receive, so the root set is `{|a cap J v| = eps*sigma v}` with eps = +-1,
+    `OGraph.Z_eq`), `ar_thm44_ggw` (AR constant `8^k/(4(q-1))`, `ar_const_le`), numerics `num_bounds` and the final
+    **`ggw_tseitin_pc_degree`**: for `q >= 2`, `(q:F) != 0`, `16 q <= m`, `k >= k0 q`, every sigma, no PC refutation of the
+    exact Boolean-edge Tseitin mod q clauses (`OGraph.Ax`) of degree `d <= m^2 8^k / (256 q^2)`. With n = 2 m^2
+    vertices and degree 8^k this is Omega(d n / q^2).
+  * `ResLinTseitinEdge`: `OGraph.cnf` (the width-`8^k` CNF, one clause per bad local assignment),
+    `OGraph.cnfAx_eq` (its polynomial system is exactly `OGraph.Ax`), and **`ggw_tseitin_reslin_size`**: for p prime,
+    p not dividing q, same ranges, every tree-like Res(lin F_p) refutation (`RLF.RLD ... w empty s`) satisfies
+    `2^((m^2 8^k/(256 q^2) - 8^k - p)/(p-1)) <= 2 s`, i.e. 2^{Omega(d n/(p q^2))} once `m^2 >= 512 q^2`-ish.
+  Mismatches and side conditions, honestly: (1) AR's nonemptiness worry for tiny d does not arise in the semantic
+  form: for `ell = 0` immunity is vacuous and for `ell >= 1` the bound `(n+1)/q >= 1` forces `n >= q-1`;
+  our `green_immune` needs no nonemptiness hypothesis. (2) No enlargement of `k0` was needed: `4 q <= 8^k` already follows
+  from `k >= k0 q` (`four_q_le_pow`), and our stronger immunity gives `4(s-c) = 8^k/(4q) < ell`. (3) Mixed signs of AR
+  Thm 4.4 are NOT formalized (the flip x -> 1-x with a shift of sigma would give them); the walk multigraph only needs
+  uniform signs per vertex. (4) Statements need `16 q <= m` (m^2 large against q), `q >= 2` (not necessarily prime),
+  `(q:F) != 0`; the size theorem needs the same plus p prime, p not dividing q. (5) Beck-Li's `Lemma 5.1` is stated
+  for F_p; the proof here is for any field with q a unit and avoids the determinant. (6) Green's theorem itself was never
+  needed and never read; AR's constant 4(q-1) is weaker than what is proved. Beck-Li text was not re-fetched this
+  session; the statements used are those recorded in r4-green-note.md plus the proofs above, which are checked by Lean.

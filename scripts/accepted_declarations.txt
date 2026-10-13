@@ -2622,3 +2622,12 @@ SATurday.ProofComplexity.TseitinEdge.OGraph.Ax_unsat
 SATurday.ProofComplexity.TseitinEdge.OGraph.bdry_eq
 SATurday.ProofComplexity.TseitinEdge.tseitin_no_refutation
 SATurday.ProofComplexity.TseitinEdge.ggw_tseitin_no_refutation
+SATurday.ProofComplexity.Green.rank_lemma
+SATurday.ProofComplexity.Green.sym_deg
+SATurday.ProofComplexity.Green.green_main
+SATurday.ProofComplexity.Green.green_immune
+SATurday.ProofComplexity.TseitinEdge.ggw_himm
+SATurday.ProofComplexity.TseitinEdge.ar_thm44_ggw
+SATurday.ProofComplexity.TseitinEdge.ggw_tseitin_pc_degree
+SATurday.ProofComplexity.TseitinEdge.OGraph.cnfAx_eq
+SATurday.ProofComplexity.TseitinEdge.ggw_tseitin_reslin_size
