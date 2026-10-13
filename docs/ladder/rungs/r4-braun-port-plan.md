@@ -70,7 +70,21 @@ Lesson from porting: his Lean/Mathlib is newer than ours in a few names (`totalD
 classical versus subtype `DecidableEq` instances on cube sums; every layer so far compiled after
 at most three such mechanical fixes per file.
 
-Layer 6 (matching moments and homology), honest estimate. Remaining his lines: `MatchingNormalForm`
+Layer 6 part 1 (done, merged): `BraunMatchingNormalForm` (matching normal form, `IsMatching` stated directly,
+row equation computations), `BraunMatchingMomentCompleteness` (with `annihilator_extension`),
+`BraunMomentChains` (minimal augmented chain API on the chessboard: `Coeff`, `boundary`, `push`),
+`BraunMatchingMomentCycles` (moment layers are cycles), `BraunMatchingMomentRelabeling`,
+`BraunMatchingMomentExtension`, `BraunMatchingFiltration` (`functionalUnary_pc_eq_ns`,
+`matching_normalized_annihilator`) and `BraunCubeResidualDualSeparation` (layer 7's deferred theorem).
+The one homology input, his `matching_moment_filling`, is the explicit `Prop`
+`MatchingMomentFilling` (in `BraunMatchingMomentCycles`); every theorem that needs it takes
+`hfill : MatchingMomentFilling` as first argument, including `cube_residual_dual_separation`. Remaining in
+layer 6: the homology part (`AugmentedChains*`, `CoverDoubleComplex`, `FiniteComplexCover`, `Chessboard*`,
+`HomologicalCover`) to prove `MatchingMomentFilling` for `N >= 2s-1` (his `chessboard_homological_bound`
+with `chessboardNu_stable_range`), after which `hfill` is discharged everywhere. Layer 8 can be started now
+with `hfill` threaded through.
+
+Layer 6 (matching moments and homology), original estimate. Remaining his lines: `MatchingNormalForm`
 (332, minus the prelude already ported), `MatchingMomentCompleteness` (233), `...Cycles` (133),
 `...Extension` (264), `...Relabeling` (110), `MatchingFiltration` (112), `PolynomialCalculusDuality`
 linear separation, plus the homology packages (`AugmentedChains*`, `CoverDoubleComplex`,
@@ -92,7 +106,7 @@ exist, since the final theorem composes them with layers 4, 5 and 7. Suggested b
 layer 6.
 
 Order: 0, then 1 -> 2 -> 3 -> 4 -> 5 in a chain; 6 and 7 can proceed in parallel after 2; 8 last.
-Estimated total 8000 to 9000 Lean lines. Layers 0 to 5 and most of 7 are merged; layer 6 is the blocker, then layer 8.
+Estimated total 8000 to 9000 Lean lines. Layers 0 to 5, 7 and the non homology part of 6 are merged (conditional on `MatchingMomentFilling`); the homology part of 6 is the blocker, layer 8 can proceed conditionally.
 
 ## Policy notes
 
