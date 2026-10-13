@@ -217,3 +217,9 @@ AC0[p] Frege and subsystems (the R4 frontier).
   with at most `s` nodes ending in the empty clause), `bphp_dag_to_pdag` (axioms of `bphpCNF` land
   in his `usualInitials`), and `BraunBitPHP` (his theorem as a Prop, not assumed) with
   `braun_implies_dag_lb`. The bound itself is not yet reproved (next: plan layers 1 and 2).
+- 2026-10-13 docs status (Phase 2.1): Braun port layers 1 to 5 and 7 are merged, and layer 6
+  part 1 (matching normal form, moment completeness, chains, cycles, relabeling, extension,
+  filtration, cube residual dual separation) is merged conditional on the explicit hypothesis
+  `MatchingMomentFilling`; the homology part of layer 6 and layer 8 remain, and `BraunBitPHP` is
+  not yet proved. Details and line counts in `r4-braun-port-plan.md`. Phase 1 is complete; R4
+  itself stays active and uncertified.
