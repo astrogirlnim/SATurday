@@ -2574,3 +2574,7 @@ SATurday.ProofComplexity.BraunPC.bitPHP_superpolynomial
 SATurday.ProofComplexity.RL.Braun.braunBitPHP
 SATurday.ProofComplexity.RL.Braun.bphp_dag_superpolynomial
 SATurday.ProofComplexity.RL.Braun.bphp_dag_exponential
+SATurday.ProofComplexity.RLF.rld_sound
+SATurday.ProofComplexity.RLF.rld_to_pcd₀
+SATurday.ProofComplexity.RLF.rld_cnf_pcd
+SATurday.ProofComplexity.reslin_tseitin_width

@@ -67,3 +67,10 @@ The dag-like case is not covered (the paper proves tree-like only for finite fie
 
 ## Progress log (append-only)
 
+- 2026-10-13 L1, L2 and the width half of L4 done (ResLinF.lean, ResLinFPC.lean,
+  ResLinTseitin.lean): `RLF.RLD` (tree-like Res(lin F), width and leaf indexed, with the side
+  condition variant of the combination rule), `rld_sound`, `rld_to_pcd₀` (Theorem 45 with degree
+  w+1), `rld_cnf_pcd`, and `reslin_tseitin_width`: for p prime, p not dividing q, every width w
+  tree-like Res(lin F_p) refutation of `tcnf G q b` (w >= q+3) on the cubic expanders has
+  w >= ((n-2)/1312 - q(q+3))/(q-1). Remaining: L3, the tree-like size-width relation (Theorem 44),
+  which turns this width bound into the size bound 2^{Omega(n)}.
