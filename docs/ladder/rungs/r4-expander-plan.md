@@ -124,3 +124,19 @@ integrality, transfer between characteristic 0 and p). Second: AR-A (long but th
   `ggw_right_count` with IR a singleton. Remaining of the graph part: pick k0(q) with
   (5 sqrt2/8)^k <= 1/(32 q) and r = m^2/(8q)-ish to get the explicit constants c, and package as an AR
   matrix once AR-A fixes its interface; D1, AR-A, AR-B, F not started.
+- 2026-10-13 (later) OWNER: bipartite walk multigraph family approved. Parameters DONE (ExpanderParams.lean):
+  `k0 q = 6 * clog2 (32 q)`, `rBound m q = m*m/(16 q)`, `mu_pow_le` ((5 sqrt2)^k <= 8^k/(32 q) for k >= k0 q),
+  `ggw_rsc` (|I| <= rBound: boundary >= |I| * 8^k * (1 - 1/(16 q)), i.e. s = 8^k, s - c = 8^k/(16 q)).
+  Graph dependence is isolated in these two files plus ExpanderMGG/Mixing.
+- AR-A design change (D1 simplification): the AR-A theorem is stated SEMANTICALLY: rows i carry root sets
+  Z_i (sets of Boolean points) that are local to column sets J_i and l-immune; axioms are any polynomials
+  supported in J_i vanishing on Z_i. So the CNF clause polynomials can be used directly as axioms and the
+  vertex polynomials f_v (and the 2d-degree bridge) are not needed. D1 (TseitinEdgeCNF) is NOT written yet.
+- AR-A progress (no sorry, builds): PCMultilinear (multilinear algebra S, ev, shl, kW, ml), PCReduction
+  (term order key = (card, binary expansion), leading/irreducible terms, reduction operator rdc, vsub),
+  PCOperator (Lemma 2.10: `no_refutation_of_operator`), PCLocal (PARTIAL: chi, Ve, Re, Lam/Lterm, Lterm_fix =
+  Lemma 3.4, card bound). Remaining AR-A: L35 (Lam maps V_{P,Q} into V_P), Thm 3.1 + Cor 3.7 (rdc_inter),
+  Sup/Lemmas 3.11, 3.12, Thm 3.8 assembly. My proof of Thm 3.1 avoids R^theta's irreducibility argument and
+  admissibility property (2) of the order. Mismatches vs paper: (a) hypothesis |J_i| >= l >= 1 added (paper
+  tacitly needs f_i not identically 0); (b) strictness in Lemma 3.11 gives degree > bound as claimed; (c) OCR of
+  Def 2.3 / Thm 4.4 constants still unverified, AR-B not started.
