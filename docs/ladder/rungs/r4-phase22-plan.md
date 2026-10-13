@@ -91,3 +91,16 @@ The dag-like case is not covered (the paper proves tree-like only for finite fie
   of false constants, root = two unit premises), pivot elimination restriction, lift lemmas,
   Prop 12 (image clause) and Prop 14 (chain), induction on number of variables with width
   w0+(q-1)k for size <= 2^k.
+- 2026-10-13 L3 DONE (ResLinFNorm, ResLinFRst, ResLinFImg, ResLinFLift, ResLinFWidth, ResLinFSize;
+  ~1000 lines total, far below the 2000-3000 estimate because the proof is done directly at plain
+  width): `RLF.rld_size_width` (Theorem 44, any finite field F with q elements): a tree-like
+  Res(lin F) refutation of Ax + Boolean axioms, arbitrary width, s leaves gives a refutation of
+  width w0 + (q-1) ceil(log2 s). `RLF.rld_cnf_size`: tree-like Res(lin F_p) refutation of a CNF
+  with clauses of at most w0 literals and s leaves gives a PC_{F_p} refutation of degree
+  w0 + (p-1) clog2 s + p. `reslin_tseitin_size`: for the ONE HOT Tseitin mod q CNF on the cubic
+  expanders, every tree-like Res(lin F_p) refutation (p prime, p not dividing q) has
+  s >= 2^{(D - (q+3) - p)/(p-1) - 1}, D = ((n-2)/1312 - q(q+3))/(q-1) = Omega(n). This is the
+  INTERIM result for the one hot encoding (statement: 2^((D-(q+3)-p)/(p-1)) <= 2*s).
+- Remaining for the owner's chosen target (paper's Boolean-edge Tseitin formula): port the
+  Alekhnovich-Razborov non-binomial PC degree lower bound for that formula, then compose with
+  `rld_cnf_size` exactly as `reslin_tseitin_size` does.

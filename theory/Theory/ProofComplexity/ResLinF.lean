@@ -133,6 +133,14 @@ theorem rld_card {Ax : Set (Finset (LEq F))} {w : ℕ} {L : Finset (LEq F)} {s :
     rename_i L s
     exact (Finset.card_le_card (Finset.subset_insert _ _)).trans ih
 
+theorem rld_pos {Ax : Set (Finset (LEq F))} {w : ℕ} {L : Finset (LEq F)} {s : ℕ}
+    (h : RLD Ax w L s) : 1 ≤ s := by
+  induction h with
+  | ax => exact le_rfl
+  | weak _ _ _ ih => exact ih
+  | comb _ _ _ _ _ _ _ _ _ ih1 ih2 => omega
+  | simp _ _ _ ih => exact ih
+
 theorem rld_mono_w {Ax : Set (Finset (LEq F))} {w w' : ℕ} (hw : w ≤ w') {L : Finset (LEq F)}
     {s : ℕ} (h : RLD Ax w L s) : RLD Ax w' L s := by
   induction h with

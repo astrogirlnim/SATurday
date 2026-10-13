@@ -309,6 +309,9 @@ def litEq (l : Literal) : LEq F := (Finsupp.single l.var 1, if l.pos then 1 else
 /-- A clause as a linear clause. -/
 def ofCl (C : Clause) : Finset (LEq F) := C.image litEq
 
+theorem ofCl_card_le (C : Clause) : (ofCl C : Finset (LEq F)).card ≤ C.card :=
+  Finset.card_image_le
+
 theorem litEq_inj : Function.Injective (litEq (F := F)) := by
   rintro ⟨v, b⟩ ⟨v', b'⟩ h
   have h1 := congrArg Prod.fst h
