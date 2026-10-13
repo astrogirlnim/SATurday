@@ -11,8 +11,8 @@ Credit. Port, with our own proofs, of K. Braun (arXiv 2609.23015, author's Lean 
 `compactDecoder_degree`): the explicit affine bit to unary decoder on `m` rows and `2^ℓ` labels,
 with a linear left inverse, injectivity and exact total degree preservation.
 
-Not ported here: his `CompactBitDecoderTransfer.lean` (`compactDecoder_PC`), which needs
-`TwoRowInterpolation` (layer 7).
+His `CompactBitDecoderTransfer.lean` (`compactDecoder_PC`), which needs `TwoRowInterpolation`, is
+ported in layer 7 as `BraunCompactTransfer`.
 
 LOG: R4 BraunCompactDecoder module (Phase 2.1 layer 5b)
 -/
