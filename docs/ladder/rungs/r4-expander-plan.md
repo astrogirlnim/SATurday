@@ -155,3 +155,31 @@ integrality, transfer between characteristic 0 and p). Second: AR-A (long but th
   and the hypothesis s < D weakens to s <= D; (4) hypotheses 1 <= r, 1 <= l added (needed for Sup(1)=empty and the
   strict count); no hypothesis |J_i| >= l needed: if |J_i| < l then immunity forces the axiom to be 0; (5) c, s are
   real, boundary bound c|I| <= |bdry I| for all |I| <= r (AR Def 2.2 form). D1 not started; AR-B not started.
+- 2026-10-13 (D1 DONE, uncertified, no sorry) `TseitinEdgeCNF.lean`: `OGraph` (oriented multigraph, injective
+  variable numbering `col`), root sets `Z q sigma v` (vertex sum in-minus-out = sigma v mod q), row support `J v`,
+  clause polynomials `cl v alpha` (product over incident edges; value 1 exactly on points restricting to alpha),
+  CNF `Ax` = clauses of bad local assignments. Proved: `ev_ml` (ev a (ml p) = MvPolynomial.eval of the 0-1
+  valuation, so clause polynomials connect to the semantic form), locality `Z_local`, `cl_axiom` (clause
+  polynomials are local to J v and vanish on Z v), `Ax_root_iff` (common roots of Ax = common points of all Z v),
+  `sum_lsum` / `Ax_unsat` (unsatisfiable when sum sigma != 0 mod q; every edge once + once -), `bdry_eq`
+  (AR bdry of J = image of the edge cut, needs loopless), `tseitin_no_refutation` (generic AR application),
+  and `ggw_tseitin_no_refutation` for `ggwGraph m hm k` (left copy -> right copy, degree 8^k, k >= k0 q).
+  The ONLY open hypothesis is `himm`: for every vertex v and every nonzero multilinear g over F vanishing on
+  Z v, ell <= deg g (ell-immunity of the root set Z v, which is the Boolean mod-q predicate on the 8^k
+  incident edge variables with +-1 coefficients), together with the numerical side conditions
+  1 <= ell, 4(8^k/(16q)) < ell, 8^k <= rBound (ell/4 - 8^k/(16q)) (the last holds for m large once ell is
+  fixed). Mismatches: the clause family is the PC encoding of the CNF (one polynomial per bad local assignment,
+  possibly several alpha giving the same clause when alpha differs off inc v is NOT an issue since cl only
+  reads inc v, duplicates are harmless); the Boolean axioms are PC's own. Loops excluded for the boundary
+  identity; parallel edges allowed.
+- 2026-10-13 (AR-B paper re-read, from page images p19/p20 of the AR copy; no code yet). Thm 4.4 (exact, OCR
+  now fixed): the Boolean function on d variables that outputs 1 on alpha iff sum_j eps_j alpha_j = sigma mod p
+  (eps_j in {+-1}, sigma in {0..p-1} arbitrary) is floor(d/(4(p-1)))-immune over every field with char != p.
+  So the immunity constant is floor(d/(4(q-1))), NOT d/(2q) as written in section 1 above (that was wrong).
+  Proof in the paper: w.l.o.g. eps_1..eps_d1 = 1, the rest -1, d1 >= d/2; Cor 2.6(1) plus Green [Gre00, Thm 3.4]
+  give floor(d1/(2(p-1))) >= floor(d/(4(p-1)))-immunity of MOD_{p,sigma}(x_1..x_d1) over char not in {0,p};
+  Cor 2.6(2) extends to char 0; Lemma 2.7(2) with V = {x_{d1+1}..x_d} handles the negative-sign variables.
+  Consequence for D1: need 1 <= ell = floor(8^k/(4(q-1))) with 4(8^k/(16q)) = 8^k/(4q) < ell, i.e. holds
+  once 8^k/(4q(q-1)) > 1, which is true for k >= k0 q after enlarging k0 slightly (q >= 2); this is a numeric
+  side condition to add when AR-B lands. Green's weak-degree theorem is only cited in AR (not reproduced), so
+  AR-B is a genuinely new proof (Fourier/cyclotomic); not started. Also Cor 4.5 states Omega(dn) with Ramanujan G.

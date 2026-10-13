@@ -2616,3 +2616,9 @@ SATurday.ProofComplexity.PCL.Lam_mem
 SATurday.ProofComplexity.PCL.Sup_card
 SATurday.ProofComplexity.PCL.rdc_Sup_eq
 SATurday.ProofComplexity.PCL.ar_no_refutation
+SATurday.ProofComplexity.TseitinEdge.ev_ml
+SATurday.ProofComplexity.TseitinEdge.OGraph.Ax_root_iff
+SATurday.ProofComplexity.TseitinEdge.OGraph.Ax_unsat
+SATurday.ProofComplexity.TseitinEdge.OGraph.bdry_eq
+SATurday.ProofComplexity.TseitinEdge.tseitin_no_refutation
+SATurday.ProofComplexity.TseitinEdge.ggw_tseitin_no_refutation

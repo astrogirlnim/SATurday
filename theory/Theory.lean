@@ -62,6 +62,7 @@ import Theory.ProofComplexity.ExpanderMixing
 import Theory.ProofComplexity.ExpanderMGG
 import Theory.ProofComplexity.ExpanderParams
 import Theory.ProofComplexity.ARBound
+import Theory.ProofComplexity.TseitinEdgeCNF
 import Theory.ProofComplexity.Closure
 import Theory.ProofComplexity.ClosurePivot
 import Theory.ProofComplexity.Lift
