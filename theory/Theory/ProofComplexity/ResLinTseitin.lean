@@ -23,13 +23,13 @@ theorem reslin_tseitin_width (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq :
     (hpq : ¬ p ∣ q) (N : ℕ) :
     ∃ (n : ℕ) (G : FinGraph n), N ≤ n ∧ IsRegular G 3 ∧ ∀ b : Fin n → ZMod q, ∀ w s : ℕ,
       q + 3 ≤ w →
-      RLF.RLD ((fun C => (RLF.ofCl C : Finset (RLF.LEq (ZMod p)))) '' tcnf G q b) w ∅ s →
-      ((n - 2) / 1312 - q * (q + 3)) / (q - 1) ≤ w := by
+      RLF.RLD (((fun C => (RLF.ofCl C : Finset (RLF.LEq (ZMod p)))) '' tcnf G q b) ∪ RLF.boolAx) w ∅ s →
+      ((n - 2) / 1312 - q * (q + 3)) / (q - 1) ≤ w + p := by
   obtain ⟨n, G, hN, hreg, hdeg⟩ := tseitin_bool_degree_Fp p hq hpq N
   refine ⟨n, G, hN, hreg, fun b w s hw h => ?_⟩
   by_contra hlt
   rw [not_le] at hlt
-  refine hdeg b (pcd_mono (by omega) (RLF.rld_cnf_pcd (by omega) (fun C hC => ?_) h))
+  refine hdeg b (pcd_mono (by omega) (RLF.rld_cnf_pcd (fun a => ZMod.pow_card a) (by omega) (fun C hC => ?_) h))
   exact (tcnf_clause_props hreg hC).2.trans hw
 
 end SATurday.ProofComplexity
