@@ -104,3 +104,34 @@ The dag-like case is not covered (the paper proves tree-like only for finite fie
 - Remaining for the owner's chosen target (paper's Boolean-edge Tseitin formula): port the
   Alekhnovich-Razborov non-binomial PC degree lower bound for that formula, then compose with
   `rld_cnf_size` exactly as `reslin_tseitin_size` does.
+- 2026-10-13 AR PORT SCOPING (read Alekhnovich-Razborov, "Lower bounds for polynomial calculus:
+  non-binomial case", FOCS 2001 / Proc. Steklov 242 (2003), copy at
+  people.cs.uchicago.edu/~razborov/files/misha.pdf; text OCR'd). Structure of what must be ported:
+  (A) Thm 3.8: A an (r,s,c)-expander 0-1 matrix (boundary of a row set I = columns with exactly one
+      1 in I, |boundary| >= c|I| for |I| <= r, row weight <= s), f_i l-immune (no nonzero g of
+      degree < l+1 vanishing on the Boolean roots of f_i) with Vars(f_i) in the row support, l >
+      4(s-c): every PC_F refutation of {f_i=0} has degree > r(l/4 - (s-c)). Proof = Razborov's
+      local reduction operator R(t)=reduction of t mod Span(Sup(t)), with Thm 3.1 (partition
+      y,v,z; Q (2|y|+1)-immune; t reducible mod Span(P,Q) => reducible mod Span(P)) and Lemma 2.10
+      (operator criterion). Needs in Lean: multilinear algebra S_n(F) = functions on the cube,
+      admissible term order, irreducible terms / reduction operator mod an ideal given by a root
+      set, support closure Sup(t) and its size bound (Lemma 3.11), Lemmas 3.3-3.7, 3.12. Est.
+      1500-2500 lines. TseitinPC.lean already contains one Razborov R-operator argument (binomial
+      case, no Boolean axioms) but not the general criterion for the Boolean (x^2=x) algebra.
+  (B) Thm 4.4: the predicate sum d_i a_i = sigma mod p on d Boolean variables is
+      floor((floor(d/2)+1)/p)-ish immune over char != p: this is Green's weak mod-p degree
+      theorem (complex Fourier technique, Green 2000, Thm 3.4) plus Lemma 2.5 (integer
+      polynomial reduction) and Lemma 2.7. Est. 800-1500 lines (cyclotomic roots as in
+      TseitinBool).
+  (C) Graphs: Cor 4.5 needs d >= d0(p) and the incidence matrix of a d-regular graph to be
+      (r,d,d(1-r/n)-lambda2)-expander (Lemma 4.2 via the Bollobas-Chung-Sudakov style bound
+      ad(G|U) <= |U|(d-lambda2)/n + lambda2). The one edge/vertex needs d large: for d=3 the vertex
+      predicate has immunity <= 3 and Thm 3.8 (needs l/4 > s-c) cannot apply, so the cubic MGG
+      family in the repo CANNOT be used for the exact Boolean-edge formula. A family of d-regular
+      graphs with d >= d0(p) and relative second eigenvalue small (or the direct combinatorial
+      unique-neighbour expansion c >= d(1-eps)-small for sets up to eps n) must be supplied:
+      not in the repo (MGG is cubic; CSExpansion is random k-row hypergraphs, row weight k, not
+      graph incidence). Est. unknown, large (random regular graph counting, or spectral theory).
+  (D) Assembly: clauses of the paper's CNF vs the vertex polynomials f_v (degree overhead d),
+      sizes via rld_cnf_size, over F_l with l != p prime.
+  Total estimate 4000-7000 lines over several sessions; (C) is the open risk.
