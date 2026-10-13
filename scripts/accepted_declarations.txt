@@ -2589,3 +2589,6 @@ SATurday.ProofComplexity.RLF.narrow_main
 SATurday.ProofComplexity.RLF.rld_size_width
 SATurday.ProofComplexity.RLF.rld_cnf_size
 SATurday.ProofComplexity.reslin_tseitin_size
+SATurday.ProofComplexity.DDer.restrict
+SATurday.ProofComplexity.bsw_dag_width_of_fatCount
+SATurday.ProofComplexity.bsw_dag_size_lower_bound

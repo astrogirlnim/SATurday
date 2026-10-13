@@ -145,3 +145,34 @@ modest and elementary, versus an unscoped Pang port). If Pang is chosen, the dag
 degree input are shared work, so K1 should be built first either way.
 Both results need an input for the linear PC degree; the cubic one-hot route avoids the
 Alekhnovich-Razborov port that the paper-exact Boolean-edge formula requires.
+
+## 6. Execution log (prover, branch r4/prover-khaniki; owner decision 2026-10-13 to do Khaniki now)
+
+Checks against the repo and design changes (honest list of mismatches with section 2 above):
+
+1. `SizeWidth.lean` is BSW for TREE-like resolution only: `Derivation.size` counts clause occurrences
+   in a proof tree and `fatCount` counts tree nodes. The "dag" remark in section 2 was wrong. Its final form
+   (`bsw_size_lower_bound`) is 2^((W-w0)^2/(24 n)) <= tree size, with n = number of variables.
+   So a dag version had to be built (new file `ResDag.lean`, see below).
+2. Design change (cheaper than K2/K3/K4 above): the translation goes Res(lin F_p) dag -> Resolution dag over
+   atoms y_e (one atom per linear equation e = (f = a)) -> BSW -> width-w tree Resolution refutation ->
+   directly to polynomial calculus, with clause polynomial prod of (1 - chi_e) / chi_e and
+   chi_e = 1 - (f - a)^(p-1). The resolution step is an EXACT polynomial identity
+   (P_U = P_{D'} P_{D''\D'} (1-chi) + ... ), so the back-translation to Res(lin) of width |F|(w+1) and a dag
+   Theorem 45 are NOT needed; the PC degree obtained is (p-1)(w+1) up to additive constants.
+   Atom clauses need only: Q = {not y_e1, not y_e2, y_(cmb e1 e2)} (degree 3(p-1), vanishes mod x^p - x),
+   unit not y_(0,c) for c != 0, and the hypotheses of Phi and Boolean axioms. Weakening needs no axiom:
+   each Res(lin) line is represented by a SUBSUMING atom line (invariant "empty clause derived or some
+   atom line is a subset of A(L)"), so the atom dag has at most 3 lines per Res(lin) line.
+3. Size measure: dag-like size = number of lines (as in the paper). In the BSW application the variable count
+   n can be taken as the number of variables of the clauses actually used (<= max(w0,3) * 3S), so no
+   separate "n + S" term and no bound on the number of distinct equations is needed (the paper's remark
+   that the number of extension variables is O(n + S) is not needed, and as stated it is suspicious since a line
+   may contain many equations). Expected final shape: S (log S + 1) >= c n^2 (an almost quadratic bound, same
+   as Khaniki's n^{2 - o(1)}).
+
+Progress:
+- DONE `ResDag.lean`: `DDer` (dag-like resolution as a set of lines built by hypothesis and resolution
+  steps), `DDer.to_tree`, `DDer.restrict` (restriction of a dag, subsuming lines), `bsw_dag_width_of_fatCount`
+  (tree refutation of width <= w0 + t + fatSteps), and `bsw_dag_size_lower_bound`: if every tree refutation of F has width
+  >= W then every dag refutation has >= 2^((W-w0)^2/(24 n)) lines.
