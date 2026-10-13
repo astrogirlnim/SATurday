@@ -58,6 +58,8 @@ import Theory.ProofComplexity.ResLinFDag
 import Theory.ProofComplexity.ResLinFAtom
 import Theory.ProofComplexity.ResLinFBack
 import Theory.ProofComplexity.ResLinDagSize
+import Theory.ProofComplexity.ExpanderMixing
+import Theory.ProofComplexity.ExpanderMGG
 import Theory.ProofComplexity.Closure
 import Theory.ProofComplexity.ClosurePivot
 import Theory.ProofComplexity.Lift
