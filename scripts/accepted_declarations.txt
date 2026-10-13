@@ -2578,3 +2578,14 @@ SATurday.ProofComplexity.RLF.rld_sound
 SATurday.ProofComplexity.RLF.rld_to_pcd₀
 SATurday.ProofComplexity.RLF.rld_cnf_pcd
 SATurday.ProofComplexity.reslin_tseitin_width
+SATurday.ProofComplexity.RLF.rd_to_nd
+SATurday.ProofComplexity.RLF.rd_rst
+SATurday.ProofComplexity.RLF.rld_T
+SATurday.ProofComplexity.RLF.rld_chain
+SATurday.ProofComplexity.RLF.rld_ax_lift
+SATurday.ProofComplexity.RLF.rld_lift
+SATurday.ProofComplexity.RLF.rld_subst
+SATurday.ProofComplexity.RLF.narrow_main
+SATurday.ProofComplexity.RLF.rld_size_width
+SATurday.ProofComplexity.RLF.rld_cnf_size
+SATurday.ProofComplexity.reslin_tseitin_size

@@ -46,6 +46,12 @@ import Theory.ProofComplexity.Rado
 import Theory.ProofComplexity.ResLinGame
 import Theory.ProofComplexity.ResLinF
 import Theory.ProofComplexity.ResLinFPC
+import Theory.ProofComplexity.ResLinFNorm
+import Theory.ProofComplexity.ResLinFRst
+import Theory.ProofComplexity.ResLinFImg
+import Theory.ProofComplexity.ResLinFLift
+import Theory.ProofComplexity.ResLinFWidth
+import Theory.ProofComplexity.ResLinFSize
 import Theory.ProofComplexity.ResLinTseitin
 import Theory.ProofComplexity.Closure
 import Theory.ProofComplexity.ClosurePivot

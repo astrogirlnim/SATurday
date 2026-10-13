@@ -11,9 +11,11 @@ with the rules axiom, Boolean axiom, weakening, linear combination of two lines 
 "resolution" rule `C ∨ f = a`, `D ∨ g = b` ⊢ `C ∨ D ∨ αf+βg = αa+βb`) and simplification of
 `0 = 1`.
 
-Deviation from the paper: the combination rule carries the side condition that the new equation
-does not already occur in the side clauses (see `docs/ladder/rungs/r4-phase22-plan.md`). Soundness
-over Boolean points is `rld_sound`.
+Lines are finite sets of equations (duplicates are contracted automatically, as in the paper);
+the Boolean axioms are supplied as the clause set `boolAx` inside the axiom set. Soundness over
+Boolean points is `rld_sound`. (An earlier version of this file carried a side condition on the
+resolution rule; it is removed, the polynomial calculus simulation pays `p` extra degree instead,
+see `ResLinFPC`.)
 
 LOG: R4 Phase 2.2 ResLinF module (Res(lin F) definitions)
 -/
@@ -56,50 +58,126 @@ theorem lval_single (i : ℕ) (x : ℕ → F) : lval (Finsupp.single i (1 : F)) 
 
 theorem lval_zero (x : ℕ → F) : lval (0 : ℕ →₀ F) x = 0 := by simp [lval]
 
-/-- Tree-like `Res(lin F)` derivations from the clause set `Ax`: `RLD Ax w L s` says `L` has a
-derivation with `s` leaves in which every line has at most `w` equations. -/
+/-- The resolution combination `α f + β g = α a + β b` of two equations. -/
+def cmb (α β : F) (e1 e2 : LEq F) : LEq F := (α • e1.1 + β • e2.1, α * e1.2 + β * e2.2)
+
+/-- The Boolean axiom clause `x_i = 0 ∨ x_i = 1`. -/
+def boolCl (i : ℕ) : Finset (LEq F) := {(Finsupp.single i (1 : F), 0), (Finsupp.single i (1 : F), 1)}
+
+/-- All Boolean axioms. -/
+def boolAx : Set (Finset (LEq F)) := Set.range boolCl
+
+theorem boolCl_mem_boolAx (i : ℕ) : (boolCl i : Finset (LEq F)) ∈ boolAx := ⟨i, rfl⟩
+
+theorem boolCl_card (i : ℕ) : (boolCl i : Finset (LEq F)).card = 2 := by
+  unfold boolCl
+  rw [Finset.card_pair]
+  intro h; exact zero_ne_one (congrArg Prod.snd h)
+
+/-- Tree-like `Res(lin F)` derivations from the clause set `Ax` (which is to contain the Boolean
+axioms `boolAx` when Boolean semantics is intended): `RLD Ax w L s` says `L` has a derivation with
+`s` leaves in which every line has at most `w` equations. Rules: axiom, weakening, resolution
+(`C ∨ f = a`, `D ∨ g = b` ⊢ `C ∨ D ∨ αf+βg = αa+βb`, lines are sets so duplicates are contracted)
+and simplification of a false constant equation `0 = c`, `c ≠ 0`. -/
 inductive RLD (Ax : Set (Finset (LEq F))) (w : ℕ) : Finset (LEq F) → ℕ → Prop
   | ax {C} : C ∈ Ax → C.card ≤ w → RLD Ax w C 1
-  | bool (i : ℕ) : 2 ≤ w →
-      RLD Ax w {(Finsupp.single i (1 : F), 0), (Finsupp.single i (1 : F), 1)} 1
   | weak {L L' s} : RLD Ax w L s → L ⊆ L' → L'.card ≤ w → RLD Ax w L' s
   | comb {A B : Finset (LEq F)} {s1 s2 : ℕ} (e1 e2 : LEq F) (α β : F) :
       RLD Ax w A s1 → RLD Ax w B s2 → e1 ∈ A → e2 ∈ B →
-      (α • e1.1 + β • e2.1, α * e1.2 + β * e2.2) ∉ A.erase e1 ∪ B.erase e2 →
-      (A.erase e1 ∪ B.erase e2 ∪ {(α • e1.1 + β • e2.1, α * e1.2 + β * e2.2)}).card ≤ w →
-      RLD Ax w (A.erase e1 ∪ B.erase e2 ∪ {(α • e1.1 + β • e2.1, α * e1.2 + β * e2.2)}) (s1 + s2)
-  | simp {L s} : RLD Ax w (insert ((0 : ℕ →₀ F), (1 : F)) L) s → RLD Ax w L s
+      (A.erase e1 ∪ B.erase e2 ∪ {cmb α β e1 e2}).card ≤ w →
+      RLD Ax w (A.erase e1 ∪ B.erase e2 ∪ {cmb α β e1 e2}) (s1 + s2)
+  | simp {L s} (c : F) : c ≠ 0 → RLD Ax w (insert ((0 : ℕ →₀ F), c) L) s → RLD Ax w L s
+
+theorem boolAx_sat {x : ℕ → F} (hx : BoolPt x) : ∀ C ∈ (boolAx : Set (Finset (LEq F))), clSat x C := by
+  rintro _ ⟨i, rfl⟩
+  rcases hx i with h0 | h1
+  · exact ⟨(Finsupp.single i 1, 0), by simp [boolCl], by simp [eSat, lval_single, h0]⟩
+  · refine ⟨(Finsupp.single i 1, 1), ?_, ?_⟩
+    · simp [boolCl]
+    · simp [eSat, lval_single, h1]
 
 /-- **Soundness**: a derivation holds at every Boolean point satisfying the axioms. -/
 theorem rld_sound {Ax : Set (Finset (LEq F))} {w : ℕ} {L : Finset (LEq F)} {s : ℕ}
-    (h : RLD Ax w L s) {x : ℕ → F} (hx : BoolPt x) (hAx : ∀ C ∈ Ax, clSat x C) : clSat x L := by
+    (h : RLD Ax w L s) {x : ℕ → F} (hAx : ∀ C ∈ Ax, clSat x C) : clSat x L := by
   induction h with
   | ax hC _ => exact hAx _ hC
-  | bool i _ =>
-    rcases hx i with h0 | h1
-    · exact ⟨(Finsupp.single i 1, 0), by simp, by simp [eSat, lval_single, h0]⟩
-    · refine ⟨(Finsupp.single i 1, 1), ?_, ?_⟩
-      · exact Finset.mem_insert_of_mem (Finset.mem_singleton_self _)
-      · simp [eSat, lval_single, h1]
   | weak _ hsub _ ih => obtain ⟨e, he, hv⟩ := ih; exact ⟨e, hsub he, hv⟩
-  | comb e1 e2 α β _ _ h1 h2 _ _ ih1 ih2 =>
+  | comb e1 e2 α β _ _ h1 h2 _ ih1 ih2 =>
     obtain ⟨a, ha, hva⟩ := ih1
     obtain ⟨b, hb, hvb⟩ := ih2
     by_cases hae : a = e1
     · by_cases hbe : b = e2
       · subst hae; subst hbe
         refine ⟨_, Finset.mem_union_right _ (Finset.mem_singleton_self _), ?_⟩
-        simp only [eSat] at hva hvb ⊢
+        simp only [eSat, cmb] at hva hvb ⊢
         rw [lval_add, lval_smul, lval_smul, hva, hvb]
       · exact ⟨b, Finset.mem_union_left _ (Finset.mem_union_right _
           (Finset.mem_erase.2 ⟨hbe, hb⟩)), hvb⟩
     · exact ⟨a, Finset.mem_union_left _ (Finset.mem_union_left _
         (Finset.mem_erase.2 ⟨hae, ha⟩)), hva⟩
-  | simp _ ih =>
+  | simp c hc _ ih =>
     obtain ⟨e, he, hv⟩ := ih
     rcases Finset.mem_insert.1 he with rfl | he
-    · simp [eSat, lval_zero] at hv
+    · simp [eSat, lval_zero] at hv; exact absurd hv.symm hc
     · exact ⟨e, he, hv⟩
+
+/-! ## Basic closure properties -/
+
+theorem rld_card {Ax : Set (Finset (LEq F))} {w : ℕ} {L : Finset (LEq F)} {s : ℕ}
+    (h : RLD Ax w L s) : L.card ≤ w := by
+  induction h with
+  | ax _ hc => exact hc
+  | weak _ _ hc _ => exact hc
+  | comb _ _ _ _ _ _ _ _ hc _ _ => exact hc
+  | simp c _ h ih =>
+    rename_i L s
+    exact (Finset.card_le_card (Finset.subset_insert _ _)).trans ih
+
+theorem rld_pos {Ax : Set (Finset (LEq F))} {w : ℕ} {L : Finset (LEq F)} {s : ℕ}
+    (h : RLD Ax w L s) : 1 ≤ s := by
+  induction h with
+  | ax => exact le_rfl
+  | weak _ _ _ ih => exact ih
+  | comb _ _ _ _ _ _ _ _ _ ih1 ih2 => omega
+  | simp _ _ _ ih => exact ih
+
+theorem rld_mono_w {Ax : Set (Finset (LEq F))} {w w' : ℕ} (hw : w ≤ w') {L : Finset (LEq F)}
+    {s : ℕ} (h : RLD Ax w L s) : RLD Ax w' L s := by
+  induction h with
+  | ax hC hc => exact RLD.ax hC (hc.trans hw)
+  | weak _ hsub hc ih => exact RLD.weak ih hsub (hc.trans hw)
+  | comb e1 e2 α β _ _ h1 h2 hc ih1 ih2 => exact RLD.comb e1 e2 α β ih1 ih2 h1 h2 (hc.trans hw)
+  | simp c hc _ ih => exact RLD.simp c hc ih
+
+theorem rld_mono_ax {Ax Ax' : Set (Finset (LEq F))} (hA : Ax ⊆ Ax') {w : ℕ} {L : Finset (LEq F)}
+    {s : ℕ} (h : RLD Ax w L s) : RLD Ax' w L s := by
+  induction h with
+  | ax hC hc => exact RLD.ax (hA hC) hc
+  | weak _ hsub hc ih => exact RLD.weak ih hsub hc
+  | comb e1 e2 α β _ _ h1 h2 hc ih1 ih2 => exact RLD.comb e1 e2 α β ih1 ih2 h1 h2 hc
+  | simp c hc _ ih => exact RLD.simp c hc ih
+
+/-- Resolution followed by weakening to any superset of the result. -/
+theorem rld_comb' {Ax : Set (Finset (LEq F))} {w : ℕ} {A B T : Finset (LEq F)} {s1 s2 : ℕ}
+    (e1 e2 : LEq F) (α β : F) (hA : RLD Ax w A s1) (hB : RLD Ax w B s2) (h1 : e1 ∈ A)
+    (h2 : e2 ∈ B) (hT : A.erase e1 ∪ B.erase e2 ∪ {cmb α β e1 e2} ⊆ T) (hc : T.card ≤ w) :
+    RLD Ax w T (s1 + s2) :=
+  RLD.weak (RLD.comb e1 e2 α β hA hB h1 h2 ((Finset.card_le_card hT).trans hc)) hT hc
+
+/-- Resolution producing a false constant equation, which is then simplified away; the
+intermediate line may have one more equation than the target `T`. -/
+theorem rld_res_false {Ax : Set (Finset (LEq F))} {w : ℕ} {A B T : Finset (LEq F)} {s1 s2 : ℕ}
+    (e1 e2 : LEq F) (α β c : F) (hc0 : c ≠ 0) (hcmb : cmb α β e1 e2 = ((0 : ℕ →₀ F), c))
+    (hA : RLD Ax w A s1) (hB : RLD Ax w B s2) (h1 : e1 ∈ A) (h2 : e2 ∈ B)
+    (hT : A.erase e1 ∪ B.erase e2 ⊆ T) (hc : T.card + 1 ≤ w) : RLD Ax w T (s1 + s2) := by
+  have hsub : A.erase e1 ∪ B.erase e2 ∪ {cmb α β e1 e2} ⊆ insert ((0 : ℕ →₀ F), c) T := by
+    intro x hx
+    rcases Finset.mem_union.1 hx with hx | hx
+    · exact Finset.mem_insert_of_mem (hT hx)
+    · rw [Finset.mem_singleton.1 hx, hcmb]; exact Finset.mem_insert_self _ _
+  have hcard : (insert ((0 : ℕ →₀ F), c) T).card ≤ w :=
+    (Finset.card_insert_le _ _).trans hc
+  exact RLD.simp c hc0 (rld_comb' e1 e2 α β hA hB h1 h2 hsub hcard)
 
 end
 
