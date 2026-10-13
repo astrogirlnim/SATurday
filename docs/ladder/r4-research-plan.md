@@ -1,6 +1,9 @@
 # R4 Research and Certification Plan
 
-Status of R4: proposed (no adopt decision yet). Written 2026-10-07 after R3 was certified.
+Status of R4: active (adopted 2026-10-08; see `docs/ladder/ladder.md`). Written 2026-10-07
+after R3 was certified. Progress against this plan is tracked in
+`docs/ladder/r4-completion-checklist.md`: Phase 0 and Phase 1 are done, Phase 2.1 is underway,
+Phases 2.2 to 3 are open. The unchecked boxes below are the original plan text, not current status.
 
 ## What R4 asks
 

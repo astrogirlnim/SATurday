@@ -119,12 +119,27 @@ R4-class results plus the certified R5 bridge.
     CuttingPlanesFinal (`cpstar_cliqueColoring_superpoly`)
 
 - R4 open frontier
-  - status: active (adopted 2026-10-08; Phase 0 locked: `AC0pFregeFrontier.r4_target`)
+  - status: active (adopted 2026-10-08; Phase 0 locked: `AC0pFregeFrontier.r4_target`;
+    Phase 1 infrastructure complete; Phase 2.1 Res(xor) underway, see below). Not certified:
+    the pin `r4_target` is still an open Frontier statement.
   - statement: super-polynomial lower bound for a system with no known bounds,
     first subtarget AC0[p]-Frege
   - memory: docs/ladder/rungs/r4-frontier.md
   - checklist: docs/ladder/r4-completion-checklist.md
   - lean: AC0pFrege.lean (formulas, sequent calculus, soundness, non vacuity, target pin)
+  - phase 1 (complete, 2026-10-08 to 2026-10-09): Smolensky.lean, SmolenskyParity.lean,
+    Smolensky2.lean (Razborov-Smolensky, p odd and p = 2); Switching.lean, Matching*.lean,
+    KEval*.lean, PHPKEval.lean, PHPFrege.lean (switching lemma, bounded depth Frege PHP bound);
+    PolyCalc.lean, TseitinPC.lean, TseitinBool.lean, PCSizeDegree.lean, TseitinSize.lean
+    (polynomial calculus, Tseitin mod q); CountQ.lean with QPart, Designs, CountMass, QSwitch,
+    QTree, QKEval, QLevel (Count_q for bounded depth Frege with Count_p axioms); ResLin.lean
+    (tree-like Res(xor) bound for PHP lifted with MAJ3)
+  - phase 2.1 (underway, 2026-10-12 to 2026-10-13): dag-like Res(xor) foundations (ResLinDag,
+    ResLinBPHP), Rado.lean, Closure.lean, ClosurePivot.lean, LiftDup.lean, LiftPHP.lean (MAJ3
+    lifting theorem `maj3_lifting_rank`, instance `php_maj3_rank`, a weak rank bound); port of
+    Braun's bit PHP bound in Braun*.lean per docs/ladder/rungs/r4-braun-port-plan.md: layers 0
+    to 5 and 7 merged, layer 6 part 1 merged conditional on `MatchingMomentFilling`; homology
+    part of layer 6 and layer 8 not done, `BraunBitPHP` is not proved
 
 - R5 Cook-Reckhow bridge
   - status: certified (2026-10-06, axiom gate green; theorem 1 both directions, theorem 2)
