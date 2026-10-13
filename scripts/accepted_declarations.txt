@@ -2568,3 +2568,9 @@ SATurday.ProofComplexity.RL.Braun.holds_toP
 SATurday.ProofComplexity.RL.Braun.dag_to_pdag
 SATurday.ProofComplexity.RL.Braun.bphp_dag_to_pdag
 SATurday.ProofComplexity.RL.Braun.braun_implies_dag_lb
+SATurday.ProofComplexity.BraunPC.matchingMomentFilling
+SATurday.ProofComplexity.BraunPC.bitPHP_exponential
+SATurday.ProofComplexity.BraunPC.bitPHP_superpolynomial
+SATurday.ProofComplexity.RL.Braun.braunBitPHP
+SATurday.ProofComplexity.RL.Braun.bphp_dag_superpolynomial
+SATurday.ProofComplexity.RL.Braun.bphp_dag_exponential
