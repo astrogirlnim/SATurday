@@ -53,8 +53,46 @@ all new code on top of Mathlib.
 8. Assembly and parameters (R17, R25): `AffineFamilyExclusion` (78), `AffineParameterBounds` (118),
    `BitPHPExponential` (166), `BitPHPSuperpolynomial` (56). About 450.
 
+## Status (updated after layer 7)
+
+Merged on main: layers 0 to 5 and now most of layer 7 (all in `theory/Theory/ProofComplexity/Braun*.lean`,
+about 5,900 Lean lines in total; layer 7 itself added about 1,900). Layer 7 files: `BraunTwoRow`
+(`twoRow_interpolation`, forbidden pair certificate), `BraunRestriction` (coordinate and affine
+restriction ideals, ordinary restriction dimension, `BlockRestrictionData`, `blockRestrictionData_exists`,
+`affineInputRank_le`), `BraunRowLinear`, `BraunKernelBounds`, `BraunCommonKernel`
+(`common_affine_restriction_kernel`), `BraunCubeDrop`, `BraunCoordPairs`, `BraunMatchingBase` (the
+definitional prelude of layer 6: `Cell`, `exclusionBase`, `rowEquation`, `functionalUnaryBase_eq`),
+`BraunRowCube`, `BraunRowCubeIsolation`, and `BraunCompactTransfer` (`compactDecoder_PC`, deferred from
+layer 5). Not done in layer 7: `CubeResidualDualSeparation` (98 lines, his `cube_residual_dual_separation`),
+because it uses `matching_normalized_annihilator` and `functionalUnary_pc_eq_ns` from layer 6.
+Lesson from porting: his Lean/Mathlib is newer than ours in a few names (`totalDegree_finsetProd`,
+`monomial_mul_monomial`, `Mathlib.Analysis.Real.Sqrt`), and `convert` / `exact` can time out on
+classical versus subtype `DecidableEq` instances on cube sums; every layer so far compiled after
+at most three such mechanical fixes per file.
+
+Layer 6 (matching moments and homology), honest estimate. Remaining his lines: `MatchingNormalForm`
+(332, minus the prelude already ported), `MatchingMomentCompleteness` (233), `...Cycles` (133),
+`...Extension` (264), `...Relabeling` (110), `MatchingFiltration` (112), `PolynomialCalculusDuality`
+linear separation, plus the homology packages (`AugmentedChains*`, `CoverDoubleComplex`,
+`FiniteComplexCover`, third party `Chessboard*`, `HomologicalCover`, about 900 combined) that depend on
+Mathlib homological algebra or hand rolled chain complexes. Total about 2,300 to 2,600 his lines, so
+2,500 to 3,500 ours. This is the hardest layer: the moment/cycle files are combinatorial and port
+mechanically at the rate seen above (about 1,000 lines per session), but the homology part has no
+Mathlib analog we can lean on and carries the main risk (a dedicated chessboard complex homology
+development; if it stalls, a fallback is to state the single acyclicity input as an explicit `Prop`
+hypothesis, as the plan allows for conditional corollaries). Order inside layer 6: normal form and
+completeness, then extension/relabeling/filtration (unblocks `cube_residual_dual_separation`), then
+homology last. Suggested budget: 3 to 4 sessions.
+
+Layer 8 (assembly and parameters), honest estimate: `AffineFamilyExclusion` (78), `AffineParameterBounds`
+(118), `BitPHPExponential` (166), `BitPHPSuperpolynomial` (56), about 420 his lines, 450 to 600 ours.
+Mostly real analysis inequalities (log, exp, ceil sqrt) in the style of `BraunKernelBounds`, which already
+compiles here, so low risk, but it can only be finished once layer 6 and `cube_residual_dual_separation`
+exist, since the final theorem composes them with layers 4, 5 and 7. Suggested budget: 1 session after
+layer 6.
+
 Order: 0, then 1 -> 2 -> 3 -> 4 -> 5 in a chain; 6 and 7 can proceed in parallel after 2; 8 last.
-Estimated total 8000 to 9000 Lean lines. Layers 1 and 2 are the next self contained targets.
+Estimated total 8000 to 9000 Lean lines. Layers 0 to 5 and most of 7 are merged; layer 6 is the blocker, then layer 8.
 
 ## Policy notes
 
