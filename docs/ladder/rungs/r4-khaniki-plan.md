@@ -176,3 +176,21 @@ Progress:
   steps), `DDer.to_tree`, `DDer.restrict` (restriction of a dag, subsuming lines), `bsw_dag_width_of_fatCount`
   (tree refutation of width <= w0 + t + fatSteps), and `bsw_dag_size_lower_bound`: if every tree refutation of F has width
   >= W then every dag refutation has >= 2^((W-w0)^2/(24 n)) lines.
+- DONE `ResLinFDag.lean`: `RLDag` (dag-like Res(lin F): axiom, weakening, combination, simplification; size = number of
+  lines), `rldag_sound`.
+- DONE `ResLinFAtom.lean`: forward translation. `atom_refutation`: a dag Res(lin F) refutation with L lines gives a dag
+  Resolution refutation from `AtomHyp` with <= 3L lines (weakening by subsuming atom lines, no axiom), plus
+  non-vacuity `rldag_refutes_unit_pair`.
+- DONE `ResLinFBack.lean`: `res_step` (exact clause-polynomial identity), `hyp_pcd` (Frobenius derivation of the
+  implication clauses), `atom_refutation_pcd`: tree Resolution refutation of width w (w >= 3) of the atom hypotheses gives
+  `PCD (cnfAx Phi) ((p-1)(w+1)) 1`.
+- DONE `ResLinDagSize.lean`: `reslin_dag_size_of_pc_degree` (general: PC degree D, W = D/(p-1) >= 4, K = max w0 3,
+  every dag Res(lin F_p) refutation with L lines has (W-K)^2 < 72 K L (log2(3L)+1)) and the final
+  `reslin_tseitin_dag_size` for the certified one hot Tseitin mod q CNF on cubic expanders: L >= X / (72 (q+3)(log2(3X)+1)),
+  X = (W-(q+3))^2, W = tseitinW p q n = Omega(n). So L = Omega(n^2 / log n), almost quadratic.
+Mismatches / caveats (honest): (a) formula is the one hot Tseitin, not the paper's Boolean-edge formula; (b) the bound is
+S log S >= c n^2 (hence S = Omega(n^2/log n)), which is the same almost-quadratic shape as the paper's n^(2-o(1)); (c) the
+paper's exact theorem numbers were taken from the scouting read of Revision 3, in this session only the ECCC abstract
+(almost quadratic lower bounds on the number of clauses, Tseitin mod q, char F != q) was re-checked; (d) the route avoids
+Theorem 45 on dags and the Res(lin) width back-translation of Khaniki (replaced by the exact polynomial identity above);
+(e) Pang's theorem supersedes this result (exp(Omega(n))) but is not formalized.
