@@ -56,7 +56,7 @@ all new code on top of Mathlib.
 ## Status (updated after layer 7)
 
 Merged on main: layers 0 to 5 and now most of layer 7 (all in `theory/Theory/ProofComplexity/Braun*.lean`,
-about 5,900 Lean lines in total; layer 7 itself added about 1,900). Layer 7 files: `BraunTwoRow`
+about 6,100 Lean lines in total; layer 7 itself added about 2,300). Layer 7 files: `BraunTwoRow`
 (`twoRow_interpolation`, forbidden pair certificate), `BraunRestriction` (coordinate and affine
 restriction ideals, ordinary restriction dimension, `BlockRestrictionData`, `blockRestrictionData_exists`,
 `affineInputRank_le`), `BraunRowLinear`, `BraunKernelBounds`, `BraunCommonKernel`
