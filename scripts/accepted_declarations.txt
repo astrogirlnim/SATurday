@@ -2599,3 +2599,13 @@ SATurday.ProofComplexity.RLF.res_step
 SATurday.ProofComplexity.RLF.atom_refutation_pcd
 SATurday.ProofComplexity.RLF.reslin_dag_size_of_pc_degree
 SATurday.ProofComplexity.reslin_tseitin_dag_size
+SATurday.ProofComplexity.Expander.StepSys.adj_symm
+SATurday.ProofComplexity.Expander.StepSys.polar
+SATurday.ProofComplexity.Expander.StepSys.norm_adj_le
+SATurday.ProofComplexity.Expander.StepSys.norm_pow_le
+SATurday.ProofComplexity.Expander.StepSys.pow_apply_eq_sum_walks
+SATurday.ProofComplexity.Expander.StepSys.mixing
+SATurday.ProofComplexity.Expander.ggSys_rayleigh
+SATurday.ProofComplexity.Expander.gg_mixing
+SATurday.ProofComplexity.Expander.ggw_boundary_card
+SATurday.ProofComplexity.Expander.ggw_expansion

@@ -112,3 +112,15 @@ integrality, transfer between characteristic 0 and p). Second: AR-A (long but th
 
 ## Progress log (append-only)
 
+- 2026-10-13 E1 and E2 DONE (ExpanderMixing.lean ~330 lines, ExpanderMGG.lean ~190 lines, no sorry):
+  `StepSys` (bijective steps with involutive relabelling), `norm_adj_le` / `norm_pow_le` (operator norm
+  on mean-zero functions from the Rayleigh hypothesis, by polarization), `mixing` (expander mixing lemma
+  for A^k: (E - D^k|A||B|/N)^2 <= (lam^2)^k |A||B|), `pow_apply_eq_sum_walks`. Instance `ggSys m hm`
+  (factor-2 Gabber-Galil on (Z/m)^2, m >= 3) with `ggSys_rayleigh` (lam = 5 sqrt 2, from
+  `gg_numerical_radius`), `gg_mixing`, the bipartite walk multigraph edge boundary `ggwBoundary`,
+  `ggw_boundary_card` (|boundary| = 8^k(|IL|+|IR|) - 2 cross) and `ggw_expansion`:
+  for t = |IL|+|IR|, |boundary| >= t (8^k (1 - t/(2 m^2)) - (5 sqrt 2)^k). This is AR's (r, s, c)-expander
+  property with s = 8^k, c = 8^k(1 - r/(2 m^2)) - (5 sqrt 2)^k for sets of size <= r. Right regularity:
+  `ggw_right_count` with IR a singleton. Remaining of the graph part: pick k0(q) with
+  (5 sqrt2/8)^k <= 1/(32 q) and r = m^2/(8q)-ish to get the explicit constants c, and package as an AR
+  matrix once AR-A fixes its interface; D1, AR-A, AR-B, F not started.
