@@ -8,8 +8,8 @@ Credit. Port, with our own proofs, of K. Braun (arXiv 2609.23015, author's Lean 
 `AffineFamilyRemovalWithUnits.lean` (`affine_family_removal_with_units`: complete finite
 dependent registry low/high affine ENS removal, each high block either a unit span certificate or
 literal degree `k-1` witnesses, with ordinary weighted PC budgets) and `AffineFamilyRemoval.lean`
-(`affine_family_removal`, the no unit specialization). `AffineBlockRestriction.lean` is deferred
-to layer 7 because it needs the restriction ideal package.
+(`affine_family_removal`, the no unit specialization). `AffineBlockRestriction.lean` is ported in layer 7
+(`BraunRestriction`) because it needs the restriction ideal package.
 
 LOG: R4 BraunENSRemoval module (Phase 2.1 layer 3c)
 -/
