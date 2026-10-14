@@ -3,7 +3,7 @@
 Companion of r4-phase23-c1.md (statement, simulation by hand, parameter chain) and r4-pang-plan.md
 section 10 (formalized Pang layers). Nothing here is certified.
 
-## 1. Honest scope
+## 1. Honest scope (first session; Section 3 below supersedes the conclusion that a degree-r Pang system is needed)
 
 - C1 is a corollary of Pang's degree-size theorem for Res(PC_r/F_p) with r = 3(p-1)rho. Low novelty:
   the only new object is the system R_rho^p. The constant kappa is huge (140.9 for (p,q) = (3,2)), so the
@@ -34,28 +34,46 @@ included) are in `C1Rank.lean`. Unsatisfiability of the one-hot Tseitin target i
 hypothesis sum b != 0 is not even needed for the lower bound statement, since a refutation implies unsat by
 `RRefutation.unsat`).
 
-## 3. Done in this session (merged, `C1Rank.lean`, axioms propext/Classical.choice/Quot.sound)
+## 3. Status 2026-10-14 (second session): the final theorem IS reached
 
-- `AffForm`, `ev` (linear in the form), `formPoly`, `Term`, `rank`, `RLine`, `Bdd`, `LTrue`.
-- `RInfer` (init, taut, weak, sem1, sem2 with `SemOK` = semantic consequence on the Boolean cube, T3 optional),
-  `RRefutation` with size S, `RInfer.sound`, `RRefutation.unsat`.
-- Translation `chi T = prod_{l in B_T} (1 - l^(p-1))`, `B_T` a chosen maximal independent subset
-  (`basisOf`, `card_basisOf` : |B_T| = rank T): `eval_chi` (0/1 indicator of the term at EVERY point of F_p^N,
-  hence on the cube), `totalDegree_chi` (<= (p-1) rank T), `LTrue_iff_chi` (soundness of the translation of a line
-  into the clause of equations chi_T - 1 = 0).
+Key finding that changes Section 1: the degree-r generalization of the Pang system was NOT needed. The
+Pang layers (`common_multiplier`, `onestep`, `prefix_identity`, `Nn_ratio`, `exp_bound`) are already stated
+for an arbitrary degree bound d of the indicator polynomials g. Simulating R_rho^p directly with
+g_T = polyOf (ml (chi T)) (degree <= d = (p-1) rho) works because the semantic rule is validated on the
+cube (`cd_of_cube`), so no Fact BR / Fact U, no Res(PC_r) DAG, and no factor 3 from the translation.
+The simulation steps of PangSim (`cover_step`, `claim_step`, `comb_step`, `mul_step`, init, Boolean axiom)
+were re-stated for an arbitrary index type of equations (`C1Sim.lean`). Consequences, recorded honestly:
 
-## 4. Not done, and cost
+- Deviation from the c1 note: the exponent is d = (p-1) rho, not (p-1) * 3(p-1) rho, and the constants are
+  those of the formalized layers (cA, cLam), not the paper's. So kappa_Lean = (p-1) ln (cLam q), cLam q =
+  18 q (2624 q + 1313) (about 24.7 for (p,q) = (3,2); 12.4 for (2,3)), versus 140.9 in the note. The Lean
+  statement is a different (cruder in constants, better in the 3(p-1) factor) instance of the same shape.
+- `RRefutation` is over a fixed variable set V (no extension variables), exactly as `Pang.Refutation`.
+- Quantifier shape: for every M there is n >= M (a graph from `tseitin_bool_degree_Fp`) such that the bound
+  holds for all b and all 1 <= rho <= eps ln n. The bound is in the number n of vertices:
+  exp(n^(1-(kappa+1) eps)), which implies the N-variable form of the note since N >= n.
+- Hypothesis (kappa+1) eps < 1 is part of the statement (tiny eps only); for fixed rho the nat-form
+  `c1_tseitin_exp` gives 2^(n / cCR p q ((p-1) rho)) with no analysis.
+- Low novelty: a corollary of Pang's method, for the intermediate system R_rho^p.
 
-1. Degree r Pang system and simulation lemma (Lemma 1 of the c1 note): a `PangDag` generalized from degree 1
-   to degree r (mechanical, ~130 lines, soundness copies), Fact BR (Boolean reduction by division, ~150 lines)
-   and Fact U (unit equation, ~100 lines), the sem1/sem2 cases (~250 lines). Estimated 500-700 lines.
-2. The degree r lower bound: `PangSim` (497), `PangPrefix` (90) and the parameter files (`PangDegSize`,
-   `PangExp`, `PangSizeExp`, `PangParams`, ~350) must be redone with polynomial lines of degree r, i.e. the
-   multiplication/cover/claim steps with indicators of degree-r polynomials, `prefix_identity` with the shift d,
-   and the new factor (D/16N)^((p-1)r). The abstract layers (`PangMult`..`PangCommon`, `onestep` with parameter d)
-   look reusable. Estimate 1200-1800 lines, 2-3 sessions, and the main risk is in `PangSim`.
-3. The numeric chain (kappa, the choice D = D_0, the estimate for ln S in terms of N^(1-(kappa+1)eps)) in real
-   arithmetic, ~300 lines of inequalities. It cannot be done before item 2 because the existing bound has
-   the shape 2^(n/C) with an r-independent C.
+Files (all in `theory/Theory/ProofComplexity/`):
+`C1Rank` (system, soundness, chi), `C1Sim` (`c1_simulation_final`), `C1DegSize` (`c1_degree_size`,
+`c1_size_exp`), `C1Params` (`exp_of_degree_R`, constants `cDminR`, `cN0R`, `cCR`), `C1Tseitin`
+(`c1_tseitin_exp`, `c1_tseitin_exp'`), `C1Real` (`real_chain`, `eventually_conditions`, `kappa`), `C1Final`.
 
-Total: a multi-session job. The honest stopping point of this session is the merged `C1Rank.lean`.
+Final theorem `C1.c1_main` (axioms: propext, Classical.choice, Quot.sound):
+
+```
+theorem c1_main (p : N) [Fact p.Prime] {q : N} [NeZero q] (hq : 2 <= q) (hpq : not (p | q))
+    (eps : R) (heps : 0 < eps) (hk : (kappa p q + 1) * eps < 1) (M : N) :
+  exists n G, M <= n and IsRegular G 3 and forall b rho, 1 <= rho -> rho <= eps * Real.log n ->
+    forall R : RRefutation (tcnf G q b) (tVars G q) rho p,
+      Real.exp (n ^ (1 - (kappa p q + 1) * eps)) <= R.S
+```
+with `kappa p q = (p-1) * Real.log (cLam q)`.
+
+## 4. Remaining / not done
+
+- Matching the paper's sharper constant (ln S >= (D/(32 p^2 r)) (D/16 N)^((p-1) r)) is not attempted.
+- The note's kappa is not reproduced; the Lean kappa is its own.
+- Open mathematics (rank beyond log n, T1 of the c1 note) is untouched.
