@@ -292,3 +292,21 @@ Local-mirror setup (for fast iteration; the external drive makes cold `import Ma
 3. `pang-tools/lw.sh File.lean` runs `lean` with LEAN_PATH = local-lib : stub/out : local-out (checks take 2-20 s).
    When a file imports a Mathlib module not yet mirrored, run `addmods.sh <that module>` and retry.
 4. The real gate is always `bash scripts/check_axioms.sh` (lake build + axiom check), run in the background and polled.
+
+### Layer A versus the paper's definition (re-read of deg--size.tex l.84-98, 2026-10-14)
+
+The paper's Res(PC_r/F_p), r = 1: lines are disjunctions of equations of degree <= 1 in x_1..x_n (the CNF's own variables);
+rules are syntactic weakening, contraction, deletion of a false constant equation, linear combination, multiplication; axioms
+(0=0) and (x_i=0) v (x_i-1=0); there is NO restriction rule and NO cut; size = number of DAG nodes. Relation to `PangDag`:
+- Contraction: the paper's lines are multisets; `PangDag` lines are Finsets, so contraction is the identity on lines. Mapping a
+  paper refutation to ours sends each node to its underlying set (same DAG, same or fewer distinct nodes), every paper rule
+  becoming an instance of ours (weakening: `weak`; deletion: `falseConst`; linear combination and multiplication: `comb`/`mul`
+  with conclusion equal to the paper's set, which is a superset of the erased version). So every paper refutation gives an
+  `PangDag.Refutation` of at most the same size and the lower bound for ours implies the paper's.
+- Variables: the paper's lines only mention x_1..x_n, so `V` := the variables of the CNF is exactly his setting; the
+  Boolean axioms are only for V and `mul` requires the multiplier's variables in V (as in his system, degrees <= 1).
+  No restriction lemma is needed. Refutations using other (extension) variables are outside both systems.
+- Strength: the fused weakening in `comb`/`mul`/`falseConst` (the paper itself notes many disjuncts can be added in one weakening
+  step, l.737) makes ours at least as strong, so the theorem implies his; the simulation (layer G) must handle conclusions that are
+  supersets of the erased combination, which his case analysis already does (it only uses that the conclusion contains the
+  premise equations except false constants and the newly derived one).
