@@ -2636,3 +2636,12 @@ C1.eval_chi
 C1.totalDegree_chi
 C1.card_basisOf
 C1.LTrue_iff_chi
+C1.c1_simulation_final
+C1.c1_degree_size
+C1.c1_size_exp
+C1.exp_of_degree_R
+C1.c1_tseitin_exp
+C1.c1_tseitin_exp'
+C1.real_chain
+C1.eventually_conditions
+C1.c1_main

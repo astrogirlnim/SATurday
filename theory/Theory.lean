@@ -99,6 +99,12 @@ import Theory.ProofComplexity.Bridge.TM2CM
 import Theory.ProofComplexity.Bridge.Reduction
 import Theory.ProofComplexity.Bridge.Hard
 import Theory.ProofComplexity.C1Rank
+import Theory.ProofComplexity.C1Sim
+import Theory.ProofComplexity.C1DegSize
+import Theory.ProofComplexity.C1Params
+import Theory.ProofComplexity.C1Tseitin
+import Theory.ProofComplexity.C1Real
+import Theory.ProofComplexity.C1Final
 
 /-!
 # SATurday Theory Library

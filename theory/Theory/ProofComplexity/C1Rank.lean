@@ -76,6 +76,9 @@ abbrev RLine (p : ℕ) [Fact p.Prime] := Finset (Term p)
 /-- `ρ`-bounded line. -/
 def Bdd (ρ : ℕ) (L : RLine p) : Prop := ∀ T ∈ L, rank T ≤ ρ
 
+/-- All forms of the line use only variables from `V` (no extension variables). -/
+def Supp (V : Finset ℕ) (L : RLine p) : Prop := ∀ T ∈ L, ∀ l ∈ T, l.1.support ⊆ V
+
 /-- The line holds at the point `a`. -/
 def LTrue (a : ℕ → ZMod p) (L : RLine p) : Prop := ∃ T ∈ L, TrueAt a T
 
@@ -170,9 +173,9 @@ theorem RInfer.sound {Φ : CNF} {ρ : ℕ} {a : Assignment} (ha : cnfSat a Φ)
       · exact ⟨U, hL₂ (Finset.mem_erase.2 ⟨e2, hU⟩), hy⟩
     · exact ⟨T, hL₁ (Finset.mem_erase.2 ⟨e, hT⟩), hz⟩
 
-/-- A dag-like refutation in `R_ρ^p`: nodes `0, …, S-1`, every line `ρ`-bounded, last line empty.
+/-- A dag-like refutation in `R_ρ^p` over the variables `V`: nodes `0, …, S-1`, every line `ρ`-bounded and supported in `V`, last line empty.
 The size is the number of nodes `S`. -/
-structure RRefutation (Φ : CNF) (ρ : ℕ) (p : ℕ) [Fact p.Prime] where
+structure RRefutation (Φ : CNF) (V : Finset ℕ) (ρ : ℕ) (p : ℕ) [Fact p.Prime] where
   S : ℕ
   line : ℕ → RLine p
   prem : ℕ → List ℕ
@@ -180,10 +183,11 @@ structure RRefutation (Φ : CNF) (ρ : ℕ) (p : ℕ) [Fact p.Prime] where
   prem_lt : ∀ i < S, ∀ j ∈ prem i, j < i
   infer : ∀ i < S, RInfer Φ ρ ((prem i).map line) (line i)
   bdd : ∀ i < S, Bdd ρ (line i)
+  supp : ∀ i < S, Supp V (line i)
   last : line (S - 1) = ∅
 
 /-- **Soundness**: a satisfiable CNF has no refutation in `R_ρ^p`. -/
-theorem RRefutation.unsat {Φ : CNF} {ρ : ℕ} (R : RRefutation Φ ρ p) : ¬ Satisfiable Φ := by
+theorem RRefutation.unsat {Φ : CNF} {V : Finset ℕ} {ρ : ℕ} (R : RRefutation Φ V ρ p) : ¬ Satisfiable Φ := by
   rintro ⟨a, ha⟩
   have key : ∀ i < R.S, LTrue (boolPt (F := ZMod p) a) (R.line i) := by
     intro i
