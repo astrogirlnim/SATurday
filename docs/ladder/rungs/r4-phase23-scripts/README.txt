@@ -21,3 +21,9 @@ Kill test (r4-phase23-killtest.md), p=2, C_D=0 unless stated:
   kt_deg.py     exact PC degree of PHP and Tseitin(K5,K6) instances
   kt_search.py  random 3-CNF search for PC degree >= 5 (slow, unfinished)
   kt_cd.py      greedy Pang rounds with/without C_3 for PHP 4->3 (needs r3_e2.py, r3_e3.py)
+
+Overlap test (r4-phase23-overlap.md), p=2, C_D=0, overlapping subcube families:
+  ov_lib.py          family constructors (all pairs/triples, cycle, cubic, random, linear triple system) + rank machinery
+  ov_exact_small.py  EXACT first round, all pairs, n<=7 (all graphs up to isomorphism, needs networkx)
+  ov_exact_sparse.py EXACT first round for any family with s<=16 terms (all 2^s-1 vectors)
+  ov_search.py       SAMPLED greedy rounds (clique/random seeds + flip hill climbing); usage in its docstring
