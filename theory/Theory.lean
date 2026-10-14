@@ -98,6 +98,7 @@ import Theory.ProofComplexity.Bridge.GeneratorBound
 import Theory.ProofComplexity.Bridge.TM2CM
 import Theory.ProofComplexity.Bridge.Reduction
 import Theory.ProofComplexity.Bridge.Hard
+import Theory.ProofComplexity.C1Rank
 
 /-!
 # SATurday Theory Library
