@@ -246,3 +246,49 @@ against Section 2 above: no mismatch with the layer list. Refinements actually u
   The risk that remains in this cluster is only the hypothesis check of Corollary 3.4 (Layer B interface).
 - Tooling note: the external drive makes `import Mathlib` take ~35 min per cold lean process. Iterating with a local
   olean mirror of the needed import closure on the internal disk (LEAN_PATH) gives ~10 s checks.
+
+### Status update (prover, 2026-10-14, second session)
+
+Merged to main (gate green): `PangAbsorb.lean`, `PangHyp.lean`, `PangCor34.lean` (all sorry-free; axioms
+propext, Classical.choice, Quot.sound by `#print axioms` of `Pang.pang_cor34`, `Pang.ah_mult`, `Pang.cd_mul`,
+`Pang.cd_of_ml_eq_zero`, `Pang.cd_frobenius`, `Pang.pang_retention_lin`).
+
+- Layer B (`PangAbsorb`): `CD Ax D` is a Submodule (0 or a PCD derivation of degree D); `cd_mul` (absorption, Fact 2.1);
+  `cd_of_ml_eq_zero` (Fact 2.2: 2 <= D, deg f <= D, ml f = 0 gives f in C_D, any axioms); `cd_frobenius`
+  (g^p - g in C_D for deg g <= d, p d <= D, 2 <= D).
+- Corollary 3.4 proper (`PangHyp`, `PangCor34`): `pang_retention_lin` (rank retention for linear maps from a finite
+  dimensional space, under the polynomial-coefficient Frobenius hypothesis `AH`; matrices obtained through bases),
+  `ah_mult` (the hypothesis for f -> ([g_i h_j f])_j into (P/C_D)^t when b + k + p a <= D), `pang_cor34`.
+  MISMATCH/DEVIATION recorded: Lemma 2.3 (base change) is NOT formalized and not needed. The kernel inclusion over
+  F_p(lambda) is replaced by clearing denominators and working with lambda-polynomials whose coefficients are
+  x-polynomials (MvPolynomial (Fin s) (MvPolynomial N (ZMod p))); absorption is applied coefficientwise, which avoids the
+  subtlety that a combination can have lower degree than its parts. Also the quotient is P/C_D (all polynomials) instead of
+  V_D/C_D; equal ranks since C_D lies in V_D.
+- Layer E (`PangHilbert`, on the branch, not yet merged): normalized rank monotone (Lemma 4.1) for a subspace Z of
+  multilinear polynomials on a finite variable set V closed under multiplication by variables below degree K <= |V|:
+  `hilbert`: (N(K) - dim(Z cap V_K)) N(k) <= (N(k) - dim(Z cap V_k)) N(K) for k <= K. Uses the existing term order of
+  `PCReduction` (irreducible terms), down-closure by `shl_leading`, double counting (j+1) b_{j+1} <= (n-j) b_j.
+  Variable set is an arbitrary Finset V (not range n), so no relabeling is needed for sparse variable encodings.
+- Layer A (`PangDag`, on the branch, not yet merged): `Infer`, `Refutation Phi V p` with soundness
+  `Refutation.unsat`. Lines are Finsets of linear polynomials in V (contraction is free). Linear combination,
+  multiplication and false-constant deletion have a superset conclusion (weakening fused in a step, Pang l.737).
+  DEVIATIONS recorded: no extension variables (all variables in V, lines of degree <= 1, Boolean axioms only for V);
+  fused weakening makes the system at least as strong as Pang's, so a bound for it implies his; size = number of nodes
+  of a list-shaped dag (duplicates count, which only strengthens a lower bound statement). No semantic weakening.
+- Next (not started): Layer F (onestep, common multiplier; plan: use `pang_cor34` with h_alpha = P g_alpha, the
+  abstract lemma finrank ker T + rank(T phi) <= dim Z' proved in scratch, polyOf: ML -> P with X_i polyOf f - polyOf (shl i f)
+  in C_D, then `hilbert`), Layer G (simulation), H (parameters), I (Tseitin assembly).
+
+Local-mirror setup (for fast iteration; the external drive makes cold `import Mathlib` ~35 min):
+1. `/private/tmp/claude-501/local-lib`: copy of the .olean/.olean.private/.olean.server/.ir files of the needed Mathlib
+   import closure from `theory/.lake/packages/*/.lake/build/lib/lean`. Tools: `/private/tmp/claude-501/pang-tools/closure.py`
+   (import closure from package sources) and `addmods.sh Mod1 Mod2 ...` (copies missing modules). Disk is nearly full
+   (about 2 GB free), so do NOT mirror `Mathlib.Tactic` (its closure is large).
+2. Because `Theory.ProofComplexity.Resolution` imports `Mathlib.Tactic`, scratch checks use stub modules in
+   `/private/tmp/claude-501/stub/src` (Resolution without proofs after the CNF definitions, full PolyCalc with explicit
+   Mathlib.Tactic.Ring/Linarith/NormNum imports, PCMultilinear, PCReduction unchanged), compiled with
+   `lean -o` into `/private/tmp/claude-501/stub/out`; completed Pang modules are compiled there with
+   `pang-tools/lo.sh <Module>`.
+3. `pang-tools/lw.sh File.lean` runs `lean` with LEAN_PATH = local-lib : stub/out : local-out (checks take 2-20 s).
+   When a file imports a Mathlib module not yet mirrored, run `addmods.sh <that module>` and retry.
+4. The real gate is always `bash scripts/check_axioms.sh` (lake build + axiom check), run in the background and polled.
