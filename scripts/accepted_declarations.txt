@@ -2631,3 +2631,8 @@ SATurday.ProofComplexity.TseitinEdge.ar_thm44_ggw
 SATurday.ProofComplexity.TseitinEdge.ggw_tseitin_pc_degree
 SATurday.ProofComplexity.TseitinEdge.OGraph.cnfAx_eq
 SATurday.ProofComplexity.TseitinEdge.ggw_tseitin_reslin_size
+C1.RRefutation.unsat
+C1.eval_chi
+C1.totalDegree_chi
+C1.card_basisOf
+C1.LTrue_iff_chi
