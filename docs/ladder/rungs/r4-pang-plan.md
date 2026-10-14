@@ -292,3 +292,45 @@ Local-mirror setup (for fast iteration; the external drive makes cold `import Ma
 3. `pang-tools/lw.sh File.lean` runs `lean` with LEAN_PATH = local-lib : stub/out : local-out (checks take 2-20 s).
    When a file imports a Mathlib module not yet mirrored, run `addmods.sh <that module>` and retry.
 4. The real gate is always `bash scripts/check_axioms.sh` (lake build + axiom check), run in the background and polled.
+
+### Layer A versus the paper's definition (re-read of deg--size.tex l.84-98, 2026-10-14)
+
+The paper's Res(PC_r/F_p), r = 1: lines are disjunctions of equations of degree <= 1 in x_1..x_n (the CNF's own variables);
+rules are syntactic weakening, contraction, deletion of a false constant equation, linear combination, multiplication; axioms
+(0=0) and (x_i=0) v (x_i-1=0); there is NO restriction rule and NO cut; size = number of DAG nodes. Relation to `PangDag`:
+- Contraction: the paper's lines are multisets; `PangDag` lines are Finsets, so contraction is the identity on lines. Mapping a
+  paper refutation to ours sends each node to its underlying set (same DAG, same or fewer distinct nodes), every paper rule
+  becoming an instance of ours (weakening: `weak`; deletion: `falseConst`; linear combination and multiplication: `comb`/`mul`
+  with conclusion equal to the paper's set, which is a superset of the erased version). So every paper refutation gives an
+  `PangDag.Refutation` of at most the same size and the lower bound for ours implies the paper's.
+- Variables: the paper's lines only mention x_1..x_n, so `V` := the variables of the CNF is exactly his setting; the
+  Boolean axioms are only for V and `mul` requires the multiplier's variables in V (as in his system, degrees <= 1).
+  No restriction lemma is needed. Refutations using other (extension) variables are outside both systems.
+- Strength: the fused weakening in `comb`/`mul`/`falseConst` (the paper itself notes many disjuncts can be added in one weakening
+  step, l.737) makes ours at least as strong, so the theorem implies his; the simulation (layer G) must handle conclusions that are
+  supersets of the erased combination, which his case analysis already does (it only uses that the conclusion contains the
+  premise equations except false constants and the newly derived one).
+
+### Status update 3 (prover, 2026-10-14): layers F, G, H, I done (real `lake build Theory.ProofComplexity.PangTseitin` green; `#print axioms Pang.tseitin_dag_exp` = propext, Classical.choice, Quot.sound; full gate pending at time of writing)
+
+New modules (all checked with `lean` against the scratch mirror with no `sorry`; `#print axioms` of `Pang.common_multiplier`,
+`Pang.onestep`, `Pang.hilbert_lin`, `Pang.degree_size`, `Pang.simulation_final` gives propext, Classical.choice, Quot.sound only):
+- `PangBridge` (polyOf: ML -> P, `cd_polyOf_shl`, `cd_sub_polyOf_ml`, `hilbert_lin` = Lemma 4.1 for maps with variable-closed kernel,
+  `finrank_ker_add_rank_le`), `PangApprox` (`Tmap`, `Tmap_closed`, `frob_cancel`, `onestep` = Lemma 4.2), `PangCommon`
+  (`round`, `iterate_rank`, `exists_common_kernel`, `common_multiplier` = Theorem 4.3), `PangCube` (`indPt`, `cd_of_cube`, `gInd`),
+  `PangPrefix` (`prefix_identity`: 1 - P = sum U_i g_i, deg U_i + d <= Delta), `PangSim` (`cover_step`, `claim_step`, `init_step`,
+  `bool_step`, `comb_step`, `mul_step`, `simulation`, `simulation_final` = Proposition 5.1 for r = 1), `PangDegSize`
+  (`degree_size`: (pN)^t <= S * theta^t, theta = pN - (p-1) N(K-d)), `PangExp` (`exp_bound`, `Nn_ratio`), `PangSizeExp`
+  (`size_exp`: 2^(t/(2(1+lam^(p-1)))) <= S), `PangParams` (`exp_of_degree`, explicit constants `cC`), `PangTseitin`
+  (`tseitin_dag_exp`: 2^(n / cC p q) <= number of nodes for every `Pang.Refutation` of `tcnf G q b`, with `tVars` as variable set).
+Mismatches/deviations versus the paper (honest list):
+1. Statements are in natural-number form without division: onestep is (p-1) c_P(K-d) + p c_{P'}(K) <= p c_P(K); Theorem 4.3 is
+   stated with the hypothesis S * theta^t < (pN)^t (theta = pN - (p-1)N(K-d)) instead of S(1-eta)^t < 1. Equivalent.
+2. Lemma 4.1 needs K <= |V| (paper: K <= n) and we apply it to V = the set of CNF variables, a Finset, not range n.
+3. The final bound is exponential with explicit but tiny constants: 2^(n / C), C = cC p q = (2624 q + 1313) * 8 (p-1)^2 *
+   2 (1 + lam^(p-1)), lam = 18 q (2624 q + 1313). The paper's sharper constant ln S >= D/(32 p^2) (D/16 n)^(p-1) was not reproduced; the
+   shape (exponential in n for fixed p, q) is the same. Parameter choice here: K = D/4, t = D/(8 (p-1)^2), D = the certified degree bound.
+4. `Refutation` has no extension variables and works over V = tVars; the CNF's own variables. Semantic weakening excluded (see above).
+5. The simulation is carried out with indicator polynomials g_h = polyOf(ml(1 - h^(p-1))) (squarefree representative), and cube-vanishing
+   facts are proved by evaluation (`ev_ml_eq`) rather than by the paper's wording "since h1=h2=0 implies ...".
+6. The initial-clause step uses g_{1-l} = 1 - litPoly modulo C_D, costing one extra degree d; covered by the budget K + 2Delta + 2d <= D.

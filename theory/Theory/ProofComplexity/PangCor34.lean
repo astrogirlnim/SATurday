@@ -118,9 +118,10 @@ lemma coeff_mul_mem {m₁ m₂ : ℕ} {Ψ Ξ : MvPolynomial (Fin s) (PP p)}
   exact cd_mul (hΨ x.2) (by have := hΞ x.1; have := hΨd x.2; omega)
 
 /-- The multiplication map `f ↦ ([g h_j f])_j` from `U` to `(P / C_D)^t`. -/
-def multMap (Ax : Set (PP p)) (D : ℕ) (U : Submodule (ZMod p) (PP p)) (h : Fin t → PP p)
-    (g : PP p) : U →ₗ[ZMod p] (Fin t → PP p ⧸ CD Ax D) :=
-  LinearMap.pi fun j => (CD Ax D).mkQ ∘ₗ (LinearMap.mulLeft (ZMod p) (g * h j)) ∘ₗ U.subtype
+def multMap (Ax : Set (PP p)) (D : ℕ) {Dm : Type*} [AddCommGroup Dm] [Module (ZMod p) Dm]
+    (ι : Dm →ₗ[ZMod p] PP p) (h : Fin t → PP p)
+    (g : PP p) : Dm →ₗ[ZMod p] (Fin t → PP p ⧸ CD Ax D) :=
+  LinearMap.pi fun j => (CD Ax D).mkQ ∘ₗ (LinearMap.mulLeft (ZMod p) (g * h j)) ∘ₗ ι
 
 lemma totalDegree_frob_le {g : PP p} {a : ℕ} (hg : g.totalDegree ≤ a) :
     (g ^ p - g).totalDegree ≤ p * a := by
@@ -131,20 +132,21 @@ lemma totalDegree_frob_le {g : PP p} {a : ℕ} (hg : g.totalDegree ≤ a) :
 
 /-- **Frobenius hypothesis for multiplication maps** (Pang Cor. 3.4, the kernel inclusion), in
 polynomial-coefficient form. -/
-theorem ah_mult (hD : 2 ≤ D) (U : Submodule (ZMod p) (PP p)) {k a b : ℕ}
-    (hU : ∀ f ∈ U, f.totalDegree ≤ k) (g : Fin s → PP p) (h : Fin t → PP p)
+theorem ah_mult (hD : 2 ≤ D) {Dm : Type*} [AddCommGroup Dm] [Module (ZMod p) Dm]
+    (ι : Dm →ₗ[ZMod p] PP p) {k a b : ℕ}
+    (hU : ∀ x : Dm, (ι x).totalDegree ≤ k) (g : Fin s → PP p) (h : Fin t → PP p)
     (hg : ∀ i, (g i).totalDegree ≤ a) (hh : ∀ j, (h j).totalDegree ≤ b)
     (hbud : b + k + p * a ≤ D) :
-    AH (fun i => multMap Ax D U h (g i)) := by
+    AH (fun i => multMap Ax D ι h (g i)) := by
   classical
   intro u hfin h1 β
   have hp1 : 1 ≤ p := (Fact.out : p.Prime).one_lt.le
-  let uP : (Fin s →₀ ℕ) → PP p := fun α => (u α : PP p)
+  let uP : (Fin s →₀ ℕ) → PP p := fun α => ι (u α)
   have hfinP : (Function.support uP).Finite := by
     refine hfin.subset fun α hα => ?_
     simp only [Function.mem_support, ne_eq] at hα ⊢
     intro h0; apply hα; simp [uP, h0]
-  have hshift : ∀ e γ j, shiftSum e (fun i x => multMap Ax D U h (g i) x) u γ j =
+  have hshift : ∀ e γ j, shiftSum e (fun i x => multMap Ax D ι h (g i) x) u γ j =
       (CD Ax D).mkQ (Pshift e (fun i => g i * h j) uP γ) := by
     intro e γ j
     unfold shiftSum Pshift
@@ -166,7 +168,7 @@ theorem ah_mult (hD : 2 ≤ D) (U : Submodule (ZMod p) (PP p)) {k a b : ℕ}
   set Φ := Phi uP hfinP with hΦ
   set q : MvPolynomial (Fin s) (PP p) := ∑ i, X i * C (g i) with hq
   have hΦd : DegLe k Φ := fun β => by
-    rw [hΦ, coeff_Phi]; exact hU _ (u β).2
+    rw [hΦ, coeff_Phi]; exact hU _
   have hqd : DegLe a q := by
     have : DegLe (0 + a) q := DegLe.sum _ fun i _ => by
       have := (DegLe.X (p := p) i).mul (DegLe.C (g i))
@@ -211,7 +213,7 @@ theorem ah_mult (hD : 2 ≤ D) (U : Submodule (ZMod p) (PP p)) {k a b : ℕ}
     · have hf : g i ^ p - g i ∈ CD Ax D := cd_frobenius hD (hg i) (le_trans (Nat.le_add_left _ _) hbud)
       have := cd_mul (Ax := Ax) (D := D) hf (g := h j * uP (β - Finsupp.single i p)) (by
         have h2 := totalDegree_mul (h j) (uP (β - Finsupp.single i p))
-        have h3 : (uP (β - Finsupp.single i p)).totalDegree ≤ k := hU _ (u _).2
+        have h3 : (uP (β - Finsupp.single i p)).totalDegree ≤ k := hU _
         have h4 := totalDegree_frob_le (hg i)
         have h5 := hh j
         omega)
@@ -229,25 +231,26 @@ theorem ah_mult (hD : 2 ≤ D) (U : Submodule (ZMod p) (PP p)) {k a b : ℕ}
   rw [← coeff_sub, ← hfinal, coeff_shift] at this
   exact this
 
-lemma multMap_sum (U : Submodule (ZMod p) (PP p)) (h : Fin t → PP p) (g : Fin s → PP p)
+lemma multMap_sum {Dm : Type*} [AddCommGroup Dm] [Module (ZMod p) Dm] (ι : Dm →ₗ[ZMod p] PP p) (h : Fin t → PP p) (g : Fin s → PP p)
     (c : Fin s → ZMod p) :
-    (∑ i, c i • multMap Ax D U h (g i)) = multMap Ax D U h (∑ i, c i • g i) := by
+    (∑ i, c i • multMap Ax D ι h (g i)) = multMap Ax D ι h (∑ i, c i • g i) := by
   ext f j
   simp [multMap, Finset.sum_mul, mul_assoc]
 
 /-- **Pang Corollary 3.4**: for the multiplication maps `f ↦ ([g_i h_j f])_j` on `U` modulo `C_D`
 (with `b + k + p a ≤ D`) some `F_p`-combination `q = ∑ c_i g_i` retains a `1 - 1/p` fraction of the
 rank of the stacked map. -/
-theorem pang_cor34 (hD : 2 ≤ D) (U : Submodule (ZMod p) (PP p)) [Module.Finite (ZMod p) U]
-    {k a b : ℕ} (hU : ∀ f ∈ U, f.totalDegree ≤ k) (g : Fin s → PP p) (h : Fin t → PP p)
+theorem pang_cor34 (hD : 2 ≤ D) {Dm : Type*} [AddCommGroup Dm] [Module (ZMod p) Dm]
+    [Module.Finite (ZMod p) Dm] (ι : Dm →ₗ[ZMod p] PP p)
+    {k a b : ℕ} (hU : ∀ x : Dm, (ι x).totalDegree ≤ k) (g : Fin s → PP p) (h : Fin t → PP p)
     (hg : ∀ i, (g i).totalDegree ≤ a) (hh : ∀ j, (h j).totalDegree ≤ b)
     (hbud : b + k + p * a ≤ D) :
     ∃ c : Fin s → ZMod p,
-      Module.finrank (ZMod p) (LinearMap.range (LinearMap.pi fun i => multMap Ax D U h (g i))) *
+      Module.finrank (ZMod p) (LinearMap.range (LinearMap.pi fun i => multMap Ax D ι h (g i))) *
         (p - 1) ≤
-      p * Module.finrank (ZMod p) (LinearMap.range (multMap Ax D U h (∑ i, c i • g i))) := by
-  obtain ⟨c, hc⟩ := pang_retention_lin (fun i => multMap Ax D U h (g i))
-    (ah_mult hD U hU g h hg hh hbud)
+      p * Module.finrank (ZMod p) (LinearMap.range (multMap Ax D ι h (∑ i, c i • g i))) := by
+  obtain ⟨c, hc⟩ := pang_retention_lin (fun i => multMap Ax D ι h (g i))
+    (ah_mult hD ι hU g h hg hh hbud)
   refine ⟨c, ?_⟩
   rwa [multMap_sum] at hc
 
