@@ -20,6 +20,7 @@ theorem card_G_le {n : ℕ} {G : FinGraph n} (hreg : IsRegular G 3) : G.card ≤
     intro e he
     exact Finset.mem_biUnion.2 ⟨e.val.1, Finset.mem_univ _, mem_incident_iff.2 ⟨he, Or.inl rfl⟩⟩
   refine (Finset.card_le_card hsub).trans (Finset.card_biUnion_le.trans ?_)
+  refine le_of_eq ?_
   calc ∑ v : Fin n, (incident G v).card = ∑ _v : Fin n, 3 := Finset.sum_congr rfl fun v _ => hreg v
     _ = 3 * n := by simp [mul_comm]
 

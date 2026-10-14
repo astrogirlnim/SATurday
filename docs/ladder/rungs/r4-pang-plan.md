@@ -311,7 +311,7 @@ rules are syntactic weakening, contraction, deletion of a false constant equatio
   supersets of the erased combination, which his case analysis already does (it only uses that the conclusion contains the
   premise equations except false constants and the newly derived one).
 
-### Status update 3 (prover, 2026-10-14): layers F, G, H, I written (Lean sources on branch, real `lake build` pending)
+### Status update 3 (prover, 2026-10-14): layers F, G, H, I done (real `lake build Theory.ProofComplexity.PangTseitin` green; `#print axioms Pang.tseitin_dag_exp` = propext, Classical.choice, Quot.sound; full gate pending at time of writing)
 
 New modules (all checked with `lean` against the scratch mirror with no `sorry`; `#print axioms` of `Pang.common_multiplier`,
 `Pang.onestep`, `Pang.hilbert_lin`, `Pang.degree_size`, `Pang.simulation_final` gives propext, Classical.choice, Quot.sound only):
