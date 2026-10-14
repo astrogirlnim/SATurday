@@ -215,3 +215,34 @@ different moduli, any non-Tseitin family.
 Pang's theorem implies Khaniki's n^(2-o(1)) dag bound for these formulas (stronger conclusion, same
 hypothesis). Shared work with Khaniki: dag type K1 and the certified degree input. Do K1 once, in the
 syntactic form of Layer A. This document does not assign work; it only records dependencies.
+
+## 10. Prover status (2026-10-14, branch r4/prover-pang)
+
+Paper source re-fetched (arXiv e-print 2610.00837, deg--size.tex, 992 lines) and Section 3 re-read
+against Section 2 above: no mismatch with the layer list. Refinements actually used:
+
+- Layer D and C were formalized in the abstract matrix form, with `F_p = ZMod p`, and are DONE
+  (no sorry, axioms propext/Classical.choice/Quot.sound only, checked by `#print axioms`):
+  - `Theory/ProofComplexity/PangMult.lean` (244 lines): Taylor shift, `mult a f`, and
+    `Pang.sum_mult_le : (sum_a mult a H) * q <= totalDegree H * q^n` for nonzero H over a finite field
+    (DKSS multiplicity bound, induction through `finSuccEquiv`, univariate step by `taylor`/`rootMultiplicity`).
+  - `PangPencil.lean` (262 lines): `OrdGe`, `sq_deficit` (det(A + L) vanishes to order >= R - rank A, via
+    Mathlib's transvection/diagonal Gauss decomposition), `deficit_le_mult`, and
+    `Pang.pencil_sum : R * q^(s+1) <= q * sum_a rank(sum a_i M_i) + R * q^s` for any nonzero R x R minor of the
+    generic pencil (this is Lemma 3.1 in minor form).
+  - `PangDescent.lean` (about 380 lines): `exists_minor` (rank R gives a nonzero R x R minor),
+    `frob_descent` (Frobenius-stable subspace of E^n contains dim W F_p-independent F_p-rational vectors; pivot
+    argument, replaces the RREF-uniqueness proof), `pencil_descent_rank`
+    (kernel inclusion ker M(lambda) in ker M(lambda^p) gives rank_{F_p}(stack M_i) <= rank_E M(lambda)), and
+    `Pang.pang_rank_retention` (E = FractionRing (MvPolynomial (Fin s) (ZMod p))): there is c in F_p^s with
+    rank_{F_p}(stack) * (p-1) <= p * rank(sum c_i M_i). This is Lemma 3.2 plus Lemma 3.1 assembled (Corollary 3.4
+    minus its hypothesis check).
+- Only the direction rank_{F_p}(stack) <= rank_E M(lambda) of eq. (rank-nullity) is needed downstream and proved.
+- NOT yet done: the verification of the Frobenius hypothesis for the multiplication maps on V_k / C_D
+  (Corollary 3.4 proper, needs the PC-side facts of Layer B: absorption, g^p - g in C_D, base change; the
+  base-change lemma 2.3 is not needed in this matrix form if the hypothesis is stated over E by clearing
+  denominators, to be settled when Layer B exists), and Layers A, B, E-I.
+- Verdict on the riskiest step: feasible and done in about 900 Lean lines, well under the 1600-2800 estimate for C+D.
+  The risk that remains in this cluster is only the hypothesis check of Corollary 3.4 (Layer B interface).
+- Tooling note: the external drive makes `import Mathlib` take ~35 min per cold lean process. Iterating with a local
+  olean mirror of the needed import closure on the internal disk (LEAN_PATH) gives ~10 s checks.
