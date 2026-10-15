@@ -25,8 +25,14 @@ cd "$THEORY_DIR" || { echo "[axiom-gate] FAIL: theory dir missing"; exit 1; }
 # glob would try to parse as Lean source; remove them before every build.
 find . -name "._*" -not -path "./.lake/*" -delete 2>/dev/null
 echo "[axiom-gate] AppleDouble sidecars cleaned"
-if ! lake build 2>&1 | tail -5; then
-  echo "[axiom-gate] FAIL: lake build failed"
+# Capture to a file so the exit status is lake's, not tail's.
+BUILD_LOG="$(mktemp -t axiom-gate-build.XXXXXX)"
+lake build > "$BUILD_LOG" 2>&1
+BUILD_STATUS=$?
+tail -5 "$BUILD_LOG"
+rm -f "$BUILD_LOG"
+if [ $BUILD_STATUS -ne 0 ]; then
+  echo "[axiom-gate] FAIL: lake build failed (exit $BUILD_STATUS)"
   exit 1
 fi
 echo "[axiom-gate] build OK"
