@@ -1,0 +1,23 @@
+n=12 rho=2 K=4 family=disjoint s=6  2^n=4096
+V ratio N(K-rho)/N(K) = 0.0995   K/n = 0.333   (K/n)^rho = 0.111
+t=0: dim W_K=794  dim W_(K-rho)=79  ratio=0.0995  (dim V_K=794)  N(K+t*rho)=794  dimW_K/N(K+t*rho)=1.000
+t=1: dim W_K=2254  dim W_(K-rho)=394  ratio=0.1748  (dim V_K=794)  N(K+t*rho)=2510  dimW_K/N(K+t*rho)=0.898
+t=2: dim W_K=3349  dim W_(K-rho)=894  ratio=0.2669  (dim V_K=794)  N(K+t*rho)=3797  dimW_K/N(K+t*rho)=0.882
+t=3: dim W_K=3635  dim W_(K-rho)=1269  ratio=0.3491  (dim V_K=794)  N(K+t*rho)=4083  dimW_K/N(K+t*rho)=0.890
+n=12 rho=2 K=3 family=cycle s=12  2^n=4096
+V ratio N(K-rho)/N(K) = 0.04348   K/n = 0.25   (K/n)^rho = 0.0625
+t=0: dim W_K=299  dim W_(K-rho)=13  ratio=0.04348  (dim V_K=299)  N(K+t*rho)=299  dimW_K/N(K+t*rho)=1.000
+t=1: dim W_K=1445  dim W_(K-rho)=133  ratio=0.09204  (dim V_K=299)  N(K+t*rho)=1586  dimW_K/N(K+t*rho)=0.911
+t=2: dim W_K=3087  dim W_(K-rho)=607  ratio=0.1966  (dim V_K=299)  N(K+t*rho)=3302  dimW_K/N(K+t*rho)=0.935
+t=3: dim W_K=3802  dim W_(K-rho)=1469  ratio=0.3864  (dim V_K=299)  N(K+t*rho)=4017  dimW_K/N(K+t*rho)=0.946
+n=12 rho=3 K=4 family=disjoint s=4  2^n=4096
+V ratio N(K-rho)/N(K) = 0.01637   K/n = 0.333   (K/n)^rho = 0.037
+t=0: dim W_K=794  dim W_(K-rho)=13  ratio=0.01637  (dim V_K=794)  N(K+t*rho)=794  dimW_K/N(K+t*rho)=1.000
+t=1: dim W_K=1736  dim W_(K-rho)=53  ratio=0.03053  (dim V_K=794)  N(K+t*rho)=3302  dimW_K/N(K+t*rho)=0.526
+t=2: dim W_K=2004  dim W_(K-rho)=95  ratio=0.04741  (dim V_K=794)  N(K+t*rho)=4083  dimW_K/N(K+t*rho)=0.491
+t=3: dim W_K=2017  dim W_(K-rho)=111  ratio=0.05503  (dim V_K=794)  N(K+t*rho)=4096  dimW_K/N(K+t*rho)=0.492
+n=14 rho=2 K=3 family=disjoint s=7  2^n=16384
+V ratio N(K-rho)/N(K) = 0.03191   K/n = 0.214   (K/n)^rho = 0.0459
+t=0: dim W_K=470  dim W_(K-rho)=15  ratio=0.03191  (dim V_K=470)  N(K+t*rho)=470  dimW_K/N(K+t*rho)=1.000
+t=1: dim W_K=2241  dim W_(K-rho)=106  ratio=0.0473  (dim V_K=470)  N(K+t*rho)=3473  dimW_K/N(K+t*rho)=0.645
+t=2: dim W_K=5076  dim W_(K-rho)=337  ratio=0.06639  (dim V_K=470)  N(K+t*rho)=9908  dimW_K/N(K+t*rho)=0.512
