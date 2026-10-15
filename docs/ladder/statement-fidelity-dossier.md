@@ -1,6 +1,11 @@
 # Statement fidelity dossier (R4, Phase 3.3 preparation)
 
 Status: prepared for independent expert review. Nothing in this document is a certification claim.
+Revision note (2026-10-15, branch `r4/referee`, docs only): revised after an outside referee report
+(`docs/reports/SATurday_R4_Mathematical_Referee_Report.docx`); point-by-point answer in
+`docs/reports/response-to-referee.md`. Changes: Section 1.1 (Tseitin satisfiability criterion corrected),
+Section 6.3/6.4 and new Section 11 (novelty), new Sections 11 to 15 (novelty, quantifier shapes, size
+parameters, numeric constants and thresholds, dependency diagram), and Section 7 (C1 caveat strengthened).
 Repo state described: local `main` at `4f0b4a3` (branch `r4/dossier`, docs only). All Lean text below is
 copied from the files named, at that commit. Anything marked UNVERIFIED was not checked by the author of
 this dossier.
@@ -55,14 +60,36 @@ def tcnf (b : Fin n → ZMod q) : CNF :=
 Plain English: each edge carries exactly one value in `Z_q` (at-least-one and at-most-one clauses), and at each
 vertex `v` the net flow (sum of values on edges where `v` is the smaller endpoint minus sum where `v` is the
 larger endpoint) equals `b v` mod `q`; each forbidden local labelling is one clause of width `deg v = 3`.
-Unsatisfiable iff `∑ b ≠ 0` (`tcnf_unsat` gives the "if" direction in Lean:
-`theorem tcnf_unsat {b} (hb : ∑ v, b v ≠ 0) : ¬ Satisfiable (tcnf G q b)`). For `∑ b = 0` the formula is
-satisfiable and every statement below is vacuously true for that `b`.
+Satisfiability criterion (CORRECTED; the previous text said "unsatisfiable iff `∑ b ≠ 0`", which is false for
+disconnected graphs). For an arbitrary finite graph `G`: `tcnf G q b` is satisfiable if and only if
+`∑_{v ∈ C} b v = 0 (mod q)` for every connected component `C` of `G` (the net-flow equations in a component sum
+to `0`, since each edge value is added at one endpoint and subtracted at the other; conversely, on a connected
+component one fixes values on a spanning tree from the leaves up and the root equation is the component sum).
+Counterexample to the total-charge criterion: `G` the disjoint union of two copies of `K_4` (3-regular), `q = 2`,
+charge `1` on one vertex of each copy and `0` elsewhere: total charge `2 = 0`, yet each component sums to `1`, so
+the formula is unsatisfiable. What Lean proves: only the direction "some component sum nonzero implies
+unsatisfiable", and only in the weaker form `theorem tcnf_unsat {b} (hb : ∑ v, b v ≠ 0) : ¬ Satisfiable (tcnf G q b)`
+(total sum, hence one component sum, nonzero; this hypothesis is sufficient on any graph, connected or not, and is
+the direction every lower bound here needs for non-vacuity). The converse (zero component sums imply satisfiable)
+is NOT stated or proved in Lean for `tcnf`, and no theorem in the repository uses it (grep for `Satisfiable (tcnf`
+finds only `tcnf_unsat`). Where connectivity is actually used: nowhere in `tcnf_unsat`. The graphs of Sections
+3, 4, 6, 7 are connected (the family theorem `exists_mggF2Cub_hasExpansionInv_family` returns `G.IsConnected`
+and, independently, `HasExpansionInv` forces connectivity: a union of components of at most `n/2` vertices would
+be a nonempty set with empty boundary). On a connected graph the criterion reduces to `∑ b ≠ 0` iff unsatisfiable,
+and that is the only place where "iff total charge nonzero" is correct. Caveat on the displayed theorems: they
+state `IsRegular G 3` but not `G.IsConnected`, because the connectivity conjunct is dropped when the family is
+repackaged (`tseitin_bool_degree_Fp` destructures `hconn` and does not use it; the degree argument
+`tseitin_pc_degree` uses only `HasExpansionInv`). So the reader cannot read connectivity off the final statements;
+it is a property of the witness, visible in the proofs. For `b` whose component sums are all zero the formula is
+satisfiable and every statement below is vacuously true for that `b`; for the connected family this means exactly
+`∑ b = 0`. Non-vacuity of the hypothesis "a refutation exists" is a separate matter (Section 10, item 6).
 
 Graph family: `exists_mggF2Cub_hasExpansionInv_family` (`MGG/Cubicize.lean`): for every `N` there is `n ≥ N`
 and a connected cubic simple graph `G` on `n` vertices with `HasExpansionInv G mggF2CubK` (every nonempty
 `S` with `2|S| ≤ n` has `|S| ≤ K |∂S|`). It is a cubicized version of a Margulis/Gabber-Galil torus graph.
-It is an existence statement over `n` (the theorems give `∃ n G`, not a bound for all `n`).
+It is an existence statement over `n` (the theorems give `∃ n G`, not a bound for all `n`). Reading the proof
+(not stated in the theorem): the witness is `n = 8 m²` with `m = max(6, N', 1968)`, `N'` the requested lower
+bound, i.e. an indexed family `m ↦ G_m` on `8 m²` vertices. See Section 12.
 
 ### 1.2 Polynomial calculus (`PolyCalc.lean`)
 
@@ -217,6 +244,15 @@ DAG-like Res(⊕) refutation has more than `exp(n/(32768 ℓ²))` clauses. Theor
 port plan `docs/ladder/rungs/r4-braun-port-plan.md`); our Lean is an independent re-proof of the statements.
 The superpolynomial statement is Braun's `bitPHP_superpolynomial` (quoted from the port plan, not re-read from
 the paper). Our file's docstring says "statements keep his quantifier shape".
+
+Superseded asymptotically (added after referee review; checked against the arXiv text of Pang): Pang
+arXiv:2610.00837 Theorem 7.2(e) proves `exp(Ω(N))` for bit-PHP with `N < m = O(N)` pigeons and `N = 2^ℓ` holes in
+Res(PC_r/F_p), and Section 7.1 states that for `p = 2`, `r = 1` this improves Braun's `exp(Ω(N/log² N))` for
+Res(⊕_2), noting it is tight up to the constant (tree-like refutation of size `2^{O(N)}`). So Braun's bound is no
+longer the strongest known bound for bit-PHP in Res(⊕). The value of the Braun development in this repository is
+that it is a second, independent proof method (chessboard-complex homology), formalized in full, and the only
+route in the repo whose system `PDag` includes a semantic binary rule; it is not a new or best lower bound.
+Size parameters for bit-PHP are in Section 13.
 
 ### 2.4 Differences
 | # | Difference | Direction |
@@ -526,6 +562,16 @@ The cubic-expander input comes from `tseitin_bool_degree_Fp` (Section 3). This d
 paper's existence, title, author, date and abstract on arXiv but not the theorem text; the note was written by a
 previous session who read the TeX in full and hand-checked each layer.
 
+Checked against the arXiv text (2026-10-15, by this revision): Theorem 1.1 is as quoted above (statement
+verified: `D ≥ max{32(p-1)² r, 8 w(F)}`, `ln S ≥ (D/(32 p² r))·(D/(16 n))^{(p-1)r}`). Theorem 7.2 has parts
+(a) random CNFs, (b) `Tseitin_q(G,b)` for a fixed prime `q ≠ p` on a family of fixed-degree regular edge
+expanders, (c) 3-colouring, (d) PHP variants, (e) bit-PHP; all with `exp(Ω(N))`. The paper's Tseitin encoding has
+`q|E|` variables, one block of `q` per edge, with unique-value clauses (a disjunction over values and pairwise
+exclusions) and vertex flow-conservation constraints: this is the same one-hot encoding as `tcnf` (the paper does
+not call it "one-hot"; clause widths at most `max(q, deg)`). Section 7.1 contains the semantic-weakening
+simulation remark. Section 8 describes the AC0[p]-Frege bottleneck. The theorem is therefore NOT new: see
+Section 11.
+
 ### 6.4 Differences
 | # | Difference | Direction |
 |---|-----------|-----------|
@@ -537,6 +583,7 @@ previous session who read the TeX in full and hand-checked each layer.
 | 6 | The dag size `R.S` counts nodes in a list, repetition allowed; the paper counts nodes of the dag. | neutral |
 | 7 | Unsatisfiable `tcnf` only for `∑ b ≠ 0`; other `b` vacuous. | neutral |
 | 8 | Constant `C` is explicit and huge (`cLam 2 = 236196` and `cC` includes `cLam^(p-1)`); paper's bound has a different, smaller form. | neutral |
+| 9a | Novelty (see Section 11): `r = 1`, `q` prime, `p ≠ q`, fixed-degree expanders is exactly the case covered by Pang Theorem 7.2(b); the Lean theorem is a formalization of a published application. Differences: `q` may be composite with `p ∤ q` (Pang 7.2(b) states a fixed prime `q ≠ p`); exact constants; Pang's version is for general `r` and holds for a family of regular edge expanders, ours for one explicit cubic family. | neutral (formalization), strengthens only in `q` composite |
 | 9 | The Lean polynomial for a clause is `clauseLine`/`litPoly` (`1 - X` for a positive literal); the repo note flags matching against the paper's `Q(F)` falsity polynomial as UNVERIFIED. | review |
 
 ### 6.5 Reviewer checks
@@ -596,6 +643,20 @@ structure RRefutation (Φ : CNF) (V : Finset ℕ) (ρ : ℕ) (p : ℕ) [Fact p.P
   supp : ∀ i < S, Supp V (line i)
   last : line (S - 1) = ∅
 ```
+
+### 7.1a What this result is, plainly (added after referee review)
+`C1.c1_main` is a lower bound for a bespoke semantic calculus `R_ρ^p` that this repository defined. It is not a
+Cook-Reckhow proof system (its semantic rules `sem1`, `sem2` are checked by quantifying over all Boolean
+assignments, so correctness of a line is not polynomial-time checkable), it is not a known standard system, and its
+rank parameter `ρ` is a dimension of a span of affine forms, not a circuit depth. It gives NO lower bound for
+depth-`d` AC0[p]-Frege, for Res(lin F_p) beyond what Section 6 already gives, or for any standard system, unless
+one proves a bridge theorem: a translation from the relevant refutations (e.g. depth-`d` AC0[p]-Frege proofs)
+into `R_ρ^p` with controlled rank and size. No such theorem is proved, stated, or known to hold; whether
+depth-`d` AC0[p] proofs have low-rank `R_ρ^p` representations is the open research question. Read it as a
+stand-alone result about a defined calculus, and as evidence of nothing about R4. Pang's Section 8 names the
+concrete obstruction for the Frege route (a quantitative tradeoff between approximation degree and rank shrinkage
+under iteration over depth; the missing ingredient is PC degree lower bounds near or above `n/2` for
+polynomial-size, `o(n)`-width CNFs); C1 does not supply it, since its rank bound is logarithmic.
 
 ### 7.2 Plain mathematics
 `R_ρ^p`: lines are disjunctions of terms; a term is a conjunction of affine equations `l = 0` over `F_p`
@@ -702,3 +763,138 @@ dependencies in the sense that `#print axioms` shows no `sorryAx`.
 7. UNVERIFIED by this dossier: theorem numbers in Part-Tzameret, Khaniki's published version, AR's Theorem 4.4
    constant, Green's original statement, Pang's Theorem 1.1 text, EGI's definition of Res(⊕) weakening, equivalence
    `pdag_to_affineDAG`.
+
+## 11. Novelty and relation to the literature (rewritten after referee review)
+
+Stated precisely, with nothing claimed beyond this table.
+
+| Result | Published antecedent | What is and is not new here |
+|--------|---------------------|-----------------------------|
+| Bit-PHP, Section 2 | Braun arXiv:2609.23015 (`exp(Ω(N/log² N))`, dag-like Res(⊕)); superseded by Pang Thm 7.2(e) (`exp(Ω(N))`, and for `p=2, r=1` Pang Section 7.1 says it improves Braun). | Not new mathematically and no longer the strongest known bound. It is an independent formal reproof of Braun's statement (same constants `32`, `32768`). Pang's bit-PHP bound is not formalized here. |
+| Tree-like Res(lin F_p) on Tseitin, Section 3 | Part-Tzameret Cor. 46 (Boolean-edge formula, Ramanujan, `2^{Ω(dn)}`); Pang Thm 7.2(b) covers one-hot Tseitin. | Formalization of a published result for a different encoding (one-hot) on one explicit cubic family, with explicit constants (`1312`, `q(q+3)`). Composite `q` with `p ∤ q` is allowed (the degree lemma is proved over a primitive `q`-th root of unity, `ω^q = 1`); the cited sources state prime `q`. |
+| Dag-like almost quadratic, Section 4 | Khaniki, ECCC TR20-034, Cor. 3.2(1) (Boolean-edge). | Formalization, one-hot instance, explicit inequality. Superseded by Section 6 for the exponential bound. |
+| Boolean-edge AR chain, Section 5 | Alekhnovich-Razborov Thm 4.4/Cor. 4.5; Part-Tzameret. | Formalization of the exact AR formula on one explicit multigraph family `GGW m k`. Immunity constant `⌊(d+1)/q⌋` (Lean) versus AR's `⌊d/(4(q-1))⌋` is a (small) strengthening of one lemma, proved by the Beck-Li route; not a new theorem of independent interest. |
+| Dag-like exponential, one-hot Tseitin, Section 6 | Pang Thm 1.1 and Thm 7.2(b). | A formalization of a published application (`r = 1`). Differences are only: (i) `q` composite allowed (`p ∤ q`); (ii) explicit constants (`cC(3,2) ≈ 2.34e16`, Section 14); (iii) the Lean system has fused weakening (stronger or equal to Pang's syntactic system, but then Pang Section 7.1 shows semantic weakening is polynomially simulable, so no real gain). Pang's exponent is better in form (`(D/16n)^{(p-1)r}` with `D = Ω(n)`) and covers all `r`. The exponential asymptotic itself is not claimed as new. |
+| C1, Section 7 | None (corollary of Pang's method for a defined calculus). | The only statement without a direct published antecedent; it is a result about a bespoke semantic calculus (Section 7.1a) and implies nothing for AC0[p]-Frege. |
+
+Historical narrative corrected: earlier text (Section 4.4 row 6, Section 8) presented Braun as the lead result
+and Pang as a later layer using Braun's common-multiplier technique. Both are true as dependencies of method, but
+as results, Pang supersedes Braun asymptotically for bit-PHP in the Res(⊕_2) setting, and Pang's Theorem 7.2(b)
+contains the Tseitin application of Section 6.
+
+## 12. What is proved versus how it is quantified
+
+Two shapes. (E) existential sequence: `∀ N, ∃ n ≥ N, ∃ G_n, Hard(n, G_n)`. This gives infinitely many sizes but
+no function `n ↦ Fam n`, no control of gaps between consecutive sizes, and no statement about any particular
+`n`. (U) uniformly indexed: `∀ n ≥ n₀ (or ∀ l ≥ L), Hard(Fam n)` with `Fam` an explicit function. The R4 target is
+(U) for a polynomial-size family (and padding to every size in the R4 sense is in addition not formalized).
+
+| Theorem | Shape | Index | Notes |
+|---------|-------|-------|-------|
+| `bphp_dag_exponential` | U | `ℓ ≥ 32`, explicit `bphpCNF ℓ (2^ℓ+1)` | explicit hard family; gaps: sizes `Θ(2^{3ℓ} ℓ)`, successive sizes differ by factor about 8 |
+| `bphp_dag_superpolynomial`, `braunBitPHP` | U, with `∀K ∃L ∀ℓ ≥ L` | `ℓ` | `L` depends on `K` (as the R4 shape requires for each exponent) |
+| `reslin_tseitin_size` (Sec 3) | E | `N` | `∀ b` includes satisfiable `b` (vacuous) |
+| `reslin_tseitin_dag_size` (Sec 4) | E | `N` | same |
+| `Pang.tseitin_dag_exp` (Sec 6) | E | `N` | same |
+| `C1.c1_main` (Sec 7) | E, with `ε`, `M` fixed first | `M` | `ρ` quantified after `n, G` (good: `G` independent of `ρ`) |
+| `tseitin_bool_degree_Fp` (shared input) | E | `N` | |
+| `ggw_tseitin_pc_degree`, `ggw_tseitin_reslin_size` (Sec 5) | U in `(m, k, σ)` | `m ≥ 16q`, `k ≥ k0 q` | `GGW m k` families are explicitly indexed by `m` and `k`. Two-parameter, with `d = 8^k` growing; a one-parameter polynomial-size family needs `k` fixed (say `k = k0 q`) and `m → ∞`, which is allowed by the statement but not stated as a family theorem. `∀ σ` includes satisfiable `σ` |
+| `green_immune` | U | all parameters | purely algebraic lemma |
+
+Remarks. (1) For the graph theorems, inspection of the proof of `exists_mggF2Cub_hasExpansionInv_family` shows that
+the witness is `n = 8 m²` for `m = max(6, N, 1968)`; so the content is a family indexed by `m ≥ 1968` on `8m²`
+vertices, with consecutive sizes ratio `((m+1)/m)² → 1`. Making this a Lean statement is a restatement (work item 3 of
+`docs/reports/response-to-referee.md`); until then the formal theorems have shape E. (2) The R4 target also needs a single
+CNF `Fam n`, i.e. an explicit charge `b_n`. Every Tseitin theorem quantifies `∀ b`; the hard instances are those
+with nonzero component sums, and the vacuous ones with zero sums are included. An explicit choice, e.g.
+`b_n(v) = 1` at one fixed vertex and `0` elsewhere (total charge `1 ≠ 0` in `Z_q`, `q ≥ 2`; connected graph), makes
+the instance unsatisfiable by `tcnf_unsat`; no Lean theorem instantiates it. (3) Padding to all sizes would need
+(a) preservation of unsatisfiability, (b) a formula-size measure, (c) a lower bound in the target system for the
+padded formula; none is formalized. (4) The Lean `R4_target` (`AC0pFregeFrontier.r4_target`) has shape U; no theorem
+in this dossier has the R4 shape for a standard system.
+
+## 13. Size parameters
+
+Hand-computed from the Lean definitions (not Lean-checked as stated; `Finset` images deduplicate, which is
+accounted for). Notation: `N = 2^ℓ`.
+
+Bit PHP `bphpCNF ℓ (N+1)`: pigeons `N+1`; variables `(N+1)ℓ`; clauses `C(N+1,2) · 2^ℓ = N²(N+1)/2` (one for each
+pair and each `α ∈ {0,1}^ℓ`; all distinct), each of width `2ℓ`; total literal occurrences `N²(N+1)ℓ = Θ(N³ ℓ)`; encoding
+length `Θ(N³ ℓ log(Nℓ))` bits. At `ℓ = 32` (the first `ℓ` of `bphp_dag_exponential`): `N = 4,294,967,296`, variables
+`137,438,953,504`, clauses `≈ 3.96 × 10^28`, literal occurrences `≈ 2.54 × 10^30`. Bound `exp(N/(32768 ℓ²))`: this is
+`exp(128)` at `ℓ = 32`, and `exp(Ω(N/log²N))` generally. Because the input length is `L = Θ(N³ ℓ)·polylog`, the
+lower bound is exponential in the number of holes `N`, i.e. `exp(L^{1/3 - o(1)})` in the input length, not
+`exp(Ω(L))`. (Pang's `exp(Ω(N))` has the same caveat.)
+
+One-hot Tseitin `tcnf G q b` on a cubic graph with `n` vertices: edges `3n/2`; variables `3nq/2`; clauses: `3n/2`
+at-least-one (width `q`), `(3n/2) · q(q-1)/2` at-most-one (width 2), and per vertex `q³ - q²` forbidden local
+labellings (width 3): `q³` labellings of the three incident edges, `q²` of them have net flow `b v`. Total clauses
+`(3n/2)(1 + q(q-1)/2) + n(q³ - q²)`; for `q = 2`: variables `3n`, clauses `7n`. Total literal occurrences `Θ(n q³)`,
+encoding length `Θ(n q³ log n)` bits. Hence for Tseitin the bound `2^{Ω(n)}` is exponential in the formula size up to
+a polylogarithmic factor (`exp(Ω(L/log L))`), in contrast to bit-PHP. The family has `n = 8m²`, `m ≥ 1968`, so the least
+`n` in the family is `8·1968² = 30,984,192` (`mggF2CubFloor = 1968`); through `tseitin_bool_degree_Fp` the floor
+is `m ≥ 17122` for `(p,q) = (3,2)` (`4000 + 1312 q(q+3) + 2 = 17122`), so `n ≥ 8·17122² = 2,345,303,072`
+for that route (read from the proofs, not stated in the theorems).
+
+Boolean-edge Tseitin on `GGW m k` (Section 5): vertices `2m²`; edges (variables) `m²·8^k`, each vertex of degree
+`d = 8^k`; clauses `2m² · (number of falsifying local assignments)`, about `2m² · 2^d (1 - 1/q)` of width `d`; the encoding
+length is `Θ(m² 2^d d)`. For `q = 2` the threshold `k ≥ k0 = 6 clog₂(64) = 36` gives `d = 8^36 ≈ 3 × 10^32`, so one vertex alone
+contributes about `2^{10^32}` clauses: the formula is polynomial in `n = 2m²` only for fixed `k` with an astronomical
+constant. The exponent `(m² 8^k/(256 q²) - 8^k - p)/(p-1)` is positive only for `m > 16 q` (at `m = 16q` it is `-p`,
+truncated to 0), consistent with the hypothesis `16q ≤ m`.
+
+## 14. Numeric constants and thresholds
+
+All values computed by the arithmetic of the Lean definitions (`PangParams.lean`, `ResLinDagSize.lean`,
+`C1Real.lean`), checked by recomputation (Python), `(p,q) = (3,2)`.
+
+* Pang: `cA 2 = 2624·2 + 1313 = 6,561`; `cLam 2 = 18·2·6561 = 236,196`; `cS 3 2 = 2(1 + 236196²) = 111,577,100,834`;
+  `cC 3 2 = cA · 8(p-1)² · cS = 6561 · 32 · 111,577,100,834 = 23,425,835,474,299,968 ≈ 2.34 × 10^16`. The bound
+  `2^{⌊n/cC⌋} ≤ R.S` is stronger than the trivial `R.S ≥ 1` only for `n ≥ cC` (and needs `n ≥ cN0 = 1,960,130`, with
+  `cDmin = 1484`). In the family `n = 8m²` this means `m ≥ 54,113,119`.
+* Tree-like (Section 3): `E(n) = ⌊(⌊(⌊(n-2)/1312⌋ - 10) - 5 - 3⌋ / 2⌋`; positive from `n = 26,242`, and `2^E ≤ 2s` is a
+  nontrivial bound whenever `E ≥ 2`; at the first family size it supplies via `tseitin_bool_degree_Fp`
+  (`n = 2,345,303,072`): `D = 1,787,568`, `E = 893,780`.
+* Dag-like (Section 4): `W = tseitinW 3 2 n = ⌊D/2⌋` with `D = ⌊(n-2)/1312⌋ - 10`; the hypothesis `q+5 ≤ W` needs `W ≥ 7`
+  (`n ≥ 31,490`); the lower bound `(W-5)²/(360(log₂(3(W-5)²)+1)) ≥ 2` first holds at `W = 109` (`n ≈ 3.0 × 10^5`).
+* C1: `κ(3,2) = (p-1) ln cLam = 2 ln 236196 ≈ 24.745`; so `ε < 1/(κ+1) ≈ 0.03884`. The statement needs `1 ≤ ρ ≤ ε ln n`, so
+  `n ≥ e^{1/ε} ≥ e^{25.7} ≈ 1.4 × 10^11` for any rank at all, and the exponent `n^{1-(κ+1)ε}` is close to `1`
+  only for tiny `ε`: with `ε = 0.01` the exponent is `0.743` and `ρ = 1` needs `n ≥ e^{100}`; with `ε = 0.02`, exponent `0.485`
+  and `n ≥ e^{50} ≈ 5 × 10^{21}`; with `ε = 0.03`, exponent `0.228`, `n ≥ e^{33.3} ≈ 3 × 10^{14}`.
+* Braun: threshold `ℓ ≥ 32` (`N ≥ 4.29 × 10^9`), `exp(N/(32768ℓ²)) = e^{128}` at `ℓ = 32`; the superpolynomial form has
+  `L = L(K)` not given numerically.
+* Section 5 (`GGW`): `k0 2 = 36`, `16q = 32 ≤ m`; `cA`-type constants do not appear; the exponent is `Ω(dn/(p q²))` with `d = 8^k`.
+
+These bounds are asymptotic statements; the thresholds show they say nothing for formulas of practical size. The
+displayed natural-number expressions use truncated subtraction and floor division; positivity of the exponent on
+the family is the arithmetic above, not part of the Lean statements, and requires `N` (equivalently `m`) large.
+
+## 15. Dependency diagram of shared inputs
+
+```mermaid
+graph TD
+  MGG["MGG expander family: exists_mggF2Cub_hasExpansionInv_family<br/>n = 8m^2, m >= 1968, cubic, connected, HasExpansionInv (K=164)<br/>(MGG.lean, MGG/Cubicize.lean, Factor2Inv4.lean)"]
+  BTPC["tseitin_pc_degree: binomial Tseitin, no PC degree (n-2)/1312<br/>needs HasExpansionInv, omega^q = 1 (TseitinPC.lean)"]
+  BOOL["tseitin_bool_degree_Fp: one-hot tcnf, no degree D=((n-2)/1312 - q(q+3))/(q-1) PC refutation over Z_p, all b<br/>(TseitinBool.lean)  --- CHOKE POINT 1"]
+  GREEN["green_immune (GreenImmunity.lean)"] --> GGWPC["ggw_tseitin_pc_degree (GGW m k, Boolean-edge)"]
+  GGWG["GGW m k multigraph + ExpanderMGG expansion<br/>--- CHOKE POINT 2 (Section 5 branch)"] --> GGWPC
+  MGG --> BTPC --> BOOL
+  BOOL --> PT["Part-Tzameret layer: rld_cnf_size, rld_cnf_pcd (tree-like RLD)<br/>Sec 3: reslin_tseitin_size"]
+  BOOL --> KH["Khaniki layer: size-width + atom_refutation (RLDag)<br/>Sec 4: reslin_tseitin_dag_size"]
+  BOOL --> PANG["Pang layers: common_multiplier ... simulation_final, constants cA..cC (Pang.Refutation)<br/>Sec 6: tseitin_dag_exp"]
+  BOOL --> C1["C1 layers (R_rho^p, RRefutation)<br/>Sec 7: c1_main"]
+  PANG -. "reused layers" .-> C1
+  GGWPC --> PT2["Part-Tzameret layer on GGW<br/>Sec 5: ggw_tseitin_reslin_size"]
+  PT -. "shared rld_cnf_* lemmas" .-> PT2
+  BRAUN["Braun layers: PDag, chessboard homology, BraunPC.bitPHP_exponential<br/>+ bphp_dag_to_pdag (BraunDag.lean)<br/>Sec 2: bphp_dag_exponential"]
+  TCNF["tcnf definition + tcnf_unsat (TseitinBool.lean)"] --> PT & KH & PANG & C1
+```
+
+Audit order (choke points, each to be checked once): (1) the expansion inequality `HasExpansionInv G K` (the
+definition: every nonempty `S` with `2|S| ≤ n` has `|S| ≤ K |∂S|`), cubic degree count and connectedness of the
+`n = 8m²` graphs (`MGG*.lean`); (2) `tcnf` as the Tseitin axioms, and `cnfAx (tcnf)` as the polynomial axioms (Section 1.1, 1.2);
+(3) `tseitin_bool_degree_Fp` (source of the degree bound: BGIP-style, no single cited theorem; its input is the
+binomial system `BTAx`, and `tseitin_bool_degree` transfers it to the one-hot axioms); (4) the per-system transfer
+from PC degree to size: one of Part-Tzameret (Sec 3), Khaniki (Sec 4), Pang (Sec 6), C1 (Sec 7); each shares (1) to (3);
+(5) separately, the Braun branch, which shares nothing with (1) to (3), and the Section 5 branch (Green immunity,
+`GGW`), which shares only the final `rld_cnf_*` transfer.
