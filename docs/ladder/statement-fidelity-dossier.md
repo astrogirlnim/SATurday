@@ -898,3 +898,35 @@ binomial system `BTAx`, and `tseitin_bool_degree` transfers it to the one-hot ax
 from PC degree to size: one of Part-Tzameret (Sec 3), Khaniki (Sec 4), Pang (Sec 6), C1 (Sec 7); each shares (1) to (3);
 (5) separately, the Braun branch, which shares nothing with (1) to (3), and the Section 5 branch (Green immunity,
 `GGW`), which shares only the final `rld_cnf_*` transfer.
+
+## 16. Embedding theorems (branch r4/embeddings): what the strength labels now rest on
+
+Replaces the informal "strengthens/weakens/neutral" for system rules in Sections 2.4 (rows 1, 2, 5), 3.4 (row 5), 6.4
+(rows 3, 5) by the following Lean theorems (all in `theory/Theory/ProofComplexity/Embed*.lean`, sizes are line or node counts).
+
+| Statement | Lean | Size |
+|---|---|---|
+| Part-Tzameret Res(lin F) (arXiv 1806.09383v2, Sec 1.1.1; sequence of lines) into `RLF.RLDag` | `stdLin_refutes_to_rldag` | s -> 2s |
+| `RLDag` into the same | `rldag_refutes_to_stdLin` | n -> n |
+| Standard Res(xor), syntactic or semantic weakening (BCD arXiv 2402.04364 Sec 3) into `RL.DagRefutes` | `stdXor_refutes_to_dag` | s -> s |
+| `RL.DagRefutes` into standard Res(xor) with semantic weakening | `dag_to_stdXor_refutes` | s -> 3s |
+| `RLDag` over F_p into `Pang.Refutation` (any `V` containing the CNF variables) | `rldag_to_pang` | n -> n+1 |
+| `Pang.Refutation` into `RLDag` (axioms: CNF, Boolean, `{0=0}`) | `pang_to_rldag` | S -> 2S |
+| `RLDag` over F_2 into `RL.DagRefutes` | `rldag2_to_dagRefutes` | n -> n+1 (nonempty CNF) |
+
+Consequences for the labels. Section 2.4 row 2 (semantic weakening): `DagRefutes` equals the BCD/EGI semantic system up to
+factor 3, and contains the syntactic standard system with no loss, so "strengthens relative to syntactic, neutral for the
+semantic convention" is now a theorem in both cases. Section 6.4 row 3 (Pang fused weakening, restricted `mul`): both
+directions to the Part-Tzameret calculus with factor at most 2, so a Lean lower bound for `Pang.Refutation` is a lower bound
+for `RLDag` (up to the encoding below) and conversely; the `mul` rule is a scalar multiplication or acts on a constant, so
+"neutral, review" is resolved as neutral up to factor 2. Section 3.4 row 5 (`RLD`): the rules coincide with Part-Tzameret's
+(resolution with arbitrary alpha, beta; arbitrary-disjunct weakening; simplification; Boolean axioms); the possible gap in
+Theorem 45 Case 4 is separate and still unverified.
+
+Caveats, stated exactly. (i) The Pang embeddings use the encoding of a positive literal `x=1` as `-x=-1`; the usual encoding
+needs one extra `comb` per positive literal occurrence of each used axiom clause, not formalized. (ii) `pang_to_rldag` uses the
+trivial axiom clause `{0=0}`. (iii) Part-Tzameret measure total symbol size; the Lean sizes count lines. A lower bound on lines
+gives one on symbol size, not conversely. (iv) The converse of `rldag2_to_dagRefutes` (removing semantic weakening) is not
+claimed. (v) Not done: `pdag_to_affineDAG`, `Pang.Refutation` into `C1.RRefutation`, tree-like `RLD` into the dag systems.
+(vi) Itsykson-Sokolov's APAL text was not retrieved; the semantic-weakening convention is taken from BCD (which states it) and
+EGI as cited by the Lean file.

@@ -182,7 +182,7 @@ done here (outside this task's file scope).
 |----------|---------|--------|
 | Correct the Tseitin iff; connectedness or componentwise; prove both directions if used | Agree | Corrected in text (Section 1.1). Proving both directions in Lean is work item 2. No Lean theorem uses the converse. |
 | Per headline theorem, a precise source theorem and two-way definition comparison | Agree | Partly present (Sections 2.3 to 7.4); Pang Thm 1.1, 7.2(b),(e), 7.1, 8 now verified against the arXiv text. Part-Tzameret/Khaniki/AR theorem numbers still unverified. |
-| Size-controlled embeddings of standard systems into the Lean systems | Agree | Not done; work item 4. |
+| Size-controlled embeddings of standard systems into the Lean systems | Agree | Done for items 4(a),(b) in part and (c); see the prover status paragraph (branch r4/embeddings). 4(d),(e) not done. |
 | Explicit unsatisfiable charge family and all-size/padded family | Agree | Work items 1 and 3; Section 12 states the gap. |
 | Nonvacuity/completeness for nonstandard Tseitin calculi; relate graph size, variables, clauses, encoding length | Agree | Size relations done (Section 13); completeness is work item 2. |
 | Isolate C1; standalone analysis; bridge lemma if intended toward AC0[p]-Frege | Agree | Section 7.1a. No bridge exists. A standalone proof-system analysis (e.g. completeness, relation to Res(lin F_p), whether `R_ρ^p` p-simulates anything standard) is not done. |
@@ -292,10 +292,34 @@ size". Closure under restriction is not formalized for any of these Lean calculi
 the alternative of adding dummy vertices destroys expansion (the degree lower bound is stated for `cubFam`). Estimate
 unchanged (500 to 1500 lines); not attempted here.
 
-Embeddings of standard Res(lin F_p) / Res(xor) (not started; plan). Order: (b) Res(xor) of Itsykson-Sokolov into
-`Res.DagRefutes`, check size accounting against `bphp_dag_to_pdag`; (a) standard Res(lin F_p) (weakening, resolution on
-linear forms, simplification) into `RLDag`: define the standard system as a `Finset`-line derivation with an explicit
-`ℕ` size, prove each rule instance maps to one or a bounded number of `RLF` steps, and state
-`size(RLDag derivation) <= c * size(standard derivation)`; then (c) `RLDag` into `Pang.Refutation` rule by rule
-(riskiest: restricted `mul`), (d) `Pang.Refutation` into `RRefutation`. Each needs a formal definition of the standard
-system that does not exist in the repository, which is the first deliverable.
+Embeddings of standard Res(lin F_p) / Res(xor) (branch `r4/embeddings`, partly done). New files `EmbedStd.lean`,
+`EmbedPangLin.lean`, `EmbedPang.lean`, `EmbedPangBack.lean`, `EmbedXorLin.lean`. Sources checked against the arXiv text:
+Part-Tzameret (1806.09383v2, Sec 1.1.1) for Res(lin R): resolution `C v f=0, D v g=0 |- C v D v (alpha f + beta g)=0`,
+weakening "extend clauses with arbitrary disjuncts", simplification, Boolean axioms; size there is total symbol size.
+Bhattacharya-Chattopadhyay-Dvorak (2402.04364, Sec 3) for Res(xor): resolution `A v (l=0), B v (l=1) |- A v B` and a
+weakening to any semantically implied clause; size = number of rule applications. Itsykson-Sokolov's own text was not
+retrieved, so the attribution of the semantic convention to them rests on BCD/EGI.
+Proved (all `lake build` clean, axioms gate on the merged tree): (1) `RLF.StdLin` = Part-Tzameret Res(lin F) as a list of
+lines; `stdLin_refutes_to_rldag` (s lines give an `RLDag` refutation with at most 2s lines) and `rldag_refutes_to_stdLin`
+(n lines give exactly n lines). So `RLDag` is the standard system up to the size measure (lines, not symbol size: a lower
+bound on lines is a lower bound on symbol size, not conversely). (2) `RL.XStep/XDer`: standard Res(xor) as a list, with a
+flag for syntactic or semantic weakening. `stdXor_refutes_to_dag`: either convention, s lines give `RL.DagRefutes` with at
+most s lines (so the Braun/Lean lower bound applies to the standard syntactic Res(xor)). `dag_to_stdXor_refutes`:
+`DagRefutes` with s lines is a semantic-weakening standard refutation with at most 3s lines, so `DagRefutes` IS the BCD/EGI
+system up to a factor 3. (3) `RLF.rldag_to_pang`: for the clause encoding `litLE` and every `V` containing the variables of
+the CNF, an `RLDag` refutation of n lines gives a `Pang.Refutation` with at most n+1 nodes (variables outside `V` are set to
+0 by a restriction; no hypothesis on the derivation). `RLF.pang_to_rldag`: a `Pang.Refutation` with S nodes gives an `RLDag`
+refutation with at most 2S lines from `linAx`, the Boolean axioms and the trivial clause `{0=0}`; the restricted `mul` is
+one `comb` (scalar `g`, or `f=0`) or one `simp` (constant `f` nonzero), the fused weakening costs the factor 2. So the
+fused-weakening, restricted-`mul` Pang system and the syntactic Part-Tzameret system over F_p simulate each other within a
+factor 2 (for this encoding). (4) `RLF.rldag2_to_dagRefutes`: `RLDag` over F_2 with n lines gives `RL.DagRefutes` with n+1 lines
+(the +1 derives Boolean axioms by semantic weakening; needs a nonempty CNF).
+Not proved, stated precisely: (a) the converse of (4) and of `stdXor_refutes_to_dag` for semantic weakening, i.e. whether
+semantic weakening can be removed from `DagRefutes` at polynomial cost; not known to me, not claimed. (b) The Pang embeddings
+use the sign-normalised encoding `-x=-1` for a positive literal (so `phi(litLE l)` equals Pang's `litPoly l`); the usual
+`x=1` encoding differs by one `comb` step per positive literal occurrence of each used axiom clause (additive in the total
+clause width), not formalized. (c) `pang_to_rldag` needs the axiom `{0=0}` which Part-Tzameret do not list; whether it is
+eliminable was not checked. (d) Not done: `PDag`/Braun `binary` rule vs `DagRefutes` size accounting (the existing
+`bphp_dag_to_pdag` direction is the one used), `pdag_to_affineDAG`, tree-like `RLD` (both `RL.RLD` and `RLF.RLD`) into the dag
+systems, and `Pang.Refutation` into `C1.RRefutation` (item (d) of the plan). (e) Symbol-size (bit) measure of Part-Tzameret is
+not formalized. Padding is unchanged and not claimed.

@@ -110,6 +110,11 @@ import Theory.ProofComplexity.TseitinSat
 import Theory.ProofComplexity.PangComplete
 import Theory.ProofComplexity.TseitinNonvacuity
 import Theory.ProofComplexity.TseitinIndexed
+import Theory.ProofComplexity.EmbedStd
+import Theory.ProofComplexity.EmbedPangLin
+import Theory.ProofComplexity.EmbedPang
+import Theory.ProofComplexity.EmbedPangBack
+import Theory.ProofComplexity.EmbedXorLin
 
 /-!
 # SATurday Theory Library
