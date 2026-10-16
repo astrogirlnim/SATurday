@@ -35,5 +35,5 @@ accepted declarations list.
   oleans already built, project oleans copied from the main checkout). A build from an empty `.lake` (fetching and
   compiling Mathlib, then about 8500 jobs) has not been run on this machine. Cold `import Mathlib` is slow on the
   external drive (about 20 to 35 minutes for the first process).
-- The accepted-declaration list was extended by this branch with the 17 new final theorems (see
+- The accepted-declaration list was extended by this branch with the 18 new final theorems (see
   `docs/reports/response-to-referee.md`, section "Prover status").

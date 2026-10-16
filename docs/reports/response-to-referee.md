@@ -268,4 +268,4 @@ dipole). `PangComplete.lean`: `Pang.refutation_of_unsat`, every unsatisfiable CN
 `RRefutation`; the route is the same (simulate `Derivation` rule by rule; `RLF.rld_dagRefutes`-style lemmas go the
 other direction), about 150 lines each, not attempted.
 
-Work item 5 is `docs/reports/reproduction.md`.
+Work item 5 is `docs/reports/reproduction.md`. The four new files are imported from `Theory.lean`; the axiom gate (`scripts/check_axioms.sh`) passed on this branch (2254 declarations checked, axioms within propext, Classical.choice, Quot.sound).
