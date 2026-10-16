@@ -131,3 +131,4 @@ axioms limited to propext, Classical.choice, Quot.sound
 
 LOG: Theory library root module for the proof complexity ladder
 -/
+import Theory.ProofComplexity.TseitinIndexed
