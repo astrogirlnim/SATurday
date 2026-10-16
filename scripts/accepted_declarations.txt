@@ -2677,3 +2677,12 @@ C1.c1_main_idx
 SATurday.ProofComplexity.tseitin_idx_explicit_unsat
 SATurday.ProofComplexity.tseitin_dag_exp_idx_nonvacuous
 SATurday.ProofComplexity.cubFam_size_gap
+# embeddings of standard systems (r4/embeddings)
+SATurday.ProofComplexity.RLF.stdLin_to_rldag
+SATurday.ProofComplexity.RLF.stdLin_refutes_to_rldag
+SATurday.ProofComplexity.RLF.rldag_to_stdLin
+SATurday.ProofComplexity.RLF.rldag_refutes_to_stdLin
+SATurday.ProofComplexity.RL.stdXor_to_der
+SATurday.ProofComplexity.RL.stdXor_refutes_to_dag
+SATurday.ProofComplexity.RL.der_to_stdXor
+SATurday.ProofComplexity.RL.dag_to_stdXor_refutes
