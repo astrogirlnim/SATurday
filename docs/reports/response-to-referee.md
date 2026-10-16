@@ -269,3 +269,33 @@ dipole). `PangComplete.lean`: `Pang.refutation_of_unsat`, every unsatisfiable CN
 other direction), about 150 lines each, not attempted.
 
 Work item 5 is `docs/reports/reproduction.md`. The four new files are imported from `Theory.lean`; the axiom gate (`scripts/check_axioms.sh`) passed on this branch (2254 declarations checked, axioms within propext, Classical.choice, Quot.sound).
+
+## Prover status (branch `r4/padding`): indexed families, padding, embeddings
+
+Indexed form (done). New file `TseitinIndexed.lean`. `cubFam m : FinGraph (m*m*8)` is the explicit graph
+`mggF2CubGraph` on `n = 8 m^2` vertices. For every `m >= tseitinFloor p q` (an explicit sum of the thresholds used
+in the proofs, not optimized) Lean proves: `cubFam m` is 3-regular and connected; the Fp-degree bound
+(`tseitin_bool_degree_Fp_idx`); the size bounds `reslin_tseitin_size_idx` (tree-like Res(lin F_p), `RLD`),
+`reslin_tseitin_dag_size_idx` (`RLDag`), `Pang.tseitin_dag_exp_idx`, `C1.c1_tseitin_exp_idx`, all for every charge `b`;
+`tseitin_idx_explicit_unsat` (charge 1 at vertex 0 has total `!= 0` and the CNF is unsatisfiable); and
+`tseitin_dag_exp_idx_nonvacuous` (for that charge: unsatisfiable, a `Pang.Refutation` exists, every one has `>= 2^(8m^2/C)`
+nodes). `C1.c1_main_idx` has `exists m0, forall m >= m0` (`m0` from `eventually_conditions`, existential but a threshold).
+So the quantifier is now `forall m >= m0` over an explicit function `m |-> (cubFam m, tseitinCharge1)`, shape U, for
+sizes `n = 8 m^2` only. `cubFam_size_gap`: consecutive sizes satisfy `n_{m+1} <= 2 n_m` (`m >= 3`).
+
+Padding to every `n` (NOT done, and not claimed). What the indexed family gives: for any `n >= 8 m0^2`, take the
+largest `m` with `8m^2 <= n`; the hard instance has `n' in (n/2, n]` vertices (ratio actually `->1`), so the bound
+holds for a formula of size `n'`, not for a formula of size exactly `n`. A formula of size exactly `n` would need a
+padding map `Phi |-> Phi'` with a lower-bound transfer; this needs, for each of `RLD`, `RLDag`, `Pang.Refutation`,
+`RRefutation`, a lemma "refutation of `Phi'` gives refutation of `Phi` (restriction of padding variables) of no larger
+size". Closure under restriction is not formalized for any of these Lean calculi, and for the expander-based bound
+the alternative of adding dummy vertices destroys expansion (the degree lower bound is stated for `cubFam`). Estimate
+unchanged (500 to 1500 lines); not attempted here.
+
+Embeddings of standard Res(lin F_p) / Res(xor) (not started; plan). Order: (b) Res(xor) of Itsykson-Sokolov into
+`Res.DagRefutes`, check size accounting against `bphp_dag_to_pdag`; (a) standard Res(lin F_p) (weakening, resolution on
+linear forms, simplification) into `RLDag`: define the standard system as a `Finset`-line derivation with an explicit
+`ℕ` size, prove each rule instance maps to one or a bounded number of `RLF` steps, and state
+`size(RLDag derivation) <= c * size(standard derivation)`; then (c) `RLDag` into `Pang.Refutation` rule by rule
+(riskiest: restricted `mul`), (d) `Pang.Refutation` into `RRefutation`. Each needs a formal definition of the standard
+system that does not exist in the repository, which is the first deliverable.
