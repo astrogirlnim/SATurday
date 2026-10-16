@@ -109,6 +109,7 @@ import Theory.ProofComplexity.TseitinExplicit
 import Theory.ProofComplexity.TseitinSat
 import Theory.ProofComplexity.PangComplete
 import Theory.ProofComplexity.TseitinNonvacuity
+import Theory.ProofComplexity.TseitinIndexed
 
 /-!
 # SATurday Theory Library

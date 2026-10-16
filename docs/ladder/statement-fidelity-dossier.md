@@ -804,11 +804,11 @@ no function `n ↦ Fam n`, no control of gaps between consecutive sizes, and no 
 Remarks. (1) For the graph theorems, inspection of the proof of `exists_mggF2Cub_hasExpansionInv_family` shows that
 the witness is `n = 8 m²` for `m = max(6, N, 1968)`; so the content is a family indexed by `m ≥ 1968` on `8m²`
 vertices, with consecutive sizes ratio `((m+1)/m)² → 1`. Making this a Lean statement is a restatement (work item 3 of
-`docs/reports/response-to-referee.md`); until then the formal theorems have shape E. (2) The R4 target also needs a single
+`docs/reports/response-to-referee.md`); until then the formal theorems have shape E. Update (`r4/padding`): `TseitinIndexed.lean` now gives the indexed statements `*_idx` (shape U, `forall m >= tseitinFloor p q`, family `cubFam m` on `8m^2` vertices, with the explicit charge `tseitinCharge1` and nonvacuity); the original `forall N, exists n >= N` theorems are kept. Padding to every `n` is not formalized: the indexed family covers sizes `8m^2` only (consecutive ratio at most 2, `cubFam_size_gap`). (2) The R4 target also needs a single
 CNF `Fam n`, i.e. an explicit charge `b_n`. Every Tseitin theorem quantifies `∀ b`; the hard instances are those
 with nonzero component sums, and the vacuous ones with zero sums are included. An explicit choice, e.g.
 `b_n(v) = 1` at one fixed vertex and `0` elsewhere (total charge `1 ≠ 0` in `Z_q`, `q ≥ 2`; connected graph), makes
-the instance unsatisfiable by `tcnf_unsat`; no Lean theorem instantiates it. (3) Padding to all sizes would need
+the instance unsatisfiable by `tcnf_unsat`; no Lean theorem instantiates it. (3) (Still true after `r4/padding`.) Padding to all sizes would need
 (a) preservation of unsatisfiability, (b) a formula-size measure, (c) a lower bound in the target system for the
 padded formula; none is formalized. (4) The Lean `R4_target` (`AC0pFregeFrontier.r4_target`) has shape U; no theorem
 in this dossier has the R4 shape for a standard system.
