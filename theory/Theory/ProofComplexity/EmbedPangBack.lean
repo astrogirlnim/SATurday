@@ -233,3 +233,39 @@ theorem node_step {Φ : CNF} {V : Finset ℕ} (R : Pang.Refutation Φ V p) {k : 
       obtain ⟨c, hc⟩ : ∃ c, f = C c := ⟨_, totalDegree_eq_zero_iff_eq_C.mp hfd⟩
       have hc0 : c ≠ 0 := fun h0 => hf0 (by simp [hc, h0])
       exact ext_drop hD hA hf c hc0 hc hsub
+
+/-- All nodes up to `k`. -/
+theorem pang_prefix {Φ : CNF} {V : Finset ℕ} (R : Pang.Refutation Φ V p) :
+    ∀ k, k ≤ R.S → ∃ 𝓛, RLDag (linAx Φ ∪ {zeroCl} ∪ boolAx) 𝓛 ∧
+      (∀ j < k, lineBack (R.line j) ∈ 𝓛) ∧ 𝓛.card ≤ 2 * k := by
+  intro k
+  induction k with
+  | zero => intro _; exact ⟨∅, RLDag.empty, by simp, by simp⟩
+  | succ k ih =>
+    intro hk
+    obtain ⟨𝓛, hD, hmem, hc⟩ := ih (by omega)
+    obtain ⟨𝓛', hD', hsub, hnew, hc'⟩ := node_step R (by omega) hD hmem
+    refine ⟨𝓛', hD', ?_, by omega⟩
+    intro j hj
+    rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | rfl
+    · exact hsub (hmem j hj)
+    · exact hnew
+
+/-- **Pang's `Res(lin F_p)` embeds in `RLDag` with at most a factor 2 in size.** A
+`Pang.Refutation` with `S` nodes gives an `RLDag` refutation (a set of lines containing the empty
+clause) with at most `2 S` lines, from `linAx Phi`, the Boolean axioms and the trivial clause
+`zeroCl`. -/
+theorem pang_to_rldag {Φ : CNF} {V : Finset ℕ} (R : Pang.Refutation Φ V p) :
+    ∃ 𝓛, RLDag (linAx Φ ∪ {zeroCl} ∪ boolAx) 𝓛 ∧ (∅ : Finset (LEq (ZMod p))) ∈ 𝓛 ∧
+      𝓛.card ≤ 2 * R.S := by
+  obtain ⟨𝓛, hD, hmem, hc⟩ := pang_prefix R R.S le_rfl
+  refine ⟨𝓛, hD, ?_, hc⟩
+  have := hmem (R.S - 1) (by have := R.S_pos; omega)
+  rw [R.last] at this
+  simpa [lineBack] using this
+
+end
+
+end RLF
+
+end SATurday.ProofComplexity
