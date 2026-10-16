@@ -2664,3 +2664,16 @@ Pang.refutation_of_unsat
 SATurday.ProofComplexity.pang_refutation_exists_charge1
 SATurday.ProofComplexity.tseitin_dag_exp_explicit_nonvacuous
 C1.c1_tseitin_exp_conn
+# padding / indexed families (r4/padding)
+SATurday.ProofComplexity.cubFam_props
+SATurday.ProofComplexity.cubFam_floor_le
+SATurday.ProofComplexity.tseitinFloor_pos
+SATurday.ProofComplexity.TseitinPC.tseitin_bool_degree_Fp_idx
+SATurday.ProofComplexity.reslin_tseitin_size_idx
+SATurday.ProofComplexity.reslin_tseitin_dag_size_idx
+Pang.tseitin_dag_exp_idx
+C1.c1_tseitin_exp_idx
+C1.c1_main_idx
+SATurday.ProofComplexity.tseitin_idx_explicit_unsat
+SATurday.ProofComplexity.tseitin_dag_exp_idx_nonvacuous
+SATurday.ProofComplexity.cubFam_size_gap

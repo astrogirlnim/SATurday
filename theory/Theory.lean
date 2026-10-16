@@ -109,6 +109,7 @@ import Theory.ProofComplexity.TseitinExplicit
 import Theory.ProofComplexity.TseitinSat
 import Theory.ProofComplexity.PangComplete
 import Theory.ProofComplexity.TseitinNonvacuity
+import Theory.ProofComplexity.TseitinIndexed
 
 /-!
 # SATurday Theory Library
@@ -131,4 +132,3 @@ axioms limited to propext, Classical.choice, Quot.sound
 
 LOG: Theory library root module for the proof complexity ladder
 -/
-import Theory.ProofComplexity.TseitinIndexed

@@ -1,5 +1,6 @@
 import Theory.ProofComplexity.TseitinExplicit
 import Theory.ProofComplexity.PangTseitin
+import Theory.ProofComplexity.TseitinNonvacuity
 
 /-!
 # Indexed (uniform) Tseitin families (referee repair, quantifier shape U)
@@ -235,6 +236,27 @@ theorem tseitin_idx_explicit_unsat (p : ℕ) {q : ℕ} [NeZero q] (hq : 2 ≤ q)
     have : 0 < m := by omega
     positivity
   exact ⟨tseitinCharge1_sum h q hq, tcnf_charge1_unsat h _ q hq⟩
+
+/-- Indexed, explicit, nonvacuous: for every `m ≥ tseitinFloor p q`, the instance
+`tcnf (cubFam m) q (tseitinCharge1 ..)` on `8 m^2` vertices is unsatisfiable, has a `Pang.Refutation`
+(existence only), and every `Pang.Refutation` has at least `2^(8 m^2 / C)` nodes. -/
+theorem tseitin_dag_exp_idx_nonvacuous (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q]
+    (hq : 2 ≤ q) (hpq : ¬ p ∣ q) {m : ℕ} (hm : tseitinFloor p q ≤ m) :
+    IsRegular (cubFam m) 3 ∧ (cubFam m).IsConnected ∧
+      ∑ v, tseitinCharge1 (m * m * 8) q v ≠ 0 ∧
+      ¬ Satisfiable (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) ∧
+      Nonempty (Pang.Refutation (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
+        (tVars (cubFam m) q) p) ∧
+      ∀ R : Pang.Refutation (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
+        (tVars (cubFam m) q) p, 2 ^ ((m * m * 8) / Pang.cC p q) ≤ R.S := by
+  obtain ⟨hreg, hconn, -⟩ := TseitinPC.tseitin_bool_degree_Fp_idx p hq hpq hm
+  have h : 0 < m * m * 8 := by
+    have := tseitinFloor_pos p q
+    have : 0 < m := by omega
+    positivity
+  obtain ⟨hs, hu⟩ := tseitin_idx_explicit_unsat p hq hm
+  exact ⟨hreg, hconn, hs, hu, pang_refutation_exists_charge1 p hq h hreg,
+    Pang.tseitin_dag_exp_idx p hq hpq hm _⟩
 
 /-- Consecutive sizes: `(m+1)^2 * 8 ≤ 2 * (m^2 * 8)` for `m ≥ 3`, so the family has no gap larger
 than a factor `2` (this is all that the `8 m^2` family offers; it is not a family for every `n`). -/
