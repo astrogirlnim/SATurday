@@ -245,3 +245,27 @@ Section 1.1 (criterion corrected, connectivity), header revision note, Section 2
 (Pang text verified) and 6.4 row 9a, new Section 7.1a (C1 plainly), and new Sections 11 (novelty), 12 (quantifier shapes),
 13 (size parameters), 14 (constants and thresholds), 15 (dependency diagram). Statements of Lean theorems and their
 `#print axioms` output are unchanged. Nothing is marked certified.
+
+## Prover status (branch `r4/refrepair`)
+
+Work item 1 (done). New file `TseitinExplicit.lean`: `tseitin_bool_degree_Fp_conn` and `reslin_tseitin_size_conn`,
+`reslin_tseitin_dag_size_conn`, `Pang.tseitin_dag_exp_conn`, `C1.c1_main_conn` (the original statements with a
+`G.IsConnected` conjunct; proofs are the original proofs, connectivity comes from
+`exists_mggF2Cub_hasExpansionInv_family`, which already returned it), and `*_explicit` corollaries for
+`tseitinCharge1 n q` (charge 1 at vertex 0): they also conclude `∑ b ≠ 0` and `¬ Satisfiable`. Originals untouched.
+Still existential in `N` (the indexed family `m ↦ G_m` and padding are not done). GGW (`ggw_tseitin_reslin_size`) is
+already indexed by `(m, k, σ)` for every `σ`; no `*_explicit` version was made because `OGraph` has no connectedness
+notion and the CNF-level unsatisfiability of `ggwGraph` for nonzero total charge was not proved (only the polynomial
+axioms, `OGraph.Ax_unsat`); connectedness of the walk multigraph does not follow from data in the Lean statements
+(the spectral/expansion hypothesis `himm` is open there).
+
+Work item 2 (done for one calculus). `TseitinSat.lean`: `tcnf_sat_iff`, on a connected graph with `0 < n`,
+`Satisfiable (tcnf G q b) ↔ ∑ b = 0` (via `exists_flow`: the net flow map is linear and its image contains every
+dipole). `PangComplete.lean`: `Pang.refutation_of_unsat`, every unsatisfiable CNF with variables in `V` has a
+`Pang.Refutation` (resolution completeness simulated: `comb` on `1-x`, `x` giving `1=0`, then `falseConst`).
+`TseitinNonvacuity.lean`: `tseitin_dag_exp_explicit_nonvacuous` (unsatisfiable, refutation exists, all have
+`≥ 2^(n/C)` nodes). Existence only, no size control. Not done: the same for `RLD`, `RLDag` (RLF calculus) and
+`RRefutation`; the route is the same (simulate `Derivation` rule by rule; `RLF.rld_dagRefutes`-style lemmas go the
+other direction), about 150 lines each, not attempted.
+
+Work item 5 is `docs/reports/reproduction.md`.
