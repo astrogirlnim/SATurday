@@ -2645,3 +2645,22 @@ C1.c1_tseitin_exp'
 C1.real_chain
 C1.eventually_conditions
 C1.c1_main
+# referee repair (r4/refrepair): explicit connected instances, satisfiability criterion, nonvacuity
+SATurday.ProofComplexity.tseitinCharge1_sum
+SATurday.ProofComplexity.tcnf_charge1_unsat
+SATurday.ProofComplexity.TseitinPC.tseitin_bool_degree_Fp_conn
+SATurday.ProofComplexity.reslin_tseitin_size_conn
+SATurday.ProofComplexity.reslin_tseitin_dag_size_conn
+Pang.tseitin_dag_exp_conn
+C1.c1_main_conn
+SATurday.ProofComplexity.reslin_tseitin_size_explicit
+SATurday.ProofComplexity.reslin_tseitin_dag_size_explicit
+SATurday.ProofComplexity.tseitin_dag_exp_explicit
+SATurday.ProofComplexity.c1_main_explicit
+SATurday.ProofComplexity.TseitinPC.exists_flow
+SATurday.ProofComplexity.TseitinPC.tcnf_sat_of_flow
+SATurday.ProofComplexity.TseitinPC.tcnf_sat_iff
+Pang.refutation_of_unsat
+SATurday.ProofComplexity.pang_refutation_exists_charge1
+SATurday.ProofComplexity.tseitin_dag_exp_explicit_nonvacuous
+C1.c1_tseitin_exp_conn

@@ -105,6 +105,10 @@ import Theory.ProofComplexity.C1Params
 import Theory.ProofComplexity.C1Tseitin
 import Theory.ProofComplexity.C1Real
 import Theory.ProofComplexity.C1Final
+import Theory.ProofComplexity.TseitinExplicit
+import Theory.ProofComplexity.TseitinSat
+import Theory.ProofComplexity.PangComplete
+import Theory.ProofComplexity.TseitinNonvacuity
 
 /-!
 # SATurday Theory Library
