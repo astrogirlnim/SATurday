@@ -12,9 +12,9 @@ weakening line. The restricted `mul` (`(f * g).totalDegree <= 1`) is a scalar mu
 (`g` constant) or acts on a constant `f`, which is a false constant (deleted) or `0`
 (replaced by `0 = 0`); each is one `comb` or one `simp` step of `RLDag`.
 
-Together with `rldag_to_pang` this shows the two dag-like systems p-simulate each other with
-line counts within a factor 2, for the clause encoding `litEq` (see EmbedPang.lean for the
-encoding caveat and the extra axiom `zeroCl`).
+Together with `rldag_to_pang` (`n` lines of `RLDag` give at most `n + 1` Pang nodes) this shows
+the two dag-like systems p-simulate each other with line counts within a factor 2, for the clause
+encoding `litLE` (see EmbedPang.lean for the encoding caveat) and with the extra axiom `zeroCl`.
 -/
 
 open SATurday.ProofComplexity MvPolynomial
@@ -55,16 +55,6 @@ def Lin (M : Pang.Line p) : Prop := ∀ h ∈ M, ∃ e, phi e = h
 
 theorem lin_of_wf {V : Finset ℕ} {M : Pang.Line p} (h : Pang.WF V M) : Lin M :=
   fun q hq => exists_phi q (h q hq).1
-
-theorem lineOf_lineBack {M : Pang.Line p} (h : Lin M) : lineOf (lineBack M) = M := by
-  ext q
-  rw [mem_lineOf]
-  constructor
-  · rintro ⟨e, he, rfl⟩
-    obtain ⟨q', hq', rfl⟩ := Finset.mem_image.1 he
-    rw [phi_psi (h q' hq')]; exact hq'
-  · intro hq
-    exact ⟨psi q, Finset.mem_image_of_mem _ hq, phi_psi (h q hq)⟩
 
 theorem lineBack_mono {M M' : Pang.Line p} (h : M ⊆ M') : lineBack M ⊆ lineBack M' :=
   Finset.image_subset_image h
@@ -166,7 +156,7 @@ theorem lineBack_clauseLine (C : Clause) :
   rw [Finset.image_image]
   refine Finset.image_congr fun l _ => ?_
   simp only [Function.comp]
-  rw [← phi_litEq, psi_phi]
+  rw [← phi_litLE, psi_phi]
 
 /-- Adding the line of node `k` of a Pang refutation, given the earlier ones. -/
 theorem node_step {Φ : CNF} {V : Finset ℕ} (R : Pang.Refutation Φ V p) {k : ℕ} (hk : k < R.S)

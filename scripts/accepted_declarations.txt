@@ -2686,3 +2686,9 @@ SATurday.ProofComplexity.RL.stdXor_to_der
 SATurday.ProofComplexity.RL.stdXor_refutes_to_dag
 SATurday.ProofComplexity.RL.der_to_stdXor
 SATurday.ProofComplexity.RL.dag_to_stdXor_refutes
+SATurday.ProofComplexity.RLF.phi_injective
+SATurday.ProofComplexity.RLF.exists_phi
+SATurday.ProofComplexity.RLF.phi_cmb
+SATurday.ProofComplexity.RLF.rldag_to_pang
+SATurday.ProofComplexity.RLF.pang_to_rldag
+SATurday.ProofComplexity.RLF.rldag2_to_dagRefutes
