@@ -112,6 +112,7 @@ import Theory.ProofComplexity.TseitinNonvacuity
 import Theory.ProofComplexity.TseitinIndexed
 import Theory.ProofComplexity.EmbedStd
 import Theory.ProofComplexity.EmbedTree
+import Theory.ProofComplexity.EmbedUsual
 import Theory.ProofComplexity.EmbedPangLin
 import Theory.ProofComplexity.EmbedPang
 import Theory.ProofComplexity.EmbedPangBack

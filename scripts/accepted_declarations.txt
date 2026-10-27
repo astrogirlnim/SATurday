@@ -2692,3 +2692,8 @@ SATurday.ProofComplexity.RLF.phi_cmb
 SATurday.ProofComplexity.RLF.rldag_to_pang
 SATurday.ProofComplexity.RLF.pang_to_rldag
 SATurday.ProofComplexity.RLF.rldag2_to_dagRefutes
+SATurday.ProofComplexity.RLF.rln_to_rldag
+SATurday.ProofComplexity.RLF.conv_lines
+SATurday.ProofComplexity.RLF.swap_axioms
+SATurday.ProofComplexity.RLF.rldag_usual_to_pang
+SATurday.ProofComplexity.RLF.pang_to_rldag_usual
