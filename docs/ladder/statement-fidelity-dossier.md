@@ -913,6 +913,7 @@ Replaces the informal "strengthens/weakens/neutral" for system rules in Sections
 | `RLDag` over F_p into `Pang.Refutation` (any `V` containing the CNF variables) | `rldag_to_pang` | n -> n+1 |
 | `Pang.Refutation` into `RLDag` (axioms: CNF, Boolean, `{0=0}`) | `pang_to_rldag` | S -> 2S |
 | `RLDag` over F_2 into `RL.DagRefutes` | `rldag2_to_dagRefutes` | n -> n+1 (nonempty CNF) |
+| Tree-like `RLF.RLD` (with node count, `RLN`) into `RLDag` | `EmbedTree.rln_to_rldag`, `rld_iff_rln` | n nodes -> at most n lines |
 
 Consequences for the labels. Section 2.4 row 2 (semantic weakening): `DagRefutes` equals the BCD/EGI semantic system up to
 factor 3, and contains the syntactic standard system with no loss, so "strengthens relative to syntactic, neutral for the
@@ -927,6 +928,16 @@ Caveats, stated exactly. (i) The Pang embeddings use the encoding of a positive 
 needs one extra `comb` per positive literal occurrence of each used axiom clause, not formalized. (ii) `pang_to_rldag` uses the
 trivial axiom clause `{0=0}`. (iii) Part-Tzameret measure total symbol size; the Lean sizes count lines. A lower bound on lines
 gives one on symbol size, not conversely. (iv) The converse of `rldag2_to_dagRefutes` (removing semantic weakening) is not
-claimed. (v) Not done: `pdag_to_affineDAG`, `Pang.Refutation` into `C1.RRefutation`, tree-like `RLD` into the dag systems.
+claimed. (v) Not done: `pdag_to_affineDAG`, `Pang.Refutation` into `C1.RRefutation`, tree-like `RL.RLD` (the Res(xor) one) into `DagRefutes`. Done: tree-like `RLF.RLD` into `RLDag` (`EmbedTree.lean`), in terms of the node count, not the leaf count that `RLD` records (chains of weakenings and simplifications make nodes unbounded in leaves).
 (vi) Itsykson-Sokolov's APAL text was not retrieved; the semantic-weakening convention is taken from BCD (which states it) and
 EGI as cited by the Lean file.
+
+## 17. Referee leftovers: status and plan (after the tree-like step)
+
+Done: tree-like `RLF.RLD` into `RLDag` by node count (`EmbedTree.lean`, Section 16).
+
+Not done, each a separate session or more:
+
+1. The usual literal encoding `x=1` for a positive literal. Plan: for each axiom clause used, add a prefix of `comb` steps turning `x=1` into `-x=-1` (scalar combination with the trivial equation), once per positive literal occurrence, then apply the existing embeddings. Cost is additive in the total width of the used axiom clauses. Needs a lemma that a clause with one equation replaced by a scalar multiple is derivable in one line in both `RLDag` and `Pang.Refutation`, and a statement that threads the encoding through `rldag_to_pang` and `pang_to_rldag`. Estimate: one session.
+2. Removing semantic weakening in one direction (converse of `rldag2_to_dagRefutes` and `stdXor_refutes_to_dag`). This is a polynomial simulation question (Pang Section 7.1 states it, with the source proof not formalized); a real proof, not a bookkeeping step. Estimate: several sessions; not attempted.
+3. Tree-like `RL.RLD` (Res(xor)) into `DagRefutes`: same method as `EmbedTree.lean` but with the semantic-weakening rule of `DagRefutes`; estimate: half a session. `Pang.Refutation` into `C1.RRefutation` (the constant-depth system): needs a depth analysis of the Pang polynomial lines; several sessions; not attempted.
