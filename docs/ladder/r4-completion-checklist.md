@@ -129,5 +129,16 @@ propext, Classical.choice, Quot.sound; new declarations listed in
 
 - [ ] 3.1 Prose proof survives barrier audit and red team.
 - [ ] 3.2 Formalization of the Phase 0 pin, axiom gate PASS, CI green.
+  Partly verified 2026-10-27 (local only). Verified: the pin `AC0pFregeFrontier.r4_target` is
+  stated as in 0.4 and is the only `sorry` in `AC0pFrege.lean`; no other file, accepted
+  declaration, or script refers to `r4_target` or `AC0pFregeLB`, so nothing accepted depends on
+  it. `frefutes_unsat` and `frefutes_of_unsat` are now listed in `scripts/accepted_declarations.txt`.
+  `lake build` and `bash scripts/check_axioms.sh` PASS locally (2287 declarations, standard axioms
+  only). `.github/workflows/axiom-gate.yml` runs checkout, ripgrep, elan (toolchain from
+  `theory/lean-toolchain`, v4.30.0-rc1), cache restore, `lake exe cache get`, then the same
+  `scripts/check_axioms.sh`. NOT verified: remote CI is unobserved because nothing is pushed;
+  the workflow has never run on GitHub (cold cache time, Mathlib cache availability for the
+  pinned toolchain, and ubuntu runner behaviour are unchecked). Tick only after the owner pushes
+  and the run is green. The pin itself stays an open `sorry` by design.
 - [ ] 3.3 Independent expert review of statement fidelity.
 - [ ] 3.4 Human gate: R4 certified.

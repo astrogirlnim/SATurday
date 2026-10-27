@@ -2697,3 +2697,7 @@ SATurday.ProofComplexity.RLF.conv_lines
 SATurday.ProofComplexity.RLF.swap_axioms
 SATurday.ProofComplexity.RLF.rldag_usual_to_pang
 SATurday.ProofComplexity.RLF.pang_to_rldag_usual
+
+# R4 Phase 0: AC0[p] Frege soundness and non vacuity (the pin r4_target itself is Frontier, not listed)
+SATurday.ProofComplexity.frefutes_unsat
+SATurday.ProofComplexity.frefutes_of_unsat
