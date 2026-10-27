@@ -233,3 +233,11 @@ AC0[p] Frege and subsystems (the R4 frontier).
   size bound yet. Caveats: one hot formula, not the paper's Boolean edge variable formula; the
   combination rule carries a side condition (paper's Case 4 does not treat the resolvent already
   occurring in the side clauses). Rung stays active and uncertified.
+- 2026-10-27 docs (Phase 3.1 barrier audit and scoped 2.4 attempt; note `r4-phase31-barrier-audit.md`): audited each proved result
+  and each candidate route against T4.2 (equal systems, short-proof controls, pseudorandom distinguisher). Routes dead: Pang depth 2
+  for Tseitin (PC degree ratio at most 1/4), block-aligned subspace, switching lemma with MOD gates, feasible interpolation,
+  same-modulus and bounded-cutwidth families, weak PHP. Alive but unproved: native Tseitin measure (D3), small-graph upper bound
+  probe (stopped by the owner), depth-2 lifting, and the families Tseitin mod q, Count_q, PHP, random CNF. 2.4 attempt: three
+  method attempts (Pang extension, upper bound first on paper, depth-2 lifting on paper), all failed, no progress claimed;
+  AC0[p]-Frege lower bounds remain a long-standing open problem. Literature check: no 2026 result found that changes this.
+  Card 3.1 stays in Todo (no prose proof exists to audit); 2.4 stays in Todo.
