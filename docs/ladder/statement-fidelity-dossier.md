@@ -931,3 +931,13 @@ gives one on symbol size, not conversely. (iv) The converse of `rldag2_to_dagRef
 claimed. (v) Not done: `pdag_to_affineDAG`, `Pang.Refutation` into `C1.RRefutation`, tree-like `RL.RLD` (the Res(xor) one) into `DagRefutes`. Done: tree-like `RLF.RLD` into `RLDag` (`EmbedTree.lean`), in terms of the node count, not the leaf count that `RLD` records (chains of weakenings and simplifications make nodes unbounded in leaves).
 (vi) Itsykson-Sokolov's APAL text was not retrieved; the semantic-weakening convention is taken from BCD (which states it) and
 EGI as cited by the Lean file.
+
+## 17. Referee leftovers: status and plan (after the tree-like step)
+
+Done: tree-like `RLF.RLD` into `RLDag` by node count (`EmbedTree.lean`, Section 16).
+
+Not done, each a separate session or more:
+
+1. The usual literal encoding `x=1` for a positive literal. Plan: for each axiom clause used, add a prefix of `comb` steps turning `x=1` into `-x=-1` (scalar combination with the trivial equation), once per positive literal occurrence, then apply the existing embeddings. Cost is additive in the total width of the used axiom clauses. Needs a lemma that a clause with one equation replaced by a scalar multiple is derivable in one line in both `RLDag` and `Pang.Refutation`, and a statement that threads the encoding through `rldag_to_pang` and `pang_to_rldag`. Estimate: one session.
+2. Removing semantic weakening in one direction (converse of `rldag2_to_dagRefutes` and `stdXor_refutes_to_dag`). This is a polynomial simulation question (Pang Section 7.1 states it, with the source proof not formalized); a real proof, not a bookkeeping step. Estimate: several sessions; not attempted.
+3. Tree-like `RL.RLD` (Res(xor)) into `DagRefutes`: same method as `EmbedTree.lean` but with the semantic-weakening rule of `DagRefutes`; estimate: half a session. `Pang.Refutation` into `C1.RRefutation` (the constant-depth system): needs a depth analysis of the Pang polynomial lines; several sessions; not attempted.
