@@ -1,5 +1,6 @@
 import Theory.ProofComplexity.C1Final
 import Theory.ProofComplexity.AC0pFrege
+import Theory.ProofComplexity.TseitinIndexed
 
 /-!
 # A bridge from a fragment of the AC0[p] Frege sequent calculus into `R_ρ^p`
@@ -1792,5 +1793,51 @@ theorem tseitin_fragment_nonvacuous (p : ℕ) {q : ℕ} [NeZero q] {n : ℕ} {G 
   refine fragment_nonvacuous (tcnf_unsat hb) (fun C hC l hl => ?_) (fun C hC => ?_)
   · exact (tcnf_clause_props hreg hC).1 (Finset.mem_image_of_mem _ hl)
   · exact (tcnf_clause_props hreg hC).2.trans hρ
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **Indexed form with an explicit unsatisfiable family.**  There is a threshold `m0` such that
+for every `m ≥ m0`, on the explicit cubic graph `cubFam m` with `n = 8 m^2` vertices and the
+explicit charge `tseitinCharge1` (one at a vertex, zero elsewhere): the formula is
+unsatisfiable, and for every `ρ` with `q + 3 ≤ ρ ≤ ε ln n` the fragment contains a refutation
+(non vacuity) and every refutation in the fragment satisfies the size bound. -/
+theorem depth1_rank_frege_tseitin_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (kappa p q + 1) * ε < 1) :
+    ∃ m0 : ℕ, ∀ m : ℕ, m0 ≤ m →
+      ¬ Satisfiable (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) ∧
+      ∀ ρ : ℕ, q + 3 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log (m * m * 8 : ℕ) →
+        (∃ L, FRefutes p 1 (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) L ∧
+          (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ tVars (cubFam m) q) ∧ (∀ S ∈ L, RankS ρ S)) ∧
+        ∀ L : List Seq, FRefutes p 1 (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) L →
+          (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ tVars (cubFam m) q) → (∀ S ∈ L, RankS ρ S) →
+          Real.exp (((m * m * 8 : ℕ) : ℝ) ^ (1 - (kappa p q + 1) * ε)) ≤
+            ((L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) : ℕ) : ℝ) := by
+  obtain ⟨m1, H⟩ := c1_main_idx p hq hpq ε hε hεκ
+  refine ⟨max m1 (tseitinFloor p q), fun m hm => ?_⟩
+  have hmF : tseitinFloor p q ≤ m := (le_max_right _ _).trans hm
+  have hm1 : m1 ≤ m := (le_max_left _ _).trans hm
+  obtain ⟨hreg, -, -⟩ := cubFam_props (cubFam_floor_le hmF).1
+  obtain ⟨hsum, hunsat⟩ := tseitin_idx_explicit_unsat p hq hmF
+  have hn1 : 0 < m * m * 8 := by
+    have := tseitinFloor_pos p q
+    have : 0 < m := by omega
+    positivity
+  refine ⟨hunsat, fun ρ hρq hρ => ⟨tseitin_fragment_nonvacuous p hreg hsum hρq, ?_⟩⟩
+  intro L hL hvars hrank
+  have hρ1 : 1 ≤ ρ := by omega
+  have hcard : 0 < (tVars (cubFam m) q).card := by
+    have h1 := card_G_ge hreg
+    have h2 := card_tVars_ge (q := q) hn1 (cubFam m)
+    omega
+  obtain ⟨v₀, hv⟩ := Finset.card_pos.1 hcard
+  obtain ⟨hproof, hdepth, hE⟩ := hL
+  obtain ⟨R, hR⟩ := frege_to_R (p := p) hv hρ1 hproof hE
+    (fun S hS φ hφ => (flat_iff_depth φ).2 ⟨hdepth S hS φ hφ, hvars S hS φ hφ⟩)
+    (fun S hS => bdd_of_rankS hρ1 (hrank S hS))
+  refine (H m hm1 _ ρ hρ1 hρ R).trans ?_
+  have h3 : R.S ≤ L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) := by
+    refine hR.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ ?_))
+    have := fW_le L
+    omega
+  exact_mod_cast h3
 
 end FBridge

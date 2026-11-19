@@ -117,6 +117,8 @@ import Theory.ProofComplexity.EmbedPangLin
 import Theory.ProofComplexity.EmbedPang
 import Theory.ProofComplexity.EmbedPangBack
 import Theory.ProofComplexity.EmbedXorLin
+import Theory.ProofComplexity.FregeRankBridge
+import Theory.ProofComplexity.FregeDepth1Frontier
 
 /-!
 # SATurday Theory Library
