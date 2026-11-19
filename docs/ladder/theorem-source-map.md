@@ -42,6 +42,9 @@ This is the declaration-to-source mapping promised in `docs/ladder/expert-review
 | `rln_to_rldag` | `ProofComplexity/EmbedTree.lean:76` | 2695 | none | tree-like into dag-like (node count) |  |
 | `stdXor_refutes_to_dag` | `ProofComplexity/EmbedStd.lean:267` | 2686 | BCD, arXiv 2402.04364 | Res(xor) definition, semantic weakening convention | s to s |
 | `dag_to_stdXor_refutes` | `ProofComplexity/EmbedStd.lean:319` | 2688 | BCD, arXiv 2402.04364 | same | s to 3s |
+| `dagRefutes_to_rldag2` | `ProofComplexity/EmbedXorBack.lean:794` | 2785 | BCD, arXiv 2402.04364 (semantic Res(xor)); Part-Tzameret, arXiv 1806.09383 (syntactic Res(lin F_2)); Pang arXiv 2610.00837 Section 7.1 states the simulation | semantic weakening removed over F_2 | new; s lines, width W, at most N variables per equation, to at most xorBackCost W N * s lines, O(W^2 N) per line |
+| `r_wsim` | `ProofComplexity/EmbedXorBack.lean:586` | 2786 | same | one semantic weakening M0 implies L over F_2 in RLDag | new; at most |L|(12N+5) + |M0|(|L|+1) + 1 lines |
+| `PangR.pang_to_rref` | `ProofComplexity/EmbedPangR.lean:249` | 2782 | Pang, arXiv 2610.00837 (source system); R_rho^p is ours | Pang.Refutation into C1.RRefutation, rho >= 1 | new; S to S+3, V nonempty |
 | `rld_refutation_of_unsat` | `ProofComplexity/ReviewNonvacuity.lean:92` | 2755 | none (resolution completeness) | existence of tree-like Res(lin F_p) refutation | new, existence only |
 | `rldag_refutation_of_unsat` | `ProofComplexity/ReviewNonvacuity.lean:101` | 2756 | none | existence of dag-like refutation | new |
 | `rref_of_unsat` | `ProofComplexity/ReviewNonvacuity.lean:193` | 2757 | none | existence of RRefutation for every rho >= 1 | new |
