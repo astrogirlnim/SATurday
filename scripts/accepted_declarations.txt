@@ -2813,3 +2813,10 @@ Pang.tseitin_dag_exp
 SATurday.ProofComplexity.TseitinPC.tcnf_clause_props
 SATurday.ProofComplexity.exists_scale_index
 SATurday.ProofComplexity.tseitin_dag_exp_all_scales
+PangR.pang_to_rref
+PangR.step_sim
+PangR.trL_clauseLine
+SATurday.ProofComplexity.RLF.dagRefutes_to_rldag2
+SATurday.ProofComplexity.RLF.r_wsim
+SATurday.ProofComplexity.RLF.decomp
+SATurday.ProofComplexity.RLF.r_taut
