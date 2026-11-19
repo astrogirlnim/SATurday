@@ -144,6 +144,12 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   `FDeg.lowdeg_frege_tseitin_idx`). This is a corollary of Pang's method, a bound for a fragment, not a
   bound for constant depth AC0[p] Frege. Open Frontier pin for the next degree:
   `FDegFrontier.log2_degree_target`.
+  Extension, kernel checked (2026-11-19, `FregeWideAnd.lean`, report
+  `docs/ladder/rungs/r4-wideand-fable-report.md`): a positive AND (negative OR) of degree above `d` is
+  expanded into one `PIC` line per member; with at most `B` expanded lines per sequent the bound is
+  `exp(n^(1 - (kappa+1) eps)) <= |L| * 24 (fSize L + |L|) * B^2` (`FWide.wide_frege_to_PIC`,
+  `FWide.wide_frege_tseitin_idx`). Still a fragment. The report also records the line format of the
+  Buss, Kolodziejczyk, Zdanowski normal forms against `DegS`.
 - Stop rule: 3 failed attempts on one method kill that method branch.
 
 ## Phase 3: certify R4
