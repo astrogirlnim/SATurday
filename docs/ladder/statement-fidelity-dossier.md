@@ -17,6 +17,11 @@ a polynomial-size family of unsatisfiable CNFs `Fam n` such that, for every fixe
 all sufficiently large `n`, every depth-`d` AC0[p] Frege refutation of `Fam n` has size greater than `n^c`.
 In Lean this is `AC0pFregeFrontier.r4_target`, which is a `sorry` (Frontier namespace, quarantined).
 
+Fidelity defect found 2026-11-19 (Section 17, items 3 to 5, branch r4/frege-modarith): the `MOD_p` axioms of the pinned
+calculus `FStep` never reduce the residue mod `p`, so MOD gates are nearly inert; Lean proves `AC0pFregeLB p ↔ BDFregeLB p`
+for `p ≥ 2` (`FModElim.ac0pFregeLB_iff`), i.e. the pinned R4 target is equivalent to a bounded depth Frege lower bound,
+which is known in the literature. The pin needs repair before it states the open problem.
+
 What is NOT proved: no super-polynomial lower bound for AC0[p]-Frege at any depth (not depth 2, not any
 constant depth) is proved or claimed. The results below are lower bounds for strictly weaker or different
 proof systems: dag-like Res(⊕) (bit pigeonhole), tree-like and dag-like Res(lin F_p) (Tseitin), polynomial
@@ -976,6 +981,46 @@ Done in branch r4/pang-constdepth (both former items of the list below, with the
    polynomial-size derivations of: additivity `MOD_r(l), MOD_s(l') ⊢ MOD_{r+s}(l ++ l')`, invariance of `MOD_r` under permutation of
    its arguments, deletion of `p` copies of one literal, and scaling; none of this MOD-gate arithmetic exists in the repository and it
    is estimated at well over a thousand lines. The converse (`FRefutes` into Pang) is not addressed. The fragments `FBridge.frege_to_R` and `FDeg.frege_to_PIC` remain the only links from `FProof`.
+
+Done in branch r4/frege-modarith (the MOD-gate library asked for above): it cannot exist for the pinned calculus, and the
+reason is a defect of the pin itself, which the reviewer should see.
+
+3. The `MOD_p` defining axioms of `FStep` never reduce the residue modulo `p`. `Fm.mod r l` has `r : ℕ`; the six axioms are
+   `⊢ mod 0 []`, `mod r [] ⊢` for `r % p ≠ 0`, and the four cons-wise axioms, which relate `mod r (φ :: l)` to `mod r l` (when
+   `φ` is false) and to `mod (r + p - 1) l` (when `φ` is true). Following them along `l`, `mod r l` is tied to
+   `mod (r + (p - 1) #true(l)) []`, and nothing fixes the truth value of `mod n []` for a nonzero multiple `n` of `p`. So for
+   every `G ⊆ pℕ` with `0 ∈ G`, reading `mod r l` as `r + (p - 1) #true(l) ∈ G` is a model of every rule of `FStep`
+   (`FModArith.fstep_sound_G`, `FModArith.fproof_sound_G`, FregeModArith.lean); the standard semantics is `G = pℕ`.
+   Consequences, for `p ≥ 2` and any CNF `F` with a satisfying assignment making `x_i` true; each sequent below is a
+   tautology of the standard semantics (`valid_*`) and is a line of no `FProof p F` (`nd_*`):
+   * `nd_mod_p_nil`: `⊢ MOD_{p,p}()` (residue change);
+   * `nd_true_arg`: `⊢ MOD_{p,r}(x_i, l)` for every `r` and `l`: no MOD gate with a true argument is ever derivable in the
+     succedent (although `F ⊨ MOD_{p,1}(x_i)` whenever `F ⊨ x_i`);
+   * `nd_add` (additivity): `MOD_{p,0}(X) ⊢ MOD_{p,0}(X ++ X)`, `X` = `p` copies of `x_i`;
+   * `nd_delete` (deleting `p` copies): `MOD_{p,1}(X ++ [x_i]) ⊢ MOD_{p,1}(x_i)`; `nd_insert`: `⊢ MOD_{p,0}(X)`;
+   * `nd_scale` (scaling by 2): `MOD_{p,1}(x_i) ⊢ MOD_{p,2}(x_i, x_i)`.
+   Permutation invariance is consistent with every `G` model (the quantity is symmetric in `l`) and was not needed.
+4. MOD elimination (`FModElim.elim_mod`, `FModElim.frefutes_elim_mod`, FregeModElim.lean). The model `G = {0}` is syntactic:
+   `sig` sends `MOD_{p,0}(l)` to `AND(¬l)` and `MOD_{p,r}(l)`, `r ≠ 0`, to `OR()`, homomorphically elsewhere, without
+   increasing depth and with `size (sig φ) + 1 ≤ 2 size φ`. Every `FStep` rule commutes with `sig`, and each translated MOD
+   axiom has a MOD-free proof of at most `3|l| + 6` lines. Result: for `p ≥ 2`, every `FRefutes p d F L` gives a MOD-free
+   `FRefutes p d F L'` (same `d`) with `|L'| ≤ 9 fSize L + |L|` and `fSize L' ≤ 81 (fSize L)^2`. Hence
+   `FModElim.ac0pFregeLB_iff`: for `p ≥ 2`, `AC0pFregeLB p ↔ BDFregeLB p`, where `BDFregeLB p` is the same statement with the
+   refutations restricted to MOD-free formulas, i.e. a superpolynomial lower bound for bounded depth Frege (unbounded fan in
+   `AND`, `OR`) at every fixed depth. Bounded depth Frege lower bounds of this kind are known in the literature (pigeonhole
+   principle: Ajtai; Krajicek-Pudlak-Woods; Pitassi-Beame-Impagliazzo; Tseitin on expanders: Ben-Sasson), not formalized here
+   and not rechecked against this repository's exact conventions (sequent lines, size measure). So, modulo those conventions,
+   the pinned target `AC0pFregeFrontier.r4_target` is a known theorem, not the open AC0[p] Frege problem.
+5. Consequence for the requested embedding. Pang into `FRefutes p 2` with polynomial overhead would, by item 4, give polynomial
+   size MOD-free depth-2 Frege refutations of every family with polynomial size `Pang.Refutation`s; for `p = 2` and Tseitin
+   formulas on expanders (polynomial size by Gaussian elimination in Res(lin F_2)) this contradicts Ben-Sasson's bounded depth
+   Frege lower bound. So the embedding is false for the pinned calculus (this last step uses the unformalized literature bound)
+   and was not attempted. Recommended repair, not made (it changes accepted declarations, an owner decision): reduce the
+   residue in the axioms, e.g. replace `r + p - 1` by `(r + p - 1) % p` and `mod r [] ⊢` / `⊢ mod 0 []` by a pair keyed on
+   `r % p`, or add the axiom `mod r l ⊢ mod (r % p) l` and its converse. After a repair, the `G` models collapse to the standard
+   one and the library above (additivity, deletion, scaling) becomes the real work; `fstep_sound` and `frefutes_of_unsat`
+   would need to be rechecked, and `FBridge.frege_to_R`, `FDeg.frege_to_PIC` (which translate `FStep` lines) would need their
+   MOD-axiom cases redone.
 
 Earlier text of this section (before r4/pang-constdepth), kept for the record; its item 1 scoping is superseded by item 1 above:
 
