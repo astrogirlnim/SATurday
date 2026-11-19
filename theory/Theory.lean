@@ -125,6 +125,8 @@ import Theory.ProofComplexity.FregeDegFrontier
 import Theory.ProofComplexity.FregeWideAnd
 import Theory.ProofComplexity.EmbedPangR
 import Theory.ProofComplexity.EmbedXorBack
+import Theory.ProofComplexity.FregeModArith
+import Theory.ProofComplexity.FregeModElim
 import Theory.ProofComplexity.ReviewFollowups
 import Theory.ProofComplexity.ReviewNonvacuity
 import Theory.ProofComplexity.ReviewPadding

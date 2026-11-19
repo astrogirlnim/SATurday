@@ -26,7 +26,8 @@ listed sequent is a tautology of the standard semantics, `valid_*`, yet is a lin
 * `nd_insert`: insertion of `p` copies, `⊢ mod 0 X`;
 * `nd_scale`: scaling by 2, `mod 1 [x_i] ⊢ mod 2 [x_i, x_i]`.
 Permutation invariance is consistent with every `G` model (the quantity `r + (p - 1) * #true(l)`
-is symmetric in `l`) and is derived in the second part of the file.
+is symmetric in `l`); it is not derived here.  The `G = {0}` model is syntactic and gives MOD
+elimination for whole refutations (`FregeModElim.lean`).
 -/
 
 namespace SATurday.ProofComplexity

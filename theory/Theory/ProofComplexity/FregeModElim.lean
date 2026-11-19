@@ -320,8 +320,9 @@ theorem good_short {S T : Seq} (hl : (T.1 ++ T.2).length ≤ 3) (h : ∀ ψ ∈ 
   have := sum_map_le (l := T.1 ++ T.2) (g := fun _ => 2 * seqSize S + 1)
     (fun ψ hψ => (h ψ hψ).2.1)
   simp only [List.map_const', List.sum_replicate, smul_eq_mul] at this
-  unfold seqSize
-  nlinarith
+  have h3 := Nat.mul_le_mul_right (2 * seqSize S + 1) hl
+  show ((T.1 ++ T.2).map Fm.size).sum ≤ 6 * seqSize S + 3
+  omega
 
 theorem allSub1 {S : Seq} {a : Fm} (ha : Sub S a) : ∀ ψ ∈ [a], Sub S ψ := by
   intro ψ hψ; rw [List.mem_singleton] at hψ; subst hψ; exact ha
@@ -408,7 +409,7 @@ theorem projLines_mem (A : Fm) (Δ : List Fm) :
       intro ψ h
       rcases List.mem_cons.1 h with rfl | h
       · simp [projLines]
-      · simp only [projLines, List.cons_append, List.singleton_append, List.mem_cons]
+      · simp only [projLines, List.cons_append, List.mem_cons]
         exact Or.inr (Or.inr (Or.inr (ih ψ h)))
 
 theorem projLines_length (A : Fm) (Δ : List Fm) :
@@ -426,7 +427,7 @@ theorem projLines_good {S : Seq} (A : Fm) (δ : Fm) (hA : Sub S A) (hδ : Sub S 
   | cons ψ N ih =>
       intro hN T hT
       have hψ := hN ψ (by simp)
-      simp only [projLines, List.cons_append, List.singleton_append, List.mem_cons] at hT
+      simp only [projLines, List.cons_append, List.mem_cons] at hT
       rcases hT with rfl | rfl | rfl | hT
       · exact good_short (by simp) (allSub2 hψ hψ)
       · exact good_short (by simp) (allSub3 hψ hψ hδ)
@@ -702,8 +703,8 @@ theorem elim_mod (hp : 2 ≤ p) (L : List Seq) (hL : FProof p F L) :
       obtain ⟨hL0, hS⟩ := fproof_init hL
       obtain ⟨L', h1, h2, h3, h4, h5, h6⟩ := ih hL0
       obtain ⟨B, hB⟩ := block hp hS h1 h2
-      obtain ⟨b1, b2, b3, -⟩ := hB
       obtain ⟨s1, s2⟩ := blockOK_size hB
+      obtain ⟨b1, b2, b3, -⟩ := hB
       refine ⟨L' ++ B, b1, ?_, ?_, ?_, ?_, ?_⟩
       · intro T hT
         rcases List.mem_append.1 hT with hT | hT
@@ -723,7 +724,9 @@ theorem elim_mod (hp : 2 ≤ p) (L : List Seq) (hL : FProof p F L) :
       · rw [List.length_append, fSize_append, fSize_single, List.length_append]
         simp only [List.length_singleton]; omega
       · rw [fSize_append, fSize_append, fSize_single]
-        nlinarith
+        have key : 81 * fSize L ^ 2 + 81 * seqSize S ^ 2 ≤ 81 * (fSize L + seqSize S) ^ 2 := by
+          nlinarith [Nat.zero_le (fSize L * seqSize S)]
+        omega
 
 /-- MOD elimination for refutations: `FRefutes p d F L` gives a MOD-free `FRefutes p d F L'`
 with `fSize L' ≤ 81 (fSize L)^2` (`p ≥ 2`). -/
