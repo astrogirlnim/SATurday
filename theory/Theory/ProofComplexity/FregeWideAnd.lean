@@ -890,6 +890,481 @@ theorem reach_xcut : ∀ φ : Fm, CutP p d Φ V φ := by
   · intro r l _ hV hX
     exact narrow _ (by have := hX true; rw [xtd_mod] at this; exact this) hV hX
 
+/-! ## Selections commute with the rules -/
+
+theorem sels_lit (l : Literal) : sels p d true (litFm l) = [litFm l] := by
+  unfold litFm
+  split_ifs
+  · exact sels_var _ _
+  · rw [sels_neg, sels_var]; rfl
+
+theorem sels_clause (C : Clause) : sels p d true (clauseFm C) = [clauseFm C] := by
+  unfold clauseFm
+  rw [sels_or_true]
+  have e : (C.toList.map litFm).map (sels p d true) = (C.toList.map litFm).map fun x => [x] :=
+    List.map_congr_left fun ψ hψ => by
+      obtain ⟨l, -, rfl⟩ := List.mem_map.1 hψ
+      exact sels_lit l
+  rw [e, sections_single]; rfl
+
+/-- **Selections commute with the rules.**  A selection of the conclusion of a rule follows by a
+rule of the calculus from the selections of the premises, except for the axiom `φ ⊢ φ` and cut. -/
+theorem sel_fstep {F : CNF} {prev : List Seq} {S S' : Seq} (hstep : FStep p F prev S)
+    (hx : XDegS p d S) (hS' : S' ∈ selsS p d S) :
+    (∃ φ, S = ([φ], [φ])) ∨ (∃ φ, (S.1, φ :: S.2) ∈ prev ∧ (φ :: S.1, S.2) ∈ prev) ∨
+      FStep p F (prev.flatMap (selsS p d)) S' := by
+  rcases hstep with ⟨C, hC, rfl⟩ | ⟨φ, rfl⟩ | rfl | rfl | rfl | ⟨r, hr, rfl⟩ | ⟨r, φ, l, rfl⟩ |
+      ⟨r, φ, l, rfl⟩ | ⟨r, φ, l, rfl⟩ | ⟨r, φ, l, rfl⟩ | ⟨T, hT, h1, h2⟩ | ⟨φ, h1, h2⟩ |
+      ⟨φ, Γ, Δ, rfl, h1⟩ | ⟨φ, Γ, Δ, rfl, h1⟩ | ⟨l, Γ, Δ, φ, hφ, rfl, h1⟩ | ⟨l, Γ, Δ, rfl, h1⟩ |
+      ⟨l, Γ, Δ, rfl, h1⟩ | ⟨l, Γ, Δ, φ, hφ, rfl, h1⟩
+  · -- clause axiom
+    have e := self_of (S := ([], [clauseFm C])) (by simp)
+      (by intro φ hφ; simp at hφ; subst hφ; exact sels_clause C) hS'
+    subst e
+    right; right; unfold FStep
+    exact Or.inl ⟨C, hC, rfl⟩
+  · exact Or.inl ⟨φ, rfl⟩
+  · -- ⊢ AND()
+    have e := self_of (S := ([], [Fm.and []])) (by simp)
+      (by intro φ hφ; simp at hφ; subst hφ; exact sels_self _ (by rw [pd_and]; simp) true) hS'
+    subst e
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inl rfl))
+  · -- OR() ⊢
+    have e := self_of (S := ([Fm.or []], []))
+      (by intro φ hφ; simp at hφ; subst hφ; exact sels_self _ (by rw [pd_or]; simp) false)
+      (by simp) hS'
+    subst e
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inl rfl)))
+  · -- ⊢ MOD_0()
+    have e := self_of (S := ([], [Fm.mod 0 []])) (by simp)
+      (by intro φ hφ; simp at hφ; subst hφ; exact sels_mod _ _ _) hS'
+    subst e
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))
+  · -- MOD_r() ⊢
+    have e := self_of (S := ([Fm.mod r []], []))
+      (by intro φ hφ; simp at hφ; subst hφ; exact sels_mod _ _ _) (by simp) hS'
+    subst e
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, hr, rfl⟩)))))
+  · -- MOD_r(φ, l), φ ⊢ MOD_{r-1}(l)
+    have hpd : pd p φ ≤ d := by
+      have := hx.1 (.mod r (φ :: l)) (by simp)
+      rw [xtd_mod] at this
+      exact (pd_le_mod (by simp)).trans this
+    have e := self_of (S := ([Fm.mod r (φ :: l), φ], [Fm.mod (r + p - 1) l]))
+      (by intro χ hχ; simp at hχ; rcases hχ with rfl | rfl
+          · exact sels_mod _ _ _
+          · exact sels_self _ hpd _)
+      (by intro χ hχ; simp at hχ; subst hχ; exact sels_mod _ _ _) hS'
+    subst e
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, φ, l, rfl⟩))))))
+  · -- MOD_r(φ, l) ⊢ φ, MOD_r(l)
+    have hpd : pd p φ ≤ d := by
+      have := hx.1 (.mod r (φ :: l)) (by simp)
+      rw [xtd_mod] at this
+      exact (pd_le_mod (by simp)).trans this
+    have e := self_of (S := ([Fm.mod r (φ :: l)], [φ, Fm.mod r l]))
+      (by intro χ hχ; simp at hχ; subst hχ; exact sels_mod _ _ _)
+      (by intro χ hχ; simp at hχ; rcases hχ with rfl | rfl
+          · exact sels_self _ hpd _
+          · exact sels_mod _ _ _) hS'
+    subst e
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, φ, l, rfl⟩)))))))
+  · -- φ, MOD_{r-1}(l) ⊢ MOD_r(φ, l)
+    have hpd : pd p φ ≤ d := by
+      have := hx.2 (.mod r (φ :: l)) (by simp)
+      rw [xtd_mod] at this
+      exact (pd_le_mod (by simp)).trans this
+    have e := self_of (S := ([φ, Fm.mod (r + p - 1) l], [Fm.mod r (φ :: l)]))
+      (by intro χ hχ; simp at hχ; rcases hχ with rfl | rfl
+          · exact sels_self _ hpd _
+          · exact sels_mod _ _ _)
+      (by intro χ hχ; simp at hχ; subst hχ; exact sels_mod _ _ _) hS'
+    subst e
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inl ⟨r, φ, l, rfl⟩))))))))
+  · -- MOD_r(l) ⊢ φ, MOD_r(φ, l)
+    have hpd : pd p φ ≤ d := by
+      have := hx.2 (.mod r (φ :: l)) (by simp)
+      rw [xtd_mod] at this
+      exact (pd_le_mod (by simp)).trans this
+    have e := self_of (S := ([Fm.mod r l], [φ, Fm.mod r (φ :: l)]))
+      (by intro χ hχ; simp at hχ; subst hχ; exact sels_mod _ _ _)
+      (by intro χ hχ; simp at hχ; rcases hχ with rfl | rfl
+          · exact sels_self _ hpd _
+          · exact sels_mod _ _ _) hS'
+    subst e
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inl ⟨r, φ, l, rfl⟩)))))))))
+  · -- weakening
+    obtain ⟨hs1, hs2⟩ := mem_selsS.1 hS'
+    obtain ⟨a, ha1, ha2⟩ := forall2_subset hs1 T.1 h1
+    obtain ⟨b, hb1, hb2⟩ := forall2_subset hs2 T.2 h2
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inl ⟨(a, b), List.mem_flatMap.2 ⟨T, hT, mem_selsS.2 ⟨ha1, hb1⟩⟩, ha2, hb2⟩))))))))))
+  · exact Or.inr (Or.inl ⟨φ, h1, h2⟩)
+  · -- NOT left
+    obtain ⟨A, B⟩ := S'
+    obtain ⟨hs1, hs2⟩ := mem_selsS.1 hS'
+    obtain ⟨χ, Γ', hχ, hΓ', e⟩ := List.forall₂_cons_right_iff.1 hs1
+    simp only at e hs2
+    subst e
+    rw [sels_neg] at hχ
+    obtain ⟨φ', hφ', rfl⟩ := List.mem_map.1 hχ
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inr (Or.inr (Or.inl ⟨φ', Γ', B, rfl, List.mem_flatMap.2 ⟨_, h1,
+        mem_selsS.2 ⟨hΓ', List.Forall₂.cons hφ' hs2⟩⟩⟩))))))))))))
+  · -- NOT right
+    obtain ⟨A, B⟩ := S'
+    obtain ⟨hs1, hs2⟩ := mem_selsS.1 hS'
+    obtain ⟨χ, Δ', hχ, hΔ', e⟩ := List.forall₂_cons_right_iff.1 hs2
+    simp only at e hs1
+    subst e
+    rw [sels_neg] at hχ
+    obtain ⟨φ', hφ', rfl⟩ := List.mem_map.1 hχ
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inr (Or.inr (Or.inr (Or.inl ⟨φ', A, Δ', rfl, List.mem_flatMap.2 ⟨_, h1,
+        mem_selsS.2 ⟨List.Forall₂.cons hφ' hs1, hΔ'⟩⟩⟩)))))))))))))
+  · -- AND left
+    obtain ⟨A, B⟩ := S'
+    obtain ⟨hs1, hs2⟩ := mem_selsS.1 hS'
+    obtain ⟨χ, Γ', hχ, hΓ', e⟩ := List.forall₂_cons_right_iff.1 hs1
+    simp only at e hs2
+    subst e
+    rw [sels_and_false] at hχ
+    obtain ⟨l', hl', rfl⟩ := List.mem_map.1 hχ
+    obtain ⟨φ', hφ', hr⟩ := forall2_right (mem_sections_sels.1 hl') hφ
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨l', Γ', B, φ', hφ', rfl, List.mem_flatMap.2
+        ⟨_, h1, mem_selsS.2 ⟨List.Forall₂.cons hr hΓ', hs2⟩⟩⟩))))))))))))))
+  · -- AND right
+    obtain ⟨A, B⟩ := S'
+    obtain ⟨hs1, hs2⟩ := mem_selsS.1 hS'
+    obtain ⟨χ, Δ', hχ, hΔ', e⟩ := List.forall₂_cons_right_iff.1 hs2
+    simp only at e hs1
+    subst e
+    rw [sels_and_true] at hχ
+    right; right; unfold FStep
+    by_cases hn : pd p (.and l) ≤ d
+    · rw [if_pos hn, List.mem_singleton] at hχ
+      subst hχ
+      exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨l, A, Δ', rfl, fun φ hφ =>
+          List.mem_flatMap.2 ⟨_, h1 φ hφ, mem_selsS.2 ⟨hs1, List.Forall₂.cons
+            (by rw [sels_self φ ((pd_le_and hφ).trans hn)]; simp) hΔ'⟩⟩⟩)))))))))))))))
+    · rw [if_neg hn] at hχ
+      obtain ⟨ls, hls, hχ'⟩ := List.mem_flatten.1 hχ
+      obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hls
+      exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+        (Or.inl ⟨(A, χ :: Δ'), List.mem_flatMap.2 ⟨_, h1 ψ hψ,
+          mem_selsS.2 ⟨hs1, List.Forall₂.cons hχ' hΔ'⟩⟩, List.Subset.refl _,
+          List.Subset.refl _⟩))))))))))
+  · -- OR left
+    obtain ⟨A, B⟩ := S'
+    obtain ⟨hs1, hs2⟩ := mem_selsS.1 hS'
+    obtain ⟨χ, Γ', hχ, hΓ', e⟩ := List.forall₂_cons_right_iff.1 hs1
+    simp only at e hs2
+    subst e
+    rw [sels_or_false] at hχ
+    right; right; unfold FStep
+    by_cases hn : pd p (.or l) ≤ d
+    · rw [if_pos hn, List.mem_singleton] at hχ
+      subst hχ
+      exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨l, Γ', B, rfl, fun φ hφ =>
+          List.mem_flatMap.2 ⟨_, h1 φ hφ, mem_selsS.2 ⟨List.Forall₂.cons
+            (by rw [sels_self φ ((pd_le_or hφ).trans hn)]; simp) hΓ', hs2⟩⟩⟩))))))))))))))))
+    · rw [if_neg hn] at hχ
+      obtain ⟨ls, hls, hχ'⟩ := List.mem_flatten.1 hχ
+      obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hls
+      exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+        (Or.inl ⟨(χ :: Γ', B), List.mem_flatMap.2 ⟨_, h1 ψ hψ,
+          mem_selsS.2 ⟨List.Forall₂.cons hχ' hΓ', hs2⟩⟩, List.Subset.refl _,
+          List.Subset.refl _⟩))))))))))
+  · -- OR right
+    obtain ⟨A, B⟩ := S'
+    obtain ⟨hs1, hs2⟩ := mem_selsS.1 hS'
+    obtain ⟨χ, Δ', hχ, hΔ', e⟩ := List.forall₂_cons_right_iff.1 hs2
+    simp only at e hs1
+    subst e
+    rw [sels_or_true] at hχ
+    obtain ⟨l', hl', rfl⟩ := List.mem_map.1 hχ
+    obtain ⟨φ', hφ', hr⟩ := forall2_right (mem_sections_sels.1 hl') hφ
+    right; right; unfold FStep
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨l', A, Δ', φ', hφ', rfl,
+        List.mem_flatMap.2 ⟨_, h1, mem_selsS.2 ⟨hs1, List.Forall₂.cons hr hΔ'⟩⟩⟩))))))))))))))))
+
+/-! ## Simulation of one step -/
+
+theorem arith1 (b c w B : ℕ) (hb : b ≤ B) (hc : c ≤ 11 * w) : b * c ≤ 12 * w * (B * B) :=
+  calc b * c ≤ B * (11 * w) := Nat.mul_le_mul hb hc
+    _ ≤ (B * B) * (12 * w) := Nat.mul_le_mul (Nat.le_mul_self B) (by omega)
+    _ = 12 * w * (B * B) := by ring
+
+theorem arith2 (b bt bf sz w M B : ℕ) (h1 : bt * b ≤ B) (h2 : bf * b ≤ B) (hb : 1 ≤ b)
+    (hsz : sz ≤ M) (hb' : b ≤ B) (hw : 1 ≤ w) :
+    b * (2 * sz * bt * bf + 1) ≤ 12 * (w + M) * (B * B) := by
+  have h3 : bf ≤ B := le_trans (Nat.le_mul_of_pos_right bf hb) h2
+  have h4 : 1 * (B * B) ≤ w * (B * B) := Nat.mul_le_mul_right _ hw
+  calc b * (2 * sz * bt * bf + 1) = 2 * sz * (bt * b) * bf + b := by ring
+    _ ≤ 2 * M * B * B + B * B :=
+        Nat.add_le_add (Nat.mul_le_mul (Nat.mul_le_mul (Nat.mul_le_mul_left 2 hsz) h1) h3)
+          (hb'.trans (Nat.le_mul_self B))
+    _ ≤ 12 * (w + M) * (B * B) := by nlinarith [h4, Nat.zero_le (M * (B * B))]
+
+/-- **One step of the sequent calculus, expanded.**  All selections of the conclusion are derived
+from the selections of the premises with at most `12 (wS S + M) B²` new lines, `M` a bound on the
+weights and `B` on the numbers of selections of the sequents involved. -/
+theorem xstep_sim {F : CNF} {prev : List Seq} {S : Seq} (hstep : FStep p F prev S)
+    (hd : XDegS p d S) (hV : VarS V S) (hdp : ∀ T ∈ prev, XDegS p d T)
+    (hVp : ∀ T ∈ prev, VarS V T) (M B : ℕ) (hM : ∀ T ∈ prev, wS T ≤ M)
+    (hB : ∀ T ∈ prev, BS p d T ≤ B) (hBS : BS p d S ≤ B)
+    {Ls : List (PLine p)} (h : Der F V d Ls)
+    (hprev : ∀ T ∈ prev, ∀ T' ∈ selsS p d T, trS p T' ∈ Ls) :
+    ∃ Ls₂, Ext F V d Ls Ls₂ (12 * (wS S + M) * (B * B)) ∧
+      ∀ S' ∈ selsS p d S, trS p S' ∈ Ls₂ := by
+  have hW : 1 ≤ wS S := by unfold wS; omega
+  have hB1 : 1 ≤ BS p d S := BS_pos S
+  have collect : ∀ c : ℕ, BS p d S * c ≤ 12 * (wS S + M) * (B * B) →
+      (∀ S' ∈ selsS p d S, ∀ {Ls' : List (PLine p)}, Der F V d Ls' → (∀ N ∈ Ls, N ∈ Ls') →
+        ∃ Ls₂, Ext F V d Ls' Ls₂ c ∧ trS p S' ∈ Ls₂) →
+      ∃ Ls₂, Ext F V d Ls Ls₂ (12 * (wS S + M) * (B * B)) ∧
+        ∀ S' ∈ selsS p d S, trS p S' ∈ Ls₂ := by
+    intro c hc H
+    obtain ⟨Ls₂, hE, hm⟩ := reach_list (Φ := F) (V := V) (d := d) (selsS p d S) (fun _ => c)
+      (fun S' => trS p S') H h
+    refine ⟨Ls₂, hE.mono ?_, hm⟩
+    have e : ((selsS p d S).map fun _ => c).sum = BS p d S * c := by simp [BS]
+    rw [e]; exact hc
+  have selp : ∀ S' ∈ selsS p d S, DegS p d S' ∧ VarS V S' ∧ wS S' ≤ wS S :=
+    fun S' hS' => sel_seq_props hS' hd hV
+  by_cases hid : ∃ φ, S = ([φ], [φ])
+  · obtain ⟨φ, rfl⟩ := hid
+    refine collect (10 * φ.size) (arith1 _ _ _ _ hBS ?_) ?_
+    · have := size_le_wS (S := ([φ], [φ])) (φ := φ) (by simp)
+      omega
+    · intro S' hS' Ls' h' hsub
+      obtain ⟨hD, hVS, -⟩ := selp _ hS'
+      obtain ⟨A, B'⟩ := S'
+      obtain ⟨hs1, hs2⟩ := mem_selsS.1 hS'
+      obtain ⟨φ1, r1, hφ1, hr1, e1⟩ := List.forall₂_cons_right_iff.1 hs1
+      obtain ⟨φ2, r2, hφ2, hr2, e2⟩ := List.forall₂_cons_right_iff.1 hs2
+      rw [List.forall₂_nil_right_iff] at hr1 hr2
+      simp only at e1 e2
+      subst hr1; subst hr2; subst e1; subst e2
+      exact reach_id φ (hV φ (by simp)) false φ1 φ2 hφ1 hφ2 (hD.1 φ1 (by simp))
+        (hD.2 φ2 (by simp)) (good_trS hD hVS)
+        (fun g hg => mem_trS.2 (Or.inl ⟨φ1, by simp, hg⟩))
+        (fun g hg => mem_trS.2 (Or.inr ⟨φ2, by simp, hg⟩)) h'
+  by_cases hcut : ∃ φ, (S.1, φ :: S.2) ∈ prev ∧ (φ :: S.1, S.2) ∈ prev
+  · obtain ⟨φ, h1, h2⟩ := hcut
+    refine collect (2 * φ.size * (sels p d true φ).length * (sels p d false φ).length + 1)
+      (arith2 _ _ _ _ _ _ _ ?_ ?_ hB1 ?_ hBS hW) ?_
+    · have := hB _ h1
+      rwa [BS_cons_right] at this
+    · have := hB _ h2
+      rwa [BS_cons_left] at this
+    · have e1 := size_le_wS (S := (S.1, φ :: S.2)) (φ := φ) (by simp)
+      have e2 := hM _ h1
+      omega
+    · intro S' hS' Ls' h' hsub
+      obtain ⟨hs1, hs2⟩ := mem_selsS.1 hS'
+      obtain ⟨hD, hVS, -⟩ := selp _ hS'
+      have G := good_trS hD hVS
+      have hXφ : ∀ s' : Bool, xtd p d s' φ ≤ d := fun s' => by
+        cases s'
+        · exact (hdp _ h2).1 φ (by simp)
+        · exact (hdp _ h1).2 φ (by simp)
+      have hVφ : fv φ ⊆ V := hVp _ h1 φ (by simp)
+      obtain ⟨Ls₂, hE, M', hM', hsubM⟩ := reach_xcut φ hVφ hXφ true G h'
+        (fun φ2 hφ2 => ⟨trS p (S'.1, φ2 :: S'.2),
+          hsub _ (hprev _ h1 _ (mem_selsS.2 ⟨hs1, List.Forall₂.cons hφ2 hs2⟩)), fun x hx => by
+            rcases mem_trS.1 hx with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+            · exact Or.inl (mem_trS.2 (Or.inl ⟨ψ, hψ, hg⟩))
+            · rcases List.mem_cons.1 hψ with rfl | hψ
+              · exact Or.inr hg
+              · exact Or.inl (mem_trS.2 (Or.inr ⟨ψ, hψ, hg⟩))⟩)
+        (fun φ1 hφ1 => ⟨trS p (φ1 :: S'.1, S'.2),
+          hsub _ (hprev _ h2 _ (mem_selsS.2 ⟨List.Forall₂.cons hφ1 hs1, hs2⟩)), fun x hx => by
+            rcases mem_trS.1 hx with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+            · rcases List.mem_cons.1 hψ with rfl | hψ
+              · exact Or.inr hg
+              · exact Or.inl (mem_trS.2 (Or.inl ⟨ψ, hψ, hg⟩))
+            · exact Or.inl (mem_trS.2 (Or.inr ⟨ψ, hψ, hg⟩))⟩)
+      obtain ⟨Ls₃, hE₃, hm₃⟩ := reach_weak hE.1 hM' hsubM G
+      exact ⟨Ls₃, hE.trans hE₃, hm₃⟩
+  · refine collect (10 * (wS S + M)) (arith1 _ _ _ _ hBS (by omega)) ?_
+    intro S' hS' Ls' h' hsub
+    obtain ⟨hD, hVS, hw⟩ := selp _ hS'
+    have hst : FStep p F (prev.flatMap (selsS p d)) S' := by
+      rcases sel_fstep hstep hd hS' with h1 | h1 | h1
+      · exact absurd h1 hid
+      · exact absurd h1 hcut
+      · exact h1
+    obtain ⟨Ls₂, hE, hm⟩ := step_sim hst hD hVS M
+      (fun T' hT' => by
+        obtain ⟨T, hT, hTT⟩ := List.mem_flatMap.1 hT'
+        exact (sel_seq_props hTT (hdp T hT) (hVp T hT)).2.2.trans (hM T hT)) h'
+      (fun T' hT' => by
+        obtain ⟨T, hT, hTT⟩ := List.mem_flatMap.1 hT'
+        exact hsub _ (hprev T hT T' hTT))
+    exact ⟨Ls₂, hE.mono (by omega), hm⟩
+
+theorem xsim_all {F : CNF} {L : List Seq} (hL : FProof p F L) (hdeg : ∀ S ∈ L, XDegS p d S)
+    (hvar : ∀ S ∈ L, VarS V S) (M B : ℕ) (hM : ∀ S ∈ L, wS S ≤ M)
+    (hB : ∀ S ∈ L, BS p d S ≤ B) :
+    ∀ k ≤ L.length, ∃ Ls : List (PLine p), Der F V d Ls ∧
+      (∀ S ∈ L.take k, ∀ S' ∈ selsS p d S, trS p S' ∈ Ls) ∧
+      Ls.length ≤ k * (12 * (M + M) * (B * B)) := by
+  intro k
+  induction k with
+  | zero => intro _; exact ⟨[], Der.nil, by simp, by simp⟩
+  | succ k ih =>
+    intro hk
+    have hk' : k < L.length := by omega
+    obtain ⟨Ls, hD, hmem, hlen⟩ := ih (by omega)
+    have hSm : L.get ⟨k, hk'⟩ ∈ L := List.get_mem _ _
+    have hT : ∀ T ∈ L.take k, T ∈ L := fun T hT => List.mem_of_mem_take hT
+    obtain ⟨Ls₂, hE, hm⟩ := xstep_sim (hL k hk') (hdeg _ hSm) (hvar _ hSm)
+      (fun T h => hdeg T (hT T h)) (fun T h => hvar T (hT T h)) M B
+      (fun T h => hM T (hT T h)) (fun T h => hB T (hT T h)) (hB _ hSm) hD hmem
+    refine ⟨Ls₂, hE.1, ?_, ?_⟩
+    · intro S hS
+      rw [List.take_add_one] at hS
+      rcases List.mem_append.1 hS with h | h
+      · exact fun S' hS' => hE.2.1 _ (hmem S h S' hS')
+      · rw [List.getElem?_eq_getElem hk'] at h
+        simp only [Option.toList_some, List.mem_singleton] at h
+        subst h; exact hm
+    · have h2 : 12 * (wS (L.get ⟨k, hk'⟩) + M) * (B * B) ≤ 12 * (M + M) * (B * B) :=
+        Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (by have := hM _ hSm; omega))
+      calc Ls₂.length ≤ Ls.length + 12 * (wS (L.get ⟨k, hk'⟩) + M) * (B * B) := hE.2.2
+        _ ≤ k * (12 * (M + M) * (B * B)) + 12 * (M + M) * (B * B) := Nat.add_le_add hlen h2
+        _ = (k + 1) * (12 * (M + M) * (B * B)) := by ring
+
+/-- **Bridge with expansion.**  A refutation in the sequent calculus `FProof` (any depth) all of
+whose sequents satisfy `XDegS p d`, have variables in `V` and at most `B` selections yields a `PIC`
+refutation over `V` with indicators of degree at most `d` and at most `|L| · 12 · 2W · B²` nodes. -/
+theorem wide_frege_to_PIC {F : CNF} {L : List Seq} (hL : FProof p F L)
+    (hE : (([], []) : Seq) ∈ L) (hdeg : ∀ S ∈ L, XDegS p d S) (hvar : ∀ S ∈ L, VarS V S)
+    (B : ℕ) (hB : ∀ S ∈ L, BS p d S ≤ B) :
+    ∃ R : PRefutation F V d p, R.S ≤ L.length * (12 * (fW L + fW L) * (B * B)) := by
+  have hM : ∀ S ∈ L, wS S ≤ fW L := fun S hS =>
+    List.single_le_sum (by simp) _ (List.mem_map.2 ⟨S, hS, rfl⟩)
+  obtain ⟨Ls, hD, hmem, hlen⟩ := xsim_all hL hdeg hvar (fW L) B hM hB L.length le_rfl
+  rw [List.take_length] at hmem
+  have he : (∅ : PLine p) ∈ Ls := by
+    have := hmem _ hE ([], []) (mem_selsS.2 ⟨List.Forall₂.nil, List.Forall₂.nil⟩)
+    rwa [trS_empty] at this
+  obtain ⟨R, hR⟩ := der_refutation hD he
+  exact ⟨R, hR.trans hlen⟩
+
+/-! ## The fragment is larger than the one line fragment -/
+
+/-- A sequent `⊢ AND(x_1, ..., x_w)` with `w > d ≥ 1` lies in the expanded fragment, has `w`
+selections, and does not lie in the one line fragment `DegS`. -/
+theorem wide_and_example (is : List ℕ) (hd : 1 ≤ d) (hw : d < is.length) :
+    XDegS p d ([], [Fm.and (is.map Fm.var)]) ∧
+      BS p d ([], [Fm.and (is.map Fm.var)]) = is.length ∧
+      ¬ DegS p d ([], [Fm.and (is.map Fm.var)]) := by
+  have hpd : pd p (.and (is.map Fm.var)) = is.length := by
+    rw [pd_and, List.map_map]
+    have : (pd p ∘ Fm.var) = fun _ => 1 := by funext i; simp [pd_var]
+    rw [this]; simp
+  refine ⟨⟨by simp, fun φ hφ => ?_⟩, ?_, fun h => ?_⟩
+  · simp at hφ; subst hφ
+    refine xtd_and_true_le _ fun ψ hψ => ?_
+    obtain ⟨i, -, rfl⟩ := List.mem_map.1 hψ
+    rw [xtd_var]; exact hd
+  · rw [BS_eq]
+    simp only [List.map_nil, List.prod_nil, List.map_cons, List.prod_cons, one_mul, mul_one]
+    rw [sels_and_true, if_neg (by rw [hpd]; omega), List.length_flatten, List.map_map,
+      List.map_map]
+    rw [List.map_congr_left (g := fun _ => 1) (fun i _ => by simp [sels_var])]
+    simp
+  · have := h.2 (.and (is.map Fm.var)) (by simp)
+    rw [td_and_true, hpd] at this
+    omega
+
+/-! ## The size bound on Tseitin formulas -/
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **AC0[p] Frege with expanded wide conjunctions, any depth, on one hot Tseitin mod `q`.**
+Primes `p ∤ q`, `ε > 0` with `(κ+1) ε < 1`.  For every `M` there is a cubic graph on `n ≥ M`
+vertices such that for every charge `b` and every `1 ≤ ρ ≤ ε ln n`: every refutation `L` in
+`FProof`, of any formula depth, whose sequents use only variables of the formula, satisfy
+`XDegS p ((p-1) ρ)` and have at most `B` selections each, has
+`exp (n^(1 - (κ+1) ε)) ≤ |L| · 24 (fSize L + |L|) · B²`. -/
+theorem wide_frege_tseitin (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (C1.kappa p q + 1) * ε < 1) (M : ℕ) :
+    ∃ (n : ℕ) (G : FinGraph n), M ≤ n ∧ IsRegular G 3 ∧ ∀ b : Fin n → ZMod q,
+      ∀ ρ : ℕ, 1 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log n →
+      ∀ (L : List Seq) (B : ℕ), FProof p (tcnf G q b) L → (([], []) : Seq) ∈ L →
+        (∀ S ∈ L, VarS (tVars G q) S) → (∀ S ∈ L, XDegS p ((p - 1) * ρ) S) →
+        (∀ S ∈ L, BS p ((p - 1) * ρ) S ≤ B) →
+        Real.exp ((n : ℝ) ^ (1 - (C1.kappa p q + 1) * ε)) ≤
+          ((L.length * (24 * (fSize L + L.length) * (B * B)) : ℕ) : ℝ) := by
+  obtain ⟨n, G, hn, hreg, H⟩ := pic_main p hq hpq ε hε hεκ M
+  refine ⟨n, G, hn, hreg, fun b ρ hρ1 hρ L B hL hE hvar hdeg hB => ?_⟩
+  obtain ⟨R, hR⟩ := wide_frege_to_PIC (p := p) hL hE hdeg hvar B hB
+  refine (H b ρ hρ1 hρ R).trans ?_
+  have h3 : R.S ≤ L.length * (24 * (fSize L + L.length) * (B * B)) := by
+    refine hR.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ ?_))
+    have := fW_le L
+    omega
+  exact_mod_cast h3
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **Indexed form with an explicit unsatisfiable family, for every formula depth `D`.**  There is
+a threshold `m0` such that for every `m ≥ m0`, on the explicit cubic graph `cubFam m` with
+`n = 8 m^2` vertices and the explicit charge `tseitinCharge1`: the formula is unsatisfiable, and for
+every `ρ` with `q + 3 ≤ ρ ≤ ε ln n` the expanded fragment contains a refutation (non vacuity, at
+depth one, with one selection per sequent) and every refutation `FRefutes p D` in the expanded
+fragment with at most `B` selections per sequent, for every `D` and `B`, satisfies
+`exp (n^(1 - (κ+1) ε)) ≤ |L| · 24 (fSize L + |L|) · B²`. -/
+theorem wide_frege_tseitin_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (C1.kappa p q + 1) * ε < 1) :
+    ∃ m0 : ℕ, ∀ m : ℕ, m0 ≤ m →
+      ¬ Satisfiable (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) ∧
+      ∀ ρ : ℕ, q + 3 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log (m * m * 8 : ℕ) →
+        (∃ L, FRefutes p 1 (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) L ∧
+          (∀ S ∈ L, VarS (tVars (cubFam m) q) S) ∧ (∀ S ∈ L, XDegS p ((p - 1) * ρ) S) ∧
+          (∀ S ∈ L, BS p ((p - 1) * ρ) S = 1)) ∧
+        ∀ (D : ℕ) (L : List Seq) (B : ℕ),
+          FRefutes p D (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) L →
+          (∀ S ∈ L, VarS (tVars (cubFam m) q) S) → (∀ S ∈ L, XDegS p ((p - 1) * ρ) S) →
+          (∀ S ∈ L, BS p ((p - 1) * ρ) S ≤ B) →
+          Real.exp (((m * m * 8 : ℕ) : ℝ) ^ (1 - (C1.kappa p q + 1) * ε)) ≤
+            ((L.length * (24 * (fSize L + L.length) * (B * B)) : ℕ) : ℝ) := by
+  obtain ⟨m1, H1⟩ := lowdeg_frege_tseitin_idx p hq hpq ε hε hεκ
+  obtain ⟨m2, H2⟩ := pic_main_idx p hq hpq ε hε hεκ
+  refine ⟨max m1 m2, fun m hm => ?_⟩
+  obtain ⟨hunsat, Hρ⟩ := H1 m ((le_max_left _ _).trans hm)
+  refine ⟨hunsat, fun ρ hρq hρ => ⟨?_, ?_⟩⟩
+  · obtain ⟨⟨L, hL, hvar, hdeg⟩, -⟩ := Hρ ρ hρq hρ
+    exact ⟨L, hL, hvar, fun S hS => xdegS_of_degS (hdeg S hS),
+      fun S hS => BS_of_degS (hdeg S hS)⟩
+  · intro D L B hL hvar hdeg hB
+    obtain ⟨R, hR⟩ := wide_frege_to_PIC (p := p) hL.1 hL.2.2 hdeg hvar B hB
+    refine (H2 m ((le_max_right _ _).trans hm) _ ρ (by omega) hρ R).trans ?_
+    have h3 : R.S ≤ L.length * (24 * (fSize L + L.length) * (B * B)) := by
+      refine hR.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ ?_))
+      have := fW_le L
+      omega
+    exact_mod_cast h3
+
 end
 
 end FWide
