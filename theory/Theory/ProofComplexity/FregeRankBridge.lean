@@ -1229,6 +1229,282 @@ theorem step_sim {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) {F : CNF} {prev
         exact mem_sing.2 ⟨φ, hφ, rfl⟩
       · exact Finset.mem_union_right _ hx) G) (by omega) (by omega)
 
+/-! ## The whole proof -/
+
+theorem trS_empty : (trS (([], []) : Seq) : RLine p) = ∅ := by simp [trS]
+
+theorem sim_all {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) {F : CNF} {L : List Seq}
+    (hL : FProof p F L) (hflat : ∀ S ∈ L, FlatS V S)
+    (hb : ∀ S ∈ L, Bdd ρ (trS S : RLine p)) (M : ℕ) (hM : ∀ S ∈ L, wS S ≤ M) :
+    ∀ k ≤ L.length, ∃ Ls : List (RLine p), Der F V ρ Ls ∧
+      (∀ S ∈ L.take k, (trS S : RLine p) ∈ Ls) ∧ Ls.length ≤ k * ((2 * p + 8) * (M + M)) := by
+  intro k
+  induction k with
+  | zero => intro _; exact ⟨[], Der.nil, by simp, by simp⟩
+  | succ k ih =>
+    intro hk
+    have hk' : k < L.length := by omega
+    obtain ⟨Ls, hD, hmem, hlen⟩ := ih (by omega)
+    have hSm : L.get ⟨k, hk'⟩ ∈ L := List.get_mem _ _
+    obtain ⟨Ls₂, hE, hm⟩ := step_sim hv hρ (hL k hk')
+      (fun T hT => hflat T (List.mem_of_mem_take hT)) (hflat _ hSm) (hb _ hSm) M
+      (fun T hT => hM T (List.mem_of_mem_take hT)) hD hmem
+    refine ⟨Ls₂, hE.1, ?_, ?_⟩
+    · intro S hS
+      rw [List.take_add_one] at hS
+      rcases List.mem_append.1 hS with h | h
+      · exact hE.2.1 _ (hmem S h)
+      · rw [List.getElem?_eq_getElem hk'] at h
+        simp only [Option.toList_some, List.mem_singleton] at h
+        subst h; exact hm
+    · have h1 := hE.2.2
+      have h2 : (2 * p + 8) * (wS (L.get ⟨k, hk'⟩) + M) ≤ (2 * p + 8) * (M + M) :=
+        Nat.mul_le_mul_left _ (by have := hM _ hSm; omega)
+      have h3 : (k + 1) * ((2 * p + 8) * (M + M)) =
+          k * ((2 * p + 8) * (M + M)) + (2 * p + 8) * (M + M) := by ring
+      omega
+
+theorem getD_append_lt {α : Type} (l l' : List α) (d : α) {n : ℕ} (h : n < l.length) :
+    (l ++ l').getD n d = l.getD n d := by
+  rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_append_left h]
+
+theorem getD_lt {α : Type} (l : List α) (d : α) {n : ℕ} (h : n < l.length) :
+    l.getD n d = l[n] := by
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h]; rfl
+
+/-- Indices of premises for a list derivation. -/
+theorem der_index {Ls : List (RLine p)} (h : Der Φ V ρ Ls) : ∀ k < Ls.length,
+    ∃ prem : List ℕ, (∀ j ∈ prem, j < k) ∧
+      RInfer Φ ρ (prem.map fun j => Ls.getD j ∅) (Ls.getD k ∅) ∧ GoodL V ρ (Ls.getD k ∅) := by
+  induction h with
+  | nil => intro k hk; simp at hk
+  | @snoc Ls L prems h hp hi hg ih =>
+    intro k hk
+    by_cases hk' : k < Ls.length
+    · obtain ⟨prem, h1, h2, h3⟩ := ih k hk'
+      have e1 : (Ls ++ [L]).getD k ∅ = Ls.getD k ∅ := getD_append_lt _ _ _ hk'
+      refine ⟨prem, h1, ?_, ?_⟩
+      · have e2 : (prem.map fun j => (Ls ++ [L]).getD j ∅) = prem.map fun j => Ls.getD j ∅ :=
+          List.map_congr_left fun j hj => getD_append_lt _ _ _ ((h1 j hj).trans hk')
+        rw [e1, e2]; exact h2
+      · rw [e1]; exact h3
+    · have hk2 : k = Ls.length := by simp at hk; omega
+      subst hk2
+      have e1 : (Ls ++ [L]).getD Ls.length ∅ = L := by simp
+      refine ⟨prems.map fun M => Ls.idxOf M, ?_, ?_, ?_⟩
+      · intro j hj
+        obtain ⟨M, hM, rfl⟩ := List.mem_map.1 hj
+        exact List.idxOf_lt_length_of_mem (hp M hM)
+      · rw [e1, List.map_map]
+        have : (prems.map ((fun j => (Ls ++ [L]).getD j ∅) ∘ fun M => Ls.idxOf M)) = prems := by
+          conv_rhs => rw [← List.map_id prems]
+          refine List.map_congr_left fun M hM => ?_
+          have hlt := List.idxOf_lt_length_of_mem (hp M hM)
+          simp only [Function.comp, id]
+          rw [getD_append_lt _ _ _ hlt, getD_lt _ _ hlt]
+          exact List.getElem_idxOf hlt
+        rw [this]; exact hi
+      · rw [e1]; exact hg
+
+/-- A list derivation containing the empty line gives a refutation in `R_ρ^p` of no larger
+size. -/
+theorem der_refutation {Ls : List (RLine p)} (h : Der Φ V ρ Ls) (he : (∅ : RLine p) ∈ Ls) :
+    ∃ R : RRefutation Φ V ρ p, R.S ≤ Ls.length := by
+  have hk : Ls.idxOf (∅ : RLine p) < Ls.length := List.idxOf_lt_length_of_mem he
+  have hidx := der_index h
+  refine ⟨{ S := Ls.idxOf (∅ : RLine p) + 1
+            line := fun i => Ls.getD i ∅
+            prem := fun i => if hi : i < Ls.length then Classical.choose (hidx i hi) else []
+            S_pos := by omega
+            prem_lt := ?_, infer := ?_, bdd := ?_, supp := ?_, last := ?_ }, Nat.succ_le_of_lt hk⟩
+  · intro i hi j hj
+    have hi' : i < Ls.length := by omega
+    rw [dif_pos hi'] at hj
+    exact (Classical.choose_spec (hidx i hi')).1 j hj
+  · intro i hi
+    have hi' : i < Ls.length := by omega
+    rw [dif_pos hi']
+    exact (Classical.choose_spec (hidx i hi')).2.1
+  · intro i hi T hT
+    have hi' : i < Ls.length := by omega
+    exact ((Classical.choose_spec (hidx i hi')).2.2 T hT).1
+  · intro i hi T hT
+    have hi' : i < Ls.length := by omega
+    exact ((Classical.choose_spec (hidx i hi')).2.2 T hT).2
+  · show Ls.getD (Ls.idxOf (∅ : RLine p) + 1 - 1) ∅ = ∅
+    rw [Nat.add_sub_cancel, getD_lt _ _ hk]
+    exact List.getElem_idxOf hk
+
+/-- Total weight of a proof. -/
+def fW (L : List Seq) : ℕ := (L.map wS).sum
+
+/-- **Bridge.**  A refutation in the sequent calculus `FProof` all of whose sequents are flat over
+`V` with translation of rank at most `ρ` yields an `R_ρ^p` refutation over `V` with at most
+`|L| (2p + 8) 2 W` nodes, `W` the total weight. -/
+theorem frege_to_R {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) {F : CNF} {L : List Seq}
+    (hL : FProof p F L) (hE : (([], []) : Seq) ∈ L) (hflat : ∀ S ∈ L, FlatS V S)
+    (hb : ∀ S ∈ L, Bdd ρ (trS S : RLine p)) :
+    ∃ R : RRefutation F V ρ p, R.S ≤ L.length * ((2 * p + 8) * (fW L + fW L)) := by
+  have hM : ∀ S ∈ L, wS S ≤ fW L := fun S hS =>
+    List.single_le_sum (by simp) _ (List.mem_map.2 ⟨S, hS, rfl⟩)
+  obtain ⟨Ls, hD, hmem, hlen⟩ := sim_all hv hρ hL hflat hb (fW L) hM L.length le_rfl
+  rw [List.take_length] at hmem
+  have he : (∅ : RLine p) ∈ Ls := by
+    have := hmem _ hE
+    rwa [trS_empty] at this
+  obtain ⟨R, hR⟩ := der_refutation hD he
+  exact ⟨R, hR.trans hlen⟩
+
+/-! ## Weight against formula size, and a syntactic rank condition -/
+
+theorem size_pos : ∀ φ : Fm, 1 ≤ φ.size
+  | .var _ => by rw [Fm.size]
+  | .neg φ => by rw [Fm.size]; omega
+  | .and l => by rw [Fm.size]; omega
+  | .or l => by rw [Fm.size]; omega
+  | .mod _ l => by rw [Fm.size]; omega
+
+theorem length_le_sum_size (l : List Fm) : l.length ≤ (l.map Fm.size).sum := by
+  induction l with
+  | nil => simp
+  | cons φ l ih =>
+    have := size_pos φ
+    simp only [List.length_cons, List.map_cons, List.sum_cons]; omega
+
+theorem wt_le_size : ∀ φ : Fm, wt φ ≤ φ.size
+  | .var _ => by rw [Fm.size]; exact le_rfl
+  | .neg φ => by rw [Fm.size]; exact (wt_le_size φ).trans (Nat.le_succ _)
+  | .and l => by
+    have e := Fm.attach_map l Fm.size
+    simp only at e
+    rw [Fm.size, e]
+    have := length_le_sum_size l
+    show l.length + 1 ≤ _
+    omega
+  | .or l => by
+    have e := Fm.attach_map l Fm.size
+    simp only at e
+    rw [Fm.size, e]
+    have := length_le_sum_size l
+    show l.length + 1 ≤ _
+    omega
+  | .mod _ l => by
+    have e := Fm.attach_map l Fm.size
+    simp only at e
+    rw [Fm.size, e]
+    have := length_le_sum_size l
+    show l.length + 1 ≤ _
+    omega
+
+theorem sum_wt_le (l : List Fm) : (l.map wt).sum ≤ (l.map Fm.size).sum := by
+  induction l with
+  | nil => simp
+  | cons φ l ih =>
+    have := wt_le_size φ
+    simp only [List.map_cons, List.sum_cons]; omega
+
+theorem fW_le (L : List Seq) : fW L ≤ fSize L + L.length := by
+  unfold fW fSize
+  induction L with
+  | nil => simp
+  | cons S L ih =>
+    have := sum_wt_le (S.1 ++ S.2)
+    simp only [List.map_cons, List.sum_cons, List.length_cons, wS] at ih ⊢
+    omega
+
+/-- Syntactic rank condition with sign: an `AND` in positive position and an `OR` in negative
+position has at most `ρ` members. -/
+def RankOK (ρ : ℕ) : Bool → Fm → Prop
+  | s, .neg φ => RankOK ρ (!s) φ
+  | true, .and l => l.length ≤ ρ
+  | false, .or l => l.length ≤ ρ
+  | _, _ => True
+
+theorem rank_conj_le (s : Bool) (l : List Fm) : rank ((l.map (zf s)).toFinset : Term p) ≤ l.length :=
+  (rank_le_card _).trans ((List.toFinset_card_le _).trans (by simp))
+
+theorem rank_singleton_le (f : AffForm p) : rank ({f} : Term p) ≤ 1 :=
+  (rank_le_card _).trans (by simp)
+
+theorem tr_rank (hρ : 1 ≤ ρ) : ∀ (φ : Fm) (s : Bool), RankOK ρ s φ →
+    ∀ T ∈ (tr s φ : RLine p), rank T ≤ ρ
+  | .var i, s, _ => by
+    intro T hT
+    have : T = {zf s (.var i)} := by cases s <;> simpa [tr] using hT
+    rw [this]; exact (rank_singleton_le _).trans hρ
+  | .neg φ, s, h => by
+    rw [tr_neg]
+    have h' : RankOK ρ (!s) φ := by cases s <;> exact h
+    exact tr_rank hρ φ (!s) h'
+  | .or l, s, h => by
+    intro T hT
+    cases s
+    · rw [show (tr false (.or l) : RLine p) = conj false l from rfl, mem_conj] at hT
+      rw [hT]; exact (rank_conj_le false l).trans h
+    · rw [show (tr true (.or l) : RLine p) = sing true l from rfl, mem_sing] at hT
+      obtain ⟨ψ, _, rfl⟩ := hT
+      exact (rank_singleton_le _).trans hρ
+  | .and l, s, h => by
+    intro T hT
+    cases s
+    · rw [show (tr false (.and l) : RLine p) = sing false l from rfl, mem_sing] at hT
+      obtain ⟨ψ, _, rfl⟩ := hT
+      exact (rank_singleton_le _).trans hρ
+    · rw [show (tr true (.and l) : RLine p) = conj true l from rfl, mem_conj] at hT
+      rw [hT]; exact (rank_conj_le true l).trans h
+  | .mod r l, s, _ => by
+    intro T hT
+    cases s
+    · simp only [tr, Finset.mem_image] at hT
+      obtain ⟨c, _, rfl⟩ := hT
+      exact (rank_singleton_le _).trans hρ
+    · simp only [tr, Finset.mem_singleton] at hT
+      rw [hT]; exact (rank_singleton_le _).trans hρ
+
+/-- The syntactic rank condition for a sequent. -/
+def RankS (ρ : ℕ) (S : Seq) : Prop :=
+  (∀ φ ∈ S.1, RankOK ρ false φ) ∧ (∀ φ ∈ S.2, RankOK ρ true φ)
+
+theorem bdd_of_rankS (hρ : 1 ≤ ρ) {S : Seq} (h : RankS ρ S) : Bdd ρ (trS S : RLine p) := by
+  intro T hT
+  rcases mem_trS.1 hT with ⟨φ, hφ, hT⟩ | ⟨φ, hφ, hT⟩
+  · exact tr_rank hρ φ false (h.1 φ hφ) T hT
+  · exact tr_rank hρ φ true (h.2 φ hφ) T hT
+
 end
+
+/-! ## The lower bound for the fragment on one hot Tseitin -/
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **Size lower bound for the flat bounded rank fragment of the AC0[p] Frege sequent calculus.**
+Let `p ∤ q`, `q ≥ 2`, `ε > 0` with `(κ + 1) ε < 1`.  For every `M` there is a cubic graph on
+`n ≥ M` vertices such that for every charge `b` and every `1 ≤ ρ ≤ ε ln n`: every refutation `L`
+of the one hot Tseitin mod `q` formula in the sequent calculus `FProof p`, all of whose sequents
+are flat over the variables of the formula and satisfy the syntactic rank condition `RankS ρ`,
+satisfies `exp (n^(1 - (κ+1) ε)) ≤ |L| (2p + 8) 2 (fSize L + |L|)`. -/
+theorem flat_frege_tseitin (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (kappa p q + 1) * ε < 1) (M : ℕ) :
+    ∃ (n : ℕ) (G : FinGraph n), M ≤ n ∧ IsRegular G 3 ∧ ∀ b : Fin n → ZMod q,
+      ∀ ρ : ℕ, 1 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log n →
+      ∀ L : List Seq, FProof p (tcnf G q b) L → (([], []) : Seq) ∈ L →
+        (∀ S ∈ L, FlatS (tVars G q) S) → (∀ S ∈ L, RankS ρ S) →
+        Real.exp ((n : ℝ) ^ (1 - (kappa p q + 1) * ε)) ≤
+          ((L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) : ℕ) : ℝ) := by
+  obtain ⟨n, G, hn, hreg, H⟩ := c1_main p hq hpq ε hε hεκ (max M 1)
+  have hn1 : 0 < n := lt_of_lt_of_le (by simp) hn
+  refine ⟨n, G, (le_max_left _ _).trans hn, hreg, fun b ρ hρ1 hρ L hL hE hflat hrank => ?_⟩
+  have hcard : 0 < (tVars G q).card := by
+    have h1 := card_G_ge hreg
+    have h2 := card_tVars_ge (q := q) hn1 G
+    omega
+  obtain ⟨v₀, hv⟩ := Finset.card_pos.1 hcard
+  obtain ⟨R, hR⟩ := frege_to_R (p := p) hv hρ1 hL hE hflat
+    (fun S hS => bdd_of_rankS hρ1 (hrank S hS))
+  refine (H b ρ hρ1 hρ R).trans ?_
+  have h3 : R.S ≤ L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) := by
+    refine hR.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ ?_))
+    have := fW_le L
+    omega
+  exact_mod_cast h3
 
 end FBridge
