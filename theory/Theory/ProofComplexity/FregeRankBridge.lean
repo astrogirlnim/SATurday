@@ -1471,6 +1471,79 @@ theorem bdd_of_rankS (hρ : 1 ≤ ρ) {S : Seq} (h : RankS ρ S) : Bdd ρ (trS S
   · exact tr_rank hρ φ false (h.1 φ hφ) T hT
   · exact tr_rank hρ φ true (h.2 φ hφ) T hT
 
+/-! ## Flat formulas are exactly the formulas of depth at most one -/
+
+/-- Variable of a literal (junk otherwise). -/
+def lvar : Fm → ℕ
+  | .var i => i
+  | .neg φ => lvar φ
+  | _ => 0
+
+/-- Variables of a formula of depth at most one. -/
+def fvars : Fm → Finset ℕ
+  | .var i => {i}
+  | .neg φ => fvars φ
+  | .and l => (l.map lvar).toFinset
+  | .or l => (l.map lvar).toFinset
+  | .mod _ l => (l.map lvar).toFinset
+
+theorem depth_gate (l : List Fm) :
+    (l.map Fm.depth).foldr max 0 = 0 ↔ ∀ ψ ∈ l, ψ.depth = 0 := by
+  induction l with
+  | nil => simp
+  | cons φ l ih =>
+    simp only [List.map_cons, List.foldr_cons, List.mem_cons, forall_eq_or_imp]
+    rw [← ih]; omega
+
+theorem lit_iff_depth : ∀ φ : Fm, LitIn V φ ↔ φ.depth = 0 ∧ lvar φ ∈ V
+  | .var i => by rw [Fm.depth]; simp [LitIn, lvar]
+  | .neg φ => by
+    rw [Fm.depth]
+    show LitIn V φ ↔ φ.depth = 0 ∧ lvar φ ∈ V
+    exact lit_iff_depth φ
+  | .and l => by rw [Fm.depth]; simp [LitIn]
+  | .or l => by rw [Fm.depth]; simp [LitIn]
+  | .mod _ l => by rw [Fm.depth]; simp [LitIn]
+
+theorem gate_flat (l : List Fm) :
+    (∀ ψ ∈ l, LitIn V ψ) ↔
+      ((l.map Fm.depth).foldr max 0 + 1 ≤ 1 ∧ (l.map lvar).toFinset ⊆ V) := by
+  have e : (l.map Fm.depth).foldr max 0 + 1 ≤ 1 ↔ (l.map Fm.depth).foldr max 0 = 0 := by omega
+  rw [e, depth_gate]
+  constructor
+  · intro h
+    refine ⟨fun ψ hψ => ((lit_iff_depth ψ).1 (h ψ hψ)).1, fun x hx => ?_⟩
+    simp only [List.mem_toFinset, List.mem_map] at hx
+    obtain ⟨ψ, hψ, rfl⟩ := hx
+    exact ((lit_iff_depth ψ).1 (h ψ hψ)).2
+  · rintro ⟨h1, h2⟩ ψ hψ
+    refine (lit_iff_depth ψ).2 ⟨h1 ψ hψ, h2 ?_⟩
+    simp only [List.mem_toFinset, List.mem_map]
+    exact ⟨ψ, hψ, rfl⟩
+
+/-- `FlatIn V φ` says exactly: `φ` has depth at most one and its variables lie in `V`. -/
+theorem flat_iff_depth : ∀ φ : Fm, FlatIn V φ ↔ φ.depth ≤ 1 ∧ fvars φ ⊆ V
+  | .var i => by rw [Fm.depth]; simp [FlatIn, fvars]
+  | .neg φ => by
+    rw [Fm.depth]
+    show FlatIn V φ ↔ φ.depth ≤ 1 ∧ fvars φ ⊆ V
+    exact flat_iff_depth φ
+  | .and l => by
+    have e := Fm.attach_map l Fm.depth
+    simp only at e
+    rw [Fm.depth, e]
+    exact gate_flat l
+  | .or l => by
+    have e := Fm.attach_map l Fm.depth
+    simp only at e
+    rw [Fm.depth, e]
+    exact gate_flat l
+  | .mod _ l => by
+    have e := Fm.attach_map l Fm.depth
+    simp only at e
+    rw [Fm.depth, e]
+    exact gate_flat l
+
 end
 
 /-! ## The lower bound for the fragment on one hot Tseitin -/
@@ -1506,5 +1579,28 @@ theorem flat_frege_tseitin (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2
     have := fW_le L
     omega
   exact_mod_cast h3
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **The same bound stated for `FRefutes p 1`.**  Every depth one refutation `L` (in the sense
+of `FRefutes`, all formulas of `Fm.depth ≤ 1`) of the one hot Tseitin mod `q` formula that only
+uses variables of the formula and satisfies the rank condition `RankS ρ` (every `AND` in positive
+position and every `OR` in negative position has at most `ρ ≤ ε ln n` members; `MOD_p` gates are
+unrestricted) has `exp (n^(1 - (κ+1) ε)) ≤ |L| (2p + 8) 2 (fSize L + |L|)`.
+
+This is a bound for a fragment.  It does not bound depth one AC0[p] Frege, where `AND` gates of
+unbounded fan in may occur in positive position. -/
+theorem depth1_rank_frege_tseitin (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (kappa p q + 1) * ε < 1) (M : ℕ) :
+    ∃ (n : ℕ) (G : FinGraph n), M ≤ n ∧ IsRegular G 3 ∧ ∀ b : Fin n → ZMod q,
+      ∀ ρ : ℕ, 1 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log n →
+      ∀ L : List Seq, FRefutes p 1 (tcnf G q b) L →
+        (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ tVars G q) → (∀ S ∈ L, RankS ρ S) →
+        Real.exp ((n : ℝ) ^ (1 - (kappa p q + 1) * ε)) ≤
+          ((L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) : ℕ) : ℝ) := by
+  obtain ⟨n, G, hn, hreg, H⟩ := flat_frege_tseitin p hq hpq ε hε hεκ M
+  refine ⟨n, G, hn, hreg, fun b ρ hρ1 hρ L hL hvars hrank => ?_⟩
+  obtain ⟨hproof, hdepth, hE⟩ := hL
+  exact H b ρ hρ1 hρ L hproof hE
+    (fun S hS φ hφ => (flat_iff_depth φ).2 ⟨hdepth S hS φ hφ, hvars S hS φ hφ⟩) hrank
 
 end FBridge
