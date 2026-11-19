@@ -157,6 +157,14 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   Tseitin: at least `2^(n^delta / (2624 q))` nodes for every `d <= n^(1 - delta)`
   (`PICT.pic_tree_main_idx`, `FTree.frege_tree_main_idx`). Tree-like only; the dag-like pin
   `FDegFrontier.log2_degree_target` stays open.
+  Relative version, kernel checked (2026-11-19, `PICTree.lean`, `FregeTree.lean`, report
+  `docs/ladder/rungs/r4-treedeg-relative-report.md`): the measure is relative to any base axiom set
+  (`PICT.RefA`), and tree-like sequent proofs may use a set `H` of hypothesis sequents as leaves
+  (`FTree.TProofH`). A tree with `s` nodes inside `DegS p d` refuting `F` plus `H`, every hypothesis
+  with at most `k` translated terms, gives a polynomial calculus refutation of degree
+  `d log2 s + max(w, k d, 3d)` of `cnfAx F` plus the polynomials `prod (1 - g)` of the hypotheses
+  (`FTree.tree_frege_pc_degree_hyp`, `FTree.tree_frege_size_of_degree_hyp`). Known mathematics. The
+  Buss, Kolodziejczyk, Zdanowski weak pigeonhole hypothesis family is not defined, so no pin was added.
 - Stop rule: 3 failed attempts on one method kill that method branch.
 
 ## Phase 3: certify R4

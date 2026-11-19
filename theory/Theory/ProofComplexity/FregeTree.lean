@@ -146,26 +146,26 @@ theorem one_sub_prod_list {A : Set (PP p)} {E d : ℕ} :
     exact add_mem hx (cd_mul i1 (by omega))
 
 /-- A valid sequent with at most three formulas, each with `pd ≤ d`, is refuted in degree `3 d`. -/
-theorem valid_ref {Φ : CNF} {S : Seq} {d D' : ℕ} (hval : ∀ a : Assignment, SeqSat p a S)
+theorem valid_refA {A : Set (PP p)} {S : Seq} {d D' : ℕ} (hval : ∀ a : Assignment, SeqSat p a S)
     (hpd : ∀ φ ∈ S.1 ++ S.2, pd p φ ≤ d) (hlen : (S.1 ++ S.2).length ≤ 3) (h3 : 3 * d ≤ D')
-    (h2 : 2 ≤ D') : Ref Φ (trS p S) D' := by
-  unfold Ref
-  set A : Set (PP p) := cnfAx Φ ∪ (↑(trS p S) : Set (PP p)) with hA
+    (h2 : 2 ≤ D') : RefA A (trS p S) D' := by
+  unfold RefA
+  set B : Set (PP p) := A ∪ (↑(trS p S) : Set (PP p)) with hB
   set xs : List (PP p) := S.1.map (fun φ => sg false (val p φ)) ++
     S.2.map (fun φ => sg true (val p φ)) with hxs
   have hdD : d ≤ D' := by omega
-  have hx : ∀ x ∈ xs, x ∈ CD A D' ∧ x.totalDegree ≤ d := by
+  have hx : ∀ x ∈ xs, x ∈ CD B D' ∧ x.totalDegree ≤ d := by
     intro x hx
     rcases List.mem_append.1 hx with h | h
     · obtain ⟨φ, hφ, rfl⟩ := List.mem_map.1 h
       have hp := hpd φ (List.mem_append_left _ hφ)
       refine ⟨split_cd φ false (hp.trans hdD) fun g hg => ?_, (sg_deg _ _).trans hp⟩
-      exact ax_mem (mem_trS.2 (Or.inl ⟨φ, hφ, hg⟩))
+      exact ax_memA (mem_trS.2 (Or.inl ⟨φ, hφ, hg⟩))
         (((deg_tr hg).trans (td_le_pd φ false)).trans (hp.trans hdD))
     · obtain ⟨φ, hφ, rfl⟩ := List.mem_map.1 h
       have hp := hpd φ (List.mem_append_right _ hφ)
       refine ⟨split_cd φ true (hp.trans hdD) fun g hg => ?_, (sg_deg _ _).trans hp⟩
-      exact ax_mem (mem_trS.2 (Or.inr ⟨φ, hφ, hg⟩))
+      exact ax_memA (mem_trS.2 (Or.inr ⟨φ, hφ, hg⟩))
         (((deg_tr hg).trans (td_le_pd φ true)).trans (hp.trans hdD))
   have hl : xs.length ≤ 3 := by
     rw [hxs, List.length_append, List.length_map, List.length_map]
@@ -190,14 +190,14 @@ theorem valid_ref {Φ : CNF} {S : Seq} {d D' : ℕ} (hval : ∀ a : Assignment, 
     rw [map_list_prod, List.map_map]
     refine List.prod_eq_zero (List.mem_map.2 ⟨x, hxm, ?_⟩)
     simp [hx1]
-  have k3 := cd_of_cube (Ax := A) (D := D') h2 (k2.trans hdl) hcube
+  have k3 := cd_of_cube (Ax := B) (D := D') h2 (k2.trans hdl) hcube
   have := add_mem k1 k3
   rwa [sub_add_cancel] at this
 
 /-- Variant of `PICT.ref_of_derive` with the degree of the term at hand. -/
-theorem ref_of_derive' {Φ : CNF} {L₁ L' : PLine p} {D₁ D' : ℕ} (hD : D₁ ≤ D')
-    (h : ∀ g ∈ L₁, g.totalDegree ≤ D₁ → g ∈ CD (cnfAx Φ ∪ (↑L' : Set (PP p))) D')
-    (h1 : Ref Φ L₁ D₁) : Ref Φ L' D' := by
+theorem refA_of_derive' {A : Set (PP p)} {L₁ L' : PLine p} {D₁ D' : ℕ} (hD : D₁ ≤ D')
+    (h : ∀ g ∈ L₁, g.totalDegree ≤ D₁ → g ∈ CD (A ∪ (↑L' : Set (PP p))) D')
+    (h1 : RefA A L₁ D₁) : RefA A L' D' := by
   refine cd_subst hD ?_ h1
   rintro f (hf | hf) hd
   · exact mem_CD_of_pcd (PCD.ax (Or.inl hf) (hd.trans hD))
@@ -205,15 +205,15 @@ theorem ref_of_derive' {Φ : CNF} {L₁ L' : PLine p} {D₁ D' : ℕ} (hD : D₁
 
 /-- **Deduction on a line.**  If every term of `L₁` is a term of `L'` or implies the indicator `h`,
 a refutation below `L₁` in degree `D₀` derives `1 - h` below `L'` in degree `max D₀ (2 d) + d`. -/
-theorem ded_line {Φ : CNF} {L₁ L' : PLine p} {h : PP p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d)
+theorem ded_lineA {A : Set (PP p)} {L₁ L' : PLine p} {h : PP p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d)
     (hcube : ∀ a : Assignment, eval (boolPt (F := ZMod p) a) h = 0 ∨
       eval (boolPt (F := ZMod p) a) h = 1)
     (hdeg : h.totalDegree ≤ d)
     (hL : ∀ g ∈ L₁, g ∈ L' ∨ (g.totalDegree ≤ d ∧ ∀ a : Assignment,
       eval (boolPt (F := ZMod p) a) g * (1 - eval (boolPt (F := ZMod p) a) h) = 0))
-    (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D') (hr : Ref Φ L₁ D₀) :
-    1 - h ∈ CD (cnfAx Φ ∪ (↑L' : Set (PP p))) D' := by
-  set A' : Set (PP p) := cnfAx Φ ∪ (↑L' : Set (PP p)) with hA'
+    (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D') (hr : RefA A L₁ D₀) :
+    1 - h ∈ CD (A ∪ (↑L' : Set (PP p))) D' := by
+  set A' : Set (PP p) := A ∪ (↑L' : Set (PP p)) with hA'
   have m1 : D₀ ≤ max D₀ (2 * d) := le_max_left _ _
   have m2 : 2 * d ≤ max D₀ (2 * d) := le_max_right _ _
   have key : (1 : PP p) ∈ CD (insert h A') (max D₀ (2 * d)) := by
@@ -238,7 +238,7 @@ theorem ded_line {Φ : CNF} {L₁ L' : PLine p} {h : PP p} {d D₀ D' : ℕ} (hd
 
 /-- **Cut with an indicator.**  Terms of `L₁` outside `L'` imply `h`, terms of `L₂` outside `L'`
 exclude `h`.  Deduction on `L₁`. -/
-theorem cut_core {Φ : CNF} {L₁ L₂ L' : PLine p} {h : PP p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d)
+theorem cut_coreA {A : Set (PP p)} {L₁ L₂ L' : PLine p} {h : PP p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d)
     (hcube : ∀ a : Assignment, eval (boolPt (F := ZMod p) a) h = 0 ∨
       eval (boolPt (F := ZMod p) a) h = 1)
     (hdeg : h.totalDegree ≤ d)
@@ -246,12 +246,12 @@ theorem cut_core {Φ : CNF} {L₁ L₂ L' : PLine p} {h : PP p} {d D₀ D' : ℕ
       eval (boolPt (F := ZMod p) a) g * (1 - eval (boolPt (F := ZMod p) a) h) = 0))
     (hL₂ : ∀ g ∈ L₂, g ∈ L' ∨ (g.totalDegree ≤ d ∧ ∀ a : Assignment,
       eval (boolPt (F := ZMod p) a) g * eval (boolPt (F := ZMod p) a) h = 0))
-    (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D') (hr1 : Ref Φ L₁ D₀) (hr2 : Ref Φ L₂ D') :
-    Ref Φ L' D' := by
-  have hb := ded_line hd1 hcube hdeg hL₁ hD h3 hr1
-  refine ref_of_derive' le_rfl (fun g hg hgd => ?_) hr2
+    (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D') (hr1 : RefA A L₁ D₀) (hr2 : RefA A L₂ D') :
+    RefA A L' D' := by
+  have hb := ded_lineA hd1 hcube hdeg hL₁ hD h3 hr1
+  refine refA_of_derive' le_rfl (fun g hg hgd => ?_) hr2
   rcases hL₂ g hg with h' | ⟨hgd', hc⟩
-  · exact ax_mem h' hgd
+  · exact ax_memA h' hgd
   · have e : g = g * (1 - h) + g * h := by ring
     rw [e]
     have t1 := deg_one_sub h
@@ -298,13 +298,13 @@ theorem gate_absorb {A : Set (PP p)} {E d : ℕ} (s : Bool) (ψs : Fm) {y : PP p
 /-- **Gate rule with many premises.**  The conclusion `L'` contains the product term of the gate;
 the premise for the member `ψ` consists of terms of `L'` and terms of `ψ`.  All premises except
 the pivot are refuted in degree `D₀`, the pivot in degree `D'`. -/
-theorem gate_core {Φ : CNF} {L' : PLine p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d) (s : Bool) (l : List Fm)
+theorem gate_coreA {A : Set (PP p)} {L' : PLine p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d) (s : Bool) (l : List Fm)
     (ψs : Fm) (Lψ : Fm → PLine p) (hsum : (l.map (pd p)).sum ≤ d)
     (hu : (l.map fun ψ => sg s (val p ψ)).prod ∈ L')
     (hL : ∀ ψ ∈ l, ∀ g ∈ Lψ ψ, g ∈ L' ∨ g ∈ trL p s ψ)
     (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D')
-    (hsmall : ∀ ψ ∈ l, ψ ≠ ψs → Ref Φ (Lψ ψ) D₀) (hbig : ψs ∈ l → Ref Φ (Lψ ψs) D') :
-    Ref Φ L' D' := by
+    (hsmall : ∀ ψ ∈ l, ψ ≠ ψs → RefA A (Lψ ψ) D₀) (hbig : ψs ∈ l → RefA A (Lψ ψs) D') :
+    RefA A L' D' := by
   have hpdψ : ∀ ψ ∈ l, pd p ψ ≤ d := fun ψ hψ =>
     (le_sum_of_mem (List.mem_map.2 ⟨ψ, hψ, rfl⟩)).trans hsum
   have hterm : ∀ ψ ∈ l, ∀ g ∈ trL p s ψ, g.totalDegree ≤ d ∧ ∀ a : Assignment,
@@ -312,27 +312,27 @@ theorem gate_core {Φ : CNF} {L' : PLine p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d) (s
         (1 - eval (boolPt (F := ZMod p) a) (sg s (val p ψ))) = 0 := fun ψ hψ g hg =>
     ⟨((deg_tr hg).trans (td_le_pd ψ s)).trans (hpdψ ψ hψ), tr_imp hg⟩
   have h1 : ∀ ψ ∈ l, ψ ≠ ψs →
-      1 - sg s (val p ψ) ∈ CD (cnfAx Φ ∪ (↑L' : Set (PP p))) D' := fun ψ hψ hne =>
-    ded_line hd1 (sg_cube s ψ) ((sg_deg s ψ).trans (hpdψ ψ hψ))
+      1 - sg s (val p ψ) ∈ CD (A ∪ (↑L' : Set (PP p))) D' := fun ψ hψ hne =>
+    ded_lineA hd1 (sg_cube s ψ) ((sg_deg s ψ).trans (hpdψ ψ hψ))
       (fun g hg => (hL ψ hψ g hg).imp id (hterm ψ hψ g)) hD h3 (hsmall ψ hψ hne)
   have du : ((l.map fun ψ => sg s (val p ψ)).prod).totalDegree ≤ d :=
     (deg_list_prod l _ _ (fun χ _ => sg_deg s χ)).trans hsum
-  have hu' := ax_mem (Φ := Φ) (D := D') hu (du.trans (by omega))
+  have hu' := ax_memA (A := A) (D := D') hu (du.trans (by omega))
   by_cases hm : ψs ∈ l
-  · refine ref_of_derive' le_rfl (fun g hg hgd => ?_) (hbig hm)
+  · refine refA_of_derive' le_rfl (fun g hg hgd => ?_) (hbig hm)
     rcases hL ψs hm g hg with h' | h'
-    · exact ax_mem h' hgd
+    · exact ax_memA h' hgd
     · obtain ⟨hgd', hc⟩ := hterm ψs hm g h'
       have e : g = g * (1 - (l.map fun ψ => sg s (val p ψ)).prod) +
           g * (l.map fun ψ => sg s (val p ψ)).prod := by ring
       rw [e]
       exact add_mem (gate_absorb s ψs hgd' (by omega) (by omega) l hsum h1 (fun _ => hc))
         (cd_mul hu' (by omega))
-  · have := gate_absorb (A := cnfAx Φ ∪ (↑L' : Set (PP p))) (E := D') s ψs (y := 1) (d := d)
+  · have := gate_absorb (A := A ∪ (↑L' : Set (PP p))) (E := D') s ψs (y := 1) (d := d)
       (by simp) (by omega) (by omega) l hsum h1 (fun h => absurd h hm)
     rw [one_mul] at this
     have h4 := add_mem this hu'
-    unfold Ref
+    unfold RefA
     rwa [sub_add_cancel] at h4
 
 /-! ## One step of the sequent calculus -/
@@ -340,19 +340,19 @@ theorem gate_core {Φ : CNF} {L' : PLine p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d) (s
 /-- **Step lemma.**  `S` follows from `prev` by a rule of the pinned calculus, all sequents in
 `DegS p d`.  If every premise is refuted in degree `D'` and every premise except the pivot `Ts` in
 degree `D₀ ≤ D' - d`, then `S` is refuted in degree `D'`. -/
-theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F, C.card ≤ w)
+theorem step_refA {F : CNF} {A : Set (PP p)} (hA : cnfAx F ⊆ A) {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F, C.card ≤ w)
     (hwD : w ≤ D') (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D')
     {prev : List Seq} {S : Seq} (hstep : FStep p F prev S) (hdS : DegS p d S)
     (hdT : ∀ T ∈ prev, DegS p d T) (Ts : Seq)
-    (hbig : ∀ T ∈ prev, Ref F (trS p T) D')
-    (hsmall : ∀ T ∈ prev, T ≠ Ts → Ref F (trS p T) D₀) : Ref F (trS p S) D' := by
+    (hbig : ∀ T ∈ prev, RefA A (trS p T) D')
+    (hsmall : ∀ T ∈ prev, T ≠ Ts → RefA A (trS p T) D₀) : RefA A (trS p S) D' := by
   have hp0 : 0 < p := (Fact.out : p.Prime).pos
   have h2 : 2 ≤ D' := by omega
   have hsat : ∀ {S' : Seq}, FStep p (∅ : CNF) [] S' → ∀ a : Assignment, SeqSat p a S' :=
     fun hS' a => fstep_sound hp0 (F := ∅) (a := a) (fun C hC => by simp at hC)
       (prev := []) (fun T hT => by simp at hT) hS'
-  have hsubref : ∀ T ∈ prev, trS p T ⊆ trS p S → Ref F (trS p S) D' := fun T hT hsub =>
-    ref_of_derive' le_rfl (fun g hg hgd => ax_mem (hsub hg) hgd) (hbig T hT)
+  have hsubref : ∀ T ∈ prev, trS p T ⊆ trS p S → RefA A (trS p S) D' := fun T hT hsub =>
+    refA_of_derive' le_rfl (fun g hg hgd => ax_memA (hsub hg) hgd) (hbig T hT)
   rcases hstep with ⟨C, hC, rfl⟩ | ⟨φ, rfl⟩ | rfl | rfl | rfl | ⟨r, hr, rfl⟩ | ⟨r, φ, l, rfl⟩ |
       ⟨r, φ, l, rfl⟩ | ⟨r, φ, l, rfl⟩ | ⟨r, φ, l, rfl⟩ | ⟨T, hT, h1, h2'⟩ | ⟨φ, h1, h2'⟩ |
       ⟨φ, Γ, Δ, rfl, h1⟩ | ⟨φ, Γ, Δ, rfl, h1⟩ | ⟨l, Γ, Δ, φ, hφ, rfl, h1⟩ | ⟨l, Γ, Δ, rfl, h1⟩ |
@@ -364,10 +364,10 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
       refine mem_trS.2 (Or.inr ⟨clauseFm C, by simp, ?_⟩)
       exact (mem_trL_or_true _ _).2 ⟨litFm l, List.mem_map.2 ⟨l, Finset.mem_toList.2 hl, rfl⟩,
         litInd_mem l⟩
-    exact ref_of_derive' le_rfl (fun g hg hgd => ax_mem (hsub hg) hgd)
-      (ref_init hC ((hw C hC).trans hwD) (by omega))
+    exact refA_of_derive' le_rfl (fun g hg hgd => ax_memA (hsub hg) hgd)
+      (refA_init (hA ⟨C, hC, rfl⟩) ((hw C hC).trans hwD) (by omega))
   · -- φ ⊢ φ
-    refine valid_ref (hsat (Or.inr (Or.inl ⟨φ, rfl⟩))) ?_ (by simp) h3 h2
+    refine valid_refA (hsat (Or.inr (Or.inl ⟨φ, rfl⟩))) ?_ (by simp) h3 h2
     intro ψ hψ
     have e : ψ = φ := by simpa using hψ
     subst e
@@ -377,28 +377,28 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
     · exact hdS.1 ψ (by simp)
     · exact hdS.2 ψ (by simp)
   · -- ⊢ AND()
-    refine valid_ref (hsat (Or.inr (Or.inr (Or.inl rfl)))) ?_ (by simp) h3 h2
+    refine valid_refA (hsat (Or.inr (Or.inr (Or.inl rfl)))) ?_ (by simp) h3 h2
     intro ψ hψ
     have e : ψ = .and [] := by simpa using hψ
     subst e; rw [pd_and]; simp
   · -- OR() ⊢
-    refine valid_ref (hsat (Or.inr (Or.inr (Or.inr (Or.inl rfl))))) ?_ (by simp) h3 h2
+    refine valid_refA (hsat (Or.inr (Or.inr (Or.inr (Or.inl rfl))))) ?_ (by simp) h3 h2
     intro ψ hψ
     have e : ψ = .or [] := by simpa using hψ
     subst e; rw [pd_or]; simp
   · -- ⊢ MOD_0()
-    refine valid_ref (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl)))))) ?_ (by simp) h3 h2
+    refine valid_refA (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl)))))) ?_ (by simp) h3 h2
     intro ψ hψ
     have e : ψ = .mod 0 [] := by simpa using hψ
     subst e; rw [pd_mod]; simp
   · -- MOD_r() ⊢
-    refine valid_ref (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, hr, rfl⟩)))))))
+    refine valid_refA (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, hr, rfl⟩)))))))
       ?_ (by simp) h3 h2
     intro ψ hψ
     have e : ψ = .mod r [] := by simpa using hψ
     subst e; rw [pd_mod]; simp
   · -- MOD axiom 1
-    refine valid_ref (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+    refine valid_refA (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
       (Or.inl ⟨r, φ, l, rfl⟩)))))))) ?_ (by simp) h3 h2
     have hA : pd p (.mod r (φ :: l)) ≤ d := by
       have := hdS.1 (.mod r (φ :: l)) (by simp); rwa [td_mod] at this
@@ -412,7 +412,7 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
     · exact (pd_le_mod (r := r) (l := ψ :: l) (by simp)).trans hA
     · exact hB
   · -- MOD axiom 2
-    refine valid_ref (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+    refine valid_refA (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
       (Or.inl ⟨r, φ, l, rfl⟩))))))))) ?_ (by simp) h3 h2
     have hA : pd p (.mod r (φ :: l)) ≤ d := by
       have := hdS.1 (.mod r (φ :: l)) (by simp); rwa [td_mod] at this
@@ -426,7 +426,7 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
     · exact (pd_le_mod (r := r) (l := ψ :: l) (by simp)).trans hA
     · exact hB
   · -- MOD axiom 3
-    refine valid_ref (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+    refine valid_refA (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
       (Or.inl ⟨r, φ, l, rfl⟩)))))))))) ?_ (by simp) h3 h2
     have hA : pd p (.mod r (φ :: l)) ≤ d := by
       have := hdS.2 (.mod r (φ :: l)) (by simp); rwa [td_mod] at this
@@ -440,7 +440,7 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
     · exact hB
     · exact hA
   · -- MOD axiom 4
-    refine valid_ref (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+    refine valid_refA (hsat (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
       (Or.inr (Or.inl ⟨r, φ, l, rfl⟩))))))))))) ?_ (by simp) h3 h2
     have hA : pd p (.mod r (φ :: l)) ≤ d := by
       have := hdS.2 (.mod r (φ :: l)) (by simp); rwa [td_mod] at this
@@ -488,7 +488,7 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
     by_cases e1 : (S.1, φ :: S.2) = Ts
     · -- deduction on the second premise, with the indicator of "φ false"
       have e2 : (φ :: S.1, S.2) ≠ Ts := fun e => hne (e1.trans e.symm)
-      refine cut_core hd1 (sg_cube false φ) ((sg_deg false φ).trans hpd) (L₁ := trS p (φ :: S.1, S.2))
+      refine cut_coreA hd1 (sg_cube false φ) ((sg_deg false φ).trans hpd) (L₁ := trS p (φ :: S.1, S.2))
         (L₂ := trS p (S.1, φ :: S.2)) ?_ ?_ hD h3 (hsmall _ h2' e2) (hbig _ h1)
       · intro g hg
         exact (m2 g hg).imp id fun h => ⟨dg false g h, tr_imp h⟩
@@ -496,7 +496,7 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
         refine (m1 g hg).imp id fun h => ⟨dg true g h, fun a => ?_⟩
         have := tr_excl (s := false) (φ := φ) (g := g) h a
         simpa using this
-    · refine cut_core hd1 (sg_cube true φ) ((sg_deg true φ).trans hpd) (L₁ := trS p (S.1, φ :: S.2))
+    · refine cut_coreA hd1 (sg_cube true φ) ((sg_deg true φ).trans hpd) (L₁ := trS p (S.1, φ :: S.2))
         (L₂ := trS p (φ :: S.1, S.2)) ?_ ?_ hD h3 (hsmall _ h1 e1) (hbig _ h2')
       · intro g hg
         exact (m1 g hg).imp id fun h => ⟨dg true g h, tr_imp h⟩
@@ -530,7 +530,7 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
     have hsum : (l.map (pd p)).sum ≤ d := by
       have := hdS.2 (.and l) (by simp)
       rwa [td_and_true, pd_and] at this
-    refine gate_core hd1 true l (Ts.2.headD (.var 0)) (fun ψ => trS p (Γ, ψ :: Δ)) hsum ?_ ?_ hD
+    refine gate_coreA hd1 true l (Ts.2.headD (.var 0)) (fun ψ => trS p (Γ, ψ :: Δ)) hsum ?_ ?_ hD
       h3 (fun ψ hψ hne => hsmall _ (h1 ψ hψ) (fun e => hne (by rw [← e]; rfl)))
       (fun hm => hbig _ (h1 _ hm))
     · refine mem_trS.2 (Or.inr ⟨.and l, List.mem_cons_self, ?_⟩)
@@ -548,7 +548,7 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
     have hsum : (l.map (pd p)).sum ≤ d := by
       have := hdS.1 (.or l) (by simp)
       rwa [td_or_false, pd_or] at this
-    refine gate_core hd1 false l (Ts.1.headD (.var 0)) (fun ψ => trS p (ψ :: Γ, Δ)) hsum ?_ ?_ hD
+    refine gate_coreA hd1 false l (Ts.1.headD (.var 0)) (fun ψ => trS p (ψ :: Γ, Δ)) hsum ?_ ?_ hD
       h3 (fun ψ hψ hne => hsmall _ (h1 ψ hψ) (fun e => hne (by rw [← e]; rfl)))
       (fun hm => hbig _ (h1 _ hm))
     · refine mem_trS.2 (Or.inl ⟨.or l, List.mem_cons_self, ?_⟩)
@@ -570,6 +570,63 @@ theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F
       · exact mem_trS.2 (Or.inr ⟨.or l, List.mem_cons_self,
           (mem_trL_or_true l g).2 ⟨ψ, hφ, h⟩⟩)
       · exact mem_trS.2 (Or.inr ⟨ψ, List.mem_cons_of_mem _ hψ', h⟩)
+
+/-! ### The same lemmas over the clauses of `F` (the original statements) -/
+
+/-- A valid sequent with at most three formulas, each with `pd ≤ d`, is refuted in degree `3 d`. -/
+theorem valid_ref {Φ : CNF} {S : Seq} {d D' : ℕ} (hval : ∀ a : Assignment, SeqSat p a S)
+    (hpd : ∀ φ ∈ S.1 ++ S.2, pd p φ ≤ d) (hlen : (S.1 ++ S.2).length ≤ 3) (h3 : 3 * d ≤ D')
+    (h2 : 2 ≤ D') : Ref Φ (trS p S) D' :=
+  valid_refA hval hpd hlen h3 h2
+
+/-- Variant of `PICT.ref_of_derive` with the degree of the term at hand. -/
+theorem ref_of_derive' {Φ : CNF} {L₁ L' : PLine p} {D₁ D' : ℕ} (hD : D₁ ≤ D')
+    (h : ∀ g ∈ L₁, g.totalDegree ≤ D₁ → g ∈ CD (cnfAx Φ ∪ (↑L' : Set (PP p))) D')
+    (h1 : Ref Φ L₁ D₁) : Ref Φ L' D' :=
+  refA_of_derive' hD h h1
+
+/-- **Deduction on a line.** -/
+theorem ded_line {Φ : CNF} {L₁ L' : PLine p} {h : PP p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d)
+    (hcube : ∀ a : Assignment, eval (boolPt (F := ZMod p) a) h = 0 ∨
+      eval (boolPt (F := ZMod p) a) h = 1)
+    (hdeg : h.totalDegree ≤ d)
+    (hL : ∀ g ∈ L₁, g ∈ L' ∨ (g.totalDegree ≤ d ∧ ∀ a : Assignment,
+      eval (boolPt (F := ZMod p) a) g * (1 - eval (boolPt (F := ZMod p) a) h) = 0))
+    (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D') (hr : Ref Φ L₁ D₀) :
+    1 - h ∈ CD (cnfAx Φ ∪ (↑L' : Set (PP p))) D' :=
+  ded_lineA hd1 hcube hdeg hL hD h3 hr
+
+/-- **Cut with an indicator.** -/
+theorem cut_core {Φ : CNF} {L₁ L₂ L' : PLine p} {h : PP p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d)
+    (hcube : ∀ a : Assignment, eval (boolPt (F := ZMod p) a) h = 0 ∨
+      eval (boolPt (F := ZMod p) a) h = 1)
+    (hdeg : h.totalDegree ≤ d)
+    (hL₁ : ∀ g ∈ L₁, g ∈ L' ∨ (g.totalDegree ≤ d ∧ ∀ a : Assignment,
+      eval (boolPt (F := ZMod p) a) g * (1 - eval (boolPt (F := ZMod p) a) h) = 0))
+    (hL₂ : ∀ g ∈ L₂, g ∈ L' ∨ (g.totalDegree ≤ d ∧ ∀ a : Assignment,
+      eval (boolPt (F := ZMod p) a) g * eval (boolPt (F := ZMod p) a) h = 0))
+    (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D') (hr1 : Ref Φ L₁ D₀) (hr2 : Ref Φ L₂ D') :
+    Ref Φ L' D' :=
+  cut_coreA hd1 hcube hdeg hL₁ hL₂ hD h3 hr1 hr2
+
+/-- **Gate rule with many premises.** -/
+theorem gate_core {Φ : CNF} {L' : PLine p} {d D₀ D' : ℕ} (hd1 : 1 ≤ d) (s : Bool) (l : List Fm)
+    (ψs : Fm) (Lψ : Fm → PLine p) (hsum : (l.map (pd p)).sum ≤ d)
+    (hu : (l.map fun ψ => sg s (val p ψ)).prod ∈ L')
+    (hL : ∀ ψ ∈ l, ∀ g ∈ Lψ ψ, g ∈ L' ∨ g ∈ trL p s ψ)
+    (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D')
+    (hsmall : ∀ ψ ∈ l, ψ ≠ ψs → Ref Φ (Lψ ψ) D₀) (hbig : ψs ∈ l → Ref Φ (Lψ ψs) D') :
+    Ref Φ L' D' :=
+  gate_coreA hd1 s l ψs Lψ hsum hu hL hD h3 hsmall hbig
+
+/-- **Step lemma.** -/
+theorem step_ref {F : CNF} {d w D₀ D' : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F, C.card ≤ w)
+    (hwD : w ≤ D') (hD : D₀ + d ≤ D') (h3 : 3 * d ≤ D')
+    {prev : List Seq} {S : Seq} (hstep : FStep p F prev S) (hdS : DegS p d S)
+    (hdT : ∀ T ∈ prev, DegS p d T) (Ts : Seq)
+    (hbig : ∀ T ∈ prev, Ref F (trS p T) D')
+    (hsmall : ∀ T ∈ prev, T ≠ Ts → Ref F (trS p T) D₀) : Ref F (trS p S) D' :=
+  step_refA (A := cnfAx F) subset_rfl hd1 hw hwD hD h3 hstep hdS hdT Ts hbig hsmall
 
 /-! ## Tree-like proofs -/
 
@@ -656,7 +713,7 @@ theorem tree_frege_pc_degree {F : CNF} {d w : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C �
     {s : ℕ} (h : TProof p F (DegS p d) ([], []) s) {k : ℕ} (hk : s ≤ 2 ^ k) :
     PCD (cnfAx (F := ZMod p) F) (d * k + max w (3 * d)) 1 := by
   have h1 := tproof_ref hd1 hw (le_max_left _ _) (le_max_right _ _) h k hk
-  unfold Ref at h1
+  unfold Ref RefA at h1
   rw [trS_empty, Finset.coe_empty, Set.union_empty] at h1
   rcases h1 with h0 | h1
   · exact absurd h0 one_ne_zero
@@ -745,6 +802,184 @@ theorem TProof.unsat {F : CNF} {P : Seq → Prop} {s : ℕ} (h : TProof p F P ([
   have := fproof_sound (Fact.out : p.Prime).pos ha hL _ hm
   obtain ⟨ψ, hψ, -⟩ := this (by simp)
   simp at hψ
+
+/-! ## Hypothesis sequents: the relative version
+
+`TProofH p F H P S s` allows, besides the 18 rules, any sequent of a set `H` as a leaf.  The
+hypothesis `S ∈ H` is translated into the polynomial `∏ (1 - g)` over the terms `g` of `trS p S`
+(`hypAx`); on the cube it vanishes exactly when some term of the translation is `1`.  With at most
+`k` terms per hypothesis the leaf is refuted in degree `k d` (`hyp_refA`, by the telescoping
+`one_sub_prod_list`), and the tree induction is unchanged (`tproofH_refA`). -/
+
+/-- Tree-like derivations from the clauses of `F` and the hypothesis sequents `H`: as `TProof`,
+with one more kind of leaf, a sequent of `H` (one node). -/
+inductive TProofH (p : ℕ) (F : CNF) (H : Set Seq) (P : Seq → Prop) : Seq → ℕ → Prop
+  | node {S : Seq} (prev : List Seq) (sz : Seq → ℕ)
+      (hprev : ∀ T ∈ prev, TProofH p F H P T (sz T)) (hstep : FStep p F prev S) (hP : P S) :
+      TProofH p F H P S ((prev.map sz).sum + 1)
+  | hyp {S : Seq} (hS : S ∈ H) (hP : P S) : TProofH p F H P S 1
+
+theorem TProofH.pos {F : CNF} {H : Set Seq} {P : Seq → Prop} {S : Seq} {s : ℕ}
+    (h : TProofH p F H P S s) : 1 ≤ s := by
+  cases h <;> omega
+
+theorem TProofH.prop {F : CNF} {H : Set Seq} {P : Seq → Prop} {S : Seq} {s : ℕ}
+    (h : TProofH p F H P S s) : P S := by
+  cases h with
+  | node _ _ _ _ hP => exact hP
+  | hyp _ hP => exact hP
+
+/-- A tree-like derivation without hypotheses is one with hypotheses `H`, for every `H`. -/
+theorem TProof.toH {F : CNF} {P : Seq → Prop} (H : Set Seq) {S : Seq} {s : ℕ}
+    (h : TProof p F P S s) : TProofH p F H P S s := by
+  induction h with
+  | node prev sz _ hstep hP ih => exact TProofH.node prev sz ih hstep hP
+
+/-- Soundness: an assignment satisfying `F` and every sequent of `H` satisfies every sequent
+derived from them. -/
+theorem TProofH.sound {F : CNF} {H : Set Seq} {P : Seq → Prop} {a : Assignment}
+    (ha : cnfSat a F) (hH : ∀ T ∈ H, SeqSat p a T) {S : Seq} {s : ℕ}
+    (h : TProofH p F H P S s) : SeqSat p a S := by
+  induction h with
+  | node prev sz _ hstep _ ih =>
+    exact fstep_sound (Fact.out : p.Prime).pos ha (fun T hT => ih T hT) hstep
+  | hyp hS _ => exact hH _ hS
+
+/-- Soundness of refutations with hypotheses: no assignment satisfies `F` and all of `H`. -/
+theorem TProofH.unsat {F : CNF} {H : Set Seq} {P : Seq → Prop} {s : ℕ}
+    (h : TProofH p F H P ([], []) s) : ¬ ∃ a : Assignment, cnfSat a F ∧ ∀ T ∈ H, SeqSat p a T := by
+  rintro ⟨a, ha, hH⟩
+  obtain ⟨ψ, hψ, -⟩ := h.sound ha hH (by simp)
+  simp at hψ
+
+/-- The polynomial of a hypothesis sequent: the product of `1 - g` over the terms `g` of its
+translation. -/
+def hypPoly (p : ℕ) [Fact p.Prime] (S : Seq) : PP p := ∏ g ∈ trS p S, (1 - g)
+
+/-- The axioms of the hypothesis sequents `H`. -/
+def hypAx (p : ℕ) [Fact p.Prime] (H : Set Seq) : Set (PP p) := {f | ∃ S ∈ H, f = hypPoly p S}
+
+/-- On a cube point, the hypothesis polynomial vanishes iff some term of the translation is `1`
+(the terms are `0/1` valued). -/
+theorem eval_hypPoly_eq_zero {S : Seq} (a : Assignment) :
+    eval (boolPt (F := ZMod p) a) (hypPoly p S) = 0 ↔
+      ∃ g ∈ trS p S, eval (boolPt (F := ZMod p) a) g = 1 := by
+  unfold hypPoly
+  rw [map_prod, Finset.prod_eq_zero_iff]
+  simp only [map_sub, map_one, sub_eq_zero]
+  constructor
+  · rintro ⟨g, hg, e⟩; exact ⟨g, hg, e.symm⟩
+  · rintro ⟨g, hg, e⟩; exact ⟨g, hg, e.symm⟩
+
+/-- **Hypothesis leaf.**  If `hypPoly p S` is a base axiom, `S ∈ DegS p d` and its translation has
+at most `k` terms, then `S` is refuted in degree `k d`. -/
+theorem hyp_refA {A : Set (PP p)} {S : Seq} {d k D : ℕ} (hA : hypPoly p S ∈ A)
+    (hdS : DegS p d S) (hk : (trS p S).card ≤ k) (hD : k * d ≤ D) : RefA A (trS p S) D := by
+  unfold RefA
+  set B : Set (PP p) := A ∪ (↑(trS p S) : Set (PP p)) with hB
+  have hlen : (trS p S).toList.length = (trS p S).card := Finset.length_toList _
+  have hdl : d * (trS p S).toList.length ≤ D := by
+    rw [hlen]
+    exact (Nat.mul_le_mul_left d hk).trans (by rw [Nat.mul_comm]; exact hD)
+  have hx : ∀ x ∈ (trS p S).toList, x ∈ CD B D ∧ x.totalDegree ≤ d := by
+    intro x hx
+    have hx' := Finset.mem_toList.1 hx
+    have hpos : 0 < (trS p S).toList.length := List.length_pos_of_mem hx
+    have hdD : d ≤ D := (Nat.le_mul_of_pos_right d hpos).trans hdl
+    exact ⟨ax_memA hx' ((deg_trS hdS hx').trans hdD), deg_trS hdS hx'⟩
+  obtain ⟨k1, k2⟩ := one_sub_prod_list _ hx hdl
+  rw [Finset.prod_map_toList] at k1 k2
+  have k3 : hypPoly p S ∈ CD B D := mem_CD_of_pcd (PCD.ax (Or.inl hA) (k2.trans hdl))
+  have := add_mem k1 k3
+  unfold hypPoly at this
+  rwa [sub_add_cancel] at this
+
+/-- **Degree of a sequent tree with hypotheses.**  Base axioms `A` containing the clauses of `F`
+and the hypothesis polynomials of `H`, every hypothesis with at most `k` translated terms. -/
+theorem tproofH_refA {F : CNF} {H : Set Seq} {A : Set (PP p)} (hF : cnfAx F ⊆ A)
+    (hH : hypAx p H ⊆ A) {d w k c : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F, C.card ≤ w)
+    (hk : ∀ S ∈ H, (trS p S).card ≤ k) (hwc : w ≤ c) (hkc : k * d ≤ c) (hdc : 3 * d ≤ c)
+    {S : Seq} {s : ℕ} (h : TProofH p F H (DegS p d) S s) :
+    ∀ K, s ≤ 2 ^ K → RefA A (trS p S) (d * K + c) := by
+  induction h with
+  | @node S prev sz hprev hstep hP ih =>
+    intro k hk
+    have hszle : ∀ T ∈ prev, sz T ≤ (prev.map sz).sum := fun T hT =>
+      le_sum_of_mem (List.mem_map.2 ⟨T, hT, rfl⟩)
+    have hbig : ∀ T ∈ prev, RefA A (trS p T) (d * k + c) := fun T hT =>
+      ih T hT k (by have := hszle T hT; omega)
+    have hdT : ∀ T ∈ prev, DegS p d T := fun T hT => (hprev T hT).prop
+    have hck : c ≤ d * k + c := Nat.le_add_left _ _
+    cases k with
+    | zero =>
+      have hemp : ∀ T ∈ prev, False := fun T hT => by
+        have := (hprev T hT).pos
+        have := hszle T hT
+        simp at hk
+        omega
+      exact step_refA hF hd1 hw (by omega) (D₀ := 0) (by omega) (by omega) hstep hP hdT S hbig
+        (fun T hT _ => (hemp T hT).elim)
+    | succ k =>
+      obtain ⟨Ts, hTs⟩ := exists_pivot prev sz
+      have hpow : 2 ^ (k + 1) = 2 * 2 ^ k := by rw [pow_succ]; ring
+      have e : d * (k + 1) + c = d * k + c + d := by ring
+      have hck' : c ≤ d * k + c := Nat.le_add_left _ _
+      exact step_refA hF hd1 hw (by omega) (D₀ := d * k + c) (by omega) (by omega) hstep hP hdT Ts
+        hbig (fun T hT hne => ih T hT k (by have := hTs T hT hne; omega))
+  | @hyp S hS hP =>
+    intro K _
+    exact hyp_refA (hH ⟨S, hS, rfl⟩) hP (hk S hS) (hkc.trans (Nat.le_add_left _ _))
+
+/-- **Relative tree-like degree-size relation for the pinned sequent calculus.**  A tree-like
+refutation of `F` plus the hypothesis sequents `H`, with at most `2^K` nodes, all sequents in
+`DegS p d`, `F` of width at most `w`, every hypothesis with at most `k` translated terms, gives a
+polynomial calculus refutation over `F_p` of the clauses of `F` together with the polynomials
+`∏ (1 - g)` of the hypotheses, of degree `d K + max w (max (k d) (3 d))`. -/
+theorem tree_frege_pc_degree_hyp {F : CNF} {H : Set Seq} {d w k : ℕ} (hd1 : 1 ≤ d)
+    (hw : ∀ C ∈ F, C.card ≤ w) (hk : ∀ S ∈ H, (trS p S).card ≤ k) {s : ℕ}
+    (h : TProofH p F H (DegS p d) ([], []) s) {K : ℕ} (hK : s ≤ 2 ^ K) :
+    PCD (cnfAx (F := ZMod p) F ∪ hypAx p H) (d * K + max w (max (k * d) (3 * d))) 1 := by
+  have h1 := tproofH_refA (A := cnfAx (F := ZMod p) F ∪ hypAx p H) Set.subset_union_left
+    Set.subset_union_right hd1 hw hk (le_max_left _ _)
+    ((le_max_left _ _).trans (le_max_right _ _)) ((le_max_right _ _).trans (le_max_right _ _))
+    h K hK
+  unfold RefA at h1
+  rw [trS_empty, Finset.coe_empty, Set.union_empty] at h1
+  rcases h1 with h0 | h1
+  · exact absurd h0 one_ne_zero
+  · exact h1
+
+/-- The same with the ceiling of the binary logarithm of the number of nodes. -/
+theorem tree_frege_pc_degree_hyp_clog {F : CNF} {H : Set Seq} {d w k : ℕ} (hd1 : 1 ≤ d)
+    (hw : ∀ C ∈ F, C.card ≤ w) (hk : ∀ S ∈ H, (trS p S).card ≤ k) {s : ℕ}
+    (h : TProofH p F H (DegS p d) ([], []) s) :
+    PCD (cnfAx (F := ZMod p) F ∪ hypAx p H) (d * Nat.clog 2 s + max w (max (k * d) (3 * d))) 1 :=
+  tree_frege_pc_degree_hyp hd1 hw hk h (Nat.le_pow_clog one_lt_two s)
+
+/-- **Size from degree, relative version.**  If polynomial calculus of degree `D0` does not refute
+the clauses of `F` together with the hypothesis polynomials of `H`, every tree-like refutation of
+`F` plus `H` inside `DegS p d` has at least `2 ^ ((D0 - max w (max (k d) (3 d))) / d)` nodes. -/
+theorem tree_frege_size_of_degree_hyp {F : CNF} {H : Set Seq} {d w k D0 : ℕ} (hd1 : 1 ≤ d)
+    (hw : ∀ C ∈ F, C.card ≤ w) (hk : ∀ S ∈ H, (trS p S).card ≤ k)
+    (hno : ¬ PCD (cnfAx (F := ZMod p) F ∪ hypAx p H) D0 1) {s : ℕ}
+    (h : TProofH p F H (DegS p d) ([], []) s) :
+    2 ^ ((D0 - max w (max (k * d) (3 * d))) / d) ≤ s := by
+  by_contra hlt
+  push Not at hlt
+  have hpc := tree_frege_pc_degree_hyp hd1 hw hk h hlt.le
+  generalize max w (max (k * d) (3 * d)) = c at hlt hpc
+  by_cases hc : c ≤ D0
+  · refine hno (pcd_mono ?_ hpc)
+    have := Nat.mul_div_le (D0 - c) d
+    omega
+  · have e : D0 - c = 0 := by omega
+    rw [e, Nat.zero_div, pow_zero] at hlt
+    have := h.pos
+    omega
+
+/-- With no hypotheses the relative statement is the original one: `hypAx p ∅` is empty. -/
+theorem hypAx_empty : hypAx p (∅ : Set Seq) = ∅ := by
+  ext f; simp [hypAx]
 
 /-! ## Non-vacuity: resolution trees are sequent trees -/
 

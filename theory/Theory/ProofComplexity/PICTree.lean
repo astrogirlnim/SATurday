@@ -104,13 +104,28 @@ theorem cd_deduct {Ax : Set (PP p)} {D D' d : ℕ} {h : PP p}
 
 /-! ## The measure -/
 
+/-- Degree `D` polynomial calculus refutes the base axioms `A` together with "every term of `L` is
+zero".  The base `A` is arbitrary (relative version); `Ref` is the case `A = cnfAx Φ`. -/
+def RefA (A : Set (PP p)) (L : PLine p) (D : ℕ) : Prop :=
+  (1 : PP p) ∈ CD (A ∪ (↑L : Set (PP p))) D
+
 /-- Degree `D` polynomial calculus refutes `Φ` together with "every term of `L` is zero". -/
-def Ref (Φ : CNF) (L : PLine p) (D : ℕ) : Prop :=
-  (1 : PP p) ∈ CD (cnfAx Φ ∪ (↑L : Set (PP p))) D
+def Ref (Φ : CNF) (L : PLine p) (D : ℕ) : Prop := RefA (cnfAx Φ) L D
+
+theorem ref_iff_refA {Φ : CNF} {L : PLine p} {D : ℕ} : Ref Φ L D ↔ RefA (cnfAx Φ) L D := Iff.rfl
+
+/-- `RefA` is monotone in the base axioms and in the degree. -/
+theorem refA_mono {A A' : Set (PP p)} (hA : A ⊆ A') {L : PLine p} {D D' : ℕ} (hD : D ≤ D')
+    (h : RefA A L D) : RefA A' L D' :=
+  cd_mono (Set.union_subset_union_left _ hA) hD h
+
+theorem ax_memA {A : Set (PP p)} {L : PLine p} {D : ℕ} {g : PP p} (hg : g ∈ L)
+    (hd : g.totalDegree ≤ D) : g ∈ CD (A ∪ (↑L : Set (PP p))) D :=
+  mem_CD_of_pcd (PCD.ax (Or.inr (Finset.mem_coe.2 hg)) hd)
 
 theorem ax_mem {Φ : CNF} {L : PLine p} {D : ℕ} {g : PP p} (hg : g ∈ L) (hd : g.totalDegree ≤ D) :
     g ∈ CD (cnfAx Φ ∪ (↑L : Set (PP p))) D :=
-  mem_CD_of_pcd (PCD.ax (Or.inr (Finset.mem_coe.2 hg)) hd)
+  ax_memA hg hd
 
 theorem deg_litInd (l : Literal) : (litInd l : PP p).totalDegree ≤ 1 := by
   unfold litInd
@@ -122,12 +137,13 @@ theorem deg_prod_lit (s : Finset Literal) : (∏ l ∈ s, (litPoly l : PP p)).to
         Finset.sum_le_sum fun l _ => C1.totalDegree_litPoly l
     _ = s.card := by simp
 
-/-- Clause axiom: the line of a clause of `Φ` is refuted in degree `|C|`. -/
-theorem ref_init {Φ : CNF} {C : Clause} (hC : C ∈ Φ) {D : ℕ} (hw : C.card ≤ D) (h1 : 1 ≤ D) :
-    Ref (p := p) Φ (C.image litInd) D := by
-  unfold Ref
-  set A : Set (PP p) := cnfAx Φ ∪ (↑(C.image (litInd (p := p))) : Set (PP p)) with hA
-  have key : ∀ s : Finset Literal, s ⊆ C → (∏ l ∈ s, (litPoly l : PP p)) - 1 ∈ CD A D := by
+/-- Clause axiom, relative form: if the clause polynomial of `C` is a base axiom, the line of `C` is
+refuted in degree `|C|`. -/
+theorem refA_init {A : Set (PP p)} {C : Clause} (hC : (clausePoly C : PP p) ∈ A) {D : ℕ}
+    (hw : C.card ≤ D) (h1 : 1 ≤ D) : RefA A (C.image litInd) D := by
+  unfold RefA
+  set A' : Set (PP p) := A ∪ (↑(C.image (litInd (p := p))) : Set (PP p)) with hA'
+  have key : ∀ s : Finset Literal, s ⊆ C → (∏ l ∈ s, (litPoly l : PP p)) - 1 ∈ CD A' D := by
     intro s
     induction s using Finset.induction_on with
     | empty => intro _; simp
@@ -150,38 +166,81 @@ theorem ref_init {Φ : CNF} {C : Clause} (hC : C ∈ Φ) {D : ℕ} (hw : C.card 
         omega
       · exact mem_CD_of_pcd (PCD.ax (Or.inr (Finset.mem_coe.2 (Finset.mem_image_of_mem _ haC)))
           ((deg_litInd a).trans h1))
-  have hax : (clausePoly C : PP p) ∈ CD A D :=
-    mem_CD_of_pcd (PCD.ax (Or.inl ⟨C, hC, rfl⟩) ((deg_prod_lit C).trans hw))
+  have hax : (clausePoly C : PP p) ∈ CD A' D :=
+    mem_CD_of_pcd (PCD.ax (Or.inl hC) ((deg_prod_lit C).trans hw))
   have := sub_mem hax (key C subset_rfl)
   have e : (clausePoly C : PP p) - (∏ l ∈ C, (litPoly l : PP p) - 1) = 1 := by
     unfold clausePoly; ring
   rwa [e] at this
 
-/-- Excluded middle. -/
-theorem ref_taut {Φ : CNF} (g : PP p) {D : ℕ} (hg : g.totalDegree ≤ D) :
-    Ref Φ ({g, 1 - g} : PLine p) D := by
-  have a1 : g ∈ CD (cnfAx Φ ∪ (↑({g, 1 - g} : PLine p) : Set (PP p))) D := ax_mem (by simp) hg
-  have a2 : 1 - g ∈ CD (cnfAx Φ ∪ (↑({g, 1 - g} : PLine p) : Set (PP p))) D :=
-    ax_mem (by simp) ((FDeg.deg_one_sub g).trans hg)
+/-- Clause axiom: the line of a clause of `Φ` is refuted in degree `|C|`. -/
+theorem ref_init {Φ : CNF} {C : Clause} (hC : C ∈ Φ) {D : ℕ} (hw : C.card ≤ D) (h1 : 1 ≤ D) :
+    Ref (p := p) Φ (C.image litInd) D :=
+  refA_init (A := cnfAx Φ) ⟨C, hC, rfl⟩ hw h1
+
+/-- Excluded middle, relative form. -/
+theorem refA_taut {A : Set (PP p)} (g : PP p) {D : ℕ} (hg : g.totalDegree ≤ D) :
+    RefA A ({g, 1 - g} : PLine p) D := by
+  have a1 : g ∈ CD (A ∪ (↑({g, 1 - g} : PLine p) : Set (PP p))) D := ax_memA (by simp) hg
+  have a2 : 1 - g ∈ CD (A ∪ (↑({g, 1 - g} : PLine p) : Set (PP p))) D :=
+    ax_memA (by simp) ((FDeg.deg_one_sub g).trans hg)
   have h := add_mem a1 a2
   rwa [show g + (1 - g) = (1 : PP p) by ring] at h
 
-/-- If every term of `L₁` is derived from `Φ` and `L'`, a refutation below `L₁` gives one below
-`L'`, of no larger degree. -/
-theorem ref_of_derive {Φ : CNF} {L₁ L' : PLine p} {D₁ D' : ℕ} (hD : D₁ ≤ D')
-    (h : ∀ g ∈ L₁, g ∈ CD (cnfAx Φ ∪ (↑L' : Set (PP p))) D') (h1 : Ref Φ L₁ D₁) :
-    Ref Φ L' D' := by
+/-- Excluded middle. -/
+theorem ref_taut {Φ : CNF} (g : PP p) {D : ℕ} (hg : g.totalDegree ≤ D) :
+    Ref Φ ({g, 1 - g} : PLine p) D :=
+  refA_taut g hg
+
+/-- Relative form of `ref_of_derive`. -/
+theorem refA_of_derive {A : Set (PP p)} {L₁ L' : PLine p} {D₁ D' : ℕ} (hD : D₁ ≤ D')
+    (h : ∀ g ∈ L₁, g ∈ CD (A ∪ (↑L' : Set (PP p))) D') (h1 : RefA A L₁ D₁) :
+    RefA A L' D' := by
   refine cd_subst hD ?_ h1
   rintro f (hf | hf) hd
   · exact mem_CD_of_pcd (PCD.ax (Or.inl hf) (hd.trans hD))
   · exact h f (Finset.mem_coe.1 hf)
 
+/-- If every term of `L₁` is derived from `Φ` and `L'`, a refutation below `L₁` gives one below
+`L'`, of no larger degree. -/
+theorem ref_of_derive {Φ : CNF} {L₁ L' : PLine p} {D₁ D' : ℕ} (hD : D₁ ≤ D')
+    (h : ∀ g ∈ L₁, g ∈ CD (cnfAx Φ ∪ (↑L' : Set (PP p))) D') (h1 : Ref Φ L₁ D₁) :
+    Ref Φ L' D' :=
+  refA_of_derive hD h h1
+
+theorem g3_propsA {A : Set (PP p)} {V : Finset ℕ} {d D' : ℕ} {L' : PLine p} {g₃ : PP p}
+    (h₃ : g₃ ∈ L' ∨ g₃ = 0) (hg' : ∀ g ∈ L', Ind V d g) (hdD : d ≤ D') :
+    g₃.totalDegree ≤ d ∧ g₃ ∈ CD (A ∪ (↑L' : Set (PP p))) D' := by
+  rcases h₃ with h | rfl
+  · exact ⟨(hg' _ h).deg, ax_memA h ((hg' _ h).deg.trans hdD)⟩
+  · exact ⟨by simp, zero_mem _⟩
+
 theorem g3_props {Φ : CNF} {V : Finset ℕ} {d D' : ℕ} {L' : PLine p} {g₃ : PP p}
     (h₃ : g₃ ∈ L' ∨ g₃ = 0) (hg' : ∀ g ∈ L', Ind V d g) (hdD : d ≤ D') :
-    g₃.totalDegree ≤ d ∧ g₃ ∈ CD (cnfAx Φ ∪ (↑L' : Set (PP p))) D' := by
-  rcases h₃ with h | rfl
-  · exact ⟨(hg' _ h).deg, ax_mem h ((hg' _ h).deg.trans hdD)⟩
-  · exact ⟨by simp, zero_mem _⟩
+    g₃.totalDegree ≤ d ∧ g₃ ∈ CD (cnfAx Φ ∪ (↑L' : Set (PP p))) D' :=
+  g3_propsA h₃ hg' hdD
+
+/-- The semantic rule with one premise, relative form. -/
+theorem refA_sem1 {A : Set (PP p)} {V : Finset ℕ} {d : ℕ} {L₁ L' : PLine p} {g₁ g₃ : PP p}
+    (h₁ : g₁ ∈ L₁)
+    (hs : ∀ a : Assignment, eval (boolPt (F := ZMod p) a) g₁ *
+      (1 - eval (boolPt (F := ZMod p) a) g₃) = 0)
+    (hL' : L₁.erase g₁ ⊆ L') (h₃ : g₃ ∈ L' ∨ g₃ = 0)
+    (hg1 : ∀ g ∈ L₁, Ind V d g) (hg' : ∀ g ∈ L', Ind V d g)
+    {D₁ D' : ℕ} (hD : D₁ ≤ D') (h2d : 2 * d ≤ D') (h2 : 2 ≤ D') (hr : RefA A L₁ D₁) :
+    RefA A L' D' := by
+  obtain ⟨hd3, hm3⟩ := g3_propsA (A := A) h₃ hg' (D' := D') (by omega)
+  have hd1 := (hg1 _ h₁).deg
+  refine refA_of_derive hD (fun g hg => ?_) hr
+  by_cases e : g = g₁
+  · subst e
+    have e2 : g = g * (1 - g₃) + g * g₃ := by ring
+    rw [e2]
+    refine add_mem (cd_of_cube h2 ?_ fun a => ?_) (cd_mul hm3 (by omega))
+    · have := FDeg.deg_one_sub g₃
+      exact (totalDegree_mul _ _).trans (by omega)
+    · rw [C1.indPt_eq, map_mul, map_sub, map_one]; exact hs _
+  · exact ax_memA (hL' (Finset.mem_erase.2 ⟨e, hg⟩)) ((hg1 _ hg).deg.trans (by omega))
 
 /-- The semantic rule with one premise. -/
 theorem ref_sem1 {Φ : CNF} {V : Finset ℕ} {d : ℕ} {L₁ L' : PLine p} {g₁ g₃ : PP p}
@@ -191,43 +250,32 @@ theorem ref_sem1 {Φ : CNF} {V : Finset ℕ} {d : ℕ} {L₁ L' : PLine p} {g₁
     (hL' : L₁.erase g₁ ⊆ L') (h₃ : g₃ ∈ L' ∨ g₃ = 0)
     (hg1 : ∀ g ∈ L₁, Ind V d g) (hg' : ∀ g ∈ L', Ind V d g)
     {D₁ D' : ℕ} (hD : D₁ ≤ D') (h2d : 2 * d ≤ D') (h2 : 2 ≤ D') (hr : Ref Φ L₁ D₁) :
-    Ref Φ L' D' := by
-  obtain ⟨hd3, hm3⟩ := g3_props (Φ := Φ) h₃ hg' (D' := D') (by omega)
-  have hd1 := (hg1 _ h₁).deg
-  refine ref_of_derive hD (fun g hg => ?_) hr
-  by_cases e : g = g₁
-  · subst e
-    have e2 : g = g * (1 - g₃) + g * g₃ := by ring
-    rw [e2]
-    refine add_mem (cd_of_cube h2 ?_ fun a => ?_) (cd_mul hm3 (by omega))
-    · have := FDeg.deg_one_sub g₃
-      exact (totalDegree_mul _ _).trans (by omega)
-    · rw [C1.indPt_eq, map_mul, map_sub, map_one]; exact hs _
-  · exact ax_mem (hL' (Finset.mem_erase.2 ⟨e, hg⟩)) ((hg1 _ hg).deg.trans (by omega))
+    Ref Φ L' D' :=
+  refA_sem1 h₁ hs hL' h₃ hg1 hg' hD h2d h2 hr
 
-/-- The semantic rule with two premises: deduction on the first premise. -/
-theorem ref_sem2 {Φ : CNF} {V : Finset ℕ} {d : ℕ} {L₁ L₂ L' : PLine p} {g₁ g₂ g₃ : PP p}
+/-- The semantic rule with two premises, relative form: deduction on the first premise. -/
+theorem refA_sem2 {A : Set (PP p)} {V : Finset ℕ} {d : ℕ} {L₁ L₂ L' : PLine p} {g₁ g₂ g₃ : PP p}
     (h₁ : g₁ ∈ L₁) (h₂ : g₂ ∈ L₂)
     (hs : ∀ a : Assignment, eval (boolPt (F := ZMod p) a) g₁ * eval (boolPt (F := ZMod p) a) g₂ *
       (1 - eval (boolPt (F := ZMod p) a) g₃) = 0)
     (hL₁ : L₁.erase g₁ ⊆ L') (hL₂ : L₂.erase g₂ ⊆ L') (h₃ : g₃ ∈ L' ∨ g₃ = 0)
     (hg1 : ∀ g ∈ L₁, Ind V d g) (hg2 : ∀ g ∈ L₂, Ind V d g) (hg' : ∀ g ∈ L', Ind V d g)
     {D₁ D₂ D' : ℕ} (hD1 : D₁ + d ≤ D') (hD2 : D₂ ≤ D') (h3d : 3 * d ≤ D') (h2 : 2 ≤ D')
-    (hr1 : Ref Φ L₁ D₁) (hr2 : Ref Φ L₂ D₂) : Ref Φ L' D' := by
-  obtain ⟨hd3, hm3⟩ := g3_props (Φ := Φ) h₃ hg' (D' := D') (by omega)
+    (hr1 : RefA A L₁ D₁) (hr2 : RefA A L₂ D₂) : RefA A L' D' := by
+  obtain ⟨hd3, hm3⟩ := g3_propsA (A := A) h₃ hg' (D' := D') (by omega)
   have hd1 := (hg1 _ h₁).deg
   have hd2 := (hg2 _ h₂).deg
-  have hsub : cnfAx Φ ∪ (↑L₁ : Set (PP p)) ⊆ insert g₁ (cnfAx Φ ∪ (↑L' : Set (PP p))) := by
+  have hsub : A ∪ (↑L₁ : Set (PP p)) ⊆ insert g₁ (A ∪ (↑L' : Set (PP p))) := by
     rintro f (hf | hf)
     · exact Or.inr (Or.inl hf)
     · by_cases e : f = g₁
       · exact Or.inl e
       · exact Or.inr (Or.inr (Finset.mem_coe.2 (hL₁ (Finset.mem_erase.2 ⟨e, Finset.mem_coe.1 hf⟩))))
-  have ha : (1 : PP p) ∈ CD (insert g₁ (cnfAx Φ ∪ (↑L' : Set (PP p)))) D₁ :=
+  have ha : (1 : PP p) ∈ CD (insert g₁ (A ∪ (↑L' : Set (PP p)))) D₁ :=
     cd_mono hsub le_rfl hr1
   have hb := cd_deduct (PIC.cube_set (hg1 _ h₁).cube) hd1 hD1 h2 ha
   rw [mul_one] at hb
-  refine ref_of_derive hD2 (fun g hg => ?_) hr2
+  refine refA_of_derive hD2 (fun g hg => ?_) hr2
   by_cases e : g = g₂
   · subst e
     have e2 : g = g * (1 - g₁) + g₁ * g * (1 - g₃) + (g₁ * g) * g₃ := by ring
@@ -239,7 +287,18 @@ theorem ref_sem2 {Φ : CNF} {V : Finset ℕ} {d : ℕ} {L₁ L₂ L' : PLine p} 
       (cd_mul hm3 (by omega))
     · exact (totalDegree_mul _ _).trans (by omega)
     · rw [C1.indPt_eq, map_mul, map_mul, map_sub, map_one]; exact hs _
-  · exact ax_mem (hL₂ (Finset.mem_erase.2 ⟨e, hg⟩)) ((hg2 _ hg).deg.trans (by omega))
+  · exact ax_memA (hL₂ (Finset.mem_erase.2 ⟨e, hg⟩)) ((hg2 _ hg).deg.trans (by omega))
+
+/-- The semantic rule with two premises: deduction on the first premise. -/
+theorem ref_sem2 {Φ : CNF} {V : Finset ℕ} {d : ℕ} {L₁ L₂ L' : PLine p} {g₁ g₂ g₃ : PP p}
+    (h₁ : g₁ ∈ L₁) (h₂ : g₂ ∈ L₂)
+    (hs : ∀ a : Assignment, eval (boolPt (F := ZMod p) a) g₁ * eval (boolPt (F := ZMod p) a) g₂ *
+      (1 - eval (boolPt (F := ZMod p) a) g₃) = 0)
+    (hL₁ : L₁.erase g₁ ⊆ L') (hL₂ : L₂.erase g₂ ⊆ L') (h₃ : g₃ ∈ L' ∨ g₃ = 0)
+    (hg1 : ∀ g ∈ L₁, Ind V d g) (hg2 : ∀ g ∈ L₂, Ind V d g) (hg' : ∀ g ∈ L', Ind V d g)
+    {D₁ D₂ D' : ℕ} (hD1 : D₁ + d ≤ D') (hD2 : D₂ ≤ D') (h3d : 3 * d ≤ D') (h2 : 2 ≤ D')
+    (hr1 : Ref Φ L₁ D₁) (hr2 : Ref Φ L₂ D₂) : Ref Φ L' D' :=
+  refA_sem2 h₁ h₂ hs hL₁ hL₂ h₃ hg1 hg2 hg' hD1 hD2 h3d h2 hr1 hr2
 
 /-! ## Tree-like derivations -/
 
@@ -313,7 +372,7 @@ theorem tree_pc_degree {Φ : CNF} {V : Finset ℕ} {d w : ℕ} (hd1 : 1 ≤ d)
     (hw : ∀ C ∈ Φ, C.card ≤ w) {s : ℕ} (h : TDer Φ V d (∅ : PLine p) s) {k : ℕ}
     (hk : s ≤ 2 ^ k) : PCD (cnfAx (F := ZMod p) Φ) (d * k + max w (3 * d)) 1 := by
   have h1 := tder_ref hd1 hw (le_max_left _ _) (le_max_right _ _) h k hk
-  unfold Ref at h1
+  unfold Ref RefA at h1
   rw [Finset.coe_empty, Set.union_empty] at h1
   rcases h1 with h0 | h1
   · exact absurd h0 one_ne_zero
@@ -324,6 +383,14 @@ theorem tree_pc_degree_clog {Φ : CNF} {V : Finset ℕ} {d w : ℕ} (hd1 : 1 ≤
     (hw : ∀ C ∈ Φ, C.card ≤ w) {s : ℕ} (h : TDer Φ V d (∅ : PLine p) s) :
     PCD (cnfAx (F := ZMod p) Φ) (d * Nat.clog 2 s + max w (3 * d)) 1 :=
   tree_pc_degree hd1 hw h (Nat.le_pow_clog one_lt_two s)
+
+/-- **Relative form of `tder_ref`.**  The same bound holds over any base axiom set containing the
+clauses of `Φ`. -/
+theorem tder_refA {Φ : CNF} {V : Finset ℕ} {d w c : ℕ} {A : Set (PP p)} (hA : cnfAx Φ ⊆ A)
+    (hd1 : 1 ≤ d) (hw : ∀ C ∈ Φ, C.card ≤ w) (hwc : w ≤ c) (hdc : 3 * d ≤ c)
+    {L : PLine p} {s : ℕ} (h : TDer Φ V d L s) (k : ℕ) (hk : s ≤ 2 ^ k) :
+    RefA A L (d * k + c) :=
+  refA_mono hA le_rfl (tder_ref hd1 hw hwc hdc h k hk)
 
 /-- **Size from degree.**  If polynomial calculus of degree `D0` does not refute `Φ`, every
 tree-like `PIC` refutation with terms of degree at most `d` has at least
