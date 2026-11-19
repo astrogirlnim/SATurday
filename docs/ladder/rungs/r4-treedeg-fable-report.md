@@ -185,6 +185,8 @@ pivot premise `Ts`: all premises in degree `D'`, all premises except the pivot i
   gives nothing, as it must (degree `n` polynomial calculus refutes everything).
 - `m0` depends on `delta` through `(2624 q (q+7))^(1/delta)` and on `tseitinFloor p q`. It is not a
   small number.
+- The theorems are stated for every `delta > 0`. For `delta >= 1` the range `1 <= d <= n^(1 - delta)`
+  is empty once `n > 1`, so only `0 < delta < 1` has content.
 
 ## 5. What failed or was dropped
 
