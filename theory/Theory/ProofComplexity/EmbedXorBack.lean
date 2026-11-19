@@ -18,11 +18,11 @@ Boolean axioms with at most `12 |supp f| + 5` lines (`r_taut`).
 
 Main results:
 * `RLF.r_wsim`: one semantic weakening `M0 ⊨ L` costs at most
-  `|L| (12 N + 5) + |M0| (|L| + 1) + |L| + 2` lines of `RLDag`, `N` a bound on the support sizes in `L`;
+  `|L| (12 N + 5) + |M0| (|L| + 1) + 1` lines of `RLDag`, `N` a bound on the support sizes in `L`;
 * `RLF.dagRefutes_to_rldag2`: a `Res(⊕)` refutation (a derivation `P` with `∅ ∈ P`) all of whose
   lines have at most `W` equations, each with at most `N` variables, gives an `RLDag` refutation
   from `Ax2 Φ ∪ boolAx` with at most `xorBackCost W N * |P|` lines, where
-  `xorBackCost W N = 2 ((W+1)(12 (N + 4 W N) + 5) + W (W + 2) + W + 3) + 3`, i.e. `O(W² N)` per line.
+  `xorBackCost W N = 2 ((W+1)(12 (N + 4 W N) + 5) + W (W + 2) + 1) + 3`, i.e. `O(W² N)` per line.
 
 The overhead is polynomial in the symbol size of the `Res(⊕)` refutation, not in its number of
 lines alone (a line of `Res(⊕)` may have many equations).  Only `F_2` is treated; over `F_p`,
@@ -592,6 +592,233 @@ theorem r_wsim (hB : boolAx ⊆ Ax) {𝓛 : Finset Ln2} (h : RLDag Ax 𝓛) {M0 
     (Finset.card_le_card Finset.sdiff_subset) hI
   obtain ⟨𝓛3, E3, m3⟩ := r_sub E2.1 m2 (L := L) (fun y hy => hM2 hy)
   exact ⟨𝓛3, (E1.trans E2).trans E3, m3⟩
+
+/-! ## From `Res(⊕)` lines to `RLDag` lines -/
+
+/-- An `RL` equation `∑_{w ∈ S} x_w = a` as an equation over `F_2`. -/
+def fromE (e : Finset ℕ × ZMod 2) : LEq (ZMod 2) := (indic e.1, e.2)
+
+/-- An `RL` linear clause as a line of `RLDag`. -/
+def fromL (L : RL.LClause) : Ln2 := L.image fromE
+
+theorem support_indic (S : Finset ℕ) : (indic S).support = S := by
+  ext j
+  rw [Finsupp.mem_support_iff, indic_apply]
+  by_cases h : j ∈ S <;> simp [h]
+
+theorem lval_indic (S : Finset ℕ) (x : ℕ → ZMod 2) : lval (indic S) x = RL.lf S x := by
+  rw [← lf_support, support_indic]
+
+theorem clSat_fromL (x : ℕ → ZMod 2) (L : RL.LClause) : clSat x (fromL L) ↔ RL.lsatL x L := by
+  unfold clSat fromL RL.lsatL
+  constructor
+  · rintro ⟨e, he, hv⟩
+    obtain ⟨e', he', rfl⟩ := Finset.mem_image.1 he
+    exact ⟨e', he', by simpa [eSat, fromE, lval_indic] using hv⟩
+  · rintro ⟨e, he, hv⟩
+    exact ⟨fromE e, Finset.mem_image_of_mem _ he, by simpa [eSat, fromE, lval_indic] using hv⟩
+
+theorem fromL_toL (X : Ln2) : fromL (toL X) = X := by
+  unfold fromL toL
+  rw [Finset.image_image]
+  conv_rhs => rw [← Finset.image_id (s := X)]
+  refine Finset.image_congr fun e _ => ?_
+  simp [fromE, toE, indic_support]
+
+theorem fromL_ofClause (C : Clause) : fromL (RL.ofClause C) = encCl C := by
+  rw [← toL_encCl, fromL_toL]
+
+theorem supp_fromL {L : RL.LClause} {N : ℕ} (hN : ∀ e ∈ L, e.1.card ≤ N) :
+    ∀ e ∈ fromL L, e.1.support.card ≤ N := by
+  intro e he
+  obtain ⟨e', he', rfl⟩ := Finset.mem_image.1 he
+  simpa [fromE, support_indic] using hN e' he'
+
+/-- Restriction of the resolved form to the variables `V` of the clauses involved. -/
+theorem imp_restrict {L1 C : RL.LClause} {f : Finset ℕ} {a : ZMod 2} (V : Finset ℕ)
+    (hV1 : ∀ e ∈ L1, e.1 ⊆ V) (hVC : ∀ e ∈ C, e.1 ⊆ V) (h : RL.Imp L1 (insert (f, a) C)) :
+    RL.Imp L1 (insert (f ∩ V, a) C) := by
+  intro x hx
+  set x' : ℕ → ZMod 2 := fun i => if i ∈ V then x i else 0
+  have hsub : ∀ S : Finset ℕ, S ⊆ V → RL.lf S x' = RL.lf S x := by
+    intro S hS
+    unfold RL.lf
+    exact Finset.sum_congr rfl fun w hw => by simp [x', hS hw]
+  have hf : RL.lf f x' = RL.lf (f ∩ V) x := by
+    unfold RL.lf
+    rw [← Finset.filter_mem_eq_inter, Finset.sum_filter]
+  obtain ⟨e, he, hv⟩ := hx
+  obtain ⟨e', he', hv'⟩ := h x' ⟨e, he, by rw [hsub e.1 (hV1 e he)]; exact hv⟩
+  rcases Finset.mem_insert.1 he' with rfl | he'
+  · exact ⟨(f ∩ V, a), Finset.mem_insert_self _ _, by rw [← hf]; exact hv'⟩
+  · exact ⟨e', Finset.mem_insert_of_mem he', by rw [← hsub e'.1 (hVC e' he')]; exact hv'⟩
+
+/-! ## The simulation -/
+
+/-- Lines of `RLDag` per line of `Res(⊕)`: `O(W² N)`. -/
+def xorBackCost (W N : ℕ) : ℕ := 2 * ((W + 1) * (12 * (N + 4 * W * N) + 5) + W * (W + 2) + 1) + 3
+
+theorem cost_weak {a b W N : ℕ} (ha : a ≤ W) (hb : b ≤ W) :
+    a * (12 * N + 5) + b * (a + 1) + 1 ≤ xorBackCost W N := by
+  unfold xorBackCost
+  have h1 : a * (12 * N + 5) ≤ (W + 1) * (12 * (N + 4 * W * N) + 5) :=
+    Nat.mul_le_mul (by omega) (by omega)
+  have h2 : b * (a + 1) ≤ W * (W + 2) := Nat.mul_le_mul hb (by omega)
+  omega
+
+theorem cost_res {a1 a2 b1 b2 W N N' : ℕ} (hN' : N' ≤ N + 4 * W * N) (ha1 : a1 ≤ W + 1)
+    (ha2 : a2 ≤ W + 1) (hb1 : b1 ≤ W) (hb2 : b2 ≤ W) :
+    a1 * (12 * N' + 5) + b1 * (a1 + 1) + 1 + (a2 * (12 * N' + 5) + b2 * (a2 + 1) + 1) + 3 ≤
+      xorBackCost W N := by
+  unfold xorBackCost
+  have h1 : a1 * (12 * N' + 5) ≤ (W + 1) * (12 * (N + 4 * W * N) + 5) :=
+    Nat.mul_le_mul ha1 (by omega)
+  have h2 : a2 * (12 * N' + 5) ≤ (W + 1) * (12 * (N + 4 * W * N) + 5) :=
+    Nat.mul_le_mul ha2 (by omega)
+  have h3 : b1 * (a1 + 1) ≤ W * (W + 2) := Nat.mul_le_mul hb1 (by omega)
+  have h4 : b2 * (a2 + 1) ≤ W * (W + 2) := Nat.mul_le_mul hb2 (by omega)
+  omega
+
+theorem card_fromL_le (L : RL.LClause) : (fromL L).card ≤ L.card := Finset.card_image_le
+
+theorem fz_add (c : ℕ →₀ ZMod 2) (a : ZMod 2) :
+    cmb 1 1 ((c, a) : LEq (ZMod 2)) (c, a + 1) = fz := by
+  rw [cmb11]
+  ext
+  · simp [fz, add_self2]
+  · show a + (a + 1) = 1
+    generalize a = t; revert t; decide
+
+/-- One step of `Res(⊕)` in `RLDag` over `F_2`, with at most `xorBackCost W N` lines. -/
+theorem step_back {Φ : CNF} {P : Finset RL.LClause} {L : RL.LClause}
+    (hs : RL.Step (↑Φ : Set Clause) P L) {W N : ℕ} (hW : ∀ M ∈ insert L P, M.card ≤ W)
+    (hN : ∀ M ∈ insert L P, ∀ e ∈ M, e.1.card ≤ N) {𝓛 : Finset Ln2}
+    (h : RLDag (Ax2 Φ ∪ boolAx) 𝓛) (hmem : ∀ M ∈ P, fromL M ∈ 𝓛) :
+    ∃ 𝓛', Ext2 (Ax2 Φ ∪ boolAx) 𝓛 𝓛' (xorBackCost W N) ∧ fromL L ∈ 𝓛' := by
+  have hB : (boolAx : Set Ln2) ⊆ Ax2 Φ ∪ boolAx := Set.subset_union_right
+  have hWL := hW L (Finset.mem_insert_self _ _)
+  have hNL := hN L (Finset.mem_insert_self _ _)
+  cases hs with
+  | @ax C hC =>
+    obtain ⟨𝓛', E, m⟩ := r_ax (Ax := Ax2 Φ ∪ boolAx) h (C := encCl C)
+      (Or.inl ⟨C, Finset.mem_coe.1 hC, rfl⟩)
+    rw [fromL_ofClause]
+    exact ⟨𝓛', E.mono (by unfold xorBackCost; omega), m⟩
+  | @weak L0 _ hL0 himp =>
+    obtain ⟨𝓛', E, m⟩ := r_wsim hB h (hmem L0 hL0) (L := fromL L)
+      (fun x hx => (clSat_fromL x L).2 (himp x ((clSat_fromL x L0).1 hx))) (supp_fromL hNL)
+    exact ⟨𝓛', E.mono (cost_weak ((card_fromL_le L).trans hWL)
+      ((card_fromL_le L0).trans (hW L0 (Finset.mem_insert_of_mem hL0)))), m⟩
+  | @res L1 L2 C D f a hL1 hL2 i1 i2 =>
+    set V : Finset ℕ := (L1 ∪ L2 ∪ C ∪ D).biUnion Prod.fst
+    have hV : ∀ e ∈ L1 ∪ L2 ∪ C ∪ D, e.1 ⊆ V := fun e he => Finset.subset_biUnion_of_mem _ he
+    have hW1 := hW L1 (Finset.mem_insert_of_mem hL1)
+    have hW2 := hW L2 (Finset.mem_insert_of_mem hL2)
+    have hCW : C.card ≤ W := (Finset.card_le_card Finset.subset_union_left).trans hWL
+    have hDW : D.card ≤ W := (Finset.card_le_card Finset.subset_union_right).trans hWL
+    have hNall : ∀ e ∈ L1 ∪ L2 ∪ C ∪ D, e.1.card ≤ N := by
+      intro e he
+      simp only [Finset.mem_union] at he
+      rcases he with ((he | he) | he) | he
+      · exact hN L1 (Finset.mem_insert_of_mem hL1) e he
+      · exact hN L2 (Finset.mem_insert_of_mem hL2) e he
+      · exact hNL e (Finset.mem_union_left _ he)
+      · exact hNL e (Finset.mem_union_right _ he)
+    have hVcard : V.card ≤ 4 * W * N := by
+      refine (Finset.card_biUnion_le).trans ?_
+      refine (Finset.sum_le_card_nsmul _ _ N hNall).trans ?_
+      rw [smul_eq_mul]
+      have : (L1 ∪ L2 ∪ C ∪ D).card ≤ 4 * W := by
+        have := Finset.card_union_le (L1 ∪ L2 ∪ C) D
+        have := Finset.card_union_le (L1 ∪ L2) C
+        have := Finset.card_union_le L1 L2
+        omega
+      exact Nat.mul_le_mul_right _ this
+    have i1' := imp_restrict V (fun e he => hV e (by simp [he])) (fun e he => hV e (by simp [he])) i1
+    have i2' := imp_restrict V (fun e he => hV e (by simp [he])) (fun e he => hV e (by simp [he])) i2
+    set g := f ∩ V
+    have hgV : g.card ≤ 4 * W * N := (Finset.card_le_card Finset.inter_subset_right).trans hVcard
+    have hNX : ∀ (b : ZMod 2) (X : RL.LClause), X ⊆ C ∪ D →
+        ∀ e ∈ fromL (insert (g, b) X), e.1.support.card ≤ N + 4 * W * N := by
+      intro b X hX
+      refine supp_fromL fun e he => ?_
+      rcases Finset.mem_insert.1 he with rfl | he
+      · exact hgV.trans (Nat.le_add_left _ _)
+      · exact (hNL e (hX he)).trans (Nat.le_add_right _ _)
+    obtain ⟨𝓛1, E1, m1⟩ := r_wsim hB h (hmem L1 hL1) (L := fromL (insert (g, a) C))
+      (fun x hx => (clSat_fromL x _).2 (i1' x ((clSat_fromL x L1).1 hx)))
+      (hNX a C Finset.subset_union_left)
+    obtain ⟨𝓛2, E2, m2⟩ := r_wsim hB E1.1 (E1.2.1 (hmem L2 hL2)) (L := fromL (insert (g, a + 1) D))
+      (fun x hx => (clSat_fromL x _).2 (i2' x ((clSat_fromL x L2).1 hx)))
+      (hNX (a + 1) D Finset.subset_union_right)
+    have e1 : fromL (insert (g, a) C) = insert (indic g, a) (fromL C) := by
+      simp [fromL, Finset.image_insert, fromE]
+    have e2 : fromL (insert (g, a + 1) D) = insert (indic g, a + 1) (fromL D) := by
+      simp [fromL, Finset.image_insert, fromE]
+    rw [e1] at m1
+    rw [e2] at m2
+    obtain ⟨𝓛3, E3, M3, m3, p3, z3, -, -⟩ := r_combP E2.1 1 1 (E2.2.1 m1) m2
+      (Finset.mem_insert_self _ _) (Finset.mem_insert_self _ _)
+      (P := fun y => y ∈ fromL (C ∪ D) ∨ y = fz)
+      (fun y hy hne => by
+        rcases Finset.mem_insert.1 hy with rfl | hy
+        · exact absurd rfl hne
+        · left; unfold fromL at hy ⊢; rw [Finset.image_union]; exact Finset.mem_union_left _ hy)
+      (fun y hy hne => by
+        rcases Finset.mem_insert.1 hy with rfl | hy
+        · exact absurd rfl hne
+        · left; unfold fromL at hy ⊢; rw [Finset.image_union]; exact Finset.mem_union_right _ hy)
+      (by rw [fz_add]; right; rfl)
+    rw [fz_add] at z3
+    obtain ⟨𝓛4, E4, M4, m4, p4, -⟩ := r_simpP E3.1 m3 z3
+    obtain ⟨𝓛5, E5, m5⟩ := r_sub E4.1 m4 (L := fromL (C ∪ D)) (fun y hy => by
+      obtain ⟨hy3, hz⟩ := p4 y hy
+      rcases p3 y hy3 with h | rfl
+      · exact h
+      · exact absurd rfl hz)
+    refine ⟨𝓛5, ((((E1.trans E2).trans E3).trans E4).trans E5).mono ?_, m5⟩
+    have hc1 : (insert (indic g, a) (fromL C)).card ≤ W + 1 :=
+      (Finset.card_insert_le _ _).trans (by have := card_fromL_le C; omega)
+    have hc2 : (insert (indic g, a + 1) (fromL D)).card ≤ W + 1 :=
+      (Finset.card_insert_le _ _).trans (by have := card_fromL_le D; omega)
+    have := cost_res (N' := N + 4 * W * N) le_rfl hc1 hc2
+      ((card_fromL_le L1).trans hW1) ((card_fromL_le L2).trans hW2)
+    rw [e1, e2]
+    omega
+
+/-- **Semantic weakening removed over `F_2`.**  A dag-like `Res(⊕)` derivation `P` of the CNF `Φ`
+(semantic weakening, `RL.Der`) containing the empty clause, all of whose lines have at most `W`
+equations each with at most `N` variables, gives a refutation in the syntactic dag-like
+`Res(lin F_2)` of Part-Tzameret (`RLDag` from `Ax2 Φ ∪ boolAx`) with at most
+`xorBackCost W N * |P|` lines.  Converse of `rldag2_to_dagRefutes` up to this factor. -/
+theorem dagRefutes_to_rldag2 {Φ : CNF} {P : Finset RL.LClause} (hP : RL.Der (↑Φ : Set Clause) P)
+    (h0 : (∅ : RL.LClause) ∈ P) {W N : ℕ} (hW : ∀ M ∈ P, M.card ≤ W)
+    (hN : ∀ M ∈ P, ∀ e ∈ M, e.1.card ≤ N) :
+    ∃ 𝓛, RLDag (Ax2 Φ ∪ boolAx) 𝓛 ∧ (∅ : Ln2) ∈ 𝓛 ∧ 𝓛.card ≤ xorBackCost W N * P.card := by
+  have key : ∀ {P : Finset RL.LClause}, RL.Der (↑Φ : Set Clause) P → (∀ M ∈ P, M.card ≤ W) →
+      (∀ M ∈ P, ∀ e ∈ M, e.1.card ≤ N) →
+      ∃ 𝓛, RLDag (Ax2 Φ ∪ boolAx) 𝓛 ∧ (∀ M ∈ P, fromL M ∈ 𝓛) ∧
+        𝓛.card ≤ xorBackCost W N * P.card := by
+    intro P hP
+    induction hP with
+    | empty => intro _ _; exact ⟨∅, RLDag.empty, by simp, by simp⟩
+    | @add P L hP' hs ih =>
+      intro hW hN
+      obtain ⟨𝓛, h𝓛, hmem, hc⟩ := ih (fun M hM => hW M (Finset.mem_insert_of_mem hM))
+        (fun M hM => hN M (Finset.mem_insert_of_mem hM))
+      by_cases hL : L ∈ P
+      · rw [Finset.insert_eq_of_mem hL]
+        exact ⟨𝓛, h𝓛, hmem, hc⟩
+      · obtain ⟨𝓛', E, m⟩ := step_back hs hW hN h𝓛 hmem
+        refine ⟨𝓛', E.1, fun M hM => ?_, ?_⟩
+        · rcases Finset.mem_insert.1 hM with rfl | hM
+          · exact m
+          · exact E.2.1 (hmem M hM)
+        · rw [Finset.card_insert_of_notMem hL, Nat.mul_succ]
+          have := E.2.2
+          omega
+  obtain ⟨𝓛, h𝓛, hmem, hc⟩ := key hP hW hN
+  exact ⟨𝓛, h𝓛, by simpa [fromL] using hmem ∅ h0, hc⟩
 
 end
 
