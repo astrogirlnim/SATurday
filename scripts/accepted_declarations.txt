@@ -2715,3 +2715,22 @@ FBridge.sim_resolution_inv
 FBridge.fragment_nonvacuous
 FBridge.tseitin_fragment_nonvacuous
 FBridge.depth1_rank_frege_tseitin_idx
+
+# R4 ac0p fable session (r4/ac0p-fable): the polynomial indicator calculus PIC (terms are 0/1 valued
+# polynomials of bounded degree; generalizes R_rho^p) with its Tseitin size bound, and a bridge from the
+# low degree fragment of the AC0[p] Frege sequent calculus, at every formula depth, into PIC.
+# The Frontier pin FDegFrontier.log2_degree_target is open and not listed.
+PIC.PRefutation.unsat
+PIC.pic_simulation
+PIC.pic_degree_size
+PIC.pic_main
+PIC.pic_main_idx
+FDeg.eval_val
+FDeg.tr_form
+FDeg.reach_split
+FDeg.step_sim
+FDeg.der_refutation
+FDeg.frege_to_PIC
+FDeg.degS_of_rankS
+FDeg.lowdeg_frege_tseitin
+FDeg.lowdeg_frege_tseitin_idx

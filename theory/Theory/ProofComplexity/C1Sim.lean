@@ -51,8 +51,9 @@ lemma cover_step (g : ι → PP p) (hD : 2 ≤ D) {Pi Pj f : PP p} {L0 L : Finse
     · rw [h0]; simp
 /-- The "useful claim": `(1 - g_h) f P_L ∈ C_D` when `L ⊇ L1 \ {h}` and `L1` is a premise. -/
 
-lemma claim_step (g : ι → PP p) (g01 : ∀ (a : Set ℕ) (k : ι), eval (indPt a) (g k) = 0 ∨ eval (indPt a) (g k) = 1)
-    (hD : 2 ≤ D) {Pi Pj f : PP p} {L1 L : Finset ι} {h : ι} {U : ι → PP p}
+lemma claim_step (g : ι → PP p) {h : ι}
+    (g01 : ∀ a : Set ℕ, eval (indPt a) (g h) = 0 ∨ eval (indPt a) (g h) = 1)
+    (hD : 2 ≤ D) {Pi Pj f : PP p} {L1 L : Finset ι} {U : ι → PP p}
     {K Δ d : ℕ} (hh : h ∈ L1) (hf : f.totalDegree ≤ K) (hPi : Pi.totalDegree ≤ Δ)
     (hPj : Pj.totalDegree ≤ Δ) (hU : ∀ k ∈ L1, (U k).totalDegree + d ≤ Δ)
     (hg : ∀ k ∈ L1, (g k).totalDegree ≤ d)
@@ -110,7 +111,7 @@ lemma claim_step (g : ι → PP p) (g01 : ∀ (a : Set ℕ) (k : ι), eval (indP
       have a7 := (totalDegree_mul (U h * g h * (1 - g h)) (Pi * f)).trans
         (Nat.add_le_add a6 a4)
       omega
-    · rcases g01 a h with h0 | h1
+    · rcases g01 a with h0 | h1
       · simp [h0]
       · simp [h1]
   have : (1 - g h) * (Pi * f) = (1 - g h) * X + U h * g h * (1 - g h) * (Pi * f) := by
@@ -461,7 +462,7 @@ theorem c1_simulation (R : RRefutation Φ V ρ p) {D K Δ d w : ℕ} (hD : 2 ≤
         obtain ⟨U, hU, hprefj⟩ := hpref j hjS
         have hbdj := R.bdd j hjS
         have hh1 : T₁ ∈ R.line j := by rw [hjL]; exact h₁
-        have c1 := claim_step gT gT_cube hD (L1 := R.line j) (L := R.line i) (h := T₁) hh1 hf
+        have c1 := claim_step gT (fun a => gT_cube a _) hD (L1 := R.line j) (L := R.line i) (h := T₁) hh1 hf
           (hP i hi) (hP j hjS) hU (fun T hT => hgdeg T (hbdj T hT)) hprefj (by omega)
           (fun k hk => by
             rw [hL]; obtain ⟨hne, hkm⟩ := Finset.mem_erase.1 hk
@@ -498,13 +499,13 @@ theorem c1_simulation (R : RRefutation Φ V ρ p) {D K Δ d w : ℕ} (hD : 2 ≤
         have hbd2 := R.bdd j2 hjS2
         have hh1 : T₁ ∈ R.line j1 := by rw [hj1L]; exact h₁
         have hh2 : T₂ ∈ R.line j2 := by rw [hj2L]; exact h₂
-        have c1 := claim_step gT gT_cube hD (L1 := R.line j1) (L := R.line i) (h := T₁) hh1 hf
+        have c1 := claim_step gT (fun a => gT_cube a _) hD (L1 := R.line j1) (L := R.line i) (h := T₁) hh1 hf
           (hP i hi) (hP j1 hjS1) hU1 (fun T hT => hgdeg T (hbd1 T hT)) hpref1 (by omega)
           (fun k hk => by
             rw [hL]; obtain ⟨hne, hkm⟩ := Finset.mem_erase.1 hk
             exact hL₁ (Finset.mem_erase.2 ⟨hne, by rw [← hj1L]; exact hkm⟩))
           (herr i hi) (ih j1 hj1 hjS1)
-        have c2 := claim_step gT gT_cube hD (L1 := R.line j2) (L := R.line i) (h := T₂) hh2 hf
+        have c2 := claim_step gT (fun a => gT_cube a _) hD (L1 := R.line j2) (L := R.line i) (h := T₂) hh2 hf
           (hP i hi) (hP j2 hjS2) hU2 (fun T hT => hgdeg T (hbd2 T hT)) hpref2 (by omega)
           (fun k hk => by
             rw [hL]; obtain ⟨hne, hkm⟩ := Finset.mem_erase.1 hk
