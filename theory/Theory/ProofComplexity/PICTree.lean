@@ -442,6 +442,140 @@ theorem tder_of_unsat {Φ : CNF} {V : Finset ℕ} {d : ℕ} (hd1 : 1 ≤ d)
   rw [Finset.image_empty] at hs
   exact ⟨s, hs⟩
 
+/-! ## Tseitin -/
+
+open SATurday.ProofComplexity.TseitinPC
+
+/-- **Tree-like `PIC`, Tseitin, natural number form.**  For `m ≥ tseitinFloor p q`, every charge,
+every `d ≥ 1`: a tree-like refutation of one-hot Tseitin mod `q` on `cubFam m` with terms of degree
+at most `d` over `F_p` has at least `2 ^ ((D0 - max (q+3) (3 d)) / d)` nodes, `D0` the polynomial
+calculus degree bound of `tseitin_bool_degree_Fp_idx`. -/
+theorem pic_tree_tseitin_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) {m : ℕ} (hm : tseitinFloor p q ≤ m) (b : Fin (m * m * 8) → ZMod q)
+    {d : ℕ} (hd1 : 1 ≤ d) {s : ℕ}
+    (h : TDer (p := p) (tcnf (cubFam m) q b) (tVars (cubFam m) q) d ∅ s) :
+    2 ^ (((((m * m * 8) - 2) / 1312 - q * (q + 3)) / (q - 1) - max (q + 3) (3 * d)) / d) ≤ s := by
+  obtain ⟨hreg, -, hdeg⟩ := tseitin_bool_degree_Fp_idx p hq hpq hm
+  exact tree_size_of_degree hd1 (fun C hC => (tcnf_clause_props hreg hC).2) (hdeg b) h
+
+/-- The degree bound `D0` is at least `n / (1312 q)` for `n ≥ 1312 q (q^2 + 4 q + 2)`. -/
+theorem D0_ge {q n : ℕ} (hq : 2 ≤ q) (hn : 1312 * q * (q * q + 4 * q + 2) ≤ n) :
+    n ≤ 1312 * q * (((n - 2) / 1312 - q * (q + 3)) / (q - 1)) := by
+  set X := (n - 2) / 1312 with hX
+  set Y := X - q * (q + 3) with hY
+  set D0 := Y / (q - 1) with hD0
+  have hq1 : 0 < q - 1 := by omega
+  have hnX : n ≤ 1312 * X + 1313 := by
+    have h1 := Nat.div_add_mod (n - 2) 1312
+    have h2 := Nat.mod_lt (n - 2) (show 0 < 1312 by norm_num)
+    rw [← hX] at h1
+    omega
+  have hYD : Y ≤ (q - 1) * D0 + (q - 2) := by
+    have h1 := Nat.div_add_mod Y (q - 1)
+    have h2 := Nat.mod_lt Y hq1
+    rw [← hD0] at h1
+    omega
+  have hXY : X ≤ Y + q * (q + 3) := by omega
+  have e0 : q * (q + 3) = q * q + 3 * q := by ring
+  have e1 : 1312 * q * D0 = 1312 * ((q - 1) * D0) + 1312 * D0 := by
+    obtain ⟨r, rfl⟩ : ∃ r, q = r + 1 := ⟨q - 1, by omega⟩
+    simp only [Nat.add_sub_cancel]; ring
+  by_cases hc : q * q + 4 * q ≤ D0
+  · rw [e1]; omega
+  · exfalso
+    have h3 : (q - 1) * D0 ≤ (q - 1) * (q * q + 4 * q) := Nat.mul_le_mul_left _ (by omega)
+    have e2 : q * (q * q + 4 * q) = (q - 1) * (q * q + 4 * q) + (q * q + 4 * q) := by
+      obtain ⟨r, rfl⟩ : ∃ r, q = r + 1 := ⟨q - 1, by omega⟩
+      simp only [Nat.add_sub_cancel]; ring
+    have e3 : 1312 * q * (q * q + 4 * q + 2) = 1312 * (q * (q * q + 4 * q)) + 2624 * q := by ring
+    rw [e3] at hn
+    omega
+
+/-- **Tree-like `PIC`, Tseitin, indexed family, real form.**  Primes `p ∤ q`, `δ > 0`.  There is
+`m0` such that for all `m ≥ m0`, with `n = 8 m^2`: one-hot Tseitin mod `q` on `cubFam m` with the
+explicit charge is unsatisfiable; for every `d ≥ 1` it has a tree-like `PIC` refutation over `F_p`
+with terms of degree at most `d`; and for every `d` with `1 ≤ d ≤ n^(1-δ)` every such refutation
+has at least `2 ^ (n^δ / (2624 q))` nodes.  There is no logarithmic bound on the degree. -/
+theorem pic_tree_main_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ m0 : ℕ, ∀ m : ℕ, m0 ≤ m →
+      ¬ Satisfiable (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) ∧
+      ∀ d : ℕ, 1 ≤ d →
+        (∃ s, TDer (p := p) (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
+          (tVars (cubFam m) q) d ∅ s) ∧
+        ((d : ℝ) ≤ ((m * m * 8 : ℕ) : ℝ) ^ (1 - δ) →
+          ∀ s : ℕ, TDer (p := p) (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
+            (tVars (cubFam m) q) d ∅ s →
+            (2 : ℝ) ^ (((m * m * 8 : ℕ) : ℝ) ^ δ / (2624 * q)) ≤ s) := by
+  set B : ℝ := 2624 * q * (q + 7) with hB
+  have hB0 : 0 ≤ B := by positivity
+  refine ⟨max (tseitinFloor p q) (max (1312 * q * (q * q + 4 * q + 2)) ⌈B ^ δ⁻¹⌉₊),
+    fun m hm => ?_⟩
+  have hmF : tseitinFloor p q ≤ m := (le_max_left _ _).trans hm
+  have hmN : 1312 * q * (q * q + 4 * q + 2) ≤ m :=
+    ((le_max_left _ _).trans (le_max_right _ _)).trans hm
+  have hmB : ⌈B ^ δ⁻¹⌉₊ ≤ m := ((le_max_right _ _).trans (le_max_right _ _)).trans hm
+  have hmn : m ≤ m * m * 8 := by
+    rcases Nat.eq_zero_or_pos m with rfl | h
+    · simp
+    · nlinarith
+  set n := m * m * 8 with hn
+  obtain ⟨hreg, -, -⟩ := cubFam_props (cubFam_floor_le hmF).1
+  obtain ⟨-, hunsat⟩ := tseitin_idx_explicit_unsat p hq hmF
+  refine ⟨hunsat, fun d hd1 => ⟨tder_of_unsat hd1 ?_ hunsat, fun hd s hs => ?_⟩⟩
+  · intro C hC l hl
+    exact (tcnf_clause_props hreg hC).1 (Finset.mem_image_of_mem _ hl)
+  have hS := pic_tree_tseitin_idx p hq hpq hmF _ hd1 hs
+  rw [← hn] at hS
+  set D0 := ((n - 2) / 1312 - q * (q + 3)) / (q - 1) with hD0
+  set E := (D0 - max (q + 3) (3 * d)) / d with hE
+  have hnpos : 0 < n := by
+    have : 0 < 1312 * q * (q * q + 4 * q + 2) := by positivity
+    omega
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hnpos
+  -- natural number facts
+  have hD0n : n ≤ 1312 * q * D0 := D0_ge hq (hmN.trans hmn)
+  have hED : D0 ≤ d * (E + 1) + (q + 3) + 3 * d := by
+    have h1 : max (q + 3) (3 * d) ≤ q + 3 + 3 * d := max_le (by omega) (by omega)
+    have h2 := Nat.lt_mul_div_succ (D0 - max (q + 3) (3 * d)) (show 0 < d by omega)
+    rw [← hE] at h2
+    omega
+  -- real facts
+  set t : ℝ := (n : ℝ) ^ δ with ht
+  have ht0 : 0 ≤ t := Real.rpow_nonneg hnR.le _
+  have htB : B ≤ t := by
+    have h1 : B ^ δ⁻¹ ≤ (n : ℝ) := by
+      have := Nat.le_ceil (B ^ δ⁻¹)
+      exact this.trans (by exact_mod_cast hmB.trans hmn)
+    have h2 := Real.rpow_le_rpow (Real.rpow_nonneg hB0 _) h1 hδ.le
+    rwa [Real.rpow_inv_rpow hB0 hδ.ne'] at h2
+  have hdt : (d : ℝ) * t ≤ n := by
+    have h1 : (n : ℝ) ^ (1 - δ) * t = n := by
+      rw [ht, ← Real.rpow_add hnR]; simp
+    calc (d : ℝ) * t ≤ (n : ℝ) ^ (1 - δ) * t := mul_le_mul_of_nonneg_right hd ht0
+      _ = n := h1
+  have hdR : (1 : ℝ) ≤ d := by exact_mod_cast hd1
+  have hqR : (2 : ℝ) ≤ q := by exact_mod_cast hq
+  have h1 : (n : ℝ) ≤ 1312 * q * D0 := by exact_mod_cast hD0n
+  have h2 : (D0 : ℝ) ≤ d * (E + 1) + (q + 3) + 3 * d := by exact_mod_cast hED
+  have h3 : (d : ℝ) * t ≤ d * (1312 * q * (E + q + 7)) := by
+    have h4 : (q + 3 : ℝ) ≤ d * (q + 3) := by nlinarith
+    have h5 : (1312 * q : ℝ) * D0 ≤ 1312 * q * (d * (E + 1) + d * (q + 3) + 3 * d) :=
+      mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+    calc (d : ℝ) * t ≤ n := hdt
+      _ ≤ 1312 * q * D0 := h1
+      _ ≤ 1312 * q * (d * (E + 1) + d * (q + 3) + 3 * d) := h5
+      _ = d * (1312 * q * (E + q + 7)) := by ring
+  have h6 : t ≤ 1312 * q * (E + q + 7) := le_of_mul_le_mul_left h3 (by linarith)
+  have hEt : t / (2624 * q) ≤ E := by
+    rw [div_le_iff₀ (by positivity)]
+    have : (2624 : ℝ) * q * (q + 7) ≤ t := htB
+    nlinarith
+  calc (2 : ℝ) ^ (t / (2624 * q)) ≤ (2 : ℝ) ^ (E : ℝ) :=
+        Real.rpow_le_rpow_of_exponent_le (by norm_num) hEt
+    _ = ((2 ^ E : ℕ) : ℝ) := by rw [Real.rpow_natCast]; push_cast; rfl
+    _ ≤ s := by exact_mod_cast hS
+
 end
 
 end PICT
