@@ -1603,4 +1603,194 @@ theorem depth1_rank_frege_tseitin (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] 
   exact H b ρ hρ1 hρ L hproof hE
     (fun S hS φ hφ => (flat_iff_depth φ).2 ⟨hdepth S hS φ hφ, hvars S hS φ hφ⟩) hrank
 
+/-! ## Non vacuity: the fragment contains (the image of) every resolution refutation -/
+
+section Nonvacuity
+
+/-- All formulas of all sequents satisfy `P`. -/
+def AllFm (P : Fm → Prop) (L : List Seq) : Prop := ∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, P φ
+
+theorem allfm_append {P : Fm → Prop} {L1 L2 : List Seq} (h1 : AllFm P L1) (h2 : AllFm P L2) :
+    AllFm P (L1 ++ L2) := by
+  intro S hS
+  rcases List.mem_append.1 hS with h | h
+  · exact h1 S h
+  · exact h2 S h
+
+theorem allfm_single {P : Fm → Prop} {S : Seq} (h : ∀ φ ∈ S.1 ++ S.2, P φ) : AllFm P [S] := by
+  intro T hT
+  rw [List.mem_singleton] at hT; subst hT; exact h
+
+theorem axLines_all (P : Fm → Prop) (Δ : List Fm) (hΔ : ∀ φ ∈ Δ, P φ) :
+    ∀ M : List Fm, (∀ φ ∈ M, φ ∈ Δ) → AllFm P (axLines Δ M) := by
+  intro M
+  induction M with
+  | nil => intro _ S hS; simp [axLines] at hS
+  | cons φ M ih =>
+    intro hM
+    refine allfm_append (L1 := [([φ], [φ]), ([φ], Δ)]) ?_ (ih fun ψ hψ => hM ψ (by simp [hψ]))
+    intro S hS
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hS
+    rcases hS with rfl | rfl
+    · intro ψ hψ; simp at hψ; subst hψ; exact hΔ _ (hM _ (by simp))
+    · intro ψ hψ
+      simp only [List.mem_append, List.mem_singleton] at hψ
+      rcases hψ with rfl | hψ
+      · exact hΔ _ (hM _ (by simp))
+      · exact hΔ _ hψ
+
+/-- The simulation of resolution of `AC0pFrege.lean`, carrying an invariant `P` of all formulas
+that holds for the literals and the clause disjunctions of `F`. -/
+theorem sim_resolution_inv {p : ℕ} {F : CNF} (P : Fm → Prop)
+    (hlit : ∀ C ∈ F, ∀ l ∈ C, P (litFm l)) (hcl : ∀ C ∈ F, P (clauseFm C)) :
+    ∀ {C : Clause} (_ : Derivation F C), (∀ l ∈ C, P (litFm l)) ∧
+      ∃ L : List Seq, FProof p F L ∧ AllFm P L ∧ ([], litsOf C) ∈ L := by
+  intro C d
+  induction d with
+  | hyp C hC =>
+      refine ⟨hlit C hC, ?_⟩
+      have hΔ : ∀ φ ∈ litsOf C, P φ := by
+        intro φ hφ
+        obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hφ
+        exact hlit C hC l (Finset.mem_toList.1 hl)
+      have hor : P (.or (litsOf C)) := hcl C hC
+      set Δ := litsOf C
+      let L0 : List Seq := [([], [clauseFm C])]
+      have h0 : FProof p F L0 := by
+        intro k hk; simp [L0] at hk; subst hk; exact step_hyp hC
+      have hax := axLines_proof (p := p) (F := F) Δ Δ (fun _ h => h)
+      have h1 : FProof p F (L0 ++ axLines Δ Δ) := fproof_append h0 hax
+      have h2 := fproof_snoc (S := ([.or Δ], Δ)) h1 (step_orL Δ [] Δ (fun φ hφ =>
+        List.mem_append_right _ (axLines_mem Δ Δ φ hφ)))
+      have h3 := fproof_snoc (S := ([], .or Δ :: Δ)) h2
+        (step_weak (T := ([], [clauseFm C])) (by simp [L0]) (by simp)
+          (by intro ψ hψ; simp at hψ; subst hψ; simp [clauseFm, Δ, litsOf]))
+      have h4 := fproof_snoc (S := ([], Δ)) h3 (step_cut (.or Δ) (by simp) (by simp))
+      refine ⟨_, h4, ?_, by simp⟩
+      refine allfm_append (allfm_append (allfm_append (allfm_append
+        (allfm_single ?_) (axLines_all P Δ hΔ Δ (fun _ h => h)))
+        (allfm_single ?_)) (allfm_single ?_)) (allfm_single ?_)
+      · intro ψ hψ; simp at hψ; subst hψ; exact hcl C hC
+      · intro ψ hψ
+        simp only [List.mem_append, List.mem_singleton] at hψ
+        rcases hψ with rfl | hψ
+        · exact hor
+        · exact hΔ ψ hψ
+      · intro ψ hψ
+        simp only [List.nil_append, List.mem_cons] at hψ
+        rcases hψ with rfl | hψ
+        · exact hor
+        · exact hΔ ψ hψ
+      · intro ψ hψ; simp only [List.nil_append] at hψ; exact hΔ ψ hψ
+  | res x dC dD hx hnx ihC ihD =>
+      rename_i C D
+      obtain ⟨lC, LC, pC, aC, mC⟩ := ihC
+      obtain ⟨lD, LD, pD, aD, mD⟩ := ihD
+      have hR : ∀ l ∈ SATurday.ProofComplexity.resolvent C D x, P (litFm l) := by
+        intro l hl
+        unfold SATurday.ProofComplexity.resolvent at hl
+        rcases Finset.mem_union.1 hl with h | h
+        · exact lC l (Finset.mem_of_mem_erase h)
+        · exact lD l (Finset.mem_of_mem_erase h)
+      refine ⟨hR, ?_⟩
+      have hPX : P (.var x) := by
+        have := lC _ hx
+        simpa [litFm] using this
+      have hPNX : P (.neg (.var x)) := by
+        have := lD _ hnx
+        simpa [litFm] using this
+      have hPR : ∀ ψ ∈ litsOf (SATurday.ProofComplexity.resolvent C D x), P ψ := by
+        intro ψ h
+        obtain ⟨l, hl, rfl⟩ := List.mem_map.1 h
+        exact hR l (Finset.mem_toList.1 hl)
+      set X : Fm := .var x
+      set NX : Fm := .neg (.var x)
+      set R := SATurday.ProofComplexity.resolvent C D x
+      have hlx : litFm ⟨x, true⟩ = X := by simp [litFm, X]
+      have hlnx : litFm ⟨x, false⟩ = NX := by simp [litFm, NX]
+      have hDsub : litsOf D ⊆ NX :: litsOf R := by
+        intro ψ hψ
+        obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hψ
+        rw [Finset.mem_toList] at hl
+        by_cases he : l = ⟨x, false⟩
+        · subst he; rw [hlnx]; simp
+        · exact List.mem_cons_of_mem _ (mem_litsOf (Finset.mem_union_right _
+            (Finset.mem_erase.2 ⟨he, hl⟩)))
+      have hCsub : litsOf C ⊆ X :: litsOf R := by
+        intro ψ hψ
+        obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hψ
+        rw [Finset.mem_toList] at hl
+        by_cases he : l = ⟨x, true⟩
+        · subst he; rw [hlx]; simp
+        · exact List.mem_cons_of_mem _ (mem_litsOf (Finset.mem_union_left _
+            (Finset.mem_erase.2 ⟨he, hl⟩)))
+      have p0 := fproof_append pC pD
+      have p1 := fproof_snoc (S := ([X], [X])) p0 (step_ax X)
+      have p2 := fproof_snoc (S := ([NX, X], [])) p1 (step_negL X [X] [] (by simp))
+      have p3 := fproof_snoc (S := ([X], NX :: litsOf R)) p2
+        (step_weak (T := ([], litsOf D)) (by simp [mD]) (by simp) hDsub)
+      have p4 := fproof_snoc (S := ([NX, X], litsOf R)) p3
+        (step_weak (T := ([NX, X], [])) (by simp) (by simp) (by simp))
+      have p5 := fproof_snoc (S := ([X], litsOf R)) p4 (step_cut NX (by simp) (by simp))
+      have p6 := fproof_snoc (S := ([], X :: litsOf R)) p5
+        (step_weak (T := ([], litsOf C)) (by simp [mC]) (by simp) hCsub)
+      have p7 := fproof_snoc (S := ([], litsOf R)) p6 (step_cut X (by simp) (by simp))
+      refine ⟨_, p7, ?_, by simp⟩
+      have dep : ∀ ψ : Fm, (ψ = X ∨ ψ = NX ∨ ψ ∈ litsOf R) → P ψ := by
+        rintro ψ (rfl | rfl | h)
+        · exact hPX
+        · exact hPNX
+        · exact hPR ψ h
+      refine allfm_append (allfm_append (allfm_append (allfm_append (allfm_append
+        (allfm_append (allfm_append (allfm_append aC aD) ?_) ?_) ?_) ?_) ?_) ?_) ?_ <;>
+        apply allfm_single <;> intro ψ hψ <;> apply dep <;>
+        simp only [List.mem_append, List.mem_cons, List.not_mem_nil,
+          or_false, List.nil_append, List.append_nil] at hψ <;> tauto
+
+/-- **Non vacuity of the fragment.**  If `F` is unsatisfiable, its variables lie in `V` and its
+clauses have at most `ρ` literals, then `F` has a depth one refutation in the fragment of
+`depth1_rank_frege_tseitin`: variables in `V` and rank condition `RankS ρ`. -/
+theorem fragment_nonvacuous {p : ℕ} {F : CNF} (h : ¬ Satisfiable F) {V : Finset ℕ} {ρ : ℕ}
+    (hV : ∀ C ∈ F, ∀ l ∈ C, l.var ∈ V) (hw : ∀ C ∈ F, C.card ≤ ρ) :
+    ∃ L, FRefutes p 1 F L ∧ (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ V) ∧
+      (∀ S ∈ L, RankS ρ S) := by
+  obtain ⟨d⟩ := resolution_complete h
+  let P : Fm → Prop := fun φ => φ.depth ≤ 1 ∧ fvars φ ⊆ V ∧ RankOK ρ true φ ∧ RankOK ρ false φ
+  have hlit : ∀ C ∈ F, ∀ l ∈ C, P (litFm l) := by
+    intro C hC l hl
+    refine ⟨by rw [depth_litFm]; omega, ?_, ?_, ?_⟩
+    · unfold litFm; split_ifs <;> simpa [fvars] using hV C hC l hl
+    · unfold litFm; split_ifs <;> simp [RankOK]
+    · unfold litFm; split_ifs <;> simp [RankOK]
+  have hcl : ∀ C ∈ F, P (clauseFm C) := by
+    intro C hC
+    refine ⟨depth_clauseFm C, ?_, ?_, ?_⟩
+    · intro x hx
+      simp only [clauseFm, fvars, List.mem_toFinset, List.mem_map] at hx
+      obtain ⟨ψ, ⟨l, hl, rfl⟩, rfl⟩ := hx
+      have := hV C hC l (Finset.mem_toList.1 hl)
+      unfold litFm; split_ifs <;> simpa [lvar] using this
+    · simp [clauseFm, RankOK]
+    · simpa [clauseFm, RankOK] using hw C hC
+  obtain ⟨_, L, hL, hall, hm⟩ := sim_resolution_inv (p := p) P hlit hcl d
+  have he : litsOf (∅ : Clause) = [] := by simp [litsOf]
+  rw [he] at hm
+  refine ⟨L, ⟨hL, fun S hS φ hφ => (hall S hS φ hφ).1, hm⟩,
+    fun S hS φ hφ => (hall S hS φ hφ).2.1, fun S hS => ⟨fun φ hφ => ?_, fun φ hφ => ?_⟩⟩
+  · exact (hall S hS φ (List.mem_append_left _ hφ)).2.2.2
+  · exact (hall S hS φ (List.mem_append_right _ hφ)).2.2.1
+
+end Nonvacuity
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- Non vacuity for the Tseitin instances: for a cubic graph, nonzero total charge and
+`ρ ≥ q + 3`, the fragment contains a refutation of `tcnf G q b`. -/
+theorem tseitin_fragment_nonvacuous (p : ℕ) {q : ℕ} [NeZero q] {n : ℕ} {G : FinGraph n}
+    (hreg : IsRegular G 3) {b : Fin n → ZMod q} (hb : ∑ v, b v ≠ 0) {ρ : ℕ} (hρ : q + 3 ≤ ρ) :
+    ∃ L, FRefutes p 1 (tcnf G q b) L ∧
+      (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ tVars G q) ∧ (∀ S ∈ L, RankS ρ S) := by
+  refine fragment_nonvacuous (tcnf_unsat hb) (fun C hC l hl => ?_) (fun C hC => ?_)
+  · exact (tcnf_clause_props hreg hC).1 (Finset.mem_image_of_mem _ hl)
+  · exact (tcnf_clause_props hreg hC).2.trans hρ
+
 end FBridge
