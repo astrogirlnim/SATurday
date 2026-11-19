@@ -150,6 +150,13 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   `exp(n^(1 - (kappa+1) eps)) <= |L| * 24 (fSize L + |L|) * B^2` (`FWide.wide_frege_to_PIC`,
   `FWide.wide_frege_tseitin_idx`). Still a fragment. The report also records the line format of the
   Buss, Kolodziejczyk, Zdanowski normal forms against `DegS`.
+  Tree-like case, kernel checked (2026-11-19, `PICTree.lean`, `FregeTree.lean`, report
+  `docs/ladder/rungs/r4-treedeg-fable-report.md`): a tree-like refutation with `s` nodes and terms of
+  degree at most `d` gives a polynomial calculus refutation of degree `d log2 s + max(w, 3d)`, for `PIC`
+  and for tree-like proofs in the pinned sequent calculus inside `DegS` at every formula depth. For
+  Tseitin: at least `2^(n^delta / (2624 q))` nodes for every `d <= n^(1 - delta)`
+  (`PICT.pic_tree_main_idx`, `FTree.frege_tree_main_idx`). Tree-like only; the dag-like pin
+  `FDegFrontier.log2_degree_target` stays open.
 - Stop rule: 3 failed attempts on one method kill that method branch.
 
 ## Phase 3: certify R4

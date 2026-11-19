@@ -123,6 +123,8 @@ import Theory.ProofComplexity.PolyIndCalc
 import Theory.ProofComplexity.FregeDegBridge
 import Theory.ProofComplexity.FregeDegFrontier
 import Theory.ProofComplexity.FregeWideAnd
+import Theory.ProofComplexity.PICTree
+import Theory.ProofComplexity.FregeTree
 import Theory.ProofComplexity.EmbedPangR
 import Theory.ProofComplexity.EmbedXorBack
 import Theory.ProofComplexity.FregeModArith
