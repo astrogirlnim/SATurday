@@ -134,6 +134,16 @@ propext, Classical.choice, Quot.sound; new declarations listed in
   depth 2. The unrestricted depth one statement is the open Frontier pin
   `FBridgeFrontier.depth1_tseitin_target`.
 - [ ] 2.4 Constant depth AC0[p] Frege (this is R4 itself).
+  Not done; open. Partial, kernel checked (2026-11-18, `PolyIndCalc.lean`, `FregeDegBridge.lean`, report
+  `docs/ladder/rungs/r4-ac0p-fable-report.md`): a calculus `PIC` whose lines are disjunctions of 0/1 valued
+  polynomials of degree at most `d` over F_p, with the size bound of `c1_main` (`PIC.pic_main`,
+  `PIC.pic_main_idx`), and a bridge from the pinned sequent calculus at every formula depth: refutations of
+  one-hot Tseitin mod q whose translated terms have syntactic degree at most `(p-1) rho`, `rho <= eps ln n`
+  (MOD_p gates of any fan in; AND/OR fan ins add up in unsplit positions) have size at least
+  `exp(n^(1 - (kappa+1) eps))` up to a polynomial (`FDeg.frege_to_PIC`, `FDeg.lowdeg_frege_tseitin`,
+  `FDeg.lowdeg_frege_tseitin_idx`). This is a corollary of Pang's method, a bound for a fragment, not a
+  bound for constant depth AC0[p] Frege. Open Frontier pin for the next degree:
+  `FDegFrontier.log2_degree_target`.
 - Stop rule: 3 failed attempts on one method kill that method branch.
 
 ## Phase 3: certify R4
