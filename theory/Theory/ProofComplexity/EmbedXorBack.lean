@@ -336,6 +336,263 @@ theorem r_taut_step (hB : boolAx ⊆ Ax) {𝓛 : Finset Ln2} (h : RLDag Ax 𝓛)
   exact ⟨𝓛11, ((((((((((((E0.trans E1).trans E2).trans E3).trans E4).trans E5).trans E6).trans
     E7).trans E8).trans E9).trans E10).trans E11).mono (by norm_num)), m11⟩
 
+/-! ## Tautological lines for every form -/
+
+/-- The form `∑_{i ∈ S} x_i`. -/
+def indic (S : Finset ℕ) : ℕ →₀ ZMod 2 := ∑ i ∈ S, Finsupp.single i 1
+
+theorem indic_apply (S : Finset ℕ) (j : ℕ) : indic S j = if j ∈ S then 1 else 0 := by
+  unfold indic
+  rw [Finsupp.finset_sum_apply]
+  simp [Finsupp.single_apply]
+
+theorem indic_support (c : ℕ →₀ ZMod 2) : indic c.support = c := by
+  ext j
+  rw [indic_apply]
+  by_cases h : j ∈ c.support
+  · rw [if_pos h]
+    have := Finsupp.mem_support_iff.1 h
+    revert this; generalize c j = t; revert t; decide
+  · rw [if_neg h]; exact (Finsupp.notMem_support_iff.1 h).symm
+
+theorem r_taut_indic (hB : boolAx ⊆ Ax) (S : Finset ℕ) : ∀ {𝓛 : Finset Ln2}, RLDag Ax 𝓛 →
+    ∃ 𝓛', Ext2 Ax 𝓛 𝓛' (12 * S.card + 5) ∧ tl (indic S) ∈ 𝓛' := by
+  induction S using Finset.induction_on with
+  | empty =>
+    intro 𝓛 h
+    have : indic (∅ : Finset ℕ) = 0 := by simp [indic]
+    rw [this]
+    obtain ⟨𝓛', E, m⟩ := r_taut0 hB h
+    exact ⟨𝓛', E.mono (by simp), m⟩
+  | insert i S hi ih =>
+    intro 𝓛 h
+    obtain ⟨𝓛1, E1, m1⟩ := ih h
+    have hi0 : indic S i = 0 := by rw [indic_apply, if_neg hi]
+    obtain ⟨𝓛2, E2, m2⟩ := r_taut_step hB E1.1 hi0 m1
+    have e : indic (insert i S) = indic S + Finsupp.single i 1 := by
+      unfold indic; rw [Finset.sum_insert hi, add_comm]
+    rw [e]
+    refine ⟨𝓛2, (E1.trans E2).mono ?_, m2⟩
+    rw [Finset.card_insert_of_notMem hi]; omega
+
+theorem r_taut (hB : boolAx ⊆ Ax) {𝓛 : Finset Ln2} (h : RLDag Ax 𝓛) (c : ℕ →₀ ZMod 2) :
+    ∃ 𝓛', Ext2 Ax 𝓛 𝓛' (12 * c.support.card + 5) ∧ tl c ∈ 𝓛' := by
+  have := r_taut_indic hB c.support h
+  rwa [indic_support] at this
+
+theorem r_tauts (hB : boolAx ⊆ Ax) (N : ℕ) (Ls : Finset (LEq (ZMod 2))) :
+    (∀ e ∈ Ls, e.1.support.card ≤ N) → ∀ {𝓛 : Finset Ln2}, RLDag Ax 𝓛 →
+    ∃ 𝓛', Ext2 Ax 𝓛 𝓛' (Ls.card * (12 * N + 5)) ∧ ∀ e ∈ Ls, tl e.1 ∈ 𝓛' := by
+  induction Ls using Finset.induction_on with
+  | empty => intro _ 𝓛 h; exact ⟨𝓛, (Ext2.refl h).mono (by simp), by simp⟩
+  | insert e Ls he ih =>
+    intro hN 𝓛 h
+    obtain ⟨𝓛1, E1, m1⟩ := ih (fun e' he' => hN e' (Finset.mem_insert_of_mem he')) h
+    obtain ⟨𝓛2, E2, m2⟩ := r_taut hB E1.1 e.1
+    refine ⟨𝓛2, (E1.trans E2).mono ?_, fun e' he' => ?_⟩
+    · rw [Finset.card_insert_of_notMem he]
+      have := hN e (Finset.mem_insert_self _ _)
+      calc Ls.card * (12 * N + 5) + (12 * e.1.support.card + 5)
+          ≤ Ls.card * (12 * N + 5) + (12 * N + 5) := Nat.add_le_add_left (by omega) _
+        _ = (Ls.card + 1) * (12 * N + 5) := by ring
+    · rcases Finset.mem_insert.1 he' with rfl | he'
+      · exact m2
+      · exact E2.2.1 (m1 e' he')
+
+/-! ## Eliminating one equation -/
+
+theorem r_elim (T : Finset (LEq (ZMod 2))) : ∀ {𝓛 : Finset Ln2}, RLDag Ax 𝓛 →
+    (∀ e ∈ T, tl e.1 ∈ 𝓛) → ∀ (M : Ln2) (g : LEq (ZMod 2)), M ∈ 𝓛 → g ∈ M →
+    g + ∑ e ∈ T, ng e = fz →
+    ∃ 𝓛', Ext2 Ax 𝓛 𝓛' (T.card + 1) ∧ ∃ M' ∈ 𝓛', ∀ y ∈ M', (y ∈ M ∧ y ≠ g) ∨ y ∈ T := by
+  induction T using Finset.induction_on with
+  | empty =>
+    intro 𝓛 h _ M g hM hg hs
+    simp only [Finset.sum_empty, add_zero] at hs
+    subst hs
+    obtain ⟨𝓛', E, M', m', p, -⟩ := r_simpP h hM hg
+    exact ⟨𝓛', E.mono (by simp), M', m', fun y hy => Or.inl (p y hy)⟩
+  | insert e T he ih =>
+    intro 𝓛 h ht M g hM hg hs
+    obtain ⟨𝓛1, E1, M1, m1, p1, z1, -, -⟩ := r_combP h 1 1 hM (ht e (Finset.mem_insert_self _ _))
+      hg (ng_mem_tl e) (P := fun y => (y ∈ M ∧ y ≠ g) ∨ y = e ∨ y = g + ng e)
+      (fun y hy hne => Or.inl ⟨hy, hne⟩)
+      (fun y hy hne => by
+        rcases tl_sub e y hy with rfl | rfl
+        · right; left; rfl
+        · exact absurd rfl hne)
+      (by rw [cmb11]; right; right; rfl)
+    rw [cmb11] at z1
+    obtain ⟨𝓛2, E2, M2, m2, p2⟩ := ih E1.1
+      (fun e' he' => E1.2.1 (ht e' (Finset.mem_insert_of_mem he'))) M1 (g + ng e) m1 z1
+      (by rw [add_assoc]; rwa [Finset.sum_insert he] at hs)
+    refine ⟨𝓛2, (E1.trans E2).mono (by rw [Finset.card_insert_of_notMem he]; omega), M2, m2,
+      fun y hy => ?_⟩
+    rcases p2 y hy with ⟨hy1, hne⟩ | hT
+    · rcases p1 y hy1 with h1 | rfl | rfl
+      · left; exact h1
+      · right; exact Finset.mem_insert_self _ _
+      · exact absurd rfl hne
+    · right; exact Finset.mem_insert_of_mem hT
+
+/-! ## Linear algebra over `F_2` -/
+
+/-- The value `lval c x + a` of an equation `(c, a)`; it is `0` exactly when the equation holds. -/
+def Ψ (x : ℕ → ZMod 2) : LEq (ZMod 2) →ₗ[ZMod 2] ZMod 2 :=
+  (Finsupp.linearCombination (ZMod 2) x).coprod LinearMap.id
+
+theorem Ψ_apply (x : ℕ → ZMod 2) (e : LEq (ZMod 2)) : Ψ x e = lval e.1 x + e.2 := by
+  simp [Ψ, lval, Finsupp.linearCombination_apply, smul_eq_mul]
+
+theorem eSat_iff (x : ℕ → ZMod 2) (e : LEq (ZMod 2)) : eSat x e ↔ Ψ x e = 0 := by
+  rw [Ψ_apply]; unfold eSat
+  generalize lval e.1 x = u; generalize e.2 = v; revert u v; decide
+
+theorem not_eSat_iff (x : ℕ → ZMod 2) (e : LEq (ZMod 2)) : ¬ eSat x e ↔ Ψ x (ng e) = 0 := by
+  rw [Ψ_apply]; unfold eSat ng; dsimp only
+  generalize lval e.1 x = u; generalize e.2 = v; revert u v; decide
+
+theorem fz_mem_span (U : Set (LEq (ZMod 2))) (h : ∀ x : ℕ → ZMod 2, ∃ u ∈ U, Ψ x u ≠ 0) :
+    fz ∈ Submodule.span (ZMod 2) U := by
+  by_contra hn
+  obtain ⟨φ, hφ, hle⟩ := Submodule.exists_le_ker_of_notMem hn
+  set x : ℕ → ZMod 2 := fun i => φ (Finsupp.single i 1, 0)
+  have h1 : φ fz = 1 := by
+    have key : ∀ t : ZMod 2, t ≠ 0 → t = 1 := by decide
+    exact key _ hφ
+  have hc : ∀ c : ℕ →₀ ZMod 2, φ (c, 0) = lval c x := by
+    intro c
+    induction c using Finsupp.induction_linear with
+    | zero =>
+      rw [show ((0 : ℕ →₀ ZMod 2), (0 : ZMod 2)) = 0 from rfl, map_zero, lval_zero]
+    | add c d hc hd =>
+      rw [show ((c + d, (0 : ZMod 2)) : LEq (ZMod 2)) = (c, 0) + (d, 0) by ext <;> simp,
+        map_add, hc, hd, lval_add]
+    | single i b =>
+      rw [show ((Finsupp.single i b, (0 : ZMod 2)) : LEq (ZMod 2)) =
+          b • ((Finsupp.single i 1, 0) : LEq (ZMod 2)) by ext <;> simp, map_smul, smul_eq_mul]
+      simp [lval, Finsupp.sum_single_index, x]
+  have hall : ∀ v, φ v = Ψ x v := by
+    intro v
+    conv_lhs => rw [show v = (v.1, 0) + v.2 • fz by ext <;> simp [fz]]
+    rw [map_add, map_smul, hc, h1, Ψ_apply]
+    simp
+  obtain ⟨u, hu, hne⟩ := h x
+  apply hne
+  rw [← hall]
+  exact LinearMap.mem_ker.1 (hle (Submodule.subset_span hu))
+
+theorem span_ng_sum (L : Finset (LEq (ZMod 2))) :
+    ∀ z ∈ Submodule.span (ZMod 2) (ng '' (L : Set (LEq (ZMod 2)))),
+      ∃ T ⊆ L, z = ∑ e ∈ T, ng e := by
+  induction L using Finset.induction_on with
+  | empty =>
+    intro z hz
+    simp at hz
+    exact ⟨∅, by simp, by simp [hz]⟩
+  | insert e L he ih =>
+    intro z hz
+    rw [Finset.coe_insert, Set.image_insert_eq, Submodule.mem_span_insert] at hz
+    obtain ⟨a, z', hz', rfl⟩ := hz
+    obtain ⟨T, hT, rfl⟩ := ih z' hz'
+    rcases z2_cases' a with rfl | rfl
+    · exact ⟨T, hT.trans (Finset.subset_insert _ _), by simp⟩
+    · have heT : e ∉ T := fun h => he (hT h)
+      exact ⟨insert e T, Finset.insert_subset_insert _ hT,
+        by rw [Finset.sum_insert heT, one_smul]⟩
+
+/-- If `g ⊨ L` on `F_2^ℕ`, some `β g + Σ_{e ∈ T} ¬e`, `T ⊆ L`, is the false constant. -/
+theorem decomp (g : LEq (ZMod 2)) (L : Finset (LEq (ZMod 2)))
+    (h : ∀ x, eSat x g → ∃ e ∈ L, eSat x e) :
+    ∃ β : ZMod 2, ∃ T ⊆ L, β • g + ∑ e ∈ T, ng e = fz := by
+  have hm := fz_mem_span (insert g (ng '' (L : Set (LEq (ZMod 2))))) (by
+    intro x
+    by_cases hg : eSat x g
+    · obtain ⟨e, he, hs⟩ := h x hg
+      refine ⟨ng e, Set.mem_insert_of_mem _ ⟨e, Finset.mem_coe.2 he, rfl⟩, ?_⟩
+      intro h0; exact (not_eSat_iff x e).2 h0 hs
+    · exact ⟨g, Set.mem_insert _ _, fun h0 => hg ((eSat_iff x g).2 h0)⟩)
+  rw [Submodule.mem_span_insert] at hm
+  obtain ⟨β, z, hz, hfz⟩ := hm
+  obtain ⟨T, hT, rfl⟩ := span_ng_sum L z hz
+  exact ⟨β, T, hT, hfz.symm⟩
+
+/-! ## One semantic weakening -/
+
+theorem r_reduce {L : Ln2} (k : ℕ) : ∀ {𝓛 : Finset Ln2}, RLDag Ax 𝓛 →
+    (∀ e ∈ L, tl e.1 ∈ 𝓛) → ∀ M ∈ 𝓛, (M \ L).card ≤ k → (∀ x, clSat x M → clSat x L) →
+    ∃ 𝓛', Ext2 Ax 𝓛 𝓛' (k * (L.card + 1)) ∧ ∃ M' ∈ 𝓛', M' ⊆ L := by
+  induction k with
+  | zero =>
+    intro 𝓛 h _ M hM hk _
+    have : M \ L = ∅ := Finset.card_eq_zero.1 (by omega)
+    exact ⟨𝓛, (Ext2.refl h).mono (by simp), M, hM, Finset.sdiff_eq_empty_iff_subset.1 this⟩
+  | succ k ih =>
+    intro 𝓛 h ht M hM hk hI
+    by_cases hsub : M ⊆ L
+    · exact ⟨𝓛, (Ext2.refl h).mono (Nat.zero_le _), M, hM, hsub⟩
+    obtain ⟨g, hgM, hgL⟩ := Finset.not_subset.1 hsub
+    obtain ⟨β, T, hT, hs⟩ := decomp g L (fun x hx => by
+      obtain ⟨e, he, hs⟩ := hI x ⟨g, hgM, hx⟩
+      exact ⟨e, he, hs⟩)
+    have htT : ∀ e ∈ T, tl e.1 ∈ 𝓛 := fun e he => ht e (hT he)
+    have hTL := Finset.card_le_card hT
+    rcases z2_cases' β with rfl | rfl
+    · rw [zero_smul, zero_add] at hs
+      have hTne : T.Nonempty := by
+        rw [Finset.nonempty_iff_ne_empty]
+        rintro rfl
+        have := congrArg Prod.snd hs
+        simp [fz] at this
+      obtain ⟨e0, he0⟩ := hTne
+      obtain ⟨𝓛1, E1, M1, m1, p1⟩ := r_elim (T.erase e0) h
+        (fun e he => htT e (Finset.mem_of_mem_erase he)) (tl e0.1) (ng e0) (htT e0 he0)
+        (ng_mem_tl e0) (by rw [Finset.add_sum_erase _ _ he0]; exact hs)
+      refine ⟨𝓛1, E1.mono ?_, M1, m1, fun y hy => ?_⟩
+      · have := Finset.card_erase_of_mem he0 (s := T)
+        calc (T.erase e0).card + 1 ≤ L.card + 1 := by omega
+          _ ≤ (k + 1) * (L.card + 1) := Nat.le_mul_of_pos_left _ (by omega)
+      · rcases p1 y hy with ⟨hy1, hne⟩ | hy1
+        · rcases tl_sub e0 y hy1 with rfl | rfl
+          · exact hT he0
+          · exact absurd rfl hne
+        · exact hT (Finset.mem_of_mem_erase hy1)
+    · rw [one_smul] at hs
+      obtain ⟨𝓛1, E1, M1, m1, p1⟩ := r_elim T h htT M g hM hgM hs
+      have hk' : (M1 \ L).card ≤ k := by
+        have hsub2 : M1 \ L ⊆ (M \ L).erase g := by
+          intro y hy
+          obtain ⟨hy1, hyL⟩ := Finset.mem_sdiff.1 hy
+          rcases p1 y hy1 with ⟨hyM, hne⟩ | hyT
+          · exact Finset.mem_erase.2 ⟨hne, Finset.mem_sdiff.2 ⟨hyM, hyL⟩⟩
+          · exact absurd (hT hyT) hyL
+        have := Finset.card_le_card hsub2
+        rw [Finset.card_erase_of_mem (Finset.mem_sdiff.2 ⟨hgM, hgL⟩)] at this
+        omega
+      have hI1 : ∀ x, clSat x M1 → clSat x L := by
+        rintro x ⟨y, hy, hs⟩
+        rcases p1 y hy with ⟨hyM, -⟩ | hyT
+        · exact hI x ⟨y, hyM, hs⟩
+        · exact ⟨y, hT hyT, hs⟩
+      obtain ⟨𝓛2, E2, M2, m2, hM2⟩ := ih E1.1 (fun e he => E1.2.1 (ht e he)) M1 m1 hk' hI1
+      refine ⟨𝓛2, (E1.trans E2).mono ?_, M2, m2, hM2⟩
+      calc T.card + 1 + k * (L.card + 1) ≤ L.card + 1 + k * (L.card + 1) :=
+            Nat.add_le_add_right (by omega) _
+        _ = (k + 1) * (L.card + 1) := by ring
+
+/-- **One semantic weakening in `RLDag` over `F_2`.**  If `M0 ⊨ L` on `F_2^ℕ`, `M0` is a line
+and every equation of `L` has at most `N` variables, then `L` is derivable with at most
+`|L| (12 N + 5) + |M0| (|L| + 1) + 1` further lines. -/
+theorem r_wsim (hB : boolAx ⊆ Ax) {𝓛 : Finset Ln2} (h : RLDag Ax 𝓛) {M0 L : Ln2}
+    (hM0 : M0 ∈ 𝓛) (hI : ∀ x, clSat x M0 → clSat x L) {N : ℕ}
+    (hN : ∀ e ∈ L, e.1.support.card ≤ N) :
+    ∃ 𝓛', Ext2 Ax 𝓛 𝓛' (L.card * (12 * N + 5) + M0.card * (L.card + 1) + 1) ∧ L ∈ 𝓛' := by
+  obtain ⟨𝓛1, E1, ht⟩ := r_tauts hB N L hN h
+  obtain ⟨𝓛2, E2, M2, m2, hM2⟩ := r_reduce M0.card E1.1 ht M0 (E1.2.1 hM0)
+    (Finset.card_le_card Finset.sdiff_subset) hI
+  obtain ⟨𝓛3, E3, m3⟩ := r_sub E2.1 m2 (L := L) (fun y hy => hM2 hy)
+  exact ⟨𝓛3, (E1.trans E2).trans E3, m3⟩
+
 end
 
 end RLF
