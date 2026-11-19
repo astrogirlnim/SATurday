@@ -2752,6 +2752,40 @@ FWide.wide_frege_to_PIC
 FWide.wide_and_example
 FWide.wide_frege_tseitin
 FWide.wide_frege_tseitin_idx
+# R4 treedeg fable session (r4/treedeg-fable): tree-like degree-size relation without a degree wall.
+# A tree-like refutation with s nodes and terms of degree at most d gives a polynomial calculus
+# refutation of degree d * log2 s + max(w, 3d): for PIC (PICT) and for tree-like proofs in the pinned
+# sequent calculus inside DegS (FTree). Tseitin: 2^(n^delta / (2624 q)) nodes at every degree up to
+# n^(1-delta), with unsatisfiability and refutation existence.
+PICT.cd_deduct
+PICT.ref_init
+PICT.ref_sem1
+PICT.ref_sem2
+PICT.tder_ref
+PICT.tree_pc_degree
+PICT.tree_pc_degree_clog
+PICT.tree_size_of_degree
+PICT.tder_to_prefutation
+PICT.TDer.unsat
+PICT.tder_of_unsat
+PICT.pic_tree_tseitin_idx
+PICT.tree_exp_arith
+PICT.pic_tree_main_idx
+FTree.split_cd
+FTree.valid_ref
+FTree.ded_line
+FTree.cut_core
+FTree.gate_core
+FTree.step_ref
+FTree.tproof_ref
+FTree.tree_frege_pc_degree
+FTree.tree_frege_size_of_degree
+FTree.TProof.mono
+FTree.tproof_to_fproof
+FTree.TProof.unsat
+FTree.tproof_of_unsat
+FTree.frege_tree_tseitin_idx
+FTree.frege_tree_main_idx
 # Review follow-ups (r4/review-followups)
 SATurday.ProofComplexity.cubFam_expander
 SATurday.ProofComplexity.not_dvd_of_prime_ne
