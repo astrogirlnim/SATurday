@@ -613,7 +613,7 @@ theorem good_trS {S : Seq} (hd : DegS p d S) (hV : VarS V S) : GoodL V d (trS p 
 
 /-! ## Indicator closure lemmas -/
 
-theorem Ind.mono {g : Pang.PP p} {d' : ℕ} (h : Ind V d g) (hd : d ≤ d') : Ind V d' g :=
+theorem ind_mono {g : Pang.PP p} {d' : ℕ} (h : Ind V d g) (hd : d ≤ d') : Ind V d' g :=
   ⟨h.cube, h.deg.trans hd, h.vars⟩
 
 theorem ind_one_sub {g : Pang.PP p} (h : Ind V d g) : Ind V d (1 - g) := by
@@ -745,6 +745,373 @@ theorem der_refutation {Ls : List (PLine p)} (h : Der Φ V d Ls) (he : (∅ : PL
   · show Ls.getD (Ls.idxOf (∅ : PLine p) + 1 - 1) ∅ = ∅
     rw [Nat.add_sub_cancel, FBridge.getD_lt _ _ hk]
     exact List.getElem_idxOf hk
+
+/-! ## Derived rules -/
+
+/-- A line containing a term that is 1 on the whole cube. -/
+theorem reach_valid {Ls : List (PLine p)} (h : Der Φ V d Ls) {g : Pang.PP p}
+    (hg : ∀ a : Assignment, eval (boolPt (F := ZMod p) a) g = 1) {Y : PLine p}
+    (hY : GoodL V d Y) (hgY : g ∈ Y) : ∃ Ls₂, Ext Φ V d Ls Ls₂ 2 ∧ Y ∈ Ls₂ := by
+  have gA : GoodL V d ({g, 1 - g} : PLine p) := by
+    intro x hx
+    rcases Finset.mem_insert.1 hx with rfl | hx
+    · exact hY _ hgY
+    · rw [Finset.mem_singleton] at hx; subst hx; exact ind_one_sub (hY _ hgY)
+  obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_step h (prems := []) (by simp) (PInfer.taut g) gA
+  obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_step hE₁.1 (prems := [{g, 1 - g}]) (by simpa using hm₁)
+    (PInfer.sem1 (g₁ := 1 - g) (g₃ := 0) (by simp)
+      (fun a => by rw [map_sub, map_one, hg a]; simp) Y
+      (fun x hx => by
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases Finset.mem_insert.1 hx with rfl | hx
+        · exact hgY
+        · rw [Finset.mem_singleton] at hx; exact absurd hx hne)
+      (Or.inr rfl)) hY
+  exact ⟨Ls₂, hE₁.trans hE₂, hm₂⟩
+
+/-- Excluded middle for `v`, weakened to a good line containing both `sg s v` and `sg (!s) v`. -/
+theorem reach_sgpair {Ls : List (PLine p)} (h : Der Φ V d Ls) (v : Pang.PP p) (s : Bool)
+    {Y : PLine p} (hY : GoodL V d Y) (h1 : sg s v ∈ Y) (h2 : sg (!s) v ∈ Y) :
+    ∃ Ls₂, Ext Φ V d Ls Ls₂ 2 ∧ Y ∈ Ls₂ := by
+  have hv : v ∈ Y ∧ 1 - v ∈ Y := by cases s <;> simp_all [sg]
+  have hsub : ({v, 1 - v} : PLine p) ⊆ Y := by
+    intro x hx
+    rcases Finset.mem_insert.1 hx with rfl | hx
+    · exact hv.1
+    · rw [Finset.mem_singleton] at hx; subst hx; exact hv.2
+  obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_step h (prems := []) (by simp) (PInfer.taut v)
+    (fun x hx => hY x (hsub hx))
+  obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_weak hE₁.1 hm₁ hsub hY
+  exact ⟨Ls₂, hE₁.trans hE₂, hm₂⟩
+
+/-- Replace every term of `P` in `L₁` by `g₃` (or drop it when `g₃ = 0`), one premise. -/
+theorem reach_map1 (g₃ : Pang.PP p) {Y : PLine p} (hY : GoodL V d Y) (h₃ : g₃ ∈ Y ∨ g₃ = 0)
+    (P : Finset (Pang.PP p)) :
+    (∀ T ∈ P, ∀ a : Assignment, eval (boolPt (F := ZMod p) a) T *
+        (1 - eval (boolPt (F := ZMod p) a) g₃) = 0) →
+    ∀ {Ls : List (PLine p)}, Der Φ V d Ls → ∀ {L₁ : PLine p}, L₁ ∈ Ls →
+      L₁ \ P ⊆ Y → ∃ Ls₂, Ext Φ V d Ls Ls₂ (P.card + 1) ∧ Y ∈ Ls₂ := by
+  induction P using Finset.induction_on with
+  | empty =>
+    intro _ Ls h L₁ h₁ hsub
+    obtain ⟨Ls₂, hE, hm⟩ := reach_weak h h₁ (by simpa using hsub) hY
+    exact ⟨Ls₂, hE.mono (by simp), hm⟩
+  | insert T P hTP ih =>
+    intro hP Ls h L₁ h₁ hsub
+    have hP' : ∀ T' ∈ P, ∀ a : Assignment, eval (boolPt (F := ZMod p) a) T' *
+        (1 - eval (boolPt (F := ZMod p) a) g₃) = 0 :=
+      fun T' hT' => hP T' (Finset.mem_insert_of_mem hT')
+    rw [Finset.card_insert_of_notMem hTP]
+    by_cases hT : T ∈ L₁
+    · set E : PLine p := if g₃ ∈ Y then {g₃} else ∅ with hE
+      have hEY : E ⊆ Y := by
+        intro x hx; rw [hE] at hx
+        split_ifs at hx with hc
+        · rw [Finset.mem_singleton] at hx; subst hx; exact hc
+        · simp at hx
+      set L' : PLine p := L₁.erase T ∪ E with hL'
+      have gL' : GoodL V d L' := by
+        intro x hx
+        rcases Finset.mem_union.1 hx with hx | hx
+        · exact h.good _ h₁ _ (Finset.mem_of_mem_erase hx)
+        · exact hY _ (hEY hx)
+      have h₃' : g₃ ∈ L' ∨ g₃ = 0 := by
+        rcases h₃ with h3 | h3
+        · left; exact Finset.mem_union_right _ (by rw [hE, if_pos h3]; simp)
+        · exact Or.inr h3
+      obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_step h (prems := [L₁]) (by simpa using h₁)
+        (PInfer.sem1 (g₃ := g₃) hT (hP T (Finset.mem_insert_self ..)) L'
+          (fun x hx => Finset.mem_union_left _ hx) h₃') gL'
+      have hsub' : L' \ P ⊆ Y := by
+        intro x hx
+        obtain ⟨hx, hxP⟩ := Finset.mem_sdiff.1 hx
+        rcases Finset.mem_union.1 hx with hx | hx
+        · obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+          exact hsub (Finset.mem_sdiff.2 ⟨hx, by
+            intro hc
+            rcases Finset.mem_insert.1 hc with hc | hc
+            · exact hne hc
+            · exact hxP hc⟩)
+        · exact hEY hx
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := ih hP' hE₁.1 hm₁ hsub'
+      exact ⟨Ls₂, (hE₁.trans hE₂).mono (by omega), hm₂⟩
+    · have hsub' : L₁ \ P ⊆ Y := by
+        intro x hx
+        obtain ⟨hx, hxP⟩ := Finset.mem_sdiff.1 hx
+        exact hsub (Finset.mem_sdiff.2 ⟨hx, by
+          intro hc
+          rcases Finset.mem_insert.1 hc with hc | hc
+          · exact hT (hc ▸ hx)
+          · exact hxP hc⟩)
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := ih hP' h h₁ hsub'
+      exact ⟨Ls₂, hE₂.mono (by omega), hm₂⟩
+
+/-- Resolve every term of `P` in `L₁` against the term `U` of `L₂`, replacing it by `g₃`
+(or dropping it when `g₃ = 0`). -/
+theorem reach_map2 {L₂ : PLine p} {U : Pang.PP p} (hU : U ∈ L₂) (g₃ : Pang.PP p)
+    {Y : PLine p} (hY : GoodL V d Y) (hL₂ : L₂.erase U ⊆ Y) (h₃ : g₃ ∈ Y ∨ g₃ = 0)
+    (P : Finset (Pang.PP p)) :
+    (∀ T ∈ P, ∀ a : Assignment, eval (boolPt (F := ZMod p) a) T *
+        eval (boolPt (F := ZMod p) a) U * (1 - eval (boolPt (F := ZMod p) a) g₃) = 0) →
+    ∀ {Ls : List (PLine p)}, Der Φ V d Ls → L₂ ∈ Ls → ∀ {L₁ : PLine p}, L₁ ∈ Ls →
+      L₁ \ P ⊆ Y → ∃ Ls₂, Ext Φ V d Ls Ls₂ (P.card + 1) ∧ Y ∈ Ls₂ := by
+  induction P using Finset.induction_on with
+  | empty =>
+    intro _ Ls h _ L₁ h₁ hsub
+    obtain ⟨Ls₂, hE, hm⟩ := reach_weak h h₁ (by simpa using hsub) hY
+    exact ⟨Ls₂, hE.mono (by simp), hm⟩
+  | insert T P hTP ih =>
+    intro hP Ls h h₂ L₁ h₁ hsub
+    have hP' : ∀ T' ∈ P, ∀ a : Assignment, eval (boolPt (F := ZMod p) a) T' *
+        eval (boolPt (F := ZMod p) a) U * (1 - eval (boolPt (F := ZMod p) a) g₃) = 0 :=
+      fun T' hT' => hP T' (Finset.mem_insert_of_mem hT')
+    rw [Finset.card_insert_of_notMem hTP]
+    by_cases hT : T ∈ L₁
+    · set E : PLine p := if g₃ ∈ Y then {g₃} else ∅ with hE
+      have hEY : E ⊆ Y := by
+        intro x hx; rw [hE] at hx
+        split_ifs at hx with hc
+        · rw [Finset.mem_singleton] at hx; subst hx; exact hc
+        · simp at hx
+      set L' : PLine p := (L₁.erase T ∪ L₂.erase U) ∪ E with hL'
+      have gL' : GoodL V d L' := by
+        intro x hx
+        rcases Finset.mem_union.1 hx with hx | hx
+        · rcases Finset.mem_union.1 hx with hx | hx
+          · exact h.good _ h₁ _ (Finset.mem_of_mem_erase hx)
+          · exact h.good _ h₂ _ (Finset.mem_of_mem_erase hx)
+        · exact hY _ (hEY hx)
+      have h₃' : g₃ ∈ L' ∨ g₃ = 0 := by
+        rcases h₃ with h3 | h3
+        · left; exact Finset.mem_union_right _ (by rw [hE, if_pos h3]; simp)
+        · exact Or.inr h3
+      obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_step h (prems := [L₁, L₂])
+        (by intro M hM; simp at hM; rcases hM with rfl | rfl <;> assumption)
+        (PInfer.sem2 (g₃ := g₃) hT hU (hP T (Finset.mem_insert_self ..)) L'
+          (fun x hx => Finset.mem_union_left _ (Finset.mem_union_left _ hx))
+          (fun x hx => Finset.mem_union_left _ (Finset.mem_union_right _ hx)) h₃') gL'
+      have hsub' : L' \ P ⊆ Y := by
+        intro x hx
+        obtain ⟨hx, hxP⟩ := Finset.mem_sdiff.1 hx
+        rcases Finset.mem_union.1 hx with hx | hx
+        · rcases Finset.mem_union.1 hx with hx | hx
+          · obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+            exact hsub (Finset.mem_sdiff.2 ⟨hx, by
+              intro hc
+              rcases Finset.mem_insert.1 hc with hc | hc
+              · exact hne hc
+              · exact hxP hc⟩)
+          · exact hL₂ hx
+        · exact hEY hx
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := ih hP' hE₁.1 (hE₁.2.1 _ h₂) hm₁ hsub'
+      exact ⟨Ls₂, (hE₁.trans hE₂).mono (by omega), hm₂⟩
+    · have hsub' : L₁ \ P ⊆ Y := by
+        intro x hx
+        obtain ⟨hx, hxP⟩ := Finset.mem_sdiff.1 hx
+        exact hsub (Finset.mem_sdiff.2 ⟨hx, by
+          intro hc
+          rcases Finset.mem_insert.1 hc with hc | hc
+          · exact hT (hc ▸ hx)
+          · exact hxP hc⟩)
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := ih hP' h h₂ h₁ hsub'
+      exact ⟨Ls₂, hE₂.mono (by omega), hm₂⟩
+
+/-- Product introduction along a list: from lines `⊆ insert g Y` for every `g` of the list, derive
+`Y ∋ gs.prod`. -/
+theorem reach_prod (gs : List (Pang.PP p)) : ∀ {Y : PLine p}, GoodL V d Y →
+    (∀ g ∈ gs, Ind V d g) → (gs.map totalDegree).sum ≤ d → gs.prod ∈ Y →
+    ∀ {Ls : List (PLine p)}, Der Φ V d Ls → (∀ g ∈ gs, ∃ M ∈ Ls, M ⊆ insert g Y) →
+      ∃ Ls₂, Ext Φ V d Ls Ls₂ (2 * gs.length + 2) ∧ Y ∈ Ls₂ := by
+  induction gs with
+  | nil =>
+    intro Y hY _ _ hmem Ls h _
+    rw [List.prod_nil] at hmem
+    obtain ⟨Ls₂, hE, hm⟩ := reach_valid h (g := 1) (fun a => map_one _) hY hmem
+    exact ⟨Ls₂, hE.mono (by simp), hm⟩
+  | cons g gs ih =>
+    intro Y hY hg hsum hmem Ls h hlines
+    rw [List.prod_cons] at hmem
+    rw [List.map_cons, List.sum_cons] at hsum
+    have hg' : ∀ g' ∈ gs, Ind V d g' := fun g' hg'' => hg g' (List.mem_cons_of_mem _ hg'')
+    have hI : Ind V d gs.prod := ind_mono (ind_list_prod gs hg') (by omega)
+    set Y' : PLine p := insert gs.prod Y with hY'
+    have gY' : GoodL V d Y' := by
+      intro x hx
+      rcases Finset.mem_insert.1 hx with rfl | hx
+      · exact hI
+      · exact hY x hx
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := ih gY' hg' (by omega) (Finset.mem_insert_self _ _) h
+      (fun g' hg'' => by
+        obtain ⟨M, hM, hsub⟩ := hlines g' (List.mem_cons_of_mem _ hg'')
+        exact ⟨M, hM, fun x hx => by
+          rcases Finset.mem_insert.1 (hsub hx) with rfl | hx
+          · exact Finset.mem_insert_self _ _
+          · exact Finset.mem_insert_of_mem (Finset.mem_insert_of_mem hx)⟩)
+    obtain ⟨M, hM, hsub⟩ := hlines g (by simp)
+    have hM₁ : M ∈ Ls₁ := hE₁.2.1 _ hM
+    by_cases hgM : g ∈ M
+    · have hcube : ∀ a : Assignment, eval (boolPt (F := ZMod p) a) g *
+          eval (boolPt (F := ZMod p) a) gs.prod *
+          (1 - eval (boolPt (F := ZMod p) a) (g * gs.prod)) = 0 := by
+        intro a
+        rw [map_mul]
+        rcases (hg g (by simp)).cube a with h0 | h0 <;> rcases hI.cube a with h1 | h1 <;>
+          simp [h0, h1]
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_step hE₁.1 (prems := [M, Y'])
+        (by intro N hN; simp at hN; rcases hN with rfl | rfl <;> assumption)
+        (PInfer.sem2 (g₃ := g * gs.prod) hgM (Finset.mem_insert_self _ _) hcube Y
+          (fun x hx => by
+            obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+            rcases Finset.mem_insert.1 (hsub hx) with rfl | hx
+            · exact absurd rfl hne
+            · exact hx)
+          (fun x hx => by
+            obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+            rcases Finset.mem_insert.1 hx with rfl | hx
+            · exact absurd rfl hne
+            · exact hx)
+          (Or.inl hmem)) hY
+      exact ⟨Ls₂, (hE₁.trans hE₂).mono (by simp only [List.length_cons]; omega), hm₂⟩
+    · have hsub' : M ⊆ Y := fun x hx => by
+        rcases Finset.mem_insert.1 (hsub hx) with rfl | hx'
+        · exact absurd hx hgM
+        · exact hx'
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_weak hE₁.1 hM₁ hsub' hY
+      exact ⟨Ls₂, (hE₁.trans hE₂).mono (by simp only [List.length_cons]; omega), hm₂⟩
+
+/-- Derive a list of target lines one after the other. -/
+theorem reach_list {α : Type} (ts : List α) (cost : α → ℕ) (tgt : α → PLine p)
+    (H : ∀ t ∈ ts, ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
+      ∃ Ls₂, Ext Φ V d Ls Ls₂ (cost t) ∧ tgt t ∈ Ls₂) :
+    ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
+      ∃ Ls₂, Ext Φ V d Ls Ls₂ ((ts.map cost).sum) ∧ ∀ t ∈ ts, tgt t ∈ Ls₂ := by
+  induction ts with
+  | nil => intro Ls h; exact ⟨Ls, Ext.refl h, by simp⟩
+  | cons t ts ih =>
+    intro Ls h
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := ih (fun t' ht' => H t' (List.mem_cons_of_mem _ ht')) h
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := H t (by simp) hE₁.1
+    refine ⟨Ls₂, (hE₁.trans hE₂).mono (by simp only [List.map_cons, List.sum_cons]; omega), ?_⟩
+    intro t' ht'
+    rcases List.mem_cons.1 ht' with rfl | ht'
+    · exact hm₂
+    · exact hE₂.2.1 _ (hm₁ t' ht')
+
+theorem cost_sum (l : List Fm) :
+    (l.map fun ψ => 5 * ψ.size - 2).sum + 2 * l.length ≤ 5 * (l.map Fm.size).sum := by
+  induction l with
+  | nil => simp
+  | cons φ l ih =>
+    have := FBridge.size_pos φ
+    simp only [List.map_cons, List.sum_cons, List.length_cons]
+    omega
+
+theorem sum_deg_le (l : List Fm) (f : Fm → Pang.PP p) (h : ∀ ψ ∈ l, (f ψ).totalDegree ≤ pd p ψ) :
+    ((l.map f).map totalDegree).sum ≤ (l.map (pd p)).sum := by
+  induction l with
+  | nil => simp
+  | cons φ l ih =>
+    have h1 := h φ (by simp)
+    have h2 := ih fun ψ hψ => h ψ (List.mem_cons_of_mem _ hψ)
+    simp only [List.map_cons, List.sum_cons]
+    omega
+
+/-- **Splitting.**  For a formula of syntactic degree `≤ d`: the line consisting of the translation
+of `φ` with sign `s` together with the single term of the opposite sign is derivable. -/
+theorem reach_split : ∀ (φ : Fm), pd p φ ≤ d → fv φ ⊆ V → ∀ (s : Bool) {Y : PLine p},
+    GoodL V d Y → (∀ g ∈ trL p s φ, g ∈ Y) → sg (!s) (val p φ) ∈ Y →
+    ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
+      ∃ Ls₂, Ext Φ V d Ls Ls₂ (5 * φ.size - 2) ∧ Y ∈ Ls₂ := by
+  refine Fm_ind ?_ ?_ ?_ ?_ ?_
+  · intro i _ _ s Y hY hsub h2 Ls h
+    have h1 : sg s (val p (.var i)) ∈ Y := by
+      rw [val_var]; exact hsub _ (by rw [trL_var]; simp)
+    obtain ⟨Ls₂, hE, hm⟩ := reach_sgpair h _ s hY h1 h2
+    exact ⟨Ls₂, hE.mono (by have := FBridge.size_pos (.var i); omega), hm⟩
+  · intro φ ih hd hV s Y hY hsub h2 Ls h
+    rw [pd_neg] at hd
+    rw [fv_neg] at hV
+    rw [val_neg, sg_not_one_sub] at h2
+    obtain ⟨Ls₂, hE, hm⟩ := ih hd hV (!s) hY (by rw [trL_neg] at hsub; exact hsub)
+      (by rw [Bool.not_not]; exact h2) h
+    exact ⟨Ls₂, hE.mono (by rw [size_neg]; omega), hm⟩
+  · intro l ih hd hV s Y hY hsub h2 Ls h
+    cases s
+    · -- negative `AND`: split into the members
+      have h2' : val p (.and l) ∈ Y := by simpa [sg] using h2
+      have hmemV : ∀ ψ ∈ l, fv ψ ⊆ V := fun ψ hψ v hv => hV ((mem_fv_and l v).2 ⟨ψ, hψ, hv⟩)
+      have hmemd : ∀ ψ ∈ l, pd p ψ ≤ d := fun ψ hψ => (pd_le_and hψ).trans hd
+      have hIv : ∀ ψ ∈ l, Ind V d (val p ψ) := fun ψ hψ => by
+        have := ind_sg (hmemd ψ hψ) (hmemV ψ hψ) true
+        simpa [sg] using this
+      obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_list (Φ := Φ) (V := V) (d := d) l
+        (fun ψ => 5 * ψ.size - 2) (fun ψ => insert (val p ψ) Y)
+        (fun ψ hψ Ls' h' => ih ψ hψ (hmemd ψ hψ) (hmemV ψ hψ) false
+          (Y := insert (val p ψ) Y)
+          (fun x hx => by
+            rcases Finset.mem_insert.1 hx with rfl | hx
+            · exact hIv ψ hψ
+            · exact hY x hx)
+          (fun g hg => Finset.mem_insert_of_mem
+            (hsub g ((mem_trL_and_false l g).2 ⟨ψ, hψ, hg⟩)))
+          (by simp [sg]) h') h
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_prod (l.map (val p)) hY
+        (fun g hg => by obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hg; exact hIv ψ hψ)
+        ((sum_deg_le l _ fun ψ _ => deg_val ψ).trans (by rw [← pd_and]; exact hd))
+        (by rw [← val_and]; exact h2') hE₁.1
+        (fun g hg => by
+          obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hg
+          exact ⟨_, hm₁ ψ hψ, subset_rfl⟩)
+      refine ⟨Ls₂, (hE₁.trans hE₂).mono ?_, hm₂⟩
+      have := cost_sum l
+      rw [size_and, List.length_map]
+      omega
+    · have h1 : sg true (val p (.and l)) ∈ Y := by
+        simp only [sg, if_true]; exact hsub _ (by rw [trL_and_true]; simp)
+      obtain ⟨Ls₂, hE, hm⟩ := reach_sgpair h _ true hY h1 h2
+      exact ⟨Ls₂, hE.mono (by have := FBridge.size_pos (.and l); omega), hm⟩
+  · intro l ih hd hV s Y hY hsub h2 Ls h
+    cases s
+    · have h1 : sg false (val p (.or l)) ∈ Y := by
+        simp only [sg, Bool.false_eq_true, if_false]; exact hsub _ (by rw [trL_or_false]; simp)
+      obtain ⟨Ls₂, hE, hm⟩ := reach_sgpair h _ false hY h1 h2
+      exact ⟨Ls₂, hE.mono (by have := FBridge.size_pos (.or l); omega), hm⟩
+    · -- positive `OR`: split into the members
+      have h2' : 1 - val p (.or l) ∈ Y := by simpa [sg] using h2
+      have hmemV : ∀ ψ ∈ l, fv ψ ⊆ V := fun ψ hψ v hv => hV ((mem_fv_or l v).2 ⟨ψ, hψ, hv⟩)
+      have hmemd : ∀ ψ ∈ l, pd p ψ ≤ d := fun ψ hψ => (pd_le_or hψ).trans hd
+      have hIv : ∀ ψ ∈ l, Ind V d (1 - val p ψ) := fun ψ hψ => by
+        have := ind_sg (hmemd ψ hψ) (hmemV ψ hψ) false
+        simpa [sg] using this
+      obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_list (Φ := Φ) (V := V) (d := d) l
+        (fun ψ => 5 * ψ.size - 2) (fun ψ => insert (1 - val p ψ) Y)
+        (fun ψ hψ Ls' h' => ih ψ hψ (hmemd ψ hψ) (hmemV ψ hψ) true
+          (Y := insert (1 - val p ψ) Y)
+          (fun x hx => by
+            rcases Finset.mem_insert.1 hx with rfl | hx
+            · exact hIv ψ hψ
+            · exact hY x hx)
+          (fun g hg => Finset.mem_insert_of_mem
+            (hsub g ((mem_trL_or_true l g).2 ⟨ψ, hψ, hg⟩)))
+          (by simp [sg]) h') h
+      have hprod : (l.map fun ψ => 1 - val p ψ).prod = 1 - val p (.or l) := by
+        rw [val_or]; ring
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_prod (l.map fun ψ => 1 - val p ψ) hY
+        (fun g hg => by obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hg; exact hIv ψ hψ)
+        ((sum_deg_le l _ fun ψ _ => (deg_one_sub _).trans (deg_val ψ)).trans
+          (by rw [← pd_or]; exact hd))
+        (by rw [hprod]; exact h2') hE₁.1
+        (fun g hg => by
+          obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hg
+          exact ⟨_, hm₁ ψ hψ, subset_rfl⟩)
+      refine ⟨Ls₂, (hE₁.trans hE₂).mono ?_, hm₂⟩
+      have := cost_sum l
+      rw [size_or, List.length_map]
+      omega
+  · intro r l _ _ _ s Y hY hsub h2 Ls h
+    have h1 : sg s (val p (.mod r l)) ∈ Y := hsub _ (by rw [trL_mod]; simp)
+    obtain ⟨Ls₂, hE, hm⟩ := reach_sgpair h _ s hY h1 h2
+    exact ⟨Ls₂, hE.mono (by have := FBridge.size_pos (.mod r l); omega), hm⟩
 
 end
 
