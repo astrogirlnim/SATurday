@@ -2820,6 +2820,31 @@ SATurday.ProofComplexity.RLF.dagRefutes_to_rldag2
 SATurday.ProofComplexity.RLF.r_wsim
 SATurday.ProofComplexity.RLF.decomp
 SATurday.ProofComplexity.RLF.r_taut
+# R4 treedeg relative (2026-11-19): relative measure RefA (any base axiom set) and tree-like sequent
+# proofs with hypothesis leaves (TProofH): degree d * log2 s + max(w, k d, 3d) refutation of
+# cnfAx F plus the polynomials prod (1 - g) of the hypotheses. Known mathematics.
+PICT.refA_mono
+PICT.refA_init
+PICT.refA_taut
+PICT.refA_of_derive
+PICT.refA_sem1
+PICT.refA_sem2
+PICT.tder_refA
+FTree.valid_refA
+FTree.ded_lineA
+FTree.cut_coreA
+FTree.gate_coreA
+FTree.step_refA
+FTree.TProof.toH
+FTree.TProofH.sound
+FTree.TProofH.unsat
+FTree.eval_hypPoly_eq_zero
+FTree.hyp_refA
+FTree.tproofH_refA
+FTree.tree_frege_pc_degree_hyp
+FTree.tree_frege_pc_degree_hyp_clog
+FTree.tree_frege_size_of_degree_hyp
+FTree.hypAx_empty
 SATurday.ProofComplexity.FModArith.fstep_sound_G
 SATurday.ProofComplexity.FModArith.fproof_sound_G
 SATurday.ProofComplexity.FModArith.not_mem_of_G
