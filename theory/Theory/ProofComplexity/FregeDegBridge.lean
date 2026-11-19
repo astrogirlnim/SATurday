@@ -1536,6 +1536,218 @@ theorem step_sim {F : CNF} {prev : List Seq} {S : Seq}
         · exact mem_trS.2 (Or.inr ⟨ψ, List.mem_cons_of_mem _ hψ, hg⟩)
     exact fin (reach_weak h (hprev _ h1) hsub G) (by omega)
 
+theorem trS_empty : trS p (([], []) : Seq) = ∅ := by simp [trS]
+
+theorem sim_all {F : CNF} {L : List Seq} (hL : FProof p F L) (hdeg : ∀ S ∈ L, DegS p d S)
+    (hvar : ∀ S ∈ L, VarS V S) (M : ℕ) (hM : ∀ S ∈ L, wS S ≤ M) :
+    ∀ k ≤ L.length, ∃ Ls : List (PLine p), Der F V d Ls ∧
+      (∀ S ∈ L.take k, trS p S ∈ Ls) ∧ Ls.length ≤ k * (10 * (M + M)) := by
+  intro k
+  induction k with
+  | zero => intro _; exact ⟨[], Der.nil, by simp, by simp⟩
+  | succ k ih =>
+    intro hk
+    have hk' : k < L.length := by omega
+    obtain ⟨Ls, hD, hmem, hlen⟩ := ih (by omega)
+    have hSm : L.get ⟨k, hk'⟩ ∈ L := List.get_mem _ _
+    obtain ⟨Ls₂, hE, hm⟩ := step_sim (hL k hk') (hdeg _ hSm) (hvar _ hSm) M
+      (fun T hT => hM T (List.mem_of_mem_take hT)) hD hmem
+    refine ⟨Ls₂, hE.1, ?_, ?_⟩
+    · intro S hS
+      rw [List.take_add_one] at hS
+      rcases List.mem_append.1 hS with h | h
+      · exact hE.2.1 _ (hmem S h)
+      · rw [List.getElem?_eq_getElem hk'] at h
+        simp only [Option.toList_some, List.mem_singleton] at h
+        subst h; exact hm
+    · have h1 := hE.2.2
+      have h2 : 10 * (wS (L.get ⟨k, hk'⟩) + M) ≤ 10 * (M + M) :=
+        Nat.mul_le_mul_left _ (by have := hM _ hSm; omega)
+      have h3 : (k + 1) * (10 * (M + M)) = k * (10 * (M + M)) + 10 * (M + M) := by ring
+      omega
+
+/-- Total weight of a proof. -/
+def fW (L : List Seq) : ℕ := (L.map wS).sum
+
+theorem fW_le (L : List Seq) : fW L ≤ fSize L + L.length := by
+  unfold fW fSize
+  induction L with
+  | nil => simp
+  | cons S L ih =>
+    simp only [List.map_cons, List.sum_cons, List.length_cons, wS] at ih ⊢
+    omega
+
+/-- **Bridge.**  A refutation in the sequent calculus `FProof` (any depth) all of whose sequents
+satisfy the degree condition `DegS p d` and have variables in `V` yields a `PIC` refutation over
+`V` with indicators of degree at most `d` and at most `|L| · 10 · 2 W` nodes, `W` the total weight. -/
+theorem frege_to_PIC {F : CNF} {L : List Seq} (hL : FProof p F L) (hE : (([], []) : Seq) ∈ L)
+    (hdeg : ∀ S ∈ L, DegS p d S) (hvar : ∀ S ∈ L, VarS V S) :
+    ∃ R : PRefutation F V d p, R.S ≤ L.length * (10 * (fW L + fW L)) := by
+  have hM : ∀ S ∈ L, wS S ≤ fW L := fun S hS =>
+    List.single_le_sum (by simp) _ (List.mem_map.2 ⟨S, hS, rfl⟩)
+  obtain ⟨Ls, hD, hmem, hlen⟩ := sim_all hL hdeg hvar (fW L) hM L.length le_rfl
+  rw [List.take_length] at hmem
+  have he : (∅ : PLine p) ∈ Ls := by
+    have := hmem _ hE
+    rwa [trS_empty] at this
+  obtain ⟨R, hR⟩ := der_refutation hD he
+  exact ⟨R, hR.trans hlen⟩
+
+/-! ## What the fragment contains -/
+
+/-- A `MOD_p` gate over formulas of syntactic degree at most `k` has degree at most `(p-1) k` in
+both positions, whatever its fan in.  With `k`-fold conjunctions of literals as members this is a
+formula of `Fm.depth` two. -/
+theorem td_mod_le (s : Bool) (r : ℕ) (l : List Fm) (k : ℕ) (h : ∀ ψ ∈ l, pd p ψ ≤ k) :
+    td p s (.mod r l) ≤ (p - 1) * k := by
+  rw [td_mod, pd_mod]
+  refine Nat.mul_le_mul_left _ (foldr_max_le fun x hx => ?_)
+  obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hx
+  exact h ψ hψ
+
+theorem lit_props : ∀ ψ : Fm, FBridge.LitIn V ψ → fv ψ ⊆ V ∧ pd p ψ = 1 := by
+  refine Fm_ind ?_ ?_ ?_ ?_ ?_
+  · intro i h
+    rw [fv_var, pd_var]
+    exact ⟨Finset.singleton_subset_iff.2 h, rfl⟩
+  · intro φ ih h
+    rw [fv_neg, pd_neg]; exact ih h
+  · intro l _ h; exact False.elim h
+  · intro l _ h; exact False.elim h
+  · intro r l _ h; exact False.elim h
+
+theorem sum_pd_lits (l : List Fm) (h : ∀ ψ ∈ l, pd p ψ = 1) : (l.map (pd p)).sum = l.length := by
+  induction l with
+  | nil => simp
+  | cons φ l ih =>
+    simp only [List.map_cons, List.sum_cons, List.length_cons,
+      ih fun ψ hψ => h ψ (List.mem_cons_of_mem _ hψ), h φ (by simp)]
+    omega
+
+/-- A flat formula over `V` that satisfies the rank condition of `FregeRankBridge.lean` satisfies
+the degree condition with `d = (p-1) ρ`. -/
+theorem flat_props {ρ : ℕ} (hρ : 1 ≤ ρ) : ∀ φ : Fm, FBridge.FlatIn V φ →
+    fv φ ⊆ V ∧ ∀ s : Bool, FBridge.RankOK ρ s φ → td p s φ ≤ (p - 1) * ρ := by
+  have hp : 2 ≤ p := (Fact.out : p.Prime).two_le
+  have h1 : 1 ≤ (p - 1) * ρ := Nat.mul_pos (by omega) hρ
+  have hρ' : ρ ≤ (p - 1) * ρ := Nat.le_mul_of_pos_left _ (by omega)
+  refine Fm_ind ?_ ?_ ?_ ?_ ?_
+  · intro i h
+    exact ⟨by rw [fv_var]; exact Finset.singleton_subset_iff.2 h, fun s _ => by rw [td_var]; exact h1⟩
+  · intro φ ih h
+    obtain ⟨a, b⟩ := ih h
+    exact ⟨by rw [fv_neg]; exact a, fun s hs => by rw [td_neg]; exact b (!s) hs⟩
+  · intro l _ h
+    have hl : ∀ ψ ∈ l, fv ψ ⊆ V ∧ pd p ψ = 1 := fun ψ hψ => lit_props ψ (h ψ hψ)
+    refine ⟨fun v hv => ?_, fun s hs => ?_⟩
+    · obtain ⟨ψ, hψ, hv'⟩ := (mem_fv_and l v).1 hv
+      exact (hl ψ hψ).1 hv'
+    · cases s
+      · rw [td_and_false]
+        refine foldr_max_le fun x hx => ?_
+        obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hx
+        exact ((td_le_pd ψ false).trans (hl ψ hψ).2.le).trans h1
+      · rw [td_and_true, pd_and, sum_pd_lits l fun ψ hψ => (hl ψ hψ).2]
+        exact (show l.length ≤ ρ from hs).trans hρ'
+  · intro l _ h
+    have hl : ∀ ψ ∈ l, fv ψ ⊆ V ∧ pd p ψ = 1 := fun ψ hψ => lit_props ψ (h ψ hψ)
+    refine ⟨fun v hv => ?_, fun s hs => ?_⟩
+    · obtain ⟨ψ, hψ, hv'⟩ := (mem_fv_or l v).1 hv
+      exact (hl ψ hψ).1 hv'
+    · cases s
+      · rw [td_or_false, pd_or, sum_pd_lits l fun ψ hψ => (hl ψ hψ).2]
+        exact (show l.length ≤ ρ from hs).trans hρ'
+      · rw [td_or_true]
+        refine foldr_max_le fun x hx => ?_
+        obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hx
+        exact ((td_le_pd ψ true).trans (hl ψ hψ).2.le).trans h1
+  · intro r l _ h
+    have hl : ∀ ψ ∈ l, fv ψ ⊆ V ∧ pd p ψ = 1 := fun ψ hψ => lit_props ψ (h ψ hψ)
+    refine ⟨fun v hv => ?_, fun s _ => ?_⟩
+    · obtain ⟨ψ, hψ, hv'⟩ := (mem_fv_mod r l v).1 hv
+      exact (hl ψ hψ).1 hv'
+    · exact (td_mod_le s r l 1 fun ψ hψ => (hl ψ hψ).2.le).trans
+        (Nat.mul_le_mul_left _ hρ)
+
+/-- The flat rank fragment of `FregeRankBridge.lean` lies inside the low degree fragment. -/
+theorem degS_of_rankS {ρ : ℕ} (hρ : 1 ≤ ρ) {S : Seq} (hflat : FBridge.FlatS V S)
+    (h : FBridge.RankS ρ S) : DegS p ((p - 1) * ρ) S :=
+  ⟨fun φ hφ => (flat_props hρ φ (hflat φ (List.mem_append_left _ hφ))).2 false (h.1 φ hφ),
+    fun φ hφ => (flat_props hρ φ (hflat φ (List.mem_append_right _ hφ))).2 true (h.2 φ hφ)⟩
+
+theorem varS_of_flatS {S : Seq} (hflat : FBridge.FlatS V S) : VarS V S := by
+  haveI : Fact (Nat.Prime 2) := ⟨Nat.prime_two⟩
+  exact fun φ hφ => (flat_props (p := 2) (ρ := 1) le_rfl φ (hflat φ hφ)).1
+
+/-! ## The size bound on Tseitin formulas -/
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **Low degree AC0[p] Frege, any depth, on one hot Tseitin mod `q`.**  Primes `p ∤ q`, `ε > 0`
+with `(κ+1) ε < 1`.  For every `M` there is a cubic graph on `n ≥ M` vertices such that for every
+charge `b` and every `1 ≤ ρ ≤ ε ln n`: every refutation `L` in the sequent calculus `FProof`, of any
+formula depth, whose sequents use only variables of the formula and satisfy the degree condition
+`DegS p ((p-1) ρ)`, has `exp (n^(1 - (κ+1) ε)) ≤ |L| · 10 · 2 (fSize L + |L|)`.
+
+This is a bound for a fragment: `AND` gates in positive position and `OR` gates in negative position
+must have value polynomials of syntactic degree at most `(p-1) ε ln n`. -/
+theorem lowdeg_frege_tseitin (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (C1.kappa p q + 1) * ε < 1) (M : ℕ) :
+    ∃ (n : ℕ) (G : FinGraph n), M ≤ n ∧ IsRegular G 3 ∧ ∀ b : Fin n → ZMod q,
+      ∀ ρ : ℕ, 1 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log n →
+      ∀ L : List Seq, FProof p (tcnf G q b) L → (([], []) : Seq) ∈ L →
+        (∀ S ∈ L, VarS (tVars G q) S) → (∀ S ∈ L, DegS p ((p - 1) * ρ) S) →
+        Real.exp ((n : ℝ) ^ (1 - (C1.kappa p q + 1) * ε)) ≤
+          ((L.length * (10 * (2 * (fSize L + L.length))) : ℕ) : ℝ) := by
+  obtain ⟨n, G, hn, hreg, H⟩ := pic_main p hq hpq ε hε hεκ M
+  refine ⟨n, G, hn, hreg, fun b ρ hρ1 hρ L hL hE hvar hdeg => ?_⟩
+  obtain ⟨R, hR⟩ := frege_to_PIC (p := p) hL hE hdeg hvar
+  refine (H b ρ hρ1 hρ R).trans ?_
+  have h3 : R.S ≤ L.length * (10 * (2 * (fSize L + L.length))) := by
+    refine hR.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ ?_))
+    have := fW_le L
+    omega
+  exact_mod_cast h3
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **Indexed form with an explicit unsatisfiable family, for every formula depth `D`.**  There is
+a threshold `m0` such that for every `m ≥ m0`, on the explicit cubic graph `cubFam m` with
+`n = 8 m^2` vertices and the explicit charge `tseitinCharge1`: the formula is unsatisfiable, and for
+every `ρ` with `q + 3 ≤ ρ ≤ ε ln n` the fragment contains a refutation (non vacuity, already at
+depth one) and every refutation `FRefutes p D` in the fragment, for every `D`, satisfies the size
+bound. -/
+theorem lowdeg_frege_tseitin_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (C1.kappa p q + 1) * ε < 1) :
+    ∃ m0 : ℕ, ∀ m : ℕ, m0 ≤ m →
+      ¬ Satisfiable (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) ∧
+      ∀ ρ : ℕ, q + 3 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log (m * m * 8 : ℕ) →
+        (∃ L, FRefutes p 1 (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) L ∧
+          (∀ S ∈ L, VarS (tVars (cubFam m) q) S) ∧ (∀ S ∈ L, DegS p ((p - 1) * ρ) S)) ∧
+        ∀ (D : ℕ) (L : List Seq),
+          FRefutes p D (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) L →
+          (∀ S ∈ L, VarS (tVars (cubFam m) q) S) → (∀ S ∈ L, DegS p ((p - 1) * ρ) S) →
+          Real.exp (((m * m * 8 : ℕ) : ℝ) ^ (1 - (C1.kappa p q + 1) * ε)) ≤
+            ((L.length * (10 * (2 * (fSize L + L.length))) : ℕ) : ℝ) := by
+  obtain ⟨m1, H⟩ := pic_main_idx p hq hpq ε hε hεκ
+  refine ⟨max m1 (tseitinFloor p q), fun m hm => ?_⟩
+  have hmF : tseitinFloor p q ≤ m := (le_max_right _ _).trans hm
+  have hm1 : m1 ≤ m := (le_max_left _ _).trans hm
+  obtain ⟨hreg, -, -⟩ := cubFam_props (cubFam_floor_le hmF).1
+  obtain ⟨hsum, hunsat⟩ := tseitin_idx_explicit_unsat p hq hmF
+  refine ⟨hunsat, fun ρ hρq hρ => ⟨?_, ?_⟩⟩
+  · obtain ⟨L, hL, hvars, hrank⟩ := FBridge.tseitin_fragment_nonvacuous p hreg hsum hρq
+    have hflat : ∀ S ∈ L, FBridge.FlatS (tVars (cubFam m) q) S := fun S hS φ hφ =>
+      (FBridge.flat_iff_depth φ).2 ⟨hL.2.1 S hS φ hφ, hvars S hS φ hφ⟩
+    exact ⟨L, hL, fun S hS => varS_of_flatS (hflat S hS),
+      fun S hS => degS_of_rankS (by omega) (hflat S hS) (hrank S hS)⟩
+  · intro D L hL hvar hdeg
+    obtain ⟨R, hR⟩ := frege_to_PIC (p := p) hL.1 hL.2.2 hdeg hvar
+    refine (H m hm1 _ ρ (by omega) hρ R).trans ?_
+    have h3 : R.S ≤ L.length * (10 * (2 * (fSize L + L.length))) := by
+      refine hR.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ ?_))
+      have := fW_le L
+      omega
+    exact_mod_cast h3
+
 end
 
 end FDeg
