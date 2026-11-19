@@ -122,6 +122,17 @@ propext, Classical.choice, Quot.sound; new declarations listed in
     claimed.
 - [ ] 2.2 Res(lin F_p).
 - [ ] 2.3 Depth 2 AC0[p] Frege.
+  Not done; open. Partial, kernel checked (2026-11-18, `FregeRankBridge.lean`, report
+  `docs/ladder/rungs/r4-depth2-fable-report.md`): a bridge from a fragment of the pinned sequent
+  calculus into `R_rho^p`. Depth one refutations (`FRefutes p 1`) of one-hot Tseitin mod q that use only
+  variables of the formula and in which every AND in positive position and every OR in negative position
+  has fan in at most `rho <= eps ln n` (MOD_p gates unrestricted) have size at least
+  `exp(n^(1 - (kappa+1) eps))` up to a polynomial (`FBridge.depth1_rank_frege_tseitin`,
+  `FBridge.depth1_rank_frege_tseitin_idx`; the fragment is non empty, `FBridge.tseitin_fragment_nonvacuous`).
+  This is a corollary of the C1 theorem, not a bound for depth one or depth two AC0[p] Frege. Note on
+  conventions: `FRefutes p 1` lines are sequents of depth one formulas, which the literature counts as
+  depth 2. The unrestricted depth one statement is the open Frontier pin
+  `FBridgeFrontier.depth1_tseitin_target`.
 - [ ] 2.4 Constant depth AC0[p] Frege (this is R4 itself).
 - Stop rule: 3 failed attempts on one method kill that method branch.
 

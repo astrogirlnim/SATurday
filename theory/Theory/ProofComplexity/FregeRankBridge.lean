@@ -1,0 +1,1843 @@
+import Theory.ProofComplexity.C1Final
+import Theory.ProofComplexity.AC0pFrege
+import Theory.ProofComplexity.TseitinIndexed
+
+/-!
+# A bridge from a fragment of the AC0[p] Frege sequent calculus into `R_ρ^p`
+
+`FProof p F L` (file `AC0pFrege.lean`) is the sequent calculus of the R4 pin.  This file
+translates the proofs of a syntactic fragment of it into the bounded rank calculus `R_ρ^p` of
+`C1Rank.lean`, with a polynomial bound on the number of nodes, so that `C1.c1_main` gives a size
+lower bound for that fragment.
+
+The fragment (`Flat`): every formula in every sequent is, after stripping negations, a variable
+or an `AND`, `OR` or `MOD_p` gate whose members are literals (so formula depth at most one in the
+sense of `Fm.depth`), all variables lie in a fixed set `V`, and the translation of every sequent
+has rank at most `ρ`.  The last condition holds when every `AND` in positive position and every
+`OR` in negative position has at most `ρ` members; `MOD_p` gates may have any fan in.
+
+This is NOT a lower bound for depth one or depth two AC0[p] Frege: `AND` gates in positive
+position (and `OR` gates in negative position) of fan in above `ρ ≤ ε log n` are excluded, and no
+gate may have a gate as a member.
+
+LOG: R4 depth-2 fable session, bridge file
+-/
+
+open SATurday.ProofComplexity C1
+
+namespace FBridge
+
+noncomputable section
+open Classical
+
+variable {p : ℕ} [Fact p.Prime] {Φ : CNF} {V : Finset ℕ} {ρ : ℕ}
+
+/-! ## Good terms and list derivations in `R_ρ^p` -/
+
+/-- A term of rank at most `ρ` with all variables in `V`. -/
+def GoodT (V : Finset ℕ) (ρ : ℕ) (T : Term p) : Prop :=
+  rank T ≤ ρ ∧ ∀ l ∈ T, l.1.support ⊆ V
+
+/-- A line all of whose terms are good. -/
+def GoodL (V : Finset ℕ) (ρ : ℕ) (L : RLine p) : Prop := ∀ T ∈ L, GoodT V ρ T
+
+theorem rank_le_card (T : Term p) : rank T ≤ T.card :=
+  finrank_span_finset_le_card (R := ZMod p) T
+
+theorem rank_mono {T T' : Term p} (h : T ⊆ T') : rank T ≤ rank T' := by
+  unfold rank
+  exact Submodule.finrank_mono (Submodule.span_mono (by exact_mod_cast h))
+
+theorem GoodT.mono {T T' : Term p} (h : T ⊆ T') (hT : GoodT V ρ T') : GoodT V ρ T :=
+  ⟨(rank_mono h).trans hT.1, fun l hl => hT.2 l (h hl)⟩
+
+theorem goodT_empty : GoodT V ρ (∅ : Term p) :=
+  ⟨by have := rank_le_card (∅ : Term p); simp at this; omega, by simp⟩
+
+theorem goodT_singleton (hρ : 1 ≤ ρ) {f : AffForm p} (hf : f.1.support ⊆ V) :
+    GoodT V ρ ({f} : Term p) :=
+  ⟨(rank_le_card _).trans (by simpa using hρ), by simpa using hf⟩
+
+/-- A list of lines in which every line follows by a rule of `R_ρ^p` from lines of the list
+built so far, every line being good. -/
+inductive Der (Φ : CNF) (V : Finset ℕ) (ρ : ℕ) : List (RLine p) → Prop
+  | nil : Der Φ V ρ []
+  | snoc {Ls : List (RLine p)} {L : RLine p} (prems : List (RLine p)) (h : Der Φ V ρ Ls)
+      (hp : ∀ M ∈ prems, M ∈ Ls) (hi : RInfer Φ ρ prems L) (hg : GoodL V ρ L) :
+      Der Φ V ρ (Ls ++ [L])
+
+theorem Der.good {Ls : List (RLine p)} (h : Der Φ V ρ Ls) : ∀ L ∈ Ls, GoodL V ρ L := by
+  induction h with
+  | nil => intro L hL; simp at hL
+  | snoc prems h hp hi hg ih =>
+    intro L hL
+    rcases List.mem_append.1 hL with hL | hL
+    · exact ih L hL
+    · rw [List.mem_singleton] at hL; subst hL; exact hg
+
+/-- `Ls₂` is a derivation containing all lines of `Ls` and at most `c` lines longer. -/
+def Ext (Φ : CNF) (V : Finset ℕ) (ρ : ℕ) (Ls Ls₂ : List (RLine p)) (c : ℕ) : Prop :=
+  Der Φ V ρ Ls₂ ∧ (∀ M ∈ Ls, M ∈ Ls₂) ∧ Ls₂.length ≤ Ls.length + c
+
+theorem Ext.refl {Ls : List (RLine p)} (h : Der Φ V ρ Ls) : Ext Φ V ρ Ls Ls 0 :=
+  ⟨h, fun _ hM => hM, le_rfl⟩
+
+theorem Ext.trans {Ls Ls₂ Ls₃ : List (RLine p)} {c c' : ℕ} (h : Ext Φ V ρ Ls Ls₂ c)
+    (h' : Ext Φ V ρ Ls₂ Ls₃ c') : Ext Φ V ρ Ls Ls₃ (c + c') :=
+  ⟨h'.1, fun M hM => h'.2.1 M (h.2.1 M hM), by have := h.2.2; have := h'.2.2; omega⟩
+
+theorem Ext.mono {Ls Ls₂ : List (RLine p)} {c c' : ℕ} (h : Ext Φ V ρ Ls Ls₂ c) (hc : c ≤ c') :
+    Ext Φ V ρ Ls Ls₂ c' :=
+  ⟨h.1, h.2.1, h.2.2.trans (by omega)⟩
+
+/-- One rule application. -/
+theorem reach_step {Ls : List (RLine p)} (h : Der Φ V ρ Ls) {prems : List (RLine p)}
+    {L : RLine p} (hp : ∀ M ∈ prems, M ∈ Ls) (hi : RInfer Φ ρ prems L) (hg : GoodL V ρ L) :
+    ∃ Ls₂, Ext Φ V ρ Ls Ls₂ 1 ∧ L ∈ Ls₂ :=
+  ⟨Ls ++ [L], ⟨Der.snoc prems h hp hi hg, fun M hM => List.mem_append_left _ hM, by simp⟩,
+    by simp⟩
+
+theorem reach_weak {Ls : List (RLine p)} (h : Der Φ V ρ Ls) {L L' : RLine p} (hL : L ∈ Ls)
+    (hsub : L ⊆ L') (hg : GoodL V ρ L') : ∃ Ls₂, Ext Φ V ρ Ls Ls₂ 1 ∧ L' ∈ Ls₂ :=
+  reach_step h (prems := [L]) (by simpa using hL) (RInfer.weak L' hsub) hg
+
+/-- Axiom lines. -/
+theorem reach_axioms (Ms : List (RLine p)) :
+    ∀ {Ls : List (RLine p)}, Der Φ V ρ Ls → (∀ M ∈ Ms, RInfer Φ ρ [] M ∧ GoodL V ρ M) →
+      ∃ Ls₂, Ext Φ V ρ Ls Ls₂ Ms.length ∧ ∀ M ∈ Ms, M ∈ Ls₂ := by
+  induction Ms with
+  | nil => intro Ls h _; exact ⟨Ls, Ext.refl h, by simp⟩
+  | cons M Ms ih =>
+    intro Ls h hMs
+    obtain ⟨Ls₂, hE, hmem⟩ := ih h (fun M' hM' => hMs M' (List.mem_cons_of_mem _ hM'))
+    obtain ⟨hi, hg⟩ := hMs M (List.mem_cons_self ..)
+    obtain ⟨Ls₃, hE', hM⟩ := reach_step hE.1 (prems := []) (by simp) hi hg
+    refine ⟨Ls₃, (hE.trans hE').mono (by simp), fun M' hM' => ?_⟩
+    rcases List.mem_cons.1 hM' with rfl | hM'
+    · exact hM
+    · exact hE'.2.1 _ (hmem M' hM')
+
+/-- A line containing a term that holds on the whole cube. -/
+theorem reach_true {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) {Ls : List (RLine p)}
+    (h : Der Φ V ρ Ls) {T : Term p} (hT : ∀ a : Assignment, TrueAt (boolPt (F := ZMod p) a) T)
+    {Y : RLine p} (hY : GoodL V ρ Y) (hTY : T ∈ Y) : ∃ Ls₂, Ext Φ V ρ Ls Ls₂ 3 ∧ Y ∈ Ls₂ := by
+  have hsV : ((formVar v₀ : AffForm p)).1.support ⊆ V := by
+    intro x hx
+    have : x = v₀ := by
+      by_contra hne
+      simp [formVar, Ne.symm hne] at hx
+    rw [this]; exact hv
+  have hsV' : ((formVarSub v₀ : AffForm p)).1.support ⊆ V := hsV
+  have g0 : GoodL V ρ ({{formVar v₀}, {formVarSub v₀}} : RLine p) := by
+    intro T hT
+    rcases Finset.mem_insert.1 hT with rfl | hT
+    · exact goodT_singleton hρ hsV
+    · rw [Finset.mem_singleton] at hT; subst hT; exact goodT_singleton hρ hsV'
+  obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_step h (prems := []) (by simp) (RInfer.taut v₀) g0
+  have g1 : GoodL V ρ ({T, {formVarSub v₀}} : RLine p) := by
+    intro T' hT'
+    rcases Finset.mem_insert.1 hT' with rfl | hT'
+    · exact hY _ hTY
+    · rw [Finset.mem_singleton] at hT'; subst hT'; exact goodT_singleton hρ hsV'
+  obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_step hE₁.1 (prems := [{{formVar v₀}, {formVarSub v₀}}])
+    (by simpa using hm₁)
+    (RInfer.sem1 (T₁ := {formVar v₀}) (T₃ := some T) (by simp)
+      (fun a _ _ => ⟨T, rfl, hT a⟩) ({T, {formVarSub v₀}})
+      (by
+        intro x hx
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases Finset.mem_insert.1 hx with rfl | hx
+        · exact absurd rfl hne
+        · exact Finset.mem_insert_of_mem hx)
+      (by intro T' hT'; cases hT'; simp)
+      (by intro T' hT'; cases hT'; exact (hY _ hTY).1)) g1
+  obtain ⟨Ls₃, hE₃, hm₃⟩ := reach_step hE₂.1 (prems := [{T, {formVarSub v₀}}])
+    (by simpa using hm₂)
+    (RInfer.sem1 (T₁ := {formVarSub v₀}) (T₃ := some T) (by simp)
+      (fun a _ _ => ⟨T, rfl, hT a⟩) Y
+      (by
+        intro x hx
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases Finset.mem_insert.1 hx with rfl | hx
+        · exact hTY
+        · rw [Finset.mem_singleton] at hx; exact absurd hx hne)
+      (by intro T' hT'; cases hT'; exact hTY)
+      (by intro T' hT'; cases hT'; exact (hY _ hTY).1)) hY
+  exact ⟨Ls₃, ((hE₁.trans hE₂).trans hE₃).mono (by norm_num), hm₃⟩
+
+/-- Resolve every term of `P` in `L₁` against the term `U` of `L₂`, replacing `T` by `τ T`
+(or dropping it when `τ T = none`). -/
+theorem reach_map {L₂ : RLine p} {U : Term p} (hU : U ∈ L₂) (τ : Term p → Option (Term p))
+    {Y : RLine p} (hY : GoodL V ρ Y) (hL₂ : L₂.erase U ⊆ Y) (P : Finset (Term p)) :
+    (∀ T ∈ P, SemOK T (some U) (τ T) ∧ ∀ T', τ T = some T' → T' ∈ Y) →
+    ∀ {Ls : List (RLine p)}, Der Φ V ρ Ls → L₂ ∈ Ls → ∀ {L₁ : RLine p}, L₁ ∈ Ls →
+      L₁ \ P ⊆ Y → ∃ Ls₂, Ext Φ V ρ Ls Ls₂ (P.card + 1) ∧ Y ∈ Ls₂ := by
+  induction P using Finset.induction_on with
+  | empty =>
+    intro _ Ls h _ L₁ h₁ hsub
+    obtain ⟨Ls₂, hE, hm⟩ := reach_weak h h₁ (by simpa using hsub) hY
+    exact ⟨Ls₂, hE.mono (by simp), hm⟩
+  | insert T P hTP ih =>
+    intro hP Ls h h₂ L₁ h₁ hsub
+    have hP' : ∀ T' ∈ P, SemOK T' (some U) (τ T') ∧ ∀ T'', τ T' = some T'' → T'' ∈ Y :=
+      fun T' hT' => hP T' (Finset.mem_insert_of_mem hT')
+    rw [Finset.card_insert_of_notMem hTP]
+    by_cases hT : T ∈ L₁
+    · obtain ⟨hs, hτ⟩ := hP T (Finset.mem_insert_self ..)
+      set L' : RLine p := (L₁.erase T ∪ L₂.erase U) ∪ (τ T).toFinset with hL'
+      have gL' : GoodL V ρ L' := by
+        intro x hx
+        rcases Finset.mem_union.1 hx with hx | hx
+        · rcases Finset.mem_union.1 hx with hx | hx
+          · exact h.good _ h₁ _ (Finset.mem_of_mem_erase hx)
+          · exact h.good _ h₂ _ (Finset.mem_of_mem_erase hx)
+        · exact hY _ (hτ x (by simpa using hx))
+      obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_step h (prems := [L₁, L₂])
+        (by intro M hM; simp at hM; rcases hM with rfl | rfl <;> assumption)
+        (RInfer.sem2 (T₃ := τ T) hT hU hs L'
+          (fun x hx => Finset.mem_union_left _ (Finset.mem_union_left _ hx))
+          (fun x hx => Finset.mem_union_left _ (Finset.mem_union_right _ hx))
+          (fun T' hT' => Finset.mem_union_right _ (by simpa using hT'))
+          (fun T' hT' => (hY _ (hτ T' hT')).1)) gL'
+      have hsub' : L' \ P ⊆ Y := by
+        intro x hx
+        obtain ⟨hx, hxP⟩ := Finset.mem_sdiff.1 hx
+        rcases Finset.mem_union.1 hx with hx | hx
+        · rcases Finset.mem_union.1 hx with hx | hx
+          · obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+            exact hsub (Finset.mem_sdiff.2 ⟨hx, by
+              intro hc
+              rcases Finset.mem_insert.1 hc with hc | hc
+              · exact hne hc
+              · exact hxP hc⟩)
+          · exact hL₂ hx
+        · exact hτ x (by simpa using hx)
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := ih hP' hE₁.1 (hE₁.2.1 _ h₂) hm₁ hsub'
+      exact ⟨Ls₂, (hE₁.trans hE₂).mono (by omega), hm₂⟩
+    · have hsub' : L₁ \ P ⊆ Y := by
+        intro x hx
+        obtain ⟨hx, hxP⟩ := Finset.mem_sdiff.1 hx
+        exact hsub (Finset.mem_sdiff.2 ⟨hx, by
+          intro hc
+          rcases Finset.mem_insert.1 hc with hc | hc
+          · exact hT (hc ▸ hx)
+          · exact hxP hc⟩)
+      obtain ⟨Ls₂, hE₂, hm₂⟩ := ih hP' h h₂ h₁ hsub'
+      exact ⟨Ls₂, hE₂.mono (by omega), hm₂⟩
+
+/-- AND introduction along a list of forms: from lines `⊆ X ∪ {{f}}` for every `f` of the list,
+derive `X ∪ {fs}`. -/
+theorem reach_and {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) (X : RLine p) (fs : List (AffForm p)) :
+    ∀ {Ls : List (RLine p)}, Der Φ V ρ Ls → GoodL V ρ (insert fs.toFinset X) →
+      (∀ f ∈ fs, ∃ M ∈ Ls, M ⊆ insert {f} X) →
+      ∃ Ls₂, Ext Φ V ρ Ls Ls₂ (fs.length + 3) ∧ insert fs.toFinset X ∈ Ls₂ := by
+  induction fs with
+  | nil =>
+    intro Ls h hg _
+    obtain ⟨Ls₂, hE, hm⟩ := reach_true hv hρ h (T := (∅ : Term p)) (fun a l hl => by simp at hl)
+      hg (by simp)
+    exact ⟨Ls₂, hE.mono (by simp), hm⟩
+  | cons f fs ih =>
+    intro Ls h hg hprem
+    have hgX : ∀ T ∈ X, GoodT V ρ T := fun T hT => hg T (Finset.mem_insert_of_mem hT)
+    have hgfs : GoodT V ρ (f :: fs).toFinset := hg _ (Finset.mem_insert_self ..)
+    have hg' : GoodL V ρ (insert fs.toFinset X) := by
+      intro T hT
+      rcases Finset.mem_insert.1 hT with rfl | hT
+      · exact hgfs.mono (by intro x hx; simp at hx ⊢; exact Or.inr hx)
+      · exact hgX T hT
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := ih h hg' (fun f' hf' => hprem f' (List.mem_cons_of_mem _ hf'))
+    obtain ⟨M, hM, hMsub⟩ := hprem f (List.mem_cons_self ..)
+    have hM₁ := hE₁.2.1 _ hM
+    by_cases hfM : ({f} : Term p) ∈ M
+    · obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_step hE₁.1 (prems := [insert fs.toFinset X, M])
+        (by intro M' hM'; simp at hM'; rcases hM' with rfl | rfl <;> assumption)
+        (RInfer.sem2 (T₁ := fs.toFinset) (T₂ := {f}) (T₃ := some (f :: fs).toFinset)
+          (Finset.mem_insert_self ..) hfM
+          (by
+            intro a h1 h2
+            refine ⟨_, rfl, ?_⟩
+            intro l hl
+            rw [List.toFinset_cons, Finset.mem_insert] at hl
+            rcases hl with rfl | hl
+            · exact h2 {l} rfl l (by simp)
+            · exact h1 l hl)
+          (insert (f :: fs).toFinset X)
+          (by
+            intro x hx
+            obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+            rcases Finset.mem_insert.1 hx with hx | hx
+            · exact absurd hx hne
+            · exact Finset.mem_insert_of_mem hx)
+          (by
+            intro x hx
+            obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+            rcases Finset.mem_insert.1 (hMsub hx) with hx | hx
+            · exact absurd hx hne
+            · exact Finset.mem_insert_of_mem hx)
+          (by intro T' hT'; cases hT'; exact Finset.mem_insert_self ..)
+          (by intro T' hT'; cases hT'; exact hgfs.1)) hg
+      exact ⟨Ls₂, (hE₁.trans hE₂).mono (by simp), hm₂⟩
+    · obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_weak hE₁.1 hM₁ (L' := insert (f :: fs).toFinset X)
+        (by
+          intro x hx
+          rcases Finset.mem_insert.1 (hMsub hx) with hx' | hx'
+          · exact absurd (hx' ▸ hx) hfM
+          · exact Finset.mem_insert_of_mem hx') hg
+      exact ⟨Ls₂, (hE₁.trans hE₂).mono (by simp), hm₂⟩
+
+/-! ## Translation of flat formulas -/
+
+/-- Value form of a literal: `x_i` for a variable, `1 - v` for a negation (junk otherwise). -/
+def vf : Fm → AffForm p
+  | .var i => (Finsupp.single i 1, 0)
+  | .neg φ => ((0 : ℕ →₀ ZMod p), (1 : ZMod p)) - vf φ
+  | _ => 0
+
+/-- `zf s φ` is a form that vanishes exactly when the literal `φ` has truth value `s`. -/
+def zf : Bool → Fm → AffForm p
+  | true, .var i => formVarSub i
+  | false, .var i => formVar i
+  | s, .neg φ => zf (!s) φ
+  | _, _ => 0
+
+/-- Constant form. -/
+def cf (c : ZMod p) : AffForm p := ((0 : ℕ →₀ ZMod p), c)
+
+/-- The number of true members of a list of literals, as an affine form. -/
+def msum (l : List Fm) : AffForm p := (l.map vf).sum
+
+/-- The partition line `∨_c (msum l = c)`. -/
+def PT (l : List Fm) : RLine p :=
+  Finset.univ.image (fun c : ZMod p => ({msum l - cf c} : Term p))
+
+/-- One rank one term per member: `∨_ψ (ψ has value s)`. -/
+def sing (s : Bool) (l : List Fm) : RLine p := (l.map fun ψ => ({zf s ψ} : Term p)).toFinset
+
+/-- One term: `∧_ψ (ψ has value s)`. -/
+def conj (s : Bool) (l : List Fm) : RLine p := {(l.map (zf s)).toFinset}
+
+/-- Translation of a flat formula with sign `s` (`true`: the formula, `false`: its negation) into
+a set of terms. -/
+def tr : Bool → Fm → RLine p
+  | s, .neg φ => tr (!s) φ
+  | true, .var i => {{formVarSub i}}
+  | false, .var i => {{formVar i}}
+  | true, .or l => sing true l
+  | false, .or l => conj false l
+  | true, .and l => conj true l
+  | false, .and l => sing false l
+  | true, .mod r l => {{msum l - cf (r : ZMod p)}}
+  | false, .mod r l =>
+      (Finset.univ.filter (fun c : ZMod p => c ≠ (r : ZMod p))).image
+        (fun c => ({msum l - cf c} : Term p))
+
+/-- A literal over `V`. -/
+def LitIn (V : Finset ℕ) : Fm → Prop
+  | .var i => i ∈ V
+  | .neg φ => LitIn V φ
+  | _ => False
+
+/-- A flat formula over `V`: a literal, or (possibly negated) gate of literals. -/
+def FlatIn (V : Finset ℕ) : Fm → Prop
+  | .var i => i ∈ V
+  | .neg φ => FlatIn V φ
+  | .and l => ∀ ψ ∈ l, LitIn V ψ
+  | .or l => ∀ ψ ∈ l, LitIn V ψ
+  | .mod _ l => ∀ ψ ∈ l, LitIn V ψ
+
+/-- Weight of a flat formula (fan in plus one). -/
+def wt : Fm → ℕ
+  | .var _ => 1
+  | .neg φ => wt φ
+  | .and l => l.length + 1
+  | .or l => l.length + 1
+  | .mod _ l => l.length + 1
+
+theorem ev_cf (a : ℕ → ZMod p) (c : ZMod p) : ev a (cf c) = c := by
+  simp [ev_apply, cf]
+
+theorem vf_bool (a : Assignment) : ∀ φ : Fm, LitIn V φ →
+    ev (boolPt (F := ZMod p) a) (vf φ) = 0 ∨ ev (boolPt (F := ZMod p) a) (vf φ) = 1
+  | .var i, _ => by
+    have : (vf (.var i) : AffForm p) = formVar i := rfl
+    rw [this, ev_formVar]; exact boolPt_bool a i
+  | .neg φ, h => by
+    have e : (vf (.neg φ) : AffForm p) = cf 1 - vf φ := rfl
+    rw [e, map_sub, ev_cf]
+    rcases vf_bool a φ h with h0 | h1
+    · right; rw [h0]; simp
+    · left; rw [h1]; simp
+  | .and _, h => h.elim
+  | .or _, h => h.elim
+  | .mod _ _, h => h.elim
+
+theorem zf_iff (a : Assignment) : ∀ (φ : Fm), LitIn V φ → ∀ s : Bool,
+    (ev (boolPt (F := ZMod p) a) (zf s φ) = 0 ↔
+      ev (boolPt (F := ZMod p) a) (vf φ) = if s then 1 else 0)
+  | .var i, _, s => by
+    have e : (vf (.var i) : AffForm p) = formVar i := rfl
+    cases s
+    · have e2 : (zf false (.var i) : AffForm p) = formVar i := rfl
+      rw [e, e2]; simp
+    · have e2 : (zf true (.var i) : AffForm p) = formVarSub i := rfl
+      rw [e, e2, ev_formVar, ev_formVarSub, sub_eq_zero]; simp
+  | .neg φ, h, s => by
+    have e : (vf (.neg φ) : AffForm p) = cf 1 - vf φ := rfl
+    have e2 : (zf s (.neg φ) : AffForm p) = zf (!s) φ := by cases s <;> rfl
+    rw [e, e2, map_sub, ev_cf, zf_iff a φ h (!s)]
+    cases s
+    · simp only [Bool.not_false, ↓reduceIte, Bool.false_eq_true]; rw [sub_eq_zero]; exact eq_comm
+    · simp
+  | .and _, h, _ => h.elim
+  | .or _, h, _ => h.elim
+  | .mod _ _, h, _ => h.elim
+
+theorem vf_supp : ∀ φ : Fm, LitIn V φ → (vf φ : AffForm p).1.support ⊆ V
+  | .var i, h => by
+    intro x hx
+    have : x = i := by
+      by_contra hne
+      simp [vf, Ne.symm hne] at hx
+    rw [this]; exact h
+  | .neg φ, h => by
+    have e : (vf (.neg φ) : AffForm p).1 = - (vf φ : AffForm p).1 := by
+      show (((0 : ℕ →₀ ZMod p), (1 : ZMod p)) - vf φ).1 = _
+      simp
+    rw [e, Finsupp.support_neg]; exact vf_supp φ h
+  | .and _, h => h.elim
+  | .or _, h => h.elim
+  | .mod _ _, h => h.elim
+
+theorem zf_supp : ∀ φ : Fm, LitIn V φ → ∀ s : Bool, (zf s φ : AffForm p).1.support ⊆ V
+  | .var i, h, s => by
+    intro x hx
+    have : x = i := by
+      by_contra hne
+      cases s <;> simp [zf, formVar, formVarSub, Ne.symm hne] at hx
+    rw [this]; exact h
+  | .neg φ, h, s => by
+    have e2 : (zf s (.neg φ) : AffForm p) = zf (!s) φ := by cases s <;> rfl
+    rw [e2]; exact zf_supp φ h (!s)
+  | .and _, h, _ => h.elim
+  | .or _, h, _ => h.elim
+  | .mod _ _, h, _ => h.elim
+
+theorem lit_taut : ∀ φ : Fm, LitIn V φ → ∃ i ∈ V, ∀ s : Bool,
+    ({{zf s φ}, {zf (!s) φ}} : RLine p) = {{formVar i}, {formVarSub i}}
+  | .var i, h => ⟨i, h, fun s => by
+      cases s
+      · rfl
+      · exact Finset.pair_comm _ _⟩
+  | .neg φ, h => by
+    obtain ⟨i, hi, hs⟩ := lit_taut φ h
+    refine ⟨i, hi, fun s => ?_⟩
+    have e2 : ∀ s, (zf s (.neg φ) : AffForm p) = zf (!s) φ := fun s => by cases s <;> rfl
+    rw [e2, e2]; exact hs (!s)
+  | .and _, h => h.elim
+  | .or _, h => h.elim
+  | .mod _ _, h => h.elim
+
+theorem tr_lit : ∀ φ : Fm, LitIn V φ → ∀ s : Bool, (tr s φ : RLine p) = {{zf s φ}}
+  | .var i, _, s => by cases s <;> rfl
+  | .neg φ, h, s => by
+    have e1 : (tr s (.neg φ) : RLine p) = tr (!s) φ := by cases s <;> rfl
+    have e2 : (zf s (.neg φ) : AffForm p) = zf (!s) φ := by cases s <;> rfl
+    rw [e1, e2]; exact tr_lit φ h (!s)
+  | .and _, h, _ => h.elim
+  | .or _, h, _ => h.elim
+  | .mod _ _, h, _ => h.elim
+
+theorem tr_neg (s : Bool) (φ : Fm) : (tr s (.neg φ) : RLine p) = tr (!s) φ := by cases s <;> rfl
+
+theorem mem_sing {s : Bool} {l : List Fm} {T : Term p} :
+    T ∈ sing s l ↔ ∃ ψ ∈ l, T = {zf s ψ} := by
+  simp [sing, eq_comm]
+
+theorem mem_conj {s : Bool} {l : List Fm} {T : Term p} :
+    T ∈ conj s l ↔ T = (l.map (zf s)).toFinset := by
+  simp [conj]
+
+/-- A literal cannot have both truth values. -/
+theorem lit_inc {a : Assignment} {φ : Fm} (h : LitIn V φ) {s : Bool}
+    (h1 : ev (boolPt (F := ZMod p) a) (zf s φ) = 0)
+    (h2 : ev (boolPt (F := ZMod p) a) (zf (!s) φ) = 0) : False := by
+  rw [zf_iff a φ h] at h1 h2
+  rw [h1] at h2
+  cases s <;> simp at h2
+
+theorem sing_conj_inc {a : Assignment} {l : List Fm} (hl : ∀ ψ ∈ l, LitIn V ψ) {s : Bool}
+    {T U : Term p} (hT : T ∈ sing s l) (hU : U ∈ conj (!s) l)
+    (h1 : TrueAt (boolPt (F := ZMod p) a) T) (h2 : TrueAt (boolPt (F := ZMod p) a) U) : False := by
+  obtain ⟨ψ, hψ, rfl⟩ := mem_sing.1 hT
+  rw [mem_conj] at hU; subst hU
+  exact lit_inc (s := s) (hl ψ hψ) (h1 _ (Finset.mem_singleton_self _))
+    (h2 _ (by simp only [List.mem_toFinset, List.mem_map]; exact ⟨ψ, hψ, rfl⟩))
+
+theorem msum_cons (φ : Fm) (l : List Fm) : (msum (φ :: l) : AffForm p) = vf φ + msum l := by
+  simp [msum]
+
+theorem msum_supp (l : List Fm) (hl : ∀ ψ ∈ l, LitIn V ψ) :
+    (msum l : AffForm p).1.support ⊆ V := by
+  induction l with
+  | nil => simp [msum]
+  | cons ψ l ih =>
+    rw [msum_cons, Prod.fst_add]
+    exact Finsupp.support_add.trans (Finset.union_subset (vf_supp ψ (hl ψ (by simp)))
+      (ih fun ψ' h' => hl ψ' (List.mem_cons_of_mem _ h')))
+
+theorem msum_cf_supp (l : List Fm) (hl : ∀ ψ ∈ l, LitIn V ψ) (c : ZMod p) :
+    (msum l - cf c : AffForm p).1.support ⊆ V := by
+  have : (msum l - cf c : AffForm p).1 = (msum l : AffForm p).1 := by simp [cf]
+  rw [this]; exact msum_supp l hl
+
+/-- Terms of a translated flat formula only use variables of `V`. -/
+theorem tr_supp : ∀ φ : Fm, FlatIn V φ → ∀ s : Bool, ∀ T ∈ (tr s φ : RLine p), ∀ f ∈ T,
+    f.1.support ⊆ V
+  | .var i, h, s => by
+    intro T hT f hf
+    rw [tr_lit (.var i) h s] at hT
+    rw [Finset.mem_singleton] at hT; subst hT
+    rw [Finset.mem_singleton] at hf; subst hf
+    exact zf_supp (.var i) h s
+  | .neg φ, h, s => by rw [tr_neg]; exact tr_supp φ h (!s)
+  | .or l, h, s => by
+    intro T hT f hf
+    cases s
+    · rw [show (tr false (.or l) : RLine p) = conj false l from rfl, mem_conj] at hT
+      subst hT
+      simp only [List.mem_toFinset, List.mem_map] at hf
+      obtain ⟨ψ, hψ, rfl⟩ := hf
+      exact zf_supp ψ (h ψ hψ) _
+    · rw [show (tr true (.or l) : RLine p) = sing true l from rfl, mem_sing] at hT
+      obtain ⟨ψ, hψ, rfl⟩ := hT
+      rw [Finset.mem_singleton] at hf; subst hf
+      exact zf_supp ψ (h ψ hψ) _
+  | .and l, h, s => by
+    intro T hT f hf
+    cases s
+    · rw [show (tr false (.and l) : RLine p) = sing false l from rfl, mem_sing] at hT
+      obtain ⟨ψ, hψ, rfl⟩ := hT
+      rw [Finset.mem_singleton] at hf; subst hf
+      exact zf_supp ψ (h ψ hψ) _
+    · rw [show (tr true (.and l) : RLine p) = conj true l from rfl, mem_conj] at hT
+      subst hT
+      simp only [List.mem_toFinset, List.mem_map] at hf
+      obtain ⟨ψ, hψ, rfl⟩ := hf
+      exact zf_supp ψ (h ψ hψ) _
+  | .mod r l, h, s => by
+    intro T hT f hf
+    cases s
+    · simp only [tr, Finset.mem_image] at hT
+      obtain ⟨c, _, rfl⟩ := hT
+      rw [Finset.mem_singleton] at hf; subst hf
+      exact msum_cf_supp l h c
+    · simp only [tr, Finset.mem_singleton] at hT
+      subst hT
+      rw [Finset.mem_singleton] at hf; subst hf
+      exact msum_cf_supp l h _
+
+/-- A term of `tr s φ` and a term of `tr (!s) φ` have no common Boolean point. -/
+theorem tr_inc (a : Assignment) : ∀ φ : Fm, FlatIn V φ → ∀ s : Bool, ∀ T ∈ (tr s φ : RLine p),
+    ∀ U ∈ (tr (!s) φ : RLine p), TrueAt (boolPt (F := ZMod p) a) T →
+      TrueAt (boolPt (F := ZMod p) a) U → False
+  | .var i, h, s => by
+    intro T hT U hU h1 h2
+    rw [tr_lit (.var i) h, Finset.mem_singleton] at hT hU
+    subst hT; subst hU
+    have h' : LitIn V (.var i) := h
+    exact lit_inc (s := s) h' (h1 _ (Finset.mem_singleton_self _))
+      (h2 _ (Finset.mem_singleton_self _))
+  | .neg φ, h, s => by
+    intro T hT U hU h1 h2
+    rw [tr_neg] at hT hU
+    exact tr_inc a φ h (!s) T hT U hU h1 h2
+  | .or l, h, s => by
+    intro T hT U hU h1 h2
+    cases s
+    · exact sing_conj_inc (s := true) h hU hT h2 h1
+    · exact sing_conj_inc (s := true) h hT hU h1 h2
+  | .and l, h, s => by
+    intro T hT U hU h1 h2
+    cases s
+    · exact sing_conj_inc (s := false) h hT hU h1 h2
+    · exact sing_conj_inc (s := false) h hU hT h2 h1
+  | .mod r l, h, s => by
+    intro T hT U hU h1 h2
+    have key : ∀ (T U : Term p), T ∈ (tr true (.mod r l) : RLine p) →
+        U ∈ (tr false (.mod r l) : RLine p) → TrueAt (boolPt (F := ZMod p) a) T →
+        TrueAt (boolPt (F := ZMod p) a) U → False := by
+      intro T U hT hU h1 h2
+      simp only [tr, Finset.mem_singleton] at hT
+      simp only [tr, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and] at hU
+      obtain ⟨c, hc, rfl⟩ := hU
+      subst hT
+      have e1 := h1 _ (Finset.mem_singleton_self _)
+      have e2 := h2 _ (Finset.mem_singleton_self _)
+      rw [map_sub, ev_cf, sub_eq_zero] at e1 e2
+      exact hc (e2.symm.trans e1)
+    cases s
+    · exact key U T hU hT h2 h1
+    · exact key T U hT hU h1 h2
+
+/-- One of the two translations of a formula is a single term. -/
+theorem tr_single : ∀ (φ : Fm) (s : Bool),
+    (∃ U, (tr s φ : RLine p) = {U}) ∨ (∃ U, (tr (!s) φ : RLine p) = {U})
+  | .var i, s => Or.inl (by cases s <;> exact ⟨_, rfl⟩)
+  | .neg φ, s => by
+    rw [tr_neg, tr_neg]; exact tr_single φ (!s)
+  | .or l, s => by
+    cases s
+    · exact Or.inl ⟨_, rfl⟩
+    · exact Or.inr ⟨_, rfl⟩
+  | .and l, s => by
+    cases s
+    · exact Or.inr ⟨_, rfl⟩
+    · exact Or.inl ⟨_, rfl⟩
+  | .mod r l, s => by
+    cases s
+    · exact Or.inr ⟨_, rfl⟩
+    · exact Or.inl ⟨_, rfl⟩
+
+theorem card_zmod_image_le {β : Type} [DecidableEq β] (S : Finset (ZMod p)) (g : ZMod p → β) :
+    (S.image g).card ≤ p := by
+  refine Finset.card_image_le.trans ((Finset.card_le_univ S).trans ?_)
+  rw [ZMod.card]
+
+theorem card_sing_le (s : Bool) (l : List Fm) : (sing s l : RLine p).card ≤ l.length := by
+  unfold sing
+  exact (List.toFinset_card_le _).trans (by simp)
+
+theorem card_tr : ∀ (φ : Fm) (s : Bool), (tr s φ : RLine p).card ≤ wt φ + p
+  | .var i, s => by cases s <;> simp [tr, wt]
+  | .neg φ, s => by rw [tr_neg]; exact card_tr φ (!s)
+  | .or l, s => by
+    cases s
+    · show (({(l.map (zf false)).toFinset} : RLine p)).card ≤ l.length + 1 + p
+      rw [Finset.card_singleton]; omega
+    · exact (card_sing_le true l).trans (by show l.length ≤ l.length + 1 + p; omega)
+  | .and l, s => by
+    cases s
+    · exact (card_sing_le false l).trans (by show l.length ≤ l.length + 1 + p; omega)
+    · show (({(l.map (zf true)).toFinset} : RLine p)).card ≤ l.length + 1 + p
+      rw [Finset.card_singleton]; omega
+  | .mod r l, s => by
+    cases s
+    · show ((Finset.univ.filter (fun c : ZMod p => c ≠ (r : ZMod p))).image
+        (fun c => ({msum l - cf c} : Term p))).card ≤ l.length + 1 + p
+      exact (card_zmod_image_le (p := p) _ _).trans (Nat.le_add_left _ _)
+    · show (({{msum l - cf (r : ZMod p)}} : RLine p)).card ≤ l.length + 1 + p
+      rw [Finset.card_singleton]; omega
+
+/-! ## Sequents -/
+
+/-- Translation of a sequent `Γ ⊢ Δ`: negations of `Γ` and the members of `Δ`. -/
+def trS (S : Seq) : RLine p :=
+  S.1.toFinset.biUnion (tr false) ∪ S.2.toFinset.biUnion (tr true)
+
+theorem mem_trS {S : Seq} {T : Term p} :
+    T ∈ trS S ↔ (∃ φ ∈ S.1, T ∈ (tr false φ : RLine p)) ∨ (∃ φ ∈ S.2, T ∈ (tr true φ : RLine p)) := by
+  simp [trS]
+
+theorem trS_consL (φ : Fm) (Γ Δ : List Fm) :
+    (trS (φ :: Γ, Δ) : RLine p) = tr false φ ∪ trS (Γ, Δ) := by
+  ext T; simp only [mem_trS, Finset.mem_union, List.mem_cons]
+  constructor
+  · rintro (⟨ψ, rfl | h, hT⟩ | h)
+    · exact Or.inl hT
+    · exact Or.inr (Or.inl ⟨ψ, h, hT⟩)
+    · exact Or.inr (Or.inr h)
+  · rintro (h | ⟨ψ, h, hT⟩ | h)
+    · exact Or.inl ⟨φ, Or.inl rfl, h⟩
+    · exact Or.inl ⟨ψ, Or.inr h, hT⟩
+    · exact Or.inr h
+
+theorem trS_consR (φ : Fm) (Γ Δ : List Fm) :
+    (trS (Γ, φ :: Δ) : RLine p) = tr true φ ∪ trS (Γ, Δ) := by
+  ext T; simp only [mem_trS, Finset.mem_union, List.mem_cons]
+  constructor
+  · rintro (h | ⟨ψ, rfl | h, hT⟩)
+    · exact Or.inr (Or.inl h)
+    · exact Or.inl hT
+    · exact Or.inr (Or.inr ⟨ψ, h, hT⟩)
+  · rintro (h | h | ⟨ψ, h, hT⟩)
+    · exact Or.inr ⟨φ, Or.inl rfl, h⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨ψ, Or.inr h, hT⟩
+
+/-- All formulas of the sequent are flat over `V`. -/
+def FlatS (V : Finset ℕ) (S : Seq) : Prop := ∀ φ ∈ S.1 ++ S.2, FlatIn V φ
+
+/-- Weight of a sequent. -/
+def wS (S : Seq) : ℕ := ((S.1 ++ S.2).map wt).sum + 1
+
+theorem good_trS {S : Seq} (hS : FlatS V S) (hb : Bdd ρ (trS S : RLine p)) :
+    GoodL V ρ (trS S : RLine p) := by
+  intro T hT
+  refine ⟨hb T hT, ?_⟩
+  rcases mem_trS.1 hT with ⟨φ, hφ, h⟩ | ⟨φ, hφ, h⟩
+  · exact tr_supp φ (hS φ (List.mem_append_left _ hφ)) false T h
+  · exact tr_supp φ (hS φ (List.mem_append_right _ hφ)) true T h
+
+/-! ## Counting: the partition line and the `MOD_p` axioms -/
+
+theorem good_PT (hρ : 1 ≤ ρ) (l : List Fm) (hl : ∀ ψ ∈ l, LitIn V ψ) :
+    GoodL V ρ (PT l : RLine p) := by
+  intro T hT
+  simp only [PT, Finset.mem_image, Finset.mem_univ, true_and] at hT
+  obtain ⟨c, rfl⟩ := hT
+  exact goodT_singleton hρ (msum_cf_supp l hl c)
+
+theorem mem_PT (l : List Fm) (c : ZMod p) : ({msum l - cf c} : Term p) ∈ (PT l : RLine p) := by
+  simp only [PT, Finset.mem_image, Finset.mem_univ, true_and]; exact ⟨c, rfl⟩
+
+/-- The literal tautology line `{φ true} ∨ {φ false}`. -/
+theorem reach_lit {φ : Fm} (hφ : LitIn V φ) (hρ : 1 ≤ ρ) (s : Bool) {Ls : List (RLine p)}
+    (h : Der Φ V ρ Ls) :
+    ∃ Ls₂, Ext Φ V ρ Ls Ls₂ 1 ∧ ({{zf s φ}, {zf (!s) φ}} : RLine p) ∈ Ls₂ := by
+  obtain ⟨i, hi, hs⟩ := lit_taut (p := p) φ hφ
+  have g : GoodL V ρ ({{zf s φ}, {zf (!s) φ}} : RLine p) := by
+    intro T hT
+    rcases Finset.mem_insert.1 hT with rfl | hT
+    · exact goodT_singleton hρ (zf_supp φ hφ s)
+    · rw [Finset.mem_singleton] at hT; subst hT; exact goodT_singleton hρ (zf_supp φ hφ _)
+  refine reach_step h (prems := []) (by simp) ?_ g
+  rw [hs s]; exact RInfer.taut i
+
+theorem reach_PT {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) (l : List Fm) :
+    (∀ ψ ∈ l, LitIn V ψ) → ∀ {Ls : List (RLine p)}, Der Φ V ρ Ls →
+      ∃ Ls₂, Ext Φ V ρ Ls Ls₂ ((2 * p + 3) * l.length + 3) ∧ (PT l : RLine p) ∈ Ls₂ := by
+  induction l with
+  | nil =>
+    intro hl Ls h
+    obtain ⟨Ls₂, hE, hm⟩ := reach_true hv hρ h (T := ({msum [] - cf 0} : Term p))
+      (fun a f hf => by
+        rw [Finset.mem_singleton] at hf; subst hf
+        rw [map_sub, ev_cf]; simp [msum])
+      (good_PT hρ [] hl) (mem_PT [] 0)
+    exact ⟨Ls₂, hE.mono (by simp), hm⟩
+  | cons φ l ih =>
+    intro hl Ls h
+    have hφ : LitIn V φ := hl φ (by simp)
+    have hl' : ∀ ψ ∈ l, LitIn V ψ := fun ψ hψ => hl ψ (List.mem_cons_of_mem _ hψ)
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := ih hl' h
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_lit (p := p) hφ hρ false hE₁.1
+    have hm₁' := hE₂.2.1 _ hm₁
+    have gPT := good_PT (p := p) hρ (φ :: l) hl
+    -- phase 1: resolve against `φ false`
+    have gY : GoodL V ρ (insert ({zf true φ} : Term p) (PT (φ :: l))) := by
+      intro T hT
+      rcases Finset.mem_insert.1 hT with rfl | hT
+      · exact goodT_singleton hρ (zf_supp φ hφ _)
+      · exact gPT T hT
+    have hcard : (PT l : RLine p).card ≤ p := by unfold PT; exact card_zmod_image_le (p := p) _ _
+    obtain ⟨Ls₃, hE₃, hm₃⟩ := reach_map (Φ := Φ) (L₂ := ({{zf false φ}, {zf (!false) φ}} : RLine p))
+      (U := {zf false φ}) (by simp) (fun T => some (T.image (· + vf φ))) gY
+      (by
+        intro x hx
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases Finset.mem_insert.1 hx with hx | hx
+        · exact absurd hx hne
+        · rw [Finset.mem_singleton] at hx; subst hx; simp)
+      (PT l)
+      (by
+        intro T hT
+        refine ⟨?_, ?_⟩
+        · intro a h1 h2
+          refine ⟨_, rfl, ?_⟩
+          intro f hf
+          obtain ⟨g, hg, rfl⟩ := Finset.mem_image.1 hf
+          have hz := h2 _ rfl _ (Finset.mem_singleton_self _)
+          rw [zf_iff a φ hφ] at hz
+          rw [map_add, h1 g hg, hz]; simp
+        · intro T' hT'
+          cases hT'
+          simp only [PT, Finset.mem_image, Finset.mem_univ, true_and] at hT
+          obtain ⟨c, rfl⟩ := hT
+          refine Finset.mem_insert_of_mem ?_
+          have : (({msum l - cf c} : Term p).image (· + vf φ)) = {msum (φ :: l) - cf c} := by
+            rw [Finset.image_singleton, msum_cons]; congr 1; abel
+          rw [this]; exact mem_PT _ c)
+      hE₂.1 hm₂ hm₁' (by simp)
+    have hm₁'' := hE₃.2.1 _ hm₁'
+    -- phase 2: resolve against `φ true`
+    obtain ⟨Ls₄, hE₄, hm₄⟩ := reach_map (Φ := Φ)
+      (L₂ := (insert ({zf true φ} : Term p) (PT (φ :: l))))
+      (U := {zf true φ}) (by simp) (fun T => some (T.image (· + vf φ - cf 1))) gPT
+      (by
+        intro x hx
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases Finset.mem_insert.1 hx with hx | hx
+        · exact absurd hx hne
+        · exact hx)
+      (PT l)
+      (by
+        intro T hT
+        refine ⟨?_, ?_⟩
+        · intro a h1 h2
+          refine ⟨_, rfl, ?_⟩
+          intro f hf
+          obtain ⟨g, hg, rfl⟩ := Finset.mem_image.1 hf
+          have hz := h2 _ rfl _ (Finset.mem_singleton_self _)
+          rw [zf_iff a φ hφ] at hz
+          rw [map_sub, map_add, h1 g hg, hz, ev_cf]; simp
+        · intro T' hT'
+          cases hT'
+          simp only [PT, Finset.mem_image, Finset.mem_univ, true_and] at hT
+          obtain ⟨c, rfl⟩ := hT
+          have e : (cf (c + 1) : AffForm p) = cf c + cf 1 := by simp [cf]
+          have : (({msum l - cf c} : Term p).image (· + vf φ - cf 1)) =
+              {msum (φ :: l) - cf (c + 1)} := by
+            rw [Finset.image_singleton, msum_cons, e]; congr 1; abel
+          rw [this]; exact mem_PT _ (c + 1))
+      hE₃.1 hm₃ hm₁'' (by simp)
+    refine ⟨Ls₄, (((hE₁.trans hE₂).trans hE₃).trans hE₄).mono ?_, hm₄⟩
+    simp only [List.length_cons]
+    have : (2 * p + 3) * (l.length + 1) = (2 * p + 3) * l.length + (2 * p + 3) := by ring
+    omega
+
+/-- The common shape of the four `MOD_p` counting axioms. -/
+theorem reach_modax {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) {φ : Fm} (hφ : LitIn V φ)
+    (l₁ : List Fm) (hl₁ : ∀ ψ ∈ l₁, LitIn V ψ) (c : ZMod p) (s : Bool) (T₃ : Term p)
+    (hsem : ∀ a : Assignment, ev (boolPt (F := ZMod p) a) (msum l₁ - cf c) = 0 →
+      ev (boolPt (F := ZMod p) a) (zf s φ) = 0 → TrueAt (boolPt (F := ZMod p) a) T₃)
+    {Y : RLine p} (hY : GoodL V ρ Y) (h1 : ∀ c' : ZMod p, c' ≠ c → ({msum l₁ - cf c'} : Term p) ∈ Y)
+    (h2 : ({zf (!s) φ} : Term p) ∈ Y) (h3 : T₃ ∈ Y) {Ls : List (RLine p)} (h : Der Φ V ρ Ls) :
+    ∃ Ls₂, Ext Φ V ρ Ls Ls₂ ((2 * p + 3) * l₁.length + 5) ∧ Y ∈ Ls₂ := by
+  obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_PT (p := p) hv hρ l₁ hl₁ h
+  obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_lit (p := p) hφ hρ s hE₁.1
+  have hm₁' := hE₂.2.1 _ hm₁
+  obtain ⟨Ls₃, hE₃, hm₃⟩ := reach_step hE₂.1 (prems := [PT l₁, {{zf s φ}, {zf (!s) φ}}])
+    (by intro M hM; simp at hM; rcases hM with rfl | rfl <;> assumption)
+    (RInfer.sem2 (T₁ := {msum l₁ - cf c}) (T₂ := {zf s φ}) (T₃ := some T₃) (mem_PT l₁ c)
+      (by simp)
+      (fun a h1 h2 => ⟨T₃, rfl, hsem a (h1 _ (Finset.mem_singleton_self _))
+        (h2 _ rfl _ (Finset.mem_singleton_self _))⟩)
+      Y
+      (by
+        intro x hx
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        simp only [PT, Finset.mem_image, Finset.mem_univ, true_and] at hx
+        obtain ⟨c', rfl⟩ := hx
+        exact h1 c' (by rintro rfl; exact hne rfl))
+      (by
+        intro x hx
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases Finset.mem_insert.1 hx with hx | hx
+        · exact absurd hx hne
+        · rw [Finset.mem_singleton] at hx; subst hx; exact h2)
+      (by intro T' hT'; cases hT'; exact h3)
+      (by intro T' hT'; cases hT'; exact (hY _ h3).1)) hY
+  exact ⟨Ls₃, ((hE₁.trans hE₂).trans hE₃).mono (by omega), hm₃⟩
+
+/-! ## Tautologies `φ ⊢ φ` -/
+
+theorem lit_axiom {φ : Fm} (hφ : LitIn V φ) (hρ : 1 ≤ ρ) (s : Bool) :
+    RInfer Φ ρ [] ({{zf s φ}, {zf (!s) φ}} : RLine p) ∧
+      GoodL V ρ ({{zf s φ}, {zf (!s) φ}} : RLine p) := by
+  obtain ⟨i, hi, hs⟩ := lit_taut (p := p) φ hφ
+  refine ⟨by rw [hs s]; exact RInfer.taut i, ?_⟩
+  intro T hT
+  rcases Finset.mem_insert.1 hT with rfl | hT
+  · exact goodT_singleton hρ (zf_supp φ hφ s)
+  · rw [Finset.mem_singleton] at hT; subst hT; exact goodT_singleton hρ (zf_supp φ hφ _)
+
+theorem reach_gate_taut {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) (l : List Fm)
+    (hl : ∀ ψ ∈ l, LitIn V ψ) (s : Bool) {Y : RLine p} (hY : GoodL V ρ Y)
+    (h1 : (sing s l : RLine p) ⊆ Y) (h2 : (conj (!s) l : RLine p) ⊆ Y) {Ls : List (RLine p)}
+    (h : Der Φ V ρ Ls) : ∃ Ls₂, Ext Φ V ρ Ls Ls₂ (2 * l.length + 4) ∧ Y ∈ Ls₂ := by
+  obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_axioms (Φ := Φ) (V := V) (ρ := ρ)
+    (l.map fun ψ => ({{zf s ψ}, {zf (!s) ψ}} : RLine p)) h (by
+      intro M hM
+      obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hM
+      exact lit_axiom (hl ψ hψ) hρ s)
+  have hfs : ((l.map (zf (!s))).toFinset : Term p) ∈ Y := h2 (mem_conj.2 rfl)
+  have hg : GoodL V ρ (insert (l.map (zf (!s))).toFinset (sing s l : RLine p)) := by
+    intro T hT
+    rcases Finset.mem_insert.1 hT with rfl | hT
+    · exact hY _ hfs
+    · exact hY _ (h1 hT)
+  obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_and hv hρ (sing s l : RLine p) (l.map (zf (!s))) hE₁.1 hg (by
+    intro f hf
+    obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hf
+    refine ⟨{{zf s ψ}, {zf (!s) ψ}}, hm₁ _ (List.mem_map.2 ⟨ψ, hψ, rfl⟩), ?_⟩
+    intro x hx
+    rcases Finset.mem_insert.1 hx with rfl | hx
+    · exact Finset.mem_insert_of_mem (mem_sing.2 ⟨ψ, hψ, rfl⟩)
+    · rw [Finset.mem_singleton] at hx; subst hx; exact Finset.mem_insert_self ..)
+  obtain ⟨Ls₃, hE₃, hm₃⟩ := reach_weak hE₂.1 hm₂ (L' := Y) (by
+    intro x hx
+    rcases Finset.mem_insert.1 hx with rfl | hx
+    · exact hfs
+    · exact h1 hx) hY
+  refine ⟨Ls₃, ((hE₁.trans hE₂).trans hE₃).mono ?_, hm₃⟩
+  simp only [List.length_map]; omega
+
+theorem arith1 (P n : ℕ) : 2 * n + 4 ≤ (2 * P + 3) * (n + 1) + 3 := by
+  have : 3 * (n + 1) ≤ (2 * P + 3) * (n + 1) := Nat.mul_le_mul_right _ (by omega)
+  omega
+
+theorem arith2 (P n : ℕ) : (2 * P + 3) * n + 3 + 1 ≤ (2 * P + 3) * (n + 1) + 3 := by
+  have : (2 * P + 3) * (n + 1) = (2 * P + 3) * n + (2 * P + 3) := by ring
+  omega
+
+/-- The line of the initial sequent `φ ⊢ φ`. -/
+theorem reach_taut {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) : ∀ φ : Fm, FlatIn V φ → ∀ (s : Bool)
+    (Y : RLine p), GoodL V ρ Y → (tr s φ : RLine p) ⊆ Y → (tr (!s) φ : RLine p) ⊆ Y →
+    ∀ (Ls : List (RLine p)), Der Φ V ρ Ls →
+      ∃ Ls₂, Ext Φ V ρ Ls Ls₂ ((2 * p + 3) * wt φ + 3) ∧ Y ∈ Ls₂
+  | .var i, hφ, s, Y, hY, h1, h2, Ls, h => by
+    have hφ' : LitIn V (.var i) := hφ
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_lit (p := p) hφ' hρ s h
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_weak hE₁.1 hm₁ (L' := Y) (by
+      intro x hx
+      rcases Finset.mem_insert.1 hx with rfl | hx
+      · exact h1 (by rw [tr_lit _ hφ']; simp)
+      · rw [Finset.mem_singleton] at hx; subst hx
+        exact h2 (by rw [tr_lit _ hφ']; simp)) hY
+    exact ⟨Ls₂, (hE₁.trans hE₂).mono (by show 1 + 1 ≤ (2 * p + 3) * 1 + 3; omega), hm₂⟩
+  | .neg φ, hφ, s, Y, hY, h1, h2, Ls, h => by
+    rw [tr_neg] at h1 h2
+    exact reach_taut hv hρ φ hφ (!s) Y hY h1 h2 Ls h
+  | .or l, hφ, s, Y, hY, h1, h2, Ls, h => by
+    have key : (sing true l : RLine p) ⊆ Y ∧ (conj false l : RLine p) ⊆ Y := by
+      cases s
+      · exact ⟨h2, h1⟩
+      · exact ⟨h1, h2⟩
+    obtain ⟨Ls₂, hE, hm⟩ := reach_gate_taut hv hρ l hφ true hY key.1 key.2 h
+    exact ⟨Ls₂, hE.mono (arith1 p l.length), hm⟩
+  | .and l, hφ, s, Y, hY, h1, h2, Ls, h => by
+    have key : (sing false l : RLine p) ⊆ Y ∧ (conj true l : RLine p) ⊆ Y := by
+      cases s
+      · exact ⟨h1, h2⟩
+      · exact ⟨h2, h1⟩
+    obtain ⟨Ls₂, hE, hm⟩ := reach_gate_taut hv hρ l hφ false hY key.1 key.2 h
+    exact ⟨Ls₂, hE.mono (arith1 p l.length), hm⟩
+  | .mod r l, hφ, s, Y, hY, h1, h2, Ls, h => by
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_PT (p := p) hv hρ l hφ h
+    have key : ∀ T, T ∈ (tr true (.mod r l) : RLine p) ∨ T ∈ (tr false (.mod r l) : RLine p) →
+        T ∈ Y := by
+      intro T hT
+      cases s
+      · rcases hT with hT | hT
+        · exact h2 hT
+        · exact h1 hT
+      · rcases hT with hT | hT
+        · exact h1 hT
+        · exact h2 hT
+    have hsub : (PT l : RLine p) ⊆ Y := by
+      intro x hx
+      simp only [PT, Finset.mem_image, Finset.mem_univ, true_and] at hx
+      obtain ⟨c, rfl⟩ := hx
+      apply key
+      by_cases hc : c = (r : ZMod p)
+      · left; rw [hc]; simp only [tr, Finset.mem_singleton]
+      · right
+        simp only [tr, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
+        exact ⟨c, hc, rfl⟩
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_weak hE₁.1 hm₁ hsub hY
+    exact ⟨Ls₂, (hE₁.trans hE₂).mono (arith2 p l.length), hm₂⟩
+
+/-! ## One step of the sequent calculus -/
+
+theorem cast_pred (r : ℕ) : ((r + p - 1 : ℕ) : ZMod p) = (r : ZMod p) - 1 := by
+  have hp : 1 ≤ r + p := by have := (Fact.out : p.Prime).pos; omega
+  rw [Nat.cast_sub hp, Nat.cast_add, ZMod.natCast_self]; simp
+
+theorem wt_le_wS {S : Seq} {φ : Fm} (h : φ ∈ S.1 ++ S.2) : wt φ + 1 ≤ wS S := by
+  unfold wS
+  have : wt φ ≤ ((S.1 ++ S.2).map wt).sum :=
+    List.single_le_sum (by simp) _ (List.mem_map.2 ⟨φ, h, rfl⟩)
+  omega
+
+theorem cost_le {P K W a : ℕ} (ha : a ≤ (2 * P + 3) * K + 5) (hK : K ≤ W) (hW : 1 ≤ W) :
+    a ≤ (2 * P + 8) * W := by
+  have h1 : (2 * P + 3) * K ≤ (2 * P + 3) * W := Nat.mul_le_mul_left _ hK
+  have h2 : (2 * P + 8) * W = (2 * P + 3) * W + 5 * W := by ring
+  omega
+
+theorem kle (P K : ℕ) : K ≤ (2 * P + 3) * K := Nat.le_mul_of_pos_left _ (by omega)
+
+/-- Every rule of the sequent calculus, applied to flat sequents of bounded rank, is simulated in
+`R_ρ^p` with a number of new lines linear in `p` times the weights involved. -/
+theorem step_sim {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) {F : CNF} {prev : List Seq} {S : Seq}
+    (hstep : FStep p F prev S) (hpf : ∀ T ∈ prev, FlatS V T) (hS : FlatS V S)
+    (hb : Bdd ρ (trS S : RLine p)) (M : ℕ) (hM : ∀ T ∈ prev, wS T ≤ M)
+    {Ls : List (RLine p)} (h : Der F V ρ Ls) (hprev : ∀ T ∈ prev, (trS T : RLine p) ∈ Ls) :
+    ∃ Ls₂, Ext F V ρ Ls Ls₂ ((2 * p + 8) * (wS S + M)) ∧ (trS S : RLine p) ∈ Ls₂ := by
+  have G := good_trS hS hb
+  have hW : 1 ≤ wS S + M := by unfold wS; omega
+  have fin : ∀ {c : ℕ} (K : ℕ), (∃ Ls₂, Ext F V ρ Ls Ls₂ c ∧ (trS S : RLine p) ∈ Ls₂) →
+      c ≤ (2 * p + 3) * K + 5 → K ≤ wS S + M →
+      ∃ Ls₂, Ext F V ρ Ls Ls₂ ((2 * p + 8) * (wS S + M)) ∧ (trS S : RLine p) ∈ Ls₂ := by
+    rintro c K ⟨Ls₂, hE, hm⟩ hc hK
+    exact ⟨Ls₂, hE.mono (cost_le hc hK hW), hm⟩
+  have htrue : ∀ a : Assignment, TrueAt (boolPt (F := ZMod p) a)
+      ({msum [] - cf 0} : Term p) := by
+    intro a f hf
+    rw [Finset.mem_singleton] at hf; subst hf
+    rw [map_sub, ev_cf]; simp [msum]
+  rcases hstep with ⟨C, hC, rfl⟩ | ⟨φ, rfl⟩ | rfl | rfl | rfl | ⟨r, hr, rfl⟩ | ⟨r, φ, l, rfl⟩ |
+      ⟨r, φ, l, rfl⟩ | ⟨r, φ, l, rfl⟩ | ⟨r, φ, l, rfl⟩ | ⟨T, hT, h1, h2⟩ | ⟨φ, h1, h2⟩ |
+      ⟨φ, Γ, Δ, rfl, h1⟩ | ⟨φ, Γ, Δ, rfl, h1⟩ | ⟨l, Γ, Δ, φ, hφ, rfl, h1⟩ | ⟨l, Γ, Δ, rfl, h1⟩ |
+      ⟨l, Γ, Δ, rfl, h1⟩ | ⟨l, Γ, Δ, φ, hφ, rfl, h1⟩
+  · -- clause axiom
+    have hsub : (clauseRLine C : RLine p) ⊆ trS ([], [clauseFm C]) := by
+      intro T hT
+      obtain ⟨l, hl, rfl⟩ := Finset.mem_image.1 hT
+      refine mem_trS.2 (Or.inr ⟨clauseFm C, by simp, ?_⟩)
+      show litTerm l ∈ sing true (C.toList.map litFm)
+      refine mem_sing.2 ⟨litFm l, List.mem_map.2 ⟨l, Finset.mem_toList.2 hl, rfl⟩, ?_⟩
+      unfold litTerm litFm; split_ifs <;> rfl
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_step h (prems := []) (by simp) (RInfer.init C hC)
+      (fun T hT => G T (hsub hT))
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_weak hE₁.1 hm₁ hsub G
+    exact fin 0 ⟨Ls₂, hE₁.trans hE₂, hm₂⟩ (by omega) (by omega)
+  · -- φ ⊢ φ
+    have hφ : FlatIn V φ := hS φ (by simp)
+    have R := reach_taut hv hρ φ hφ true (trS ([φ], [φ])) G
+      (fun T hT => mem_trS.2 (Or.inr ⟨φ, by simp, hT⟩))
+      (fun T hT => mem_trS.2 (Or.inl ⟨φ, by simp, hT⟩)) Ls h
+    have := wt_le_wS (S := ([φ], [φ])) (φ := φ) (by simp)
+    exact fin (wt φ) R (by omega) (by omega)
+  · -- ⊢ AND()
+    exact fin 0 (reach_true hv hρ h (T := (∅ : Term p)) (fun a l hl => by simp at hl) G
+      (mem_trS.2 (Or.inr ⟨.and [], by simp, by
+        show (∅ : Term p) ∈ conj true []
+        exact mem_conj.2 (by simp)⟩))) (by omega) (by omega)
+  · -- OR() ⊢
+    exact fin 0 (reach_true hv hρ h (T := (∅ : Term p)) (fun a l hl => by simp at hl) G
+      (mem_trS.2 (Or.inl ⟨.or [], by simp, by
+        show (∅ : Term p) ∈ conj false []
+        exact mem_conj.2 (by simp)⟩))) (by omega) (by omega)
+  · -- ⊢ MOD_0()
+    exact fin 0 (reach_true hv hρ h htrue G
+      (mem_trS.2 (Or.inr ⟨.mod 0 [], by simp, by
+        simp only [tr, Finset.mem_singleton, Nat.cast_zero]⟩))) (by omega) (by omega)
+  · -- MOD_r() ⊢, r ≠ 0
+    exact fin 0 (reach_true hv hρ h htrue G
+      (mem_trS.2 (Or.inl ⟨.mod r [], by simp, by
+        simp only [tr, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
+        refine ⟨0, fun h0 => hr ?_, rfl⟩
+        exact Nat.mod_eq_zero_of_dvd ((ZMod.natCast_eq_zero_iff r p).1 h0.symm)⟩)))
+      (by omega) (by omega)
+  · -- MOD_r(φ, l), φ ⊢ MOD_{r-1}(l)
+    have hl1 : ∀ ψ ∈ φ :: l, LitIn V ψ := hS (.mod r (φ :: l)) (by simp)
+    have hφ := hl1 φ (by simp)
+    have hw := wt_le_wS (S := ([.mod r (φ :: l), φ], [.mod (r + p - 1) l]))
+      (φ := .mod r (φ :: l)) (by simp)
+    have ew : wt (.mod r (φ :: l)) = (φ :: l).length + 1 := rfl
+    refine fin (φ :: l).length (reach_modax hv hρ hφ (φ :: l) hl1 (r : ZMod p) true
+      {msum l - cf ((r + p - 1 : ℕ) : ZMod p)} ?_ G ?_ ?_ ?_ h) (by omega) (by omega)
+    · intro a h1 h2 f hf
+      rw [Finset.mem_singleton] at hf; subst hf
+      rw [zf_iff a φ hφ] at h2
+      have h2' : ev (boolPt (F := ZMod p) a) (vf φ) = 1 := by simpa using h2
+      rw [msum_cons, map_sub, map_add, ev_cf, h2'] at h1
+      rw [map_sub, ev_cf, cast_pred]
+      linear_combination h1
+    · intro c' hc'
+      exact mem_trS.2 (Or.inl ⟨.mod r (φ :: l), by simp, by
+        simp only [tr, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
+        exact ⟨c', hc', rfl⟩⟩)
+    · exact mem_trS.2 (Or.inl ⟨φ, by simp, by rw [tr_lit φ hφ]; simp⟩)
+    · exact mem_trS.2 (Or.inr ⟨.mod (r + p - 1) l, by simp, by
+        simp only [tr, Finset.mem_singleton]⟩)
+  · -- MOD_r(φ, l) ⊢ φ, MOD_r(l)
+    have hl1 : ∀ ψ ∈ φ :: l, LitIn V ψ := hS (.mod r (φ :: l)) (by simp)
+    have hφ := hl1 φ (by simp)
+    have hw := wt_le_wS (S := ([.mod r (φ :: l)], [φ, .mod r l]))
+      (φ := .mod r (φ :: l)) (by simp)
+    have ew : wt (.mod r (φ :: l)) = (φ :: l).length + 1 := rfl
+    refine fin (φ :: l).length (reach_modax hv hρ hφ (φ :: l) hl1 (r : ZMod p) false
+      {msum l - cf (r : ZMod p)} ?_ G ?_ ?_ ?_ h) (by omega) (by omega)
+    · intro a h1 h2 f hf
+      rw [Finset.mem_singleton] at hf; subst hf
+      rw [zf_iff a φ hφ] at h2
+      have h2' : ev (boolPt (F := ZMod p) a) (vf φ) = 0 := by simpa using h2
+      rw [msum_cons, map_sub, map_add, ev_cf, h2'] at h1
+      rw [map_sub, ev_cf]
+      linear_combination h1
+    · intro c' hc'
+      exact mem_trS.2 (Or.inl ⟨.mod r (φ :: l), by simp, by
+        simp only [tr, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
+        exact ⟨c', hc', rfl⟩⟩)
+    · exact mem_trS.2 (Or.inr ⟨φ, by simp, by rw [tr_lit φ hφ]; simp⟩)
+    · exact mem_trS.2 (Or.inr ⟨.mod r l, by simp, by simp only [tr, Finset.mem_singleton]⟩)
+  · -- φ, MOD_{r-1}(l) ⊢ MOD_r(φ, l)
+    have hl1 : ∀ ψ ∈ φ :: l, LitIn V ψ := hS (.mod r (φ :: l)) (by simp)
+    have hφ := hl1 φ (by simp)
+    have hl : ∀ ψ ∈ l, LitIn V ψ := fun ψ hψ => hl1 ψ (List.mem_cons_of_mem _ hψ)
+    have hw := wt_le_wS (S := ([φ, .mod (r + p - 1) l], [.mod r (φ :: l)]))
+      (φ := .mod r (φ :: l)) (by simp)
+    have ew : wt (.mod r (φ :: l)) = l.length + 1 + 1 := rfl
+    refine fin l.length (reach_modax hv hρ hφ l hl ((r + p - 1 : ℕ) : ZMod p) true
+      {msum (φ :: l) - cf (r : ZMod p)} ?_ G ?_ ?_ ?_ h) (by omega) (by omega)
+    · intro a h1 h2 f hf
+      rw [Finset.mem_singleton] at hf; subst hf
+      rw [zf_iff a φ hφ] at h2
+      have h2' : ev (boolPt (F := ZMod p) a) (vf φ) = 1 := by simpa using h2
+      rw [map_sub, ev_cf, cast_pred] at h1
+      rw [msum_cons, map_sub, map_add, ev_cf, h2']
+      linear_combination h1
+    · intro c' hc'
+      exact mem_trS.2 (Or.inl ⟨.mod (r + p - 1) l, by simp, by
+        simp only [tr, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
+        exact ⟨c', hc', rfl⟩⟩)
+    · exact mem_trS.2 (Or.inl ⟨φ, by simp, by rw [tr_lit φ hφ]; simp⟩)
+    · exact mem_trS.2 (Or.inr ⟨.mod r (φ :: l), by simp, by
+        simp only [tr, Finset.mem_singleton]⟩)
+  · -- MOD_r(l) ⊢ φ, MOD_r(φ, l)
+    have hl1 : ∀ ψ ∈ φ :: l, LitIn V ψ := hS (.mod r (φ :: l)) (by simp)
+    have hφ := hl1 φ (by simp)
+    have hl : ∀ ψ ∈ l, LitIn V ψ := fun ψ hψ => hl1 ψ (List.mem_cons_of_mem _ hψ)
+    have hw := wt_le_wS (S := ([.mod r l], [φ, .mod r (φ :: l)]))
+      (φ := .mod r (φ :: l)) (by simp)
+    have ew : wt (.mod r (φ :: l)) = l.length + 1 + 1 := rfl
+    refine fin l.length (reach_modax hv hρ hφ l hl (r : ZMod p) false
+      {msum (φ :: l) - cf (r : ZMod p)} ?_ G ?_ ?_ ?_ h) (by omega) (by omega)
+    · intro a h1 h2 f hf
+      rw [Finset.mem_singleton] at hf; subst hf
+      rw [zf_iff a φ hφ] at h2
+      have h2' : ev (boolPt (F := ZMod p) a) (vf φ) = 0 := by simpa using h2
+      rw [map_sub, ev_cf] at h1
+      rw [msum_cons, map_sub, map_add, ev_cf, h2']
+      linear_combination h1
+    · intro c' hc'
+      exact mem_trS.2 (Or.inl ⟨.mod r l, by simp, by
+        simp only [tr, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
+        exact ⟨c', hc', rfl⟩⟩)
+    · exact mem_trS.2 (Or.inr ⟨φ, by simp, by rw [tr_lit φ hφ]; simp⟩)
+    · exact mem_trS.2 (Or.inr ⟨.mod r (φ :: l), by simp, by
+        simp only [tr, Finset.mem_singleton]⟩)
+  · -- weakening
+    exact fin 0 (reach_weak h (hprev T hT) (by
+      intro x hx
+      rcases mem_trS.1 hx with ⟨φ, hφ, hx⟩ | ⟨φ, hφ, hx⟩
+      · exact mem_trS.2 (Or.inl ⟨φ, h1 hφ, hx⟩)
+      · exact mem_trS.2 (Or.inr ⟨φ, h2 hφ, hx⟩)) G) (by omega) (by omega)
+  · -- cut
+    have hφ : FlatIn V φ := hpf _ h1 φ (by simp)
+    have e1 : (trS (S.1, φ :: S.2) : RLine p) = tr true φ ∪ trS S := trS_consR φ S.1 S.2
+    have e2 : (trS (φ :: S.1, S.2) : RLine p) = tr false φ ∪ trS S := trS_consL φ S.1 S.2
+    have m1 := hprev _ h1
+    have m2 := hprev _ h2
+    rw [e1] at m1; rw [e2] at m2
+    have hwφ : wt φ + 1 ≤ M := (wt_le_wS (S := (S.1, φ :: S.2)) (by simp)).trans (hM _ h1)
+    have hk := kle p M
+    have hr2 : (2 * p + 3) * (M + 1) = (2 * p + 3) * M + (2 * p + 3) := by ring
+    have hwS1 : 1 ≤ wS S := by unfold wS; omega
+    rcases tr_single (p := p) φ true with ⟨U, hU⟩ | ⟨U, hU⟩
+    · have hUt : U ∈ (tr true φ : RLine p) := by rw [hU]; exact Finset.mem_singleton_self _
+      have R := reach_map (Φ := F) (V := V) (ρ := ρ) (L₂ := (tr true φ ∪ trS S : RLine p))
+        (U := U) (Finset.mem_union_left _ hUt) (fun _ => none) G (by
+          intro x hx
+          obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+          rcases Finset.mem_union.1 hx with hx | hx
+          · rw [hU, Finset.mem_singleton] at hx; exact absurd hx hne
+          · exact hx) (tr false φ) (by
+          intro T hT
+          refine ⟨fun a ha hb' => ?_, fun T' hT' => by cases hT'⟩
+          exact (tr_inc a φ hφ false T hT U hUt ha (hb' U rfl)).elim) h m1 m2 (by
+          intro x hx
+          obtain ⟨hx, hxP⟩ := Finset.mem_sdiff.1 hx
+          rcases Finset.mem_union.1 hx with hx | hx
+          · exact absurd hx hxP
+          · exact hx)
+      have := card_tr (p := p) φ false
+      exact fin (M + 1) R (by omega) (by omega)
+    · have hU' : (tr false φ : RLine p) = {U} := hU
+      have hUt : U ∈ (tr false φ : RLine p) := by rw [hU']; exact Finset.mem_singleton_self _
+      have R := reach_map (Φ := F) (V := V) (ρ := ρ) (L₂ := (tr false φ ∪ trS S : RLine p))
+        (U := U) (Finset.mem_union_left _ hUt) (fun _ => none) G (by
+          intro x hx
+          obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+          rcases Finset.mem_union.1 hx with hx | hx
+          · rw [hU', Finset.mem_singleton] at hx; exact absurd hx hne
+          · exact hx) (tr true φ) (by
+          intro T hT
+          refine ⟨fun a ha hb' => ?_, fun T' hT' => by cases hT'⟩
+          exact (tr_inc a φ hφ true T hT U hUt ha (hb' U rfl)).elim) h m2 m1 (by
+          intro x hx
+          obtain ⟨hx, hxP⟩ := Finset.mem_sdiff.1 hx
+          rcases Finset.mem_union.1 hx with hx | hx
+          · exact absurd hx hxP
+          · exact hx)
+      have := card_tr (p := p) φ true
+      exact fin (M + 1) R (by omega) (by omega)
+  · -- NOT left
+    have e : (trS (.neg φ :: Γ, Δ) : RLine p) = trS (Γ, φ :: Δ) := by
+      rw [trS_consL, trS_consR, tr_neg]; rfl
+    exact fin 0 ⟨Ls, Ext.refl h, by rw [e]; exact hprev _ h1⟩ (by omega) (by omega)
+  · -- NOT right
+    have e : (trS (Γ, .neg φ :: Δ) : RLine p) = trS (φ :: Γ, Δ) := by
+      rw [trS_consL, trS_consR, tr_neg]; rfl
+    exact fin 0 ⟨Ls, Ext.refl h, by rw [e]; exact hprev _ h1⟩ (by omega) (by omega)
+  · -- AND left
+    have hl : ∀ ψ ∈ l, LitIn V ψ := hS (.and l) (by simp)
+    exact fin 0 (reach_weak h (hprev _ h1) (by
+      rw [trS_consL, trS_consL, tr_lit φ (hl φ hφ)]
+      intro x hx
+      rcases Finset.mem_union.1 hx with hx | hx
+      · rw [Finset.mem_singleton] at hx; subst hx
+        refine Finset.mem_union_left _ ?_
+        show ({zf false φ} : Term p) ∈ sing false l
+        exact mem_sing.2 ⟨φ, hφ, rfl⟩
+      · exact Finset.mem_union_right _ hx) G) (by omega) (by omega)
+  · -- AND right
+    have hl : ∀ ψ ∈ l, LitIn V ψ := hS (.and l) (by simp)
+    have e : (trS (Γ, .and l :: Δ) : RLine p) =
+        insert (l.map (zf true)).toFinset (trS (Γ, Δ)) := by
+      rw [trS_consR, Finset.insert_eq]; rfl
+    have G' := G
+    rw [e] at G'
+    obtain ⟨Ls₂, hE, hm⟩ := reach_and hv hρ (trS (Γ, Δ) : RLine p) (l.map (zf true)) h G' (by
+      intro f hf
+      obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hf
+      refine ⟨_, hprev _ (h1 ψ hψ), ?_⟩
+      rw [trS_consR, tr_lit ψ (hl ψ hψ), Finset.insert_eq])
+    have hw := wt_le_wS (S := (Γ, .and l :: Δ)) (φ := .and l) (by simp)
+    have ew : wt (.and l) = l.length + 1 := rfl
+    have hk := kle p l.length
+    rw [List.length_map] at hE
+    exact fin l.length ⟨Ls₂, hE, by rw [e]; exact hm⟩ (by omega) (by omega)
+  · -- OR left
+    have hl : ∀ ψ ∈ l, LitIn V ψ := hS (.or l) (by simp)
+    have e : (trS (.or l :: Γ, Δ) : RLine p) =
+        insert (l.map (zf false)).toFinset (trS (Γ, Δ)) := by
+      rw [trS_consL, Finset.insert_eq]; rfl
+    have G' := G
+    rw [e] at G'
+    obtain ⟨Ls₂, hE, hm⟩ := reach_and hv hρ (trS (Γ, Δ) : RLine p) (l.map (zf false)) h G' (by
+      intro f hf
+      obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hf
+      refine ⟨_, hprev _ (h1 ψ hψ), ?_⟩
+      rw [trS_consL, tr_lit ψ (hl ψ hψ), Finset.insert_eq])
+    have hw := wt_le_wS (S := (.or l :: Γ, Δ)) (φ := .or l) (by simp)
+    have ew : wt (.or l) = l.length + 1 := rfl
+    have hk := kle p l.length
+    rw [List.length_map] at hE
+    exact fin l.length ⟨Ls₂, hE, by rw [e]; exact hm⟩ (by omega) (by omega)
+  · -- OR right
+    have hl : ∀ ψ ∈ l, LitIn V ψ := hS (.or l) (by simp)
+    exact fin 0 (reach_weak h (hprev _ h1) (by
+      rw [trS_consR, trS_consR, tr_lit φ (hl φ hφ)]
+      intro x hx
+      rcases Finset.mem_union.1 hx with hx | hx
+      · rw [Finset.mem_singleton] at hx; subst hx
+        refine Finset.mem_union_left _ ?_
+        show ({zf true φ} : Term p) ∈ sing true l
+        exact mem_sing.2 ⟨φ, hφ, rfl⟩
+      · exact Finset.mem_union_right _ hx) G) (by omega) (by omega)
+
+/-! ## The whole proof -/
+
+theorem trS_empty : (trS (([], []) : Seq) : RLine p) = ∅ := by simp [trS]
+
+theorem sim_all {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) {F : CNF} {L : List Seq}
+    (hL : FProof p F L) (hflat : ∀ S ∈ L, FlatS V S)
+    (hb : ∀ S ∈ L, Bdd ρ (trS S : RLine p)) (M : ℕ) (hM : ∀ S ∈ L, wS S ≤ M) :
+    ∀ k ≤ L.length, ∃ Ls : List (RLine p), Der F V ρ Ls ∧
+      (∀ S ∈ L.take k, (trS S : RLine p) ∈ Ls) ∧ Ls.length ≤ k * ((2 * p + 8) * (M + M)) := by
+  intro k
+  induction k with
+  | zero => intro _; exact ⟨[], Der.nil, by simp, by simp⟩
+  | succ k ih =>
+    intro hk
+    have hk' : k < L.length := by omega
+    obtain ⟨Ls, hD, hmem, hlen⟩ := ih (by omega)
+    have hSm : L.get ⟨k, hk'⟩ ∈ L := List.get_mem _ _
+    obtain ⟨Ls₂, hE, hm⟩ := step_sim hv hρ (hL k hk')
+      (fun T hT => hflat T (List.mem_of_mem_take hT)) (hflat _ hSm) (hb _ hSm) M
+      (fun T hT => hM T (List.mem_of_mem_take hT)) hD hmem
+    refine ⟨Ls₂, hE.1, ?_, ?_⟩
+    · intro S hS
+      rw [List.take_add_one] at hS
+      rcases List.mem_append.1 hS with h | h
+      · exact hE.2.1 _ (hmem S h)
+      · rw [List.getElem?_eq_getElem hk'] at h
+        simp only [Option.toList_some, List.mem_singleton] at h
+        subst h; exact hm
+    · have h1 := hE.2.2
+      have h2 : (2 * p + 8) * (wS (L.get ⟨k, hk'⟩) + M) ≤ (2 * p + 8) * (M + M) :=
+        Nat.mul_le_mul_left _ (by have := hM _ hSm; omega)
+      have h3 : (k + 1) * ((2 * p + 8) * (M + M)) =
+          k * ((2 * p + 8) * (M + M)) + (2 * p + 8) * (M + M) := by ring
+      omega
+
+theorem getD_append_lt {α : Type} (l l' : List α) (d : α) {n : ℕ} (h : n < l.length) :
+    (l ++ l').getD n d = l.getD n d := by
+  rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_append_left h]
+
+theorem getD_lt {α : Type} (l : List α) (d : α) {n : ℕ} (h : n < l.length) :
+    l.getD n d = l[n] := by
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h]; rfl
+
+/-- Indices of premises for a list derivation. -/
+theorem der_index {Ls : List (RLine p)} (h : Der Φ V ρ Ls) : ∀ k < Ls.length,
+    ∃ prem : List ℕ, (∀ j ∈ prem, j < k) ∧
+      RInfer Φ ρ (prem.map fun j => Ls.getD j ∅) (Ls.getD k ∅) ∧ GoodL V ρ (Ls.getD k ∅) := by
+  induction h with
+  | nil => intro k hk; simp at hk
+  | @snoc Ls L prems h hp hi hg ih =>
+    intro k hk
+    by_cases hk' : k < Ls.length
+    · obtain ⟨prem, h1, h2, h3⟩ := ih k hk'
+      have e1 : (Ls ++ [L]).getD k ∅ = Ls.getD k ∅ := getD_append_lt _ _ _ hk'
+      refine ⟨prem, h1, ?_, ?_⟩
+      · have e2 : (prem.map fun j => (Ls ++ [L]).getD j ∅) = prem.map fun j => Ls.getD j ∅ :=
+          List.map_congr_left fun j hj => getD_append_lt _ _ _ ((h1 j hj).trans hk')
+        rw [e1, e2]; exact h2
+      · rw [e1]; exact h3
+    · have hk2 : k = Ls.length := by simp at hk; omega
+      subst hk2
+      have e1 : (Ls ++ [L]).getD Ls.length ∅ = L := by simp
+      refine ⟨prems.map fun M => Ls.idxOf M, ?_, ?_, ?_⟩
+      · intro j hj
+        obtain ⟨M, hM, rfl⟩ := List.mem_map.1 hj
+        exact List.idxOf_lt_length_of_mem (hp M hM)
+      · rw [e1, List.map_map]
+        have : (prems.map ((fun j => (Ls ++ [L]).getD j ∅) ∘ fun M => Ls.idxOf M)) = prems := by
+          conv_rhs => rw [← List.map_id prems]
+          refine List.map_congr_left fun M hM => ?_
+          have hlt := List.idxOf_lt_length_of_mem (hp M hM)
+          simp only [Function.comp, id]
+          rw [getD_append_lt _ _ _ hlt, getD_lt _ _ hlt]
+          exact List.getElem_idxOf hlt
+        rw [this]; exact hi
+      · rw [e1]; exact hg
+
+/-- A list derivation containing the empty line gives a refutation in `R_ρ^p` of no larger
+size. -/
+theorem der_refutation {Ls : List (RLine p)} (h : Der Φ V ρ Ls) (he : (∅ : RLine p) ∈ Ls) :
+    ∃ R : RRefutation Φ V ρ p, R.S ≤ Ls.length := by
+  have hk : Ls.idxOf (∅ : RLine p) < Ls.length := List.idxOf_lt_length_of_mem he
+  have hidx := der_index h
+  refine ⟨{ S := Ls.idxOf (∅ : RLine p) + 1
+            line := fun i => Ls.getD i ∅
+            prem := fun i => if hi : i < Ls.length then Classical.choose (hidx i hi) else []
+            S_pos := by omega
+            prem_lt := ?_, infer := ?_, bdd := ?_, supp := ?_, last := ?_ }, Nat.succ_le_of_lt hk⟩
+  · intro i hi j hj
+    have hi' : i < Ls.length := by omega
+    rw [dif_pos hi'] at hj
+    exact (Classical.choose_spec (hidx i hi')).1 j hj
+  · intro i hi
+    have hi' : i < Ls.length := by omega
+    rw [dif_pos hi']
+    exact (Classical.choose_spec (hidx i hi')).2.1
+  · intro i hi T hT
+    have hi' : i < Ls.length := by omega
+    exact ((Classical.choose_spec (hidx i hi')).2.2 T hT).1
+  · intro i hi T hT
+    have hi' : i < Ls.length := by omega
+    exact ((Classical.choose_spec (hidx i hi')).2.2 T hT).2
+  · show Ls.getD (Ls.idxOf (∅ : RLine p) + 1 - 1) ∅ = ∅
+    rw [Nat.add_sub_cancel, getD_lt _ _ hk]
+    exact List.getElem_idxOf hk
+
+/-- Total weight of a proof. -/
+def fW (L : List Seq) : ℕ := (L.map wS).sum
+
+/-- **Bridge.**  A refutation in the sequent calculus `FProof` all of whose sequents are flat over
+`V` with translation of rank at most `ρ` yields an `R_ρ^p` refutation over `V` with at most
+`|L| (2p + 8) 2 W` nodes, `W` the total weight. -/
+theorem frege_to_R {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) {F : CNF} {L : List Seq}
+    (hL : FProof p F L) (hE : (([], []) : Seq) ∈ L) (hflat : ∀ S ∈ L, FlatS V S)
+    (hb : ∀ S ∈ L, Bdd ρ (trS S : RLine p)) :
+    ∃ R : RRefutation F V ρ p, R.S ≤ L.length * ((2 * p + 8) * (fW L + fW L)) := by
+  have hM : ∀ S ∈ L, wS S ≤ fW L := fun S hS =>
+    List.single_le_sum (by simp) _ (List.mem_map.2 ⟨S, hS, rfl⟩)
+  obtain ⟨Ls, hD, hmem, hlen⟩ := sim_all hv hρ hL hflat hb (fW L) hM L.length le_rfl
+  rw [List.take_length] at hmem
+  have he : (∅ : RLine p) ∈ Ls := by
+    have := hmem _ hE
+    rwa [trS_empty] at this
+  obtain ⟨R, hR⟩ := der_refutation hD he
+  exact ⟨R, hR.trans hlen⟩
+
+/-! ## Weight against formula size, and a syntactic rank condition -/
+
+theorem size_pos : ∀ φ : Fm, 1 ≤ φ.size
+  | .var _ => by rw [Fm.size]
+  | .neg φ => by rw [Fm.size]; omega
+  | .and l => by rw [Fm.size]; omega
+  | .or l => by rw [Fm.size]; omega
+  | .mod _ l => by rw [Fm.size]; omega
+
+theorem length_le_sum_size (l : List Fm) : l.length ≤ (l.map Fm.size).sum := by
+  induction l with
+  | nil => simp
+  | cons φ l ih =>
+    have := size_pos φ
+    simp only [List.length_cons, List.map_cons, List.sum_cons]; omega
+
+theorem wt_le_size : ∀ φ : Fm, wt φ ≤ φ.size
+  | .var _ => by rw [Fm.size]; exact le_rfl
+  | .neg φ => by rw [Fm.size]; exact (wt_le_size φ).trans (Nat.le_succ _)
+  | .and l => by
+    have e := Fm.attach_map l Fm.size
+    simp only at e
+    rw [Fm.size, e]
+    have := length_le_sum_size l
+    show l.length + 1 ≤ _
+    omega
+  | .or l => by
+    have e := Fm.attach_map l Fm.size
+    simp only at e
+    rw [Fm.size, e]
+    have := length_le_sum_size l
+    show l.length + 1 ≤ _
+    omega
+  | .mod _ l => by
+    have e := Fm.attach_map l Fm.size
+    simp only at e
+    rw [Fm.size, e]
+    have := length_le_sum_size l
+    show l.length + 1 ≤ _
+    omega
+
+theorem sum_wt_le (l : List Fm) : (l.map wt).sum ≤ (l.map Fm.size).sum := by
+  induction l with
+  | nil => simp
+  | cons φ l ih =>
+    have := wt_le_size φ
+    simp only [List.map_cons, List.sum_cons]; omega
+
+theorem fW_le (L : List Seq) : fW L ≤ fSize L + L.length := by
+  unfold fW fSize
+  induction L with
+  | nil => simp
+  | cons S L ih =>
+    have := sum_wt_le (S.1 ++ S.2)
+    simp only [List.map_cons, List.sum_cons, List.length_cons, wS] at ih ⊢
+    omega
+
+/-- Syntactic rank condition with sign: an `AND` in positive position and an `OR` in negative
+position has at most `ρ` members. -/
+def RankOK (ρ : ℕ) : Bool → Fm → Prop
+  | s, .neg φ => RankOK ρ (!s) φ
+  | true, .and l => l.length ≤ ρ
+  | false, .or l => l.length ≤ ρ
+  | _, _ => True
+
+theorem rank_conj_le (s : Bool) (l : List Fm) : rank ((l.map (zf s)).toFinset : Term p) ≤ l.length :=
+  (rank_le_card _).trans ((List.toFinset_card_le _).trans (by simp))
+
+theorem rank_singleton_le (f : AffForm p) : rank ({f} : Term p) ≤ 1 :=
+  (rank_le_card _).trans (by simp)
+
+theorem tr_rank (hρ : 1 ≤ ρ) : ∀ (φ : Fm) (s : Bool), RankOK ρ s φ →
+    ∀ T ∈ (tr s φ : RLine p), rank T ≤ ρ
+  | .var i, s, _ => by
+    intro T hT
+    have : T = {zf s (.var i)} := by cases s <;> simpa [tr] using hT
+    rw [this]; exact (rank_singleton_le _).trans hρ
+  | .neg φ, s, h => by
+    rw [tr_neg]
+    have h' : RankOK ρ (!s) φ := by cases s <;> exact h
+    exact tr_rank hρ φ (!s) h'
+  | .or l, s, h => by
+    intro T hT
+    cases s
+    · rw [show (tr false (.or l) : RLine p) = conj false l from rfl, mem_conj] at hT
+      rw [hT]; exact (rank_conj_le false l).trans h
+    · rw [show (tr true (.or l) : RLine p) = sing true l from rfl, mem_sing] at hT
+      obtain ⟨ψ, _, rfl⟩ := hT
+      exact (rank_singleton_le _).trans hρ
+  | .and l, s, h => by
+    intro T hT
+    cases s
+    · rw [show (tr false (.and l) : RLine p) = sing false l from rfl, mem_sing] at hT
+      obtain ⟨ψ, _, rfl⟩ := hT
+      exact (rank_singleton_le _).trans hρ
+    · rw [show (tr true (.and l) : RLine p) = conj true l from rfl, mem_conj] at hT
+      rw [hT]; exact (rank_conj_le true l).trans h
+  | .mod r l, s, _ => by
+    intro T hT
+    cases s
+    · simp only [tr, Finset.mem_image] at hT
+      obtain ⟨c, _, rfl⟩ := hT
+      exact (rank_singleton_le _).trans hρ
+    · simp only [tr, Finset.mem_singleton] at hT
+      rw [hT]; exact (rank_singleton_le _).trans hρ
+
+/-- The syntactic rank condition for a sequent. -/
+def RankS (ρ : ℕ) (S : Seq) : Prop :=
+  (∀ φ ∈ S.1, RankOK ρ false φ) ∧ (∀ φ ∈ S.2, RankOK ρ true φ)
+
+theorem bdd_of_rankS (hρ : 1 ≤ ρ) {S : Seq} (h : RankS ρ S) : Bdd ρ (trS S : RLine p) := by
+  intro T hT
+  rcases mem_trS.1 hT with ⟨φ, hφ, hT⟩ | ⟨φ, hφ, hT⟩
+  · exact tr_rank hρ φ false (h.1 φ hφ) T hT
+  · exact tr_rank hρ φ true (h.2 φ hφ) T hT
+
+/-! ## Flat formulas are exactly the formulas of depth at most one -/
+
+/-- Variable of a literal (junk otherwise). -/
+def lvar : Fm → ℕ
+  | .var i => i
+  | .neg φ => lvar φ
+  | _ => 0
+
+/-- Variables of a formula of depth at most one. -/
+def fvars : Fm → Finset ℕ
+  | .var i => {i}
+  | .neg φ => fvars φ
+  | .and l => (l.map lvar).toFinset
+  | .or l => (l.map lvar).toFinset
+  | .mod _ l => (l.map lvar).toFinset
+
+theorem depth_gate (l : List Fm) :
+    (l.map Fm.depth).foldr max 0 = 0 ↔ ∀ ψ ∈ l, ψ.depth = 0 := by
+  induction l with
+  | nil => simp
+  | cons φ l ih =>
+    simp only [List.map_cons, List.foldr_cons, List.mem_cons, forall_eq_or_imp]
+    rw [← ih]; omega
+
+theorem lit_iff_depth : ∀ φ : Fm, LitIn V φ ↔ φ.depth = 0 ∧ lvar φ ∈ V
+  | .var i => by rw [Fm.depth]; simp [LitIn, lvar]
+  | .neg φ => by
+    rw [Fm.depth]
+    show LitIn V φ ↔ φ.depth = 0 ∧ lvar φ ∈ V
+    exact lit_iff_depth φ
+  | .and l => by rw [Fm.depth]; simp [LitIn]
+  | .or l => by rw [Fm.depth]; simp [LitIn]
+  | .mod _ l => by rw [Fm.depth]; simp [LitIn]
+
+theorem gate_flat (l : List Fm) :
+    (∀ ψ ∈ l, LitIn V ψ) ↔
+      ((l.map Fm.depth).foldr max 0 + 1 ≤ 1 ∧ (l.map lvar).toFinset ⊆ V) := by
+  have e : (l.map Fm.depth).foldr max 0 + 1 ≤ 1 ↔ (l.map Fm.depth).foldr max 0 = 0 := by omega
+  rw [e, depth_gate]
+  constructor
+  · intro h
+    refine ⟨fun ψ hψ => ((lit_iff_depth ψ).1 (h ψ hψ)).1, fun x hx => ?_⟩
+    simp only [List.mem_toFinset, List.mem_map] at hx
+    obtain ⟨ψ, hψ, rfl⟩ := hx
+    exact ((lit_iff_depth ψ).1 (h ψ hψ)).2
+  · rintro ⟨h1, h2⟩ ψ hψ
+    refine (lit_iff_depth ψ).2 ⟨h1 ψ hψ, h2 ?_⟩
+    simp only [List.mem_toFinset, List.mem_map]
+    exact ⟨ψ, hψ, rfl⟩
+
+/-- `FlatIn V φ` says exactly: `φ` has depth at most one and its variables lie in `V`. -/
+theorem flat_iff_depth : ∀ φ : Fm, FlatIn V φ ↔ φ.depth ≤ 1 ∧ fvars φ ⊆ V
+  | .var i => by rw [Fm.depth]; simp [FlatIn, fvars]
+  | .neg φ => by
+    rw [Fm.depth]
+    show FlatIn V φ ↔ φ.depth ≤ 1 ∧ fvars φ ⊆ V
+    exact flat_iff_depth φ
+  | .and l => by
+    have e := Fm.attach_map l Fm.depth
+    simp only at e
+    rw [Fm.depth, e]
+    exact gate_flat l
+  | .or l => by
+    have e := Fm.attach_map l Fm.depth
+    simp only at e
+    rw [Fm.depth, e]
+    exact gate_flat l
+  | .mod _ l => by
+    have e := Fm.attach_map l Fm.depth
+    simp only at e
+    rw [Fm.depth, e]
+    exact gate_flat l
+
+end
+
+/-! ## The lower bound for the fragment on one hot Tseitin -/
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **Size lower bound for the flat bounded rank fragment of the AC0[p] Frege sequent calculus.**
+Let `p ∤ q`, `q ≥ 2`, `ε > 0` with `(κ + 1) ε < 1`.  For every `M` there is a cubic graph on
+`n ≥ M` vertices such that for every charge `b` and every `1 ≤ ρ ≤ ε ln n`: every refutation `L`
+of the one hot Tseitin mod `q` formula in the sequent calculus `FProof p`, all of whose sequents
+are flat over the variables of the formula and satisfy the syntactic rank condition `RankS ρ`,
+satisfies `exp (n^(1 - (κ+1) ε)) ≤ |L| (2p + 8) 2 (fSize L + |L|)`. -/
+theorem flat_frege_tseitin (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (kappa p q + 1) * ε < 1) (M : ℕ) :
+    ∃ (n : ℕ) (G : FinGraph n), M ≤ n ∧ IsRegular G 3 ∧ ∀ b : Fin n → ZMod q,
+      ∀ ρ : ℕ, 1 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log n →
+      ∀ L : List Seq, FProof p (tcnf G q b) L → (([], []) : Seq) ∈ L →
+        (∀ S ∈ L, FlatS (tVars G q) S) → (∀ S ∈ L, RankS ρ S) →
+        Real.exp ((n : ℝ) ^ (1 - (kappa p q + 1) * ε)) ≤
+          ((L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) : ℕ) : ℝ) := by
+  obtain ⟨n, G, hn, hreg, H⟩ := c1_main p hq hpq ε hε hεκ (max M 1)
+  have hn1 : 0 < n := lt_of_lt_of_le (by simp) hn
+  refine ⟨n, G, (le_max_left _ _).trans hn, hreg, fun b ρ hρ1 hρ L hL hE hflat hrank => ?_⟩
+  have hcard : 0 < (tVars G q).card := by
+    have h1 := card_G_ge hreg
+    have h2 := card_tVars_ge (q := q) hn1 G
+    omega
+  obtain ⟨v₀, hv⟩ := Finset.card_pos.1 hcard
+  obtain ⟨R, hR⟩ := frege_to_R (p := p) hv hρ1 hL hE hflat
+    (fun S hS => bdd_of_rankS hρ1 (hrank S hS))
+  refine (H b ρ hρ1 hρ R).trans ?_
+  have h3 : R.S ≤ L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) := by
+    refine hR.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ ?_))
+    have := fW_le L
+    omega
+  exact_mod_cast h3
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **The same bound stated for `FRefutes p 1`.**  Every depth one refutation `L` (in the sense
+of `FRefutes`, all formulas of `Fm.depth ≤ 1`) of the one hot Tseitin mod `q` formula that only
+uses variables of the formula and satisfies the rank condition `RankS ρ` (every `AND` in positive
+position and every `OR` in negative position has at most `ρ ≤ ε ln n` members; `MOD_p` gates are
+unrestricted) has `exp (n^(1 - (κ+1) ε)) ≤ |L| (2p + 8) 2 (fSize L + |L|)`.
+
+This is a bound for a fragment.  It does not bound depth one AC0[p] Frege, where `AND` gates of
+unbounded fan in may occur in positive position. -/
+theorem depth1_rank_frege_tseitin (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (kappa p q + 1) * ε < 1) (M : ℕ) :
+    ∃ (n : ℕ) (G : FinGraph n), M ≤ n ∧ IsRegular G 3 ∧ ∀ b : Fin n → ZMod q,
+      ∀ ρ : ℕ, 1 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log n →
+      ∀ L : List Seq, FRefutes p 1 (tcnf G q b) L →
+        (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ tVars G q) → (∀ S ∈ L, RankS ρ S) →
+        Real.exp ((n : ℝ) ^ (1 - (kappa p q + 1) * ε)) ≤
+          ((L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) : ℕ) : ℝ) := by
+  obtain ⟨n, G, hn, hreg, H⟩ := flat_frege_tseitin p hq hpq ε hε hεκ M
+  refine ⟨n, G, hn, hreg, fun b ρ hρ1 hρ L hL hvars hrank => ?_⟩
+  obtain ⟨hproof, hdepth, hE⟩ := hL
+  exact H b ρ hρ1 hρ L hproof hE
+    (fun S hS φ hφ => (flat_iff_depth φ).2 ⟨hdepth S hS φ hφ, hvars S hS φ hφ⟩) hrank
+
+/-! ## Non vacuity: the fragment contains (the image of) every resolution refutation -/
+
+section Nonvacuity
+
+/-- All formulas of all sequents satisfy `P`. -/
+def AllFm (P : Fm → Prop) (L : List Seq) : Prop := ∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, P φ
+
+theorem allfm_append {P : Fm → Prop} {L1 L2 : List Seq} (h1 : AllFm P L1) (h2 : AllFm P L2) :
+    AllFm P (L1 ++ L2) := by
+  intro S hS
+  rcases List.mem_append.1 hS with h | h
+  · exact h1 S h
+  · exact h2 S h
+
+theorem allfm_single {P : Fm → Prop} {S : Seq} (h : ∀ φ ∈ S.1 ++ S.2, P φ) : AllFm P [S] := by
+  intro T hT
+  rw [List.mem_singleton] at hT; subst hT; exact h
+
+theorem axLines_all (P : Fm → Prop) (Δ : List Fm) (hΔ : ∀ φ ∈ Δ, P φ) :
+    ∀ M : List Fm, (∀ φ ∈ M, φ ∈ Δ) → AllFm P (axLines Δ M) := by
+  intro M
+  induction M with
+  | nil => intro _ S hS; simp [axLines] at hS
+  | cons φ M ih =>
+    intro hM
+    refine allfm_append (L1 := [([φ], [φ]), ([φ], Δ)]) ?_ (ih fun ψ hψ => hM ψ (by simp [hψ]))
+    intro S hS
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hS
+    rcases hS with rfl | rfl
+    · intro ψ hψ; simp at hψ; subst hψ; exact hΔ _ (hM _ (by simp))
+    · intro ψ hψ
+      simp only [List.mem_append, List.mem_singleton] at hψ
+      rcases hψ with rfl | hψ
+      · exact hΔ _ (hM _ (by simp))
+      · exact hΔ _ hψ
+
+/-- The simulation of resolution of `AC0pFrege.lean`, carrying an invariant `P` of all formulas
+that holds for the literals and the clause disjunctions of `F`. -/
+theorem sim_resolution_inv {p : ℕ} {F : CNF} (P : Fm → Prop)
+    (hlit : ∀ C ∈ F, ∀ l ∈ C, P (litFm l)) (hcl : ∀ C ∈ F, P (clauseFm C)) :
+    ∀ {C : Clause} (_ : Derivation F C), (∀ l ∈ C, P (litFm l)) ∧
+      ∃ L : List Seq, FProof p F L ∧ AllFm P L ∧ ([], litsOf C) ∈ L := by
+  intro C d
+  induction d with
+  | hyp C hC =>
+      refine ⟨hlit C hC, ?_⟩
+      have hΔ : ∀ φ ∈ litsOf C, P φ := by
+        intro φ hφ
+        obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hφ
+        exact hlit C hC l (Finset.mem_toList.1 hl)
+      have hor : P (.or (litsOf C)) := hcl C hC
+      set Δ := litsOf C
+      let L0 : List Seq := [([], [clauseFm C])]
+      have h0 : FProof p F L0 := by
+        intro k hk; simp [L0] at hk; subst hk; exact step_hyp hC
+      have hax := axLines_proof (p := p) (F := F) Δ Δ (fun _ h => h)
+      have h1 : FProof p F (L0 ++ axLines Δ Δ) := fproof_append h0 hax
+      have h2 := fproof_snoc (S := ([.or Δ], Δ)) h1 (step_orL Δ [] Δ (fun φ hφ =>
+        List.mem_append_right _ (axLines_mem Δ Δ φ hφ)))
+      have h3 := fproof_snoc (S := ([], .or Δ :: Δ)) h2
+        (step_weak (T := ([], [clauseFm C])) (by simp [L0]) (by simp)
+          (by intro ψ hψ; simp at hψ; subst hψ; simp [clauseFm, Δ, litsOf]))
+      have h4 := fproof_snoc (S := ([], Δ)) h3 (step_cut (.or Δ) (by simp) (by simp))
+      refine ⟨_, h4, ?_, by simp⟩
+      refine allfm_append (allfm_append (allfm_append (allfm_append
+        (allfm_single ?_) (axLines_all P Δ hΔ Δ (fun _ h => h)))
+        (allfm_single ?_)) (allfm_single ?_)) (allfm_single ?_)
+      · intro ψ hψ; simp at hψ; subst hψ; exact hcl C hC
+      · intro ψ hψ
+        simp only [List.mem_append, List.mem_singleton] at hψ
+        rcases hψ with rfl | hψ
+        · exact hor
+        · exact hΔ ψ hψ
+      · intro ψ hψ
+        simp only [List.nil_append, List.mem_cons] at hψ
+        rcases hψ with rfl | hψ
+        · exact hor
+        · exact hΔ ψ hψ
+      · intro ψ hψ; simp only [List.nil_append] at hψ; exact hΔ ψ hψ
+  | res x dC dD hx hnx ihC ihD =>
+      rename_i C D
+      obtain ⟨lC, LC, pC, aC, mC⟩ := ihC
+      obtain ⟨lD, LD, pD, aD, mD⟩ := ihD
+      have hR : ∀ l ∈ SATurday.ProofComplexity.resolvent C D x, P (litFm l) := by
+        intro l hl
+        unfold SATurday.ProofComplexity.resolvent at hl
+        rcases Finset.mem_union.1 hl with h | h
+        · exact lC l (Finset.mem_of_mem_erase h)
+        · exact lD l (Finset.mem_of_mem_erase h)
+      refine ⟨hR, ?_⟩
+      have hPX : P (.var x) := by
+        have := lC _ hx
+        simpa [litFm] using this
+      have hPNX : P (.neg (.var x)) := by
+        have := lD _ hnx
+        simpa [litFm] using this
+      have hPR : ∀ ψ ∈ litsOf (SATurday.ProofComplexity.resolvent C D x), P ψ := by
+        intro ψ h
+        obtain ⟨l, hl, rfl⟩ := List.mem_map.1 h
+        exact hR l (Finset.mem_toList.1 hl)
+      set X : Fm := .var x
+      set NX : Fm := .neg (.var x)
+      set R := SATurday.ProofComplexity.resolvent C D x
+      have hlx : litFm ⟨x, true⟩ = X := by simp [litFm, X]
+      have hlnx : litFm ⟨x, false⟩ = NX := by simp [litFm, NX]
+      have hDsub : litsOf D ⊆ NX :: litsOf R := by
+        intro ψ hψ
+        obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hψ
+        rw [Finset.mem_toList] at hl
+        by_cases he : l = ⟨x, false⟩
+        · subst he; rw [hlnx]; simp
+        · exact List.mem_cons_of_mem _ (mem_litsOf (Finset.mem_union_right _
+            (Finset.mem_erase.2 ⟨he, hl⟩)))
+      have hCsub : litsOf C ⊆ X :: litsOf R := by
+        intro ψ hψ
+        obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hψ
+        rw [Finset.mem_toList] at hl
+        by_cases he : l = ⟨x, true⟩
+        · subst he; rw [hlx]; simp
+        · exact List.mem_cons_of_mem _ (mem_litsOf (Finset.mem_union_left _
+            (Finset.mem_erase.2 ⟨he, hl⟩)))
+      have p0 := fproof_append pC pD
+      have p1 := fproof_snoc (S := ([X], [X])) p0 (step_ax X)
+      have p2 := fproof_snoc (S := ([NX, X], [])) p1 (step_negL X [X] [] (by simp))
+      have p3 := fproof_snoc (S := ([X], NX :: litsOf R)) p2
+        (step_weak (T := ([], litsOf D)) (by simp [mD]) (by simp) hDsub)
+      have p4 := fproof_snoc (S := ([NX, X], litsOf R)) p3
+        (step_weak (T := ([NX, X], [])) (by simp) (by simp) (by simp))
+      have p5 := fproof_snoc (S := ([X], litsOf R)) p4 (step_cut NX (by simp) (by simp))
+      have p6 := fproof_snoc (S := ([], X :: litsOf R)) p5
+        (step_weak (T := ([], litsOf C)) (by simp [mC]) (by simp) hCsub)
+      have p7 := fproof_snoc (S := ([], litsOf R)) p6 (step_cut X (by simp) (by simp))
+      refine ⟨_, p7, ?_, by simp⟩
+      have dep : ∀ ψ : Fm, (ψ = X ∨ ψ = NX ∨ ψ ∈ litsOf R) → P ψ := by
+        rintro ψ (rfl | rfl | h)
+        · exact hPX
+        · exact hPNX
+        · exact hPR ψ h
+      refine allfm_append (allfm_append (allfm_append (allfm_append (allfm_append
+        (allfm_append (allfm_append (allfm_append aC aD) ?_) ?_) ?_) ?_) ?_) ?_) ?_ <;>
+        apply allfm_single <;> intro ψ hψ <;> apply dep <;>
+        simp only [List.mem_append, List.mem_cons, List.not_mem_nil,
+          or_false, List.nil_append, List.append_nil] at hψ <;> tauto
+
+/-- **Non vacuity of the fragment.**  If `F` is unsatisfiable, its variables lie in `V` and its
+clauses have at most `ρ` literals, then `F` has a depth one refutation in the fragment of
+`depth1_rank_frege_tseitin`: variables in `V` and rank condition `RankS ρ`. -/
+theorem fragment_nonvacuous {p : ℕ} {F : CNF} (h : ¬ Satisfiable F) {V : Finset ℕ} {ρ : ℕ}
+    (hV : ∀ C ∈ F, ∀ l ∈ C, l.var ∈ V) (hw : ∀ C ∈ F, C.card ≤ ρ) :
+    ∃ L, FRefutes p 1 F L ∧ (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ V) ∧
+      (∀ S ∈ L, RankS ρ S) := by
+  obtain ⟨d⟩ := resolution_complete h
+  let P : Fm → Prop := fun φ => φ.depth ≤ 1 ∧ fvars φ ⊆ V ∧ RankOK ρ true φ ∧ RankOK ρ false φ
+  have hlit : ∀ C ∈ F, ∀ l ∈ C, P (litFm l) := by
+    intro C hC l hl
+    refine ⟨by rw [depth_litFm]; omega, ?_, ?_, ?_⟩
+    · unfold litFm; split_ifs <;> simpa [fvars] using hV C hC l hl
+    · unfold litFm; split_ifs <;> simp [RankOK]
+    · unfold litFm; split_ifs <;> simp [RankOK]
+  have hcl : ∀ C ∈ F, P (clauseFm C) := by
+    intro C hC
+    refine ⟨depth_clauseFm C, ?_, ?_, ?_⟩
+    · intro x hx
+      simp only [clauseFm, fvars, List.mem_toFinset, List.mem_map] at hx
+      obtain ⟨ψ, ⟨l, hl, rfl⟩, rfl⟩ := hx
+      have := hV C hC l (Finset.mem_toList.1 hl)
+      unfold litFm; split_ifs <;> simpa [lvar] using this
+    · simp [clauseFm, RankOK]
+    · simpa [clauseFm, RankOK] using hw C hC
+  obtain ⟨_, L, hL, hall, hm⟩ := sim_resolution_inv (p := p) P hlit hcl d
+  have he : litsOf (∅ : Clause) = [] := by simp [litsOf]
+  rw [he] at hm
+  refine ⟨L, ⟨hL, fun S hS φ hφ => (hall S hS φ hφ).1, hm⟩,
+    fun S hS φ hφ => (hall S hS φ hφ).2.1, fun S hS => ⟨fun φ hφ => ?_, fun φ hφ => ?_⟩⟩
+  · exact (hall S hS φ (List.mem_append_left _ hφ)).2.2.2
+  · exact (hall S hS φ (List.mem_append_right _ hφ)).2.2.1
+
+end Nonvacuity
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- Non vacuity for the Tseitin instances: for a cubic graph, nonzero total charge and
+`ρ ≥ q + 3`, the fragment contains a refutation of `tcnf G q b`. -/
+theorem tseitin_fragment_nonvacuous (p : ℕ) {q : ℕ} [NeZero q] {n : ℕ} {G : FinGraph n}
+    (hreg : IsRegular G 3) {b : Fin n → ZMod q} (hb : ∑ v, b v ≠ 0) {ρ : ℕ} (hρ : q + 3 ≤ ρ) :
+    ∃ L, FRefutes p 1 (tcnf G q b) L ∧
+      (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ tVars G q) ∧ (∀ S ∈ L, RankS ρ S) := by
+  refine fragment_nonvacuous (tcnf_unsat hb) (fun C hC l hl => ?_) (fun C hC => ?_)
+  · exact (tcnf_clause_props hreg hC).1 (Finset.mem_image_of_mem _ hl)
+  · exact (tcnf_clause_props hreg hC).2.trans hρ
+
+open SATurday.ProofComplexity.TseitinPC in
+/-- **Indexed form with an explicit unsatisfiable family.**  There is a threshold `m0` such that
+for every `m ≥ m0`, on the explicit cubic graph `cubFam m` with `n = 8 m^2` vertices and the
+explicit charge `tseitinCharge1` (one at a vertex, zero elsewhere): the formula is
+unsatisfiable, and for every `ρ` with `q + 3 ≤ ρ ≤ ε ln n` the fragment contains a refutation
+(non vacuity) and every refutation in the fragment satisfies the size bound. -/
+theorem depth1_rank_frege_tseitin_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (ε : ℝ) (hε : 0 < ε) (hεκ : (kappa p q + 1) * ε < 1) :
+    ∃ m0 : ℕ, ∀ m : ℕ, m0 ≤ m →
+      ¬ Satisfiable (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) ∧
+      ∀ ρ : ℕ, q + 3 ≤ ρ → (ρ : ℝ) ≤ ε * Real.log (m * m * 8 : ℕ) →
+        (∃ L, FRefutes p 1 (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) L ∧
+          (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ tVars (cubFam m) q) ∧ (∀ S ∈ L, RankS ρ S)) ∧
+        ∀ L : List Seq, FRefutes p 1 (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) L →
+          (∀ S ∈ L, ∀ φ ∈ S.1 ++ S.2, fvars φ ⊆ tVars (cubFam m) q) → (∀ S ∈ L, RankS ρ S) →
+          Real.exp (((m * m * 8 : ℕ) : ℝ) ^ (1 - (kappa p q + 1) * ε)) ≤
+            ((L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) : ℕ) : ℝ) := by
+  obtain ⟨m1, H⟩ := c1_main_idx p hq hpq ε hε hεκ
+  refine ⟨max m1 (tseitinFloor p q), fun m hm => ?_⟩
+  have hmF : tseitinFloor p q ≤ m := (le_max_right _ _).trans hm
+  have hm1 : m1 ≤ m := (le_max_left _ _).trans hm
+  obtain ⟨hreg, -, -⟩ := cubFam_props (cubFam_floor_le hmF).1
+  obtain ⟨hsum, hunsat⟩ := tseitin_idx_explicit_unsat p hq hmF
+  have hn1 : 0 < m * m * 8 := by
+    have := tseitinFloor_pos p q
+    have : 0 < m := by omega
+    positivity
+  refine ⟨hunsat, fun ρ hρq hρ => ⟨tseitin_fragment_nonvacuous p hreg hsum hρq, ?_⟩⟩
+  intro L hL hvars hrank
+  have hρ1 : 1 ≤ ρ := by omega
+  have hcard : 0 < (tVars (cubFam m) q).card := by
+    have h1 := card_G_ge hreg
+    have h2 := card_tVars_ge (q := q) hn1 (cubFam m)
+    omega
+  obtain ⟨v₀, hv⟩ := Finset.card_pos.1 hcard
+  obtain ⟨hproof, hdepth, hE⟩ := hL
+  obtain ⟨R, hR⟩ := frege_to_R (p := p) hv hρ1 hproof hE
+    (fun S hS φ hφ => (flat_iff_depth φ).2 ⟨hdepth S hS φ hφ, hvars S hS φ hφ⟩)
+    (fun S hS => bdd_of_rankS hρ1 (hrank S hS))
+  refine (H m hm1 _ ρ hρ1 hρ R).trans ?_
+  have h3 : R.S ≤ L.length * ((2 * p + 8) * (2 * (fSize L + L.length))) := by
+    refine hR.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ ?_))
+    have := fW_le L
+    omega
+  exact_mod_cast h3
+
+end FBridge

@@ -2701,3 +2701,17 @@ SATurday.ProofComplexity.RLF.pang_to_rldag_usual
 # R4 Phase 0: AC0[p] Frege soundness and non vacuity (the pin r4_target itself is Frontier, not listed)
 SATurday.ProofComplexity.frefutes_unsat
 SATurday.ProofComplexity.frefutes_of_unsat
+
+# R4 depth-2 fable session (r4/depth2-fable): bridge from the flat bounded rank fragment of the
+# AC0[p] Frege sequent calculus (FRefutes p 1 with a rank condition) into R_rho^p, and its non vacuity.
+# The Frontier pin FBridgeFrontier.depth1_tseitin_target is open and not listed.
+FBridge.step_sim
+FBridge.der_refutation
+FBridge.frege_to_R
+FBridge.flat_iff_depth
+FBridge.flat_frege_tseitin
+FBridge.depth1_rank_frege_tseitin
+FBridge.sim_resolution_inv
+FBridge.fragment_nonvacuous
+FBridge.tseitin_fragment_nonvacuous
+FBridge.depth1_rank_frege_tseitin_idx
