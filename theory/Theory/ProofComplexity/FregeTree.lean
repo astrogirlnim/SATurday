@@ -24,8 +24,9 @@ reuses lines); it bounds the measure `PICT.Ref` of the translated sequent at eve
 
 With the polynomial calculus degree bound for Tseitin this gives an exponential size bound for
 tree-like refutations in the fragment at every degree up to `n^(1-δ)` (`frege_tree_main_idx`),
-with a refutation in the fragment for `d ≥ q + 3`.  Known mathematics (tree-like size-degree
-argument); no novelty is claimed.
+with a refutation in the fragment for `d ≥ q + 3` (`tproof_of_unsat`).  A tree-like derivation is
+a proof in the pinned dag-like sense with no more lines (`tproof_to_fproof`).  Known mathematics
+(tree-like size-degree argument); no novelty is claimed.
 
 LOG: R4 treedeg fable session, tree-like sequent calculus
 -/
@@ -677,6 +678,313 @@ theorem tree_frege_size_of_degree {F : CNF} {d w D0 : ℕ} (hd1 : 1 ≤ d)
     rw [e, Nat.zero_div, pow_zero] at hlt
     have := h.pos
     omega
+
+/-! ## Basic facts on tree-like proofs -/
+
+/-- The fragment may be enlarged. -/
+theorem TProof.mono {F : CNF} {P Q : Seq → Prop} (hPQ : ∀ S, P S → Q S) {S : Seq} {s : ℕ}
+    (h : TProof p F P S s) : TProof p F Q S s := by
+  induction h with
+  | node prev sz _ hstep hP ih => exact TProof.node prev sz ih hstep (hPQ _ hP)
+
+/-- A node from premises with trees of some sizes. -/
+theorem tproof_node {F : CNF} {P : Seq → Prop} {prev : List Seq} {S : Seq}
+    (hprev : ∀ T ∈ prev, ∃ s, TProof p F P T s) (hstep : FStep p F prev S) (hP : P S) :
+    ∃ s, TProof p F P S s := by
+  refine ⟨_, TProof.node prev
+    (fun T => if h : ∃ s, TProof p F P T s then Classical.choose h else 0)
+    (fun T hT => ?_) hstep hP⟩
+  have h := hprev T hT
+  show TProof p F P T (if h : ∃ s, TProof p F P T s then Classical.choose h else 0)
+  rw [dif_pos h]
+  exact Classical.choose_spec h
+
+theorem fproof_nil {F : CNF} : FProof p F [] := by
+  intro k hk; simp at hk
+
+/-- **Tree-like is a special case of dag-like.**  A tree-like derivation of `S` with `s` nodes
+gives a proof `FProof p F L` (the pinned dag-like notion) with at most `s` lines, containing `S`,
+all lines in the fragment. -/
+theorem tproof_to_fproof {F : CNF} {P : Seq → Prop} {S : Seq} {s : ℕ} (h : TProof p F P S s) :
+    ∃ L : List Seq, FProof p F L ∧ S ∈ L ∧ L.length ≤ s ∧ ∀ T ∈ L, P T := by
+  induction h with
+  | @node S prev sz hprev hstep hP ih =>
+    have key : ∀ l : List Seq, (∀ T ∈ l, T ∈ prev) →
+        ∃ L0 : List Seq, FProof p F L0 ∧ (∀ T ∈ l, T ∈ L0) ∧ L0.length ≤ (l.map sz).sum ∧
+          ∀ T ∈ L0, P T := by
+      intro l
+      induction l with
+      | nil => intro _; exact ⟨[], fproof_nil, by simp, by simp, by simp⟩
+      | cons T l ihl =>
+        intro hl
+        obtain ⟨L0, h0, m0, n0, q0⟩ := ihl fun U hU => hl U (List.mem_cons_of_mem _ hU)
+        obtain ⟨L1, h1, m1, n1, q1⟩ := ih T (hl T List.mem_cons_self)
+        refine ⟨L1 ++ L0, fproof_append h1 h0, ?_, ?_, ?_⟩
+        · intro U hU
+          rcases List.mem_cons.1 hU with rfl | hU'
+          · exact List.mem_append_left _ m1
+          · exact List.mem_append_right _ (m0 U hU')
+        · rw [List.length_append, List.map_cons, List.sum_cons]; omega
+        · intro U hU
+          rcases List.mem_append.1 hU with hU' | hU'
+          · exact q1 U hU'
+          · exact q0 U hU'
+    obtain ⟨L0, h0, m0, n0, q0⟩ := key prev fun T hT => hT
+    refine ⟨L0 ++ [S], fproof_snoc h0 (fstep_mono m0 hstep), by simp, ?_, ?_⟩
+    · rw [List.length_append]; simp; omega
+    · intro U hU
+      rcases List.mem_append.1 hU with hU' | hU'
+      · exact q0 U hU'
+      · rw [List.mem_singleton] at hU'; subst hU'; exact hP
+
+/-- Soundness of tree-like refutations. -/
+theorem TProof.unsat {F : CNF} {P : Seq → Prop} {s : ℕ} (h : TProof p F P ([], []) s) :
+    ¬ Satisfiable F := by
+  obtain ⟨L, hL, hm, -, -⟩ := tproof_to_fproof h
+  rintro ⟨a, ha⟩
+  have := fproof_sound (Fact.out : p.Prime).pos ha hL _ hm
+  obtain ⟨ψ, hψ, -⟩ := this (by simp)
+  simp at hψ
+
+/-! ## Non-vacuity: resolution trees are sequent trees -/
+
+theorem td_litFm (s : Bool) (l : Literal) : td p s (litFm l) = 1 := by
+  unfold litFm
+  split_ifs
+  · rw [td_var]
+  · rw [td_neg, td_var]
+
+theorem pd_litFm (l : Literal) : pd p (litFm l) = 1 := by
+  unfold litFm
+  split_ifs
+  · rw [pd_var]
+  · rw [pd_neg, pd_var]
+
+theorem sum_pd_lits (L : List Literal) : ((L.map litFm).map (pd p)).sum = L.length := by
+  induction L with
+  | nil => simp
+  | cons a L ih =>
+    rw [List.map_cons, List.map_cons, List.sum_cons, ih, pd_litFm, List.length_cons]; omega
+
+/-- A sequent of variables that represents a subclause of `C`: negated variables on the left. -/
+def Rep (C : Clause) (S : Seq) : Prop :=
+  (∀ φ ∈ S.1, ∃ x, φ = .var x ∧ (⟨x, false⟩ : Literal) ∈ C) ∧
+    (∀ φ ∈ S.2, ∃ x, φ = .var x ∧ (⟨x, true⟩ : Literal) ∈ C)
+
+theorem degS_cons_left {d : ℕ} {φ : Fm} {Γ Δ : List Fm} (h : td p false φ ≤ d)
+    (hS : DegS p d (Γ, Δ)) : DegS p d (φ :: Γ, Δ) := by
+  refine ⟨fun ψ hψ => ?_, hS.2⟩
+  rcases List.mem_cons.1 hψ with rfl | hψ'
+  · exact h
+  · exact hS.1 ψ hψ'
+
+theorem degS_cons_right {d : ℕ} {φ : Fm} {Γ Δ : List Fm} (h : td p true φ ≤ d)
+    (hS : DegS p d (Γ, Δ)) : DegS p d (Γ, φ :: Δ) := by
+  refine ⟨hS.1, fun ψ hψ => ?_⟩
+  rcases List.mem_cons.1 hψ with rfl | hψ'
+  · exact h
+  · exact hS.2 ψ hψ'
+
+theorem degS_rep {d : ℕ} (hd1 : 1 ≤ d) {C : Clause} {S : Seq} (h : Rep C S) : DegS p d S := by
+  refine ⟨fun φ hφ => ?_, fun φ hφ => ?_⟩
+  · obtain ⟨x, rfl, -⟩ := h.1 φ hφ; rw [td_var]; exact hd1
+  · obtain ⟨x, rfl, -⟩ := h.2 φ hφ; rw [td_var]; exact hd1
+
+/-- A resolution derivation of `C` gives a tree-like derivation, inside `DegS p d` for every `d`
+that is at least the width of the clauses of `F`, of a sequent of variables representing a
+subclause of `C`. -/
+theorem tproof_of_derivation {F : CNF} {d : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F, C.card ≤ d)
+    {C : Clause} (D : Derivation F C) :
+    ∃ S : Seq, Rep C S ∧ ∃ s, TProof p F (DegS p d) S s := by
+  have tv : ∀ (s : Bool) (x : ℕ), td p s (.var x) ≤ d := fun s x => by rw [td_var]; exact hd1
+  induction D with
+  | hyp C hC =>
+    set Γ : List Fm := (C.toList.filter fun ℓ => !ℓ.pos).map fun ℓ => Fm.var ℓ.var with hΓ
+    set Δ : List Fm := (C.toList.filter fun ℓ => ℓ.pos).map fun ℓ => Fm.var ℓ.var with hΔ
+    set l : List Fm := C.toList.map litFm with hl
+    have memΓ : ∀ ℓ ∈ C, ℓ.pos = false → Fm.var ℓ.var ∈ Γ := fun ℓ hℓ hp =>
+      List.mem_map.2 ⟨ℓ, List.mem_filter.2 ⟨Finset.mem_toList.2 hℓ, by simp [hp]⟩, rfl⟩
+    have memΔ : ∀ ℓ ∈ C, ℓ.pos = true → Fm.var ℓ.var ∈ Δ := fun ℓ hℓ hp =>
+      List.mem_map.2 ⟨ℓ, List.mem_filter.2 ⟨Finset.mem_toList.2 hℓ, by simp [hp]⟩, rfl⟩
+    have hrep : Rep C (Γ, Δ) := by
+      refine ⟨fun φ hφ => ?_, fun φ hφ => ?_⟩
+      · obtain ⟨ℓ, hℓ, rfl⟩ := List.mem_map.1 hφ
+        obtain ⟨h1, h2⟩ := List.mem_filter.1 hℓ
+        refine ⟨ℓ.var, rfl, ?_⟩
+        have e : (⟨ℓ.var, false⟩ : Literal) = ℓ := by
+          cases ℓ; simp at h2; simp [h2]
+        rw [e]; exact Finset.mem_toList.1 h1
+      · obtain ⟨ℓ, hℓ, rfl⟩ := List.mem_map.1 hφ
+        obtain ⟨h1, h2⟩ := List.mem_filter.1 hℓ
+        refine ⟨ℓ.var, rfl, ?_⟩
+        have e : (⟨ℓ.var, true⟩ : Literal) = ℓ := by
+          cases ℓ; simp at h2; simp [h2]
+        rw [e]; exact Finset.mem_toList.1 h1
+    have dV : DegS p d (Γ, Δ) := degS_rep hd1 hrep
+    have tdT : td p true (.or l) ≤ d := by
+      rw [td_or_true]
+      refine foldr_max_le fun x hx => ?_
+      obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hx
+      obtain ⟨ℓ, -, rfl⟩ := List.mem_map.1 hψ
+      rw [td_litFm]; exact hd1
+    have tdF : td p false (.or l) ≤ d := by
+      rw [td_or_false, pd_or, hl, sum_pd_lits, Finset.length_toList]; exact hw C hC
+    -- the hypothesis sequent
+    have A0 : ∃ s, TProof p F (DegS p d) ([], [.or l]) s :=
+      tproof_node (prev := []) (by simp) (step_hyp hC)
+        ⟨by simp, fun ψ hψ => by rw [List.mem_singleton] at hψ; subst hψ; exact tdT⟩
+    have A1 : ∃ s, TProof p F (DegS p d) (Γ, .or l :: Δ) s :=
+      tproof_node (prev := [([], [.or l])]) (by simpa using A0)
+        (step_weak (T := ([], [.or l])) (by simp) (by simp) (by simp))
+        (degS_cons_right tdT dV)
+    -- identity axioms
+    have ax : ∀ x : ℕ, ∃ s, TProof p F (DegS p d) ([.var x], [.var x]) s := fun x =>
+      tproof_node (prev := []) (by simp) (step_ax _)
+        ⟨fun ψ hψ => by rw [List.mem_singleton] at hψ; subst hψ; exact tv _ _,
+          fun ψ hψ => by rw [List.mem_singleton] at hψ; subst hψ; exact tv _ _⟩
+    have B : ∀ φ ∈ l, ∃ s, TProof p F (DegS p d) (φ :: Γ, Δ) s := by
+      intro φ hφ
+      obtain ⟨ℓ, hℓ, rfl⟩ := List.mem_map.1 hφ
+      have hℓC := Finset.mem_toList.1 hℓ
+      by_cases hp : ℓ.pos = true
+      · have e : litFm ℓ = .var ℓ.var := by unfold litFm; rw [if_pos hp]
+        rw [e]
+        exact tproof_node (prev := [([.var ℓ.var], [.var ℓ.var])]) (by simpa using ax ℓ.var)
+          (step_weak (T := ([.var ℓ.var], [.var ℓ.var])) (by simp) (by simp)
+            (by simpa using memΔ ℓ hℓC hp))
+          (degS_cons_left (tv _ _) dV)
+      · have hp' : ℓ.pos = false := by simpa using hp
+        have e : litFm ℓ = .neg (.var ℓ.var) := by unfold litFm; rw [if_neg hp]
+        rw [e]
+        have W : ∃ s, TProof p F (DegS p d) (Γ, .var ℓ.var :: Δ) s :=
+          tproof_node (prev := [([.var ℓ.var], [.var ℓ.var])]) (by simpa using ax ℓ.var)
+            (step_weak (T := ([.var ℓ.var], [.var ℓ.var])) (by simp)
+              (by simpa using memΓ ℓ hℓC hp') (by simp))
+            (degS_cons_right (tv _ _) dV)
+        exact tproof_node (prev := [(Γ, .var ℓ.var :: Δ)]) (by simpa using W)
+          (step_negL _ _ _ (by simp))
+          (degS_cons_left (by rw [td_neg]; exact tv _ _) dV)
+    have A2 : ∃ s, TProof p F (DegS p d) (.or l :: Γ, Δ) s := by
+      refine tproof_node (prev := l.map fun φ => (φ :: Γ, Δ)) ?_
+        (step_orL l Γ Δ fun φ hφ => List.mem_map.2 ⟨φ, hφ, rfl⟩) (degS_cons_left tdF dV)
+      intro T hT
+      obtain ⟨φ, hφ, rfl⟩ := List.mem_map.1 hT
+      exact B φ hφ
+    refine ⟨(Γ, Δ), hrep, ?_⟩
+    refine tproof_node (prev := [(Γ, .or l :: Δ), (.or l :: Γ, Δ)]) ?_
+      (step_cut (S := (Γ, Δ)) (.or l) (by simp) (by simp)) dV
+    intro T hT
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hT
+    rcases hT with rfl | rfl
+    · exact A1
+    · exact A2
+  | @res x C D dC dD hx hnx ihC ihD =>
+    obtain ⟨⟨Γ₁, Δ₁⟩, r1, e1⟩ := ihC
+    obtain ⟨⟨Γ₂, Δ₂⟩, r2, e2⟩ := ihD
+    set Γ : List Fm := Γ₁ ++ Γ₂.filter (fun φ => decide (φ ≠ Fm.var x)) with hΓ
+    set Δ : List Fm := Δ₁.filter (fun φ => decide (φ ≠ Fm.var x)) ++ Δ₂ with hΔ
+    have hrep : Rep (SATurday.ProofComplexity.resolvent C D x) (Γ, Δ) := by
+      unfold SATurday.ProofComplexity.resolvent
+      refine ⟨fun φ hφ => ?_, fun φ hφ => ?_⟩
+      · rcases List.mem_append.1 hφ with h | h
+        · obtain ⟨y, rfl, hy⟩ := r1.1 φ h
+          exact ⟨y, rfl, Finset.mem_union_left _ (Finset.mem_erase.2 ⟨by simp, hy⟩)⟩
+        · obtain ⟨h1, h2⟩ := List.mem_filter.1 h
+          obtain ⟨y, rfl, hy⟩ := r2.1 φ h1
+          have hne : y ≠ x := by
+            intro e; subst e; simp at h2
+          exact ⟨y, rfl, Finset.mem_union_right _ (Finset.mem_erase.2 ⟨by simp [hne], hy⟩)⟩
+      · rcases List.mem_append.1 hφ with h | h
+        · obtain ⟨h1, h2⟩ := List.mem_filter.1 h
+          obtain ⟨y, rfl, hy⟩ := r1.2 φ h1
+          have hne : y ≠ x := by
+            intro e; subst e; simp at h2
+          exact ⟨y, rfl, Finset.mem_union_left _ (Finset.mem_erase.2 ⟨by simp [hne], hy⟩)⟩
+        · obtain ⟨y, rfl, hy⟩ := r2.2 φ h
+          exact ⟨y, rfl, Finset.mem_union_right _ (Finset.mem_erase.2 ⟨by simp, hy⟩)⟩
+    have dV : DegS p d (Γ, Δ) := degS_rep hd1 hrep
+    have W1 : ∃ s, TProof p F (DegS p d) (Γ, .var x :: Δ) s := by
+      refine tproof_node (prev := [(Γ₁, Δ₁)]) (by simpa using e1)
+        (step_weak (T := (Γ₁, Δ₁)) (by simp) (List.subset_append_left _ _) ?_)
+        (degS_cons_right (tv _ _) dV)
+      intro φ hφ
+      by_cases e : φ = .var x
+      · rw [e]; exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ (List.mem_append_left _
+          (List.mem_filter.2 ⟨hφ, by simpa using e⟩))
+    have W2 : ∃ s, TProof p F (DegS p d) (.var x :: Γ, Δ) s := by
+      refine tproof_node (prev := [(Γ₂, Δ₂)]) (by simpa using e2)
+        (step_weak (T := (Γ₂, Δ₂)) (by simp) ?_ (List.subset_append_right _ _))
+        (degS_cons_left (tv _ _) dV)
+      intro φ hφ
+      by_cases e : φ = .var x
+      · rw [e]; exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ (List.mem_append_right _
+          (List.mem_filter.2 ⟨hφ, by simpa using e⟩))
+    refine ⟨(Γ, Δ), hrep, ?_⟩
+    refine tproof_node (prev := [(Γ, .var x :: Δ), (.var x :: Γ, Δ)]) ?_
+      (step_cut (S := (Γ, Δ)) (.var x) (by simp) (by simp)) dV
+    intro T hT
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hT
+    rcases hT with rfl | rfl
+    · exact W1
+    · exact W2
+
+/-- **Non-vacuity.**  An unsatisfiable CNF has a tree-like refutation in the sequent calculus inside
+`DegS p d`, for every `d ≥ 1` that is at least the clause width (existence only). -/
+theorem tproof_of_unsat {F : CNF} {d : ℕ} (hd1 : 1 ≤ d) (hw : ∀ C ∈ F, C.card ≤ d)
+    (h : ¬ Satisfiable F) : ∃ s, TProof p F (DegS p d) ([], []) s := by
+  obtain ⟨D⟩ := resolution_complete h
+  obtain ⟨⟨Γ, Δ⟩, hrep, s, hs⟩ := tproof_of_derivation (p := p) hd1 hw D
+  have e1 : Γ = [] := List.eq_nil_iff_forall_not_mem.2 fun φ hφ => by
+    obtain ⟨x, -, hx⟩ := hrep.1 φ hφ; simp at hx
+  have e2 : Δ = [] := List.eq_nil_iff_forall_not_mem.2 fun φ hφ => by
+    obtain ⟨x, -, hx⟩ := hrep.2 φ hφ; simp at hx
+  subst e1; subst e2
+  exact ⟨s, hs⟩
+
+/-! ## Tseitin -/
+
+open SATurday.ProofComplexity.TseitinPC
+
+/-- **Tree-like sequent calculus, Tseitin, natural number form.**  For `m ≥ tseitinFloor p q`,
+every charge and every `d ≥ 1`: a tree-like refutation of one-hot Tseitin mod `q` on `cubFam m` in
+the pinned sequent calculus with `MOD_p` gates, all sequents in `DegS p d` (formulas of any depth),
+has at least `2 ^ ((D0 - max (q+3) (3 d)) / d)` nodes. -/
+theorem frege_tree_tseitin_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) {m : ℕ} (hm : tseitinFloor p q ≤ m) (b : Fin (m * m * 8) → ZMod q)
+    {d : ℕ} (hd1 : 1 ≤ d) {s : ℕ}
+    (h : TProof p (tcnf (cubFam m) q b) (DegS p d) ([], []) s) :
+    2 ^ (((((m * m * 8) - 2) / 1312 - q * (q + 3)) / (q - 1) - max (q + 3) (3 * d)) / d) ≤ s := by
+  obtain ⟨hreg, -, hdeg⟩ := tseitin_bool_degree_Fp_idx p hq hpq hm
+  exact tree_frege_size_of_degree hd1 (fun C hC => (tcnf_clause_props hreg hC).2) (hdeg b) h
+
+/-- **Tree-like sequent calculus, Tseitin, indexed family, real form.**  Primes `p ∤ q`, `δ > 0`.
+There is `m0` such that for all `m ≥ m0`, with `n = 8 m^2`: one-hot Tseitin mod `q` on `cubFam m`
+with the explicit charge is unsatisfiable; for every `d ≥ q + 3` it has a tree-like refutation in
+the pinned sequent calculus with all sequents in `DegS p d`; and for every `d` with
+`1 ≤ d ≤ n^(1-δ)` every tree-like refutation with all sequents in `DegS p d`, of any formula
+depth, has at least `2 ^ (n^δ / (2624 q))` nodes. -/
+theorem frege_tree_main_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ m0 : ℕ, ∀ m : ℕ, m0 ≤ m →
+      ¬ Satisfiable (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) ∧
+      ∀ d : ℕ,
+        (q + 3 ≤ d → ∃ s, TProof p (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
+          (DegS p d) ([], []) s) ∧
+        (1 ≤ d → (d : ℝ) ≤ ((m * m * 8 : ℕ) : ℝ) ^ (1 - δ) →
+          ∀ s : ℕ, TProof p (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
+            (DegS p d) ([], []) s →
+            (2 : ℝ) ^ (((m * m * 8 : ℕ) : ℝ) ^ δ / (2624 * q)) ≤ s) := by
+  obtain ⟨m1, H⟩ := tree_exp_arith hq δ hδ
+  refine ⟨max (tseitinFloor p q) m1, fun m hm => ?_⟩
+  have hmF : tseitinFloor p q ≤ m := (le_max_left _ _).trans hm
+  obtain ⟨hreg, -, -⟩ := cubFam_props (cubFam_floor_le hmF).1
+  obtain ⟨-, hunsat⟩ := tseitin_idx_explicit_unsat p hq hmF
+  refine ⟨hunsat, fun d => ⟨fun hd => tproof_of_unsat (by omega) ?_ hunsat, fun hd1 hd s hs =>
+    H m ((le_max_right _ _).trans hm) d hd1 hd s (frege_tree_tseitin_idx p hq hpq hmF _ hd1 hs)⟩⟩
+  intro C hC
+  exact ((tcnf_clause_props hreg hC).2).trans hd
 
 end
 
