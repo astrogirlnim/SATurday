@@ -2734,3 +2734,21 @@ FDeg.frege_to_PIC
 FDeg.degS_of_rankS
 FDeg.lowdeg_frege_tseitin
 FDeg.lowdeg_frege_tseitin_idx
+
+# R4 wideand fable session (r4/wideand-fable): expansion of wide conjunctions in positive position.
+# A sequent is expanded into its selections (its CNF over atoms of degree at most d); selections commute
+# with the rules except identity and cut; bridge into PIC with factor B^2, B the number of selections per
+# sequent; Tseitin size bound for the expanded fragment at every formula depth.
+FWide.sels_self
+FWide.sels_props
+FWide.sel_seq_props
+FWide.xdegS_of_degS
+FWide.BS_of_degS
+FWide.sel_fstep
+FWide.reach_id
+FWide.reach_xcut
+FWide.xstep_sim
+FWide.wide_frege_to_PIC
+FWide.wide_and_example
+FWide.wide_frege_tseitin
+FWide.wide_frege_tseitin_idx

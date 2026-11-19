@@ -122,6 +122,7 @@ import Theory.ProofComplexity.FregeDepth1Frontier
 import Theory.ProofComplexity.PolyIndCalc
 import Theory.ProofComplexity.FregeDegBridge
 import Theory.ProofComplexity.FregeDegFrontier
+import Theory.ProofComplexity.FregeWideAnd
 
 /-!
 # SATurday Theory Library
