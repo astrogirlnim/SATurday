@@ -270,7 +270,7 @@ theorem xtd_gt_opp (s : Bool) (l : List Fm) :
   · exact xtd_and_false l
 
 /-- Memberwise selection of a list of formulas. -/
-def SelL (p d : ℕ) (s : Bool) (l' l : List Fm) : Prop :=
+abbrev SelL (p d : ℕ) (s : Bool) (l' l : List Fm) : Prop :=
   List.Forall₂ (fun φ' φ => φ' ∈ sels p d s φ) l' l
 
 theorem mem_sections_sels {s : Bool} {l' l : List Fm} :
@@ -427,6 +427,468 @@ theorem xtd_and_true_le (l : List Fm) (h : ∀ ψ ∈ l, xtd p d true ψ ≤ d) 
     refine foldr_max_le fun x hx => ?_
     obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hx
     exact h ψ hψ
+
+/-- A formula whose one line translation has degree at most `d` is its only selection. -/
+theorem sels_of_td : ∀ (φ : Fm) (s : Bool), td p s φ ≤ d → sels p d s φ = [φ] := by
+  have gate : ∀ (s₀ : Bool) (l : List Fm),
+      (∀ ψ ∈ l, ∀ s : Bool, td p s ψ ≤ d → sels p d s ψ = [ψ]) →
+      ∀ s : Bool, td p s (gt s₀ l) ≤ d → sels p d s (gt s₀ l) = [gt s₀ l] := by
+    intro s₀ l ih s ht
+    rcases bool_cases s s₀ with e | e
+    · rw [e] at ht ⊢
+      rw [td_gt_same] at ht
+      exact sels_self _ ht _
+    · rw [e] at ht ⊢
+      rw [td_gt_opp] at ht
+      rw [sels_gt_opp]
+      have e' : l.map (sels p d (!s₀)) = l.map fun x => [x] :=
+        List.map_congr_left fun ψ hψ =>
+          ih ψ hψ _ ((le_foldr_max (List.mem_map.2 ⟨ψ, hψ, rfl⟩)).trans ht)
+      rw [e', sections_single]; rfl
+  refine Fm_ind ?_ ?_ ?_ ?_ ?_
+  · intro i s _; exact sels_var s i
+  · intro φ ih s ht
+    rw [td_neg] at ht
+    rw [sels_neg, ih _ ht]; rfl
+  · exact fun l ih => gate true l ih
+  · exact fun l ih => gate false l ih
+  · intro r l _ s _; exact sels_mod s r l
+
+/-! ## Sequents -/
+
+/-- The selections of a sequent: antecedent formulas with sign false, succedent with sign true. -/
+def selsS (p d : ℕ) (S : Seq) : List Seq :=
+  List.product ((S.1.map (sels p d false)).sections) ((S.2.map (sels p d true)).sections)
+
+/-- The number of selections of a sequent, that is of `PIC` lines it is expanded into. -/
+def BS (p d : ℕ) (S : Seq) : ℕ := (selsS p d S).length
+
+/-- Degree condition for the expansion: every term of every selection has degree `≤ d`. -/
+def XDegS (p d : ℕ) (S : Seq) : Prop :=
+  (∀ φ ∈ S.1, xtd p d false φ ≤ d) ∧ (∀ φ ∈ S.2, xtd p d true φ ≤ d)
+
+theorem mem_selsS {S S' : Seq} :
+    S' ∈ selsS p d S ↔ SelL p d false S'.1 S.1 ∧ SelL p d true S'.2 S.2 := by
+  obtain ⟨a, b⟩ := S'
+  unfold selsS
+  rw [List.pair_mem_product, mem_sections_sels, mem_sections_sels]
+
+theorem BS_eq (S : Seq) : BS p d S =
+    ((S.1.map (sels p d false)).map List.length).prod *
+      ((S.2.map (sels p d true)).map List.length).prod := by
+  have e := List.length_product (S.1.map (sels p d false)).sections
+    (S.2.map (sels p d true)).sections
+  rw [length_sections, length_sections] at e
+  exact e
+
+theorem BS_pos (S : Seq) : 0 < BS p d S := by
+  rw [BS_eq]
+  refine Nat.mul_pos (prod_pos' _ fun x hx => ?_) (prod_pos' _ fun x hx => ?_)
+  · obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
+    obtain ⟨ψ, -, rfl⟩ := List.mem_map.1 hy
+    exact sels_pos ψ _
+  · obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
+    obtain ⟨ψ, -, rfl⟩ := List.mem_map.1 hy
+    exact sels_pos ψ _
+
+theorem BS_cons_right (Γ Δ : List Fm) (φ : Fm) :
+    BS p d (Γ, φ :: Δ) = (sels p d true φ).length * BS p d (Γ, Δ) := by
+  rw [BS_eq, BS_eq]
+  simp only [List.map_cons, List.prod_cons]
+  ring
+
+theorem BS_cons_left (Γ Δ : List Fm) (φ : Fm) :
+    BS p d (φ :: Γ, Δ) = (sels p d false φ).length * BS p d (Γ, Δ) := by
+  rw [BS_eq, BS_eq]
+  simp only [List.map_cons, List.prod_cons]
+  ring
+
+theorem selsS_self {S : Seq} (h1 : ∀ φ ∈ S.1, sels p d false φ = [φ])
+    (h2 : ∀ φ ∈ S.2, sels p d true φ = [φ]) : selsS p d S = [S] := by
+  unfold selsS
+  rw [(List.map_congr_left h1 : S.1.map (sels p d false) = S.1.map fun x => [x]),
+    (List.map_congr_left h2 : S.2.map (sels p d true) = S.2.map fun x => [x]),
+    sections_single, sections_single]
+  rfl
+
+theorem self_of {S S' : Seq} (h1 : ∀ φ ∈ S.1, sels p d false φ = [φ])
+    (h2 : ∀ φ ∈ S.2, sels p d true φ = [φ]) (h : S' ∈ selsS p d S) : S' = S := by
+  rw [selsS_self h1 h2] at h
+  exact List.mem_singleton.1 h
+
+/-- A selection of a sequent of the fragment lies in the one line fragment `DegS`. -/
+theorem sel_seq_props {S S' : Seq} (h : S' ∈ selsS p d S) (hx : XDegS p d S) (hV : VarS V S) :
+    DegS p d S' ∧ VarS V S' ∧ wS S' ≤ wS S := by
+  obtain ⟨h1, h2⟩ := mem_selsS.1 h
+  refine ⟨⟨fun φ' hφ' => ?_, fun φ' hφ' => ?_⟩, fun φ' hφ' => ?_, ?_⟩
+  · obtain ⟨φ, hφ, hr⟩ := forall2_left h1 hφ'
+    exact (sels_props φ false φ' hr).1.trans (hx.1 φ hφ)
+  · obtain ⟨φ, hφ, hr⟩ := forall2_left h2 hφ'
+    exact (sels_props φ true φ' hr).1.trans (hx.2 φ hφ)
+  · rcases List.mem_append.1 hφ' with hφ' | hφ'
+    · obtain ⟨φ, hφ, hr⟩ := forall2_left h1 hφ'
+      exact (sels_props φ false φ' hr).2.1.trans (hV φ (List.mem_append_left _ hφ))
+    · obtain ⟨φ, hφ, hr⟩ := forall2_left h2 hφ'
+      exact (sels_props φ true φ' hr).2.1.trans (hV φ (List.mem_append_right _ hφ))
+  · have e1 := forall2_sum_le Fm.size h1 (fun a b _ hr => (sels_props b false a hr).2.2)
+    have e2 := forall2_sum_le Fm.size h2 (fun a b _ hr => (sels_props b true a hr).2.2)
+    unfold wS
+    rw [List.map_append, List.sum_append, List.map_append, List.sum_append]
+    omega
+
+/-- The one line fragment is contained in the expanded one, with one selection per sequent. -/
+theorem xdegS_of_degS {S : Seq} (h : DegS p d S) : XDegS p d S :=
+  ⟨fun φ hφ => (xtd_le_td φ false).trans (h.1 φ hφ),
+    fun φ hφ => (xtd_le_td φ true).trans (h.2 φ hφ)⟩
+
+theorem BS_of_degS {S : Seq} (h : DegS p d S) : BS p d S = 1 := by
+  unfold BS
+  rw [selsS_self (fun φ hφ => sels_of_td φ false (h.1 φ hφ))
+    (fun φ hφ => sels_of_td φ true (h.2 φ hφ))]
+  rfl
+
+/-! ## The axiom `φ ⊢ φ` -/
+
+theorem id_narrow {φ : Fm} (hd : pd p φ ≤ d) (hV : fv φ ⊆ V) {Y : PLine p} (hY : GoodL V d Y)
+    (h1 : ∀ g ∈ trL p true φ, g ∈ Y) (h2 : ∀ g ∈ trL p false φ, g ∈ Y)
+    {Ls : List (PLine p)} (h : Der Φ V d Ls) :
+    ∃ Ls₂, Ext Φ V d Ls Ls₂ (10 * φ.size) ∧ Y ∈ Ls₂ := by
+  have gI : ∀ s : Bool, GoodL V d (insert (sg s (val p φ)) Y) := by
+    intro s x hx
+    rcases Finset.mem_insert.1 hx with rfl | hx
+    · exact ind_sg hd hV _
+    · exact hY x hx
+  obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_split φ hd hV true (gI false)
+    (fun g hg => Finset.mem_insert_of_mem (h1 g hg)) (Finset.mem_insert_self _ _) h
+  obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_split φ hd hV false (gI true)
+    (fun g hg => Finset.mem_insert_of_mem (h2 g hg)) (Finset.mem_insert_self _ _) hE₁.1
+  obtain ⟨Ls₃, hE₃, hm₃⟩ := reach_step hE₂.1
+    (prems := [insert (sg false (val p φ)) Y, insert (sg true (val p φ)) Y])
+    (by intro N hN; simp at hN; rcases hN with rfl | rfl
+        · exact hE₂.2.1 _ hm₁
+        · exact hm₂)
+    (PInfer.sem2 (g₁ := sg false (val p φ)) (g₂ := sg true (val p φ)) (g₃ := 0)
+      (Finset.mem_insert_self _ _) (Finset.mem_insert_self _ _)
+      (fun a => by
+        rw [eval_sg_val, eval_sg_val]
+        cases Fm.eval p a φ <;> simp) Y
+      (Finset.erase_insert_subset _ _) (Finset.erase_insert_subset _ _) (Or.inr rfl)) hY
+  have := FBridge.size_pos φ
+  exact ⟨Ls₃, ((hE₁.trans hE₂).trans hE₃).mono (by omega), hm₃⟩
+
+/-- Statement of `reach_id` for one formula. -/
+def IdP (p : ℕ) [Fact p.Prime] (d : ℕ) (Φ : CNF) (V : Finset ℕ) (φ : Fm) : Prop :=
+  fv φ ⊆ V → ∀ (s : Bool) (φ1 φ2 : Fm), φ1 ∈ sels p d s φ → φ2 ∈ sels p d (!s) φ →
+    td p s φ1 ≤ d → td p (!s) φ2 ≤ d → ∀ {Y : PLine p}, GoodL V d Y →
+    (∀ g ∈ trL p s φ1, g ∈ Y) → (∀ g ∈ trL p (!s) φ2, g ∈ Y) →
+    ∀ {Ls : List (PLine p)}, Der Φ V d Ls → ∃ Ls₂, Ext Φ V d Ls Ls₂ (10 * φ.size) ∧ Y ∈ Ls₂
+
+/-- **Identity.**  For selections `φ1`, `φ2` of `φ` with opposite signs, a line containing both
+translations is derivable with at most `10 |φ|` lines. -/
+theorem reach_id : ∀ φ : Fm, IdP p d Φ V φ := by
+  have narrow : ∀ φ : Fm, pd p φ ≤ d → fv φ ⊆ V → ∀ (s : Bool) (φ1 φ2 : Fm),
+      φ1 ∈ sels p d s φ → φ2 ∈ sels p d (!s) φ → ∀ {Y : PLine p}, GoodL V d Y →
+      (∀ g ∈ trL p s φ1, g ∈ Y) → (∀ g ∈ trL p (!s) φ2, g ∈ Y) →
+      ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
+        ∃ Ls₂, Ext Φ V d Ls Ls₂ (10 * φ.size) ∧ Y ∈ Ls₂ := by
+    intro φ hd hV s φ1 φ2 h1 h2 Y hY g1 g2 Ls h
+    rw [sels_self φ hd, List.mem_singleton] at h1 h2
+    rw [h1] at g1
+    rw [h2] at g2
+    cases s
+    · exact id_narrow hd hV hY g2 g1 h
+    · exact id_narrow hd hV hY g1 g2 h
+  have gate : ∀ (s₀ : Bool) (l : List Fm), (∀ ψ ∈ l, IdP p d Φ V ψ) → fv (gt s₀ l) ⊆ V →
+      ∀ (φa φb : Fm), φa ∈ sels p d s₀ (gt s₀ l) → φb ∈ sels p d (!s₀) (gt s₀ l) →
+      td p s₀ φa ≤ d → td p (!s₀) φb ≤ d → ∀ {Y : PLine p}, GoodL V d Y →
+      (∀ g ∈ trL p s₀ φa, g ∈ Y) → (∀ g ∈ trL p (!s₀) φb, g ∈ Y) →
+      ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
+        ∃ Ls₂, Ext Φ V d Ls Ls₂ (10 * (gt s₀ l).size) ∧ Y ∈ Ls₂ := by
+    intro s₀ l ih hV φa φb ha hb ta tb Y hY ga gb Ls h
+    by_cases hn : pd p (gt s₀ l) ≤ d
+    · exact narrow _ hn hV s₀ φa φb ha hb hY ga gb h
+    · rw [sels_gt_same, if_neg hn] at ha
+      obtain ⟨ls, hls, ha'⟩ := List.mem_flatten.1 ha
+      obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hls
+      rw [sels_gt_opp] at hb
+      obtain ⟨l', hl', rfl⟩ := List.mem_map.1 hb
+      have hF : SelL p d (!s₀) l' l := mem_sections_sels.1 hl'
+      obtain ⟨ψ', hψ', hr⟩ := forall2_right hF hψ
+      have tψ' : td p (!s₀) ψ' ≤ d := by
+        rw [td_gt_opp] at tb
+        exact (le_foldr_max (List.mem_map.2 ⟨ψ', hψ', rfl⟩)).trans tb
+      obtain ⟨Ls₂, hE, hm⟩ := ih ψ hψ (fun v hv => hV ((mem_fv_gt s₀ l v).2 ⟨ψ, hψ, hv⟩)) s₀ φa ψ'
+        ha' hr ta tψ' hY ga (fun g hg => gb g ((mem_trL_gt s₀ l' g).2 ⟨ψ', hψ', hg⟩)) h
+      refine ⟨Ls₂, hE.mono ?_, hm⟩
+      rw [size_gt]
+      have := le_sum_of_mem (List.mem_map.2 ⟨ψ, hψ, rfl⟩ : ψ.size ∈ l.map Fm.size)
+      omega
+  refine Fm_ind ?_ ?_ ?_ ?_ ?_
+  · intro i hV s φ1 φ2 h1 h2 t1 t2 Y hY g1 g2 Ls h
+    have hφ1 := h1
+    rw [sels_var, List.mem_singleton] at hφ1
+    have hd : pd p (.var i) ≤ d := by
+      rw [hφ1, td_var] at t1; rw [pd_var]; exact t1
+    exact narrow _ hd hV s φ1 φ2 h1 h2 hY g1 g2 h
+  · intro φ ih hV s φ1 φ2 h1 h2 t1 t2 Y hY g1 g2 Ls h
+    rw [fv_neg] at hV
+    rw [sels_neg] at h1 h2
+    obtain ⟨a, ha, rfl⟩ := List.mem_map.1 h1
+    obtain ⟨b, hb, rfl⟩ := List.mem_map.1 h2
+    rw [td_neg] at t1 t2
+    obtain ⟨Ls₂, hE, hm⟩ := ih hV (!s) a b ha hb t1 t2 hY
+      (fun g hg => g1 g (by rw [trL_neg]; exact hg))
+      (fun g hg => g2 g (by rw [trL_neg]; exact hg)) h
+    exact ⟨Ls₂, hE.mono (by rw [size_neg]; omega), hm⟩
+  · intro l ih hV s φ1 φ2 h1 h2 t1 t2 Y hY g1 g2 Ls h
+    cases s
+    · exact gate true l ih hV φ2 φ1 h2 h1 t2 t1 hY g2 g1 h
+    · exact gate true l ih hV φ1 φ2 h1 h2 t1 t2 hY g1 g2 h
+  · intro l ih hV s φ1 φ2 h1 h2 t1 t2 Y hY g1 g2 Ls h
+    cases s
+    · exact gate false l ih hV φ1 φ2 h1 h2 t1 t2 hY g1 g2 h
+    · exact gate false l ih hV φ2 φ1 h2 h1 t2 t1 hY g2 g1 h
+  · intro r l _ hV s φ1 φ2 h1 h2 t1 t2 Y hY g1 g2 Ls h
+    have hφ1 := h1
+    rw [sels_mod, List.mem_singleton] at hφ1
+    have hd : pd p (.mod r l) ≤ d := by
+      rw [hφ1, td_mod] at t1; exact t1
+    exact narrow _ hd hV s φ1 φ2 h1 h2 hY g1 g2 h
+
+/-! ## Cut -/
+
+/-- Cut on a formula of degree at most `d`: one line per sign. -/
+theorem cut_narrow {φ : Fm} {Y : PLine p} (hY : GoodL V d Y)
+    {Ls : List (PLine p)} (h : Der Φ V d Ls) {M₁ M₂ : PLine p} (h₁ : M₁ ∈ Ls) (h₂ : M₂ ∈ Ls)
+    (hx₁ : ∀ x ∈ M₁, x ∈ Y ∨ x ∈ trL p true φ) (hx₂ : ∀ x ∈ M₂, x ∈ Y ∨ x ∈ trL p false φ) :
+    ∃ Ls₂, Ext Φ V d Ls Ls₂ (2 * φ.size) ∧ ∃ M ∈ Ls₂, M ⊆ Y := by
+  have core : ∀ (s : Bool), trL p s φ = [sg s (val p φ)] → ∀ {Ms Mo : PLine p}, Ms ∈ Ls →
+      Mo ∈ Ls → (∀ x ∈ Ms, x ∈ Y ∨ x ∈ trL p s φ) → (∀ x ∈ Mo, x ∈ Y ∨ x ∈ trL p (!s) φ) →
+      ∃ Ls₂, Ext Φ V d Ls Ls₂ (2 * φ.size) ∧ ∃ M ∈ Ls₂, M ⊆ Y := by
+    intro s hs Ms Mo hMs hMo hxs hxo
+    by_cases hU : sg s (val p φ) ∈ Ms
+    · have hA : Ms.erase (sg s (val p φ)) ⊆ Y := by
+        intro x hx
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases hxs x hx with hY' | hT
+        · exact hY'
+        · rw [hs, List.mem_singleton] at hT; exact absurd hT hne
+      have hB : Mo \ (trL p (!s) φ).toFinset ⊆ Y := by
+        intro x hx
+        obtain ⟨hx1, hx2⟩ := Finset.mem_sdiff.1 hx
+        rcases hxo x hx1 with hY' | hT
+        · exact hY'
+        · exact absurd (List.mem_toFinset.2 hT) hx2
+      obtain ⟨Ls₂, hE, hm⟩ := reach_map2 hU 0 hY hA (Or.inr rfl) (trL p (!s) φ).toFinset
+        (fun T hT a => tr_excl (s := s) (List.mem_toFinset.1 hT) a) h hMs hMo hB
+      refine ⟨Ls₂, hE.mono ?_, Y, hm, subset_rfl⟩
+      have := card_trL_le (p := p) (!s) φ
+      have := FBridge.size_pos φ
+      omega
+    · refine ⟨Ls, (Ext.refl h).mono (Nat.zero_le _), Ms, hMs, fun x hx => ?_⟩
+      rcases hxs x hx with hY' | hT
+      · exact hY'
+      · rw [hs, List.mem_singleton] at hT
+        rw [hT] at hx
+        exact absurd hx hU
+  obtain ⟨s, -, hs⟩ := tr_single (p := p) φ
+  cases s
+  · exact core false hs h₂ h₁ hx₂ hx₁
+  · exact core true hs h₁ h₂ hx₁ hx₂
+
+/-- Reach, for every element of a list, a line contained in its target. -/
+theorem reach_list_sub {α : Type} (ts : List α) (cost : ℕ) (tgt : α → PLine p)
+    {Ls : List (PLine p)}
+    (H : ∀ t ∈ ts, ∀ {Ls' : List (PLine p)}, Der Φ V d Ls' → (∀ M ∈ Ls, M ∈ Ls') →
+      ∃ Ls₂, Ext Φ V d Ls' Ls₂ cost ∧ ∃ M ∈ Ls₂, M ⊆ tgt t) (h : Der Φ V d Ls) :
+    ∃ Ls₂, Ext Φ V d Ls Ls₂ (ts.length * cost) ∧ ∀ t ∈ ts, ∃ M ∈ Ls₂, M ⊆ tgt t := by
+  induction ts with
+  | nil => exact ⟨Ls, (Ext.refl h).mono (Nat.zero_le _), by simp⟩
+  | cons t ts ih =>
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := ih (fun t' ht' => H t' (List.mem_cons_of_mem _ ht'))
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := H t (by simp) hE₁.1 hE₁.2.1
+    refine ⟨Ls₂, (hE₁.trans hE₂).mono (by rw [List.length_cons, Nat.succ_mul]), ?_⟩
+    intro t' ht'
+    rcases List.mem_cons.1 ht' with rfl | ht'
+    · exact hm₂
+    · obtain ⟨M, hM, hsub⟩ := hm₁ t' ht'
+      exact ⟨M, hE₂.2.1 _ hM, hsub⟩
+
+/-- Statement of `reach_xcut` for one formula. -/
+def CutP (p : ℕ) [Fact p.Prime] (d : ℕ) (Φ : CNF) (V : Finset ℕ) (φ : Fm) : Prop :=
+  fv φ ⊆ V → (∀ s' : Bool, xtd p d s' φ ≤ d) → ∀ (s : Bool) {Y : PLine p}, GoodL V d Y →
+    ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
+    (∀ φ1 ∈ sels p d s φ, ∃ M ∈ Ls, ∀ x ∈ M, x ∈ Y ∨ x ∈ trL p s φ1) →
+    (∀ φ2 ∈ sels p d (!s) φ, ∃ M ∈ Ls, ∀ x ∈ M, x ∈ Y ∨ x ∈ trL p (!s) φ2) →
+    ∃ Ls₂, Ext Φ V d Ls Ls₂
+      (2 * φ.size * (sels p d s φ).length * (sels p d (!s) φ).length) ∧ ∃ M ∈ Ls₂, M ⊆ Y
+
+theorem cut_arith (n t sz S T N : ℕ) (hN : 0 < N) :
+    n * (2 * S * T * N) + 2 * sz * t * n ≤ 2 * (sz + S) * (t + T) * (n * N) := by
+  have h1 : 2 * sz * t * n ≤ 2 * sz * t * n * N := Nat.le_mul_of_pos_right _ hN
+  have e : 2 * (sz + S) * (t + T) * (n * N) =
+      n * (2 * S * T * N) + 2 * sz * t * n * N + 2 * sz * T * n * N + 2 * S * t * n * N := by ring
+  rw [e]
+  exact Nat.le_add_right_of_le (Nat.le_add_right_of_le (Nat.add_le_add_left h1 _))
+
+/-- Cut on the members of an expanded gate, one member at a time.  `s₀` is the sign for which the
+gate is expanded into the selections of its members. -/
+theorem cut_list (s₀ : Bool) : ∀ (l : List Fm), (∀ ψ ∈ l, CutP p d Φ V ψ) →
+    (∀ ψ ∈ l, fv ψ ⊆ V) → (∀ ψ ∈ l, ∀ s' : Bool, xtd p d s' ψ ≤ d) →
+    ∀ {Y : PLine p}, GoodL V d Y → ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
+    (∀ ψ ∈ l, ∀ φa ∈ sels p d s₀ ψ, ∃ M ∈ Ls, ∀ x ∈ M, x ∈ Y ∨ x ∈ trL p s₀ φa) →
+    (∀ l', SelL p d (!s₀) l' l →
+      ∃ M ∈ Ls, ∀ x ∈ M, x ∈ Y ∨ ∃ ψ' ∈ l', x ∈ trL p (!s₀) ψ') →
+    ∃ Ls₂, Ext Φ V d Ls Ls₂
+      (2 * (l.map Fm.size).sum * ((l.map (sels p d s₀)).map List.length).sum *
+        ((l.map (sels p d (!s₀))).map List.length).prod) ∧ ∃ M ∈ Ls₂, M ⊆ Y := by
+  intro l
+  induction l with
+  | nil =>
+    intro _ _ _ Y hY Ls h _ hb
+    obtain ⟨M, hM, hx⟩ := hb [] List.Forall₂.nil
+    refine ⟨Ls, (Ext.refl h).mono (Nat.zero_le _), M, hM, fun x hx' => ?_⟩
+    rcases hx x hx' with hY' | ⟨ψ', hψ', -⟩
+    · exact hY'
+    · simp at hψ'
+  | cons ψ l ih =>
+    intro hC hV hX Y hY Ls h ha hb
+    have hCl : ∀ χ ∈ l, CutP p d Φ V χ := fun χ hχ => hC χ (List.mem_cons_of_mem _ hχ)
+    have hVl : ∀ χ ∈ l, fv χ ⊆ V := fun χ hχ => hV χ (List.mem_cons_of_mem _ hχ)
+    have hXl : ∀ χ ∈ l, ∀ s' : Bool, xtd p d s' χ ≤ d :=
+      fun χ hχ => hX χ (List.mem_cons_of_mem _ hχ)
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_list_sub (Φ := Φ) (V := V) (d := d) (sels p d (!s₀) ψ)
+      (2 * (l.map Fm.size).sum * ((l.map (sels p d s₀)).map List.length).sum *
+        ((l.map (sels p d (!s₀))).map List.length).prod)
+      (fun ψ' => Y ∪ (trL p (!s₀) ψ').toFinset) (Ls := Ls)
+      (fun ψ' hψ' Ls' h' hsub => by
+        have hgood : GoodL V d (Y ∪ (trL p (!s₀) ψ').toFinset) := by
+          intro x hx
+          rcases Finset.mem_union.1 hx with hx | hx
+          · exact hY x hx
+          · obtain ⟨t1, t2, -⟩ := sels_props ψ (!s₀) ψ' hψ'
+            exact tr_ind (t1.trans (hX ψ (by simp) _)) (t2.trans (hV ψ (by simp)))
+              (List.mem_toFinset.1 hx)
+        refine ih hCl hVl hXl hgood h' ?_ ?_
+        · intro χ hχ φa hφa
+          obtain ⟨M, hM, hx⟩ := ha χ (List.mem_cons_of_mem _ hχ) φa hφa
+          exact ⟨M, hsub M hM, fun x hx' =>
+            (hx x hx').imp (fun hy => Finset.mem_union_left _ hy) id⟩
+        · intro l' hl'
+          obtain ⟨M, hM, hx⟩ := hb (ψ' :: l') (List.Forall₂.cons hψ' hl')
+          refine ⟨M, hsub M hM, fun x hx' => ?_⟩
+          rcases hx x hx' with hy | ⟨χ, hχ, hg⟩
+          · exact Or.inl (Finset.mem_union_left _ hy)
+          · rcases List.mem_cons.1 hχ with rfl | hχ
+            · exact Or.inl (Finset.mem_union_right _ (List.mem_toFinset.2 hg))
+            · exact Or.inr ⟨χ, hχ, hg⟩) h
+    have A : ∀ φ1 ∈ sels p d s₀ ψ, ∃ M ∈ Ls₁, ∀ x ∈ M, x ∈ Y ∨ x ∈ trL p s₀ φ1 := by
+      intro φ1 h1
+      obtain ⟨M, hM, hx⟩ := ha ψ (by simp) φ1 h1
+      exact ⟨M, hE₁.2.1 _ hM, hx⟩
+    have Bh : ∀ φ2 ∈ sels p d (!s₀) ψ, ∃ M ∈ Ls₁, ∀ x ∈ M, x ∈ Y ∨ x ∈ trL p (!s₀) φ2 := by
+      intro φ2 h2
+      obtain ⟨M, hM, hsub⟩ := hm₁ φ2 h2
+      exact ⟨M, hM, fun x hx => (Finset.mem_union.1 (hsub hx)).imp id List.mem_toFinset.1⟩
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := hC ψ (by simp) (hV ψ (by simp)) (hX ψ (by simp)) s₀ hY hE₁.1 A Bh
+    refine ⟨Ls₂, (hE₁.trans hE₂).mono ?_, hm₂⟩
+    have hN : 0 < ((l.map (sels p d (!s₀))).map List.length).prod := by
+      refine prod_pos' _ fun x hx => ?_
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
+      obtain ⟨χ, -, rfl⟩ := List.mem_map.1 hy
+      exact sels_pos χ _
+    simp only [List.map_cons, List.sum_cons, List.prod_cons]
+    exact cut_arith _ _ _ _ _ _ hN
+
+/-- **Cut on an expanded formula.**  Given, for every selection of `φ` with either sign, a line
+contained in `Y` together with the translation of that selection, a line contained in `Y` is
+derivable with at most `2 |φ|` times the product of the two numbers of selections new lines. -/
+theorem reach_xcut : ∀ φ : Fm, CutP p d Φ V φ := by
+  have narrow : ∀ φ : Fm, pd p φ ≤ d → CutP p d Φ V φ := by
+    intro φ hd hV _ s Y hY Ls h h1 h2
+    rw [sels_self φ hd] at h1 h2
+    rw [sels_self φ hd s, sels_self φ hd (!s)]
+    obtain ⟨M1, hM1, hx1⟩ := h1 φ (by simp)
+    obtain ⟨M2, hM2, hx2⟩ := h2 φ (by simp)
+    cases s
+    · obtain ⟨Ls₂, hE, hm⟩ := cut_narrow hY h hM2 hM1 hx2 hx1
+      exact ⟨Ls₂, hE.mono (by simp), hm⟩
+    · obtain ⟨Ls₂, hE, hm⟩ := cut_narrow hY h hM1 hM2 hx1 hx2
+      exact ⟨Ls₂, hE.mono (by simp), hm⟩
+  have gate : ∀ (s₀ : Bool) (l : List Fm), (∀ ψ ∈ l, CutP p d Φ V ψ) → fv (gt s₀ l) ⊆ V →
+      (∀ s' : Bool, xtd p d s' (gt s₀ l) ≤ d) → ∀ {Y : PLine p}, GoodL V d Y →
+      ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
+      (∀ φa ∈ sels p d s₀ (gt s₀ l), ∃ M ∈ Ls, ∀ x ∈ M, x ∈ Y ∨ x ∈ trL p s₀ φa) →
+      (∀ φb ∈ sels p d (!s₀) (gt s₀ l), ∃ M ∈ Ls, ∀ x ∈ M, x ∈ Y ∨ x ∈ trL p (!s₀) φb) →
+      ∃ Ls₂, Ext Φ V d Ls Ls₂ (2 * (gt s₀ l).size * (sels p d s₀ (gt s₀ l)).length *
+        (sels p d (!s₀) (gt s₀ l)).length) ∧ ∃ M ∈ Ls₂, M ⊆ Y := by
+    intro s₀ l ih hV hX Y hY Ls h ha hb
+    by_cases hn : pd p (gt s₀ l) ≤ d
+    · exact narrow _ hn hV hX s₀ hY h ha hb
+    · have hXm : ∀ ψ ∈ l, ∀ s' : Bool, xtd p d s' ψ ≤ d := by
+        intro ψ hψ s'
+        rcases bool_cases s' s₀ with e | e
+        · rw [e]
+          have := hX s₀
+          rw [xtd_gt_same, if_neg hn] at this
+          exact (le_foldr_max (List.mem_map.2 ⟨ψ, hψ, rfl⟩)).trans this
+        · rw [e]
+          have := hX (!s₀)
+          rw [xtd_gt_opp] at this
+          exact (le_foldr_max (List.mem_map.2 ⟨ψ, hψ, rfl⟩)).trans this
+      obtain ⟨Ls₂, hE, hm⟩ := cut_list s₀ l ih
+        (fun ψ hψ v hv => hV ((mem_fv_gt s₀ l v).2 ⟨ψ, hψ, hv⟩)) hXm hY h
+        (fun ψ hψ φa hφa => ha φa (by
+          rw [sels_gt_same, if_neg hn]
+          exact List.mem_flatten.2 ⟨_, List.mem_map.2 ⟨ψ, hψ, rfl⟩, hφa⟩))
+        (fun l' hl' => by
+          obtain ⟨M, hM, hx⟩ := hb (gt s₀ l') (by
+            rw [sels_gt_opp]
+            exact List.mem_map.2 ⟨l', mem_sections_sels.2 hl', rfl⟩)
+          exact ⟨M, hM, fun x hx' => (hx x hx').imp id fun hg => (mem_trL_gt s₀ l' x).1 hg⟩)
+      refine ⟨Ls₂, hE.mono ?_, hm⟩
+      rw [sels_gt_same, if_neg hn, sels_gt_opp, List.length_map, length_sections,
+        List.length_flatten, size_gt]
+      exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.le_succ _)))
+  refine Fm_ind ?_ ?_ ?_ ?_ ?_
+  · intro i hV hX
+    exact narrow _ (by have := hX true; rw [xtd_var] at this; rw [pd_var]; exact this) hV hX
+  · intro φ ih hV hX s Y hY Ls h h1 h2
+    rw [fv_neg] at hV
+    have hX' : ∀ s' : Bool, xtd p d s' φ ≤ d := fun s' => by
+      have := hX (!s'); rwa [xtd_neg, Bool.not_not] at this
+    obtain ⟨Ls₂, hE, hm⟩ := ih hV hX' (!s) hY h
+      (fun φ1 hφ1 => by
+        obtain ⟨M, hM, hx⟩ := h1 (.neg φ1) (by
+          rw [sels_neg]; exact List.mem_map.2 ⟨φ1, hφ1, rfl⟩)
+        exact ⟨M, hM, fun x hx' => (hx x hx').imp id fun hg => by rw [trL_neg] at hg; exact hg⟩)
+      (fun φ2 hφ2 => by
+        obtain ⟨M, hM, hx⟩ := h2 (.neg φ2) (by
+          rw [sels_neg]; exact List.mem_map.2 ⟨φ2, hφ2, rfl⟩)
+        exact ⟨M, hM, fun x hx' => (hx x hx').imp id fun hg => by rw [trL_neg] at hg; exact hg⟩)
+    refine ⟨Ls₂, hE.mono ?_, hm⟩
+    rw [sels_neg, sels_neg, List.length_map, List.length_map, size_neg]
+    exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.le_succ _)))
+  · intro l ih hV hX s Y hY Ls h h1 h2
+    cases s
+    · obtain ⟨Ls₂, hE, hm⟩ := gate true l ih hV hX hY h h2 h1
+      have e : 2 * (Fm.and l).size * (sels p d true (.and l)).length *
+          (sels p d false (.and l)).length ≤ 2 * (Fm.and l).size *
+          (sels p d false (.and l)).length * (sels p d true (.and l)).length :=
+        le_of_eq (by ring)
+      exact ⟨Ls₂, hE.mono e, hm⟩
+    · exact gate true l ih hV hX hY h h1 h2
+  · intro l ih hV hX s Y hY Ls h h1 h2
+    cases s
+    · exact gate false l ih hV hX hY h h1 h2
+    · obtain ⟨Ls₂, hE, hm⟩ := gate false l ih hV hX hY h h2 h1
+      have e : 2 * (Fm.or l).size * (sels p d false (.or l)).length *
+          (sels p d true (.or l)).length ≤ 2 * (Fm.or l).size *
+          (sels p d true (.or l)).length * (sels p d false (.or l)).length :=
+        le_of_eq (by ring)
+      exact ⟨Ls₂, hE.mono e, hm⟩
+  · intro r l _ hV hX
+    exact narrow _ (by have := hX true; rw [xtd_mod] at this; exact this) hV hX
 
 end
 
