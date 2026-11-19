@@ -470,7 +470,8 @@ theorem sing_conj_inc {a : Assignment} {l : List Fm} (hl : ∀ ψ ∈ l, LitIn V
     (h1 : TrueAt (boolPt (F := ZMod p) a) T) (h2 : TrueAt (boolPt (F := ZMod p) a) U) : False := by
   obtain ⟨ψ, hψ, rfl⟩ := mem_sing.1 hT
   rw [mem_conj] at hU; subst hU
-  exact lit_inc (hl ψ hψ) (h1 _ (by simp)) (h2 _ (by simp; exact ⟨ψ, hψ, rfl⟩))
+  exact lit_inc (s := s) (hl ψ hψ) (h1 _ (Finset.mem_singleton_self _))
+    (h2 _ (by simp only [List.mem_toFinset, List.mem_map]; exact ⟨ψ, hψ, rfl⟩))
 
 theorem msum_cons (φ : Fm) (l : List Fm) : (msum (φ :: l) : AffForm p) = vf φ + msum l := by
   simp [msum]
@@ -543,7 +544,9 @@ theorem tr_inc (a : Assignment) : ∀ φ : Fm, FlatIn V φ → ∀ s : Bool, ∀
     intro T hT U hU h1 h2
     rw [tr_lit (.var i) h, Finset.mem_singleton] at hT hU
     subst hT; subst hU
-    exact lit_inc h (h1 _ (by simp)) (h2 _ (by simp))
+    have h' : LitIn V (.var i) := h
+    exact lit_inc (s := s) h' (h1 _ (Finset.mem_singleton_self _))
+      (h2 _ (Finset.mem_singleton_self _))
   | .neg φ, h, s => by
     intro T hT U hU h1 h2
     rw [tr_neg] at hT hU
@@ -595,7 +598,7 @@ theorem tr_single : ∀ (φ : Fm) (s : Bool),
     · exact Or.inr ⟨_, rfl⟩
     · exact Or.inl ⟨_, rfl⟩
 
-theorem card_zmod_image_le {β : Type} (S : Finset (ZMod p)) (g : ZMod p → β) :
+theorem card_zmod_image_le {β : Type} [DecidableEq β] (S : Finset (ZMod p)) (g : ZMod p → β) :
     (S.image g).card ≤ p := by
   refine Finset.card_image_le.trans ((Finset.card_le_univ S).trans ?_)
   rw [ZMod.card]
@@ -609,16 +612,21 @@ theorem card_tr : ∀ (φ : Fm) (s : Bool), (tr s φ : RLine p).card ≤ wt φ +
   | .neg φ, s => by rw [tr_neg]; exact card_tr φ (!s)
   | .or l, s => by
     cases s
-    · simp [tr, conj, wt]
-    · exact (card_sing_le true l).trans (by simp [wt]; omega)
+    · show (({(l.map (zf false)).toFinset} : RLine p)).card ≤ l.length + 1 + p
+      rw [Finset.card_singleton]; omega
+    · exact (card_sing_le true l).trans (by show l.length ≤ l.length + 1 + p; omega)
   | .and l, s => by
     cases s
-    · exact (card_sing_le false l).trans (by simp [wt]; omega)
-    · simp [tr, conj, wt]
+    · exact (card_sing_le false l).trans (by show l.length ≤ l.length + 1 + p; omega)
+    · show (({(l.map (zf true)).toFinset} : RLine p)).card ≤ l.length + 1 + p
+      rw [Finset.card_singleton]; omega
   | .mod r l, s => by
     cases s
-    · exact (card_zmod_image_le _ _).trans (by omega)
-    · simp [tr, wt]
+    · show ((Finset.univ.filter (fun c : ZMod p => c ≠ (r : ZMod p))).image
+        (fun c => ({msum l - cf c} : Term p))).card ≤ l.length + 1 + p
+      exact (card_zmod_image_le (p := p) _ _).trans (Nat.le_add_left _ _)
+    · show (({{msum l - cf (r : ZMod p)}} : RLine p)).card ≤ l.length + 1 + p
+      rw [Finset.card_singleton]; omega
 
 /-! ## Sequents -/
 
@@ -721,7 +729,7 @@ theorem reach_PT {v₀ : ℕ} (hv : v₀ ∈ V) (hρ : 1 ≤ ρ) (l : List Fm) :
       rcases Finset.mem_insert.1 hT with rfl | hT
       · exact goodT_singleton hρ (zf_supp φ hφ _)
       · exact gPT T hT
-    have hcard : (PT l : RLine p).card ≤ p := card_zmod_image_le _ _
+    have hcard : (PT l : RLine p).card ≤ p := by unfold PT; exact card_zmod_image_le (p := p) _ _
     obtain ⟨Ls₃, hE₃, hm₃⟩ := reach_map (Φ := Φ) (L₂ := ({{zf false φ}, {zf (!false) φ}} : RLine p))
       (U := {zf false φ}) (by simp) (fun T => some (T.image (· + vf φ))) gY
       (by
