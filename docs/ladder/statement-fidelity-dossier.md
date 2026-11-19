@@ -917,6 +917,8 @@ Replaces the informal "strengthens/weakens/neutral" for system rules in Sections
 | Tree-like Res(xor) `RL.RLD` (s axiom leaves) into `RL.DagRefutes` | `rld_dagRefutes` (ResLinDag.lean, already present) | s leaves -> at most 2s lines |
 | `RLDag` from the usual encoding `x=1` (`linAxU`) into `Pang.Refutation` | `EmbedUsual.rldag_usual_to_pang` | n -> n + cost + 1 |
 | `Pang.Refutation` into `RLDag` from the usual encoding | `EmbedUsual.pang_to_rldag_usual` | S -> 2S + sum over clauses (width + 1) |
+| `Pang.Refutation` into `C1.RRefutation` (`R_rho^p`, every `rho >= 1`, `V` nonempty) | `PangR.pang_to_rref` (EmbedPangR.lean) | S -> S+3 |
+| `RL.Der` (dag-like Res(xor), semantic weakening) into `RLDag` over F_2 (syntactic) | `RLF.dagRefutes_to_rldag2` (EmbedXorBack.lean) | s -> xorBackCost W N * s, `W` line width, `N` variables per equation, `O(W^2 N)` |
 
 Consequences for the labels. Section 2.4 row 2 (semantic weakening): `DagRefutes` equals the BCD/EGI semantic system up to
 factor 3, and contains the syntactic standard system with no loss, so "strengthens relative to syntactic, neutral for the
@@ -942,6 +944,40 @@ EGI as cited by the Lean file.
 Done: tree-like `RLF.RLD` into `RLDag` by node count (`EmbedTree.lean`); the usual literal encoding `x=1` in both directions with
 the Pang embeddings (`EmbedUsual.lean`, Section 16 caveat (i)); tree-like Res(xor) `RL.RLD` into `DagRefutes`, which turned out
 to be already proved (`rld_dagRefutes`, factor 2 in the leaf count), so the planned half session was not needed.
+
+Done in branch r4/pang-constdepth (both former items of the list below, with the qualifications stated):
+
+1. Semantic weakening removed over F_2 (converse of `rldag2_to_dagRefutes`). `RLF.dagRefutes_to_rldag2` (EmbedXorBack.lean):
+   a dag-like Res(xor) derivation `P` (`RL.Der`, semantic weakening, resolution on weakenings) of the CNF `Phi` containing the
+   empty clause, all of whose lines have at most `W` equations each with at most `N` variables, gives an `RLDag` refutation over
+   `ZMod 2` from `Ax2 Phi ∪ boolAx` with at most `xorBackCost W N * |P|` lines, `xorBackCost W N = 2((W+1)(12(N+4WN)+5) + W(W+2) + 1) + 3`.
+   The scoping note of the previous session was wrong for F_2: there every point of `F_2^n` is Boolean, so `Imp L0 L` is linear
+   algebra, not a tautology problem. Proof: for an equation `g` of the current line not in `L`, the affine system `g`, `not e`
+   (`e ∈ L`) is inconsistent, so (`decomp`, separating functional `Submodule.exists_le_ker_of_notMem`) `beta g + sum_{e in T} not e`
+   is `0 = 1` for some `T ⊆ L`; `g` is then removed by `|T|` combinations with the lines `e ∨ not e` and one deletion of `0 = 1`
+   (`r_elim`); `f = 0 ∨ f = 1` costs at most `12 |supp f| + 5` lines from the Boolean axioms (`r_taut`). One weakening `M0 ⊨ L`
+   costs at most `|L|(12N+5) + |M0|(|L|+1) + 1` lines (`r_wsim`). The resolution step first restricts the resolved form to the
+   variables of the four clauses involved (`imp_restrict`), so its size is at most `4WN`. Qualifications: the overhead is polynomial
+   in the symbol size of the Res(xor) refutation (line width times variables per equation), not in its line count alone; the converse
+   of `stdXor_refutes_to_dag` (BCD's syntactic standard Res(xor) as the target, rather than Part-Tzameret's syntactic Res(lin F_2))
+   is obtained only through `RLDag`, which `rldag_refutes_to_stdLin` turns into Part-Tzameret's list system with no loss; a direct
+   statement for BCD's syntactic `XDer` was not written. Over F_p with p > 2 semantic weakening on the Boolean cube is not linear
+   algebra and nothing is claimed.
+2. `Pang.Refutation` into `C1.RRefutation`. `PangR.pang_to_rref` (EmbedPangR.lean): for every `rho >= 1` and nonempty `V`, a
+   `Pang.Refutation Phi V p` with `S` nodes gives an `RRefutation Phi V rho p` with at most `S + 3` nodes. Each linear polynomial `h`
+   goes to the rank one term `{nrm (toF h)}` (its affine form, scaled so that its least variable has coefficient 1; this makes the
+   translation of a CNF clause exactly `clauseRLine`); `init`, `bool`, `weak` map to the same rules, `falseConst` and `mul` to `sem1`,
+   `comb` to `sem2`, and the axiom `0 = 0` is derived once in three nodes. So every lower bound for `R_rho^p` with `rho >= 1`
+   (`C1.c1_main`) applies to `Pang.Refutation`; this is weaker than Pang's own theorem and adds no new bound. Note on the wording:
+   `R_rho^p` is a bounded rank calculus, not a constant-depth Frege system. No theorem relates `Pang.Refutation` to the pinned AC0[p]
+   Frege sequent calculus `FProof`/`FRefutes` (AC0pFrege.lean) in either direction. The direction Pang into `FRefutes` (depth 2:
+   a line becomes an `OR` of `MOD_p` gates over literals, the equation `sum c_i x_i + c = 0` being `MOD_{p,-c}` of the multiset with
+   `x_i` repeated `c_i` times) needs, inside the sequent calculus with only the cons-wise `MOD_p` defining axioms of `FStep`,
+   polynomial-size derivations of: additivity `MOD_r(l), MOD_s(l') ⊢ MOD_{r+s}(l ++ l')`, invariance of `MOD_r` under permutation of
+   its arguments, deletion of `p` copies of one literal, and scaling; none of this MOD-gate arithmetic exists in the repository and it
+   is estimated at well over a thousand lines. The converse (`FRefutes` into Pang) is not addressed. The fragments `FBridge.frege_to_R` and `FDeg.frege_to_PIC` remain the only links from `FProof`.
+
+Earlier text of this section (before r4/pang-constdepth), kept for the record; its item 1 scoping is superseded by item 1 above:
 
 Not done, each several sessions:
 
