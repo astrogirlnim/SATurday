@@ -979,18 +979,17 @@ theorem reach_prod (gs : List (Pang.PP p)) : ∀ {Y : PLine p}, GoodL V d Y →
       obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_weak hE₁.1 hM₁ hsub' hY
       exact ⟨Ls₂, (hE₁.trans hE₂).mono (by simp only [List.length_cons]; omega), hm₂⟩
 
-/-- Derive a list of target lines one after the other. -/
+/-- Derive a list of target lines one after the other (each from any extension of `Ls`). -/
 theorem reach_list {α : Type} (ts : List α) (cost : α → ℕ) (tgt : α → PLine p)
-    (H : ∀ t ∈ ts, ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
-      ∃ Ls₂, Ext Φ V d Ls Ls₂ (cost t) ∧ tgt t ∈ Ls₂) :
-    ∀ {Ls : List (PLine p)}, Der Φ V d Ls →
-      ∃ Ls₂, Ext Φ V d Ls Ls₂ ((ts.map cost).sum) ∧ ∀ t ∈ ts, tgt t ∈ Ls₂ := by
+    {Ls : List (PLine p)}
+    (H : ∀ t ∈ ts, ∀ {Ls' : List (PLine p)}, Der Φ V d Ls' → (∀ M ∈ Ls, M ∈ Ls') →
+      ∃ Ls₂, Ext Φ V d Ls' Ls₂ (cost t) ∧ tgt t ∈ Ls₂) (h : Der Φ V d Ls) :
+    ∃ Ls₂, Ext Φ V d Ls Ls₂ ((ts.map cost).sum) ∧ ∀ t ∈ ts, tgt t ∈ Ls₂ := by
   induction ts with
-  | nil => intro Ls h; exact ⟨Ls, Ext.refl h, by simp⟩
+  | nil => exact ⟨Ls, Ext.refl h, by simp⟩
   | cons t ts ih =>
-    intro Ls h
-    obtain ⟨Ls₁, hE₁, hm₁⟩ := ih (fun t' ht' => H t' (List.mem_cons_of_mem _ ht')) h
-    obtain ⟨Ls₂, hE₂, hm₂⟩ := H t (by simp) hE₁.1
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := ih (fun t' ht' => H t' (List.mem_cons_of_mem _ ht'))
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := H t (by simp) hE₁.1 hE₁.2.1
     refine ⟨Ls₂, (hE₁.trans hE₂).mono (by simp only [List.map_cons, List.sum_cons]; omega), ?_⟩
     intro t' ht'
     rcases List.mem_cons.1 ht' with rfl | ht'
@@ -1046,7 +1045,7 @@ theorem reach_split : ∀ (φ : Fm), pd p φ ≤ d → fv φ ⊆ V → ∀ (s : 
         simpa [sg] using this
       obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_list (Φ := Φ) (V := V) (d := d) l
         (fun ψ => 5 * ψ.size - 2) (fun ψ => insert (val p ψ) Y)
-        (fun ψ hψ Ls' h' => ih ψ hψ (hmemd ψ hψ) (hmemV ψ hψ) false
+        (fun ψ hψ Ls' h' _ => ih ψ hψ (hmemd ψ hψ) (hmemV ψ hψ) false
           (Y := insert (val p ψ) Y)
           (fun x hx => by
             rcases Finset.mem_insert.1 hx with rfl | hx
@@ -1085,7 +1084,7 @@ theorem reach_split : ∀ (φ : Fm), pd p φ ≤ d → fv φ ⊆ V → ∀ (s : 
         simpa [sg] using this
       obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_list (Φ := Φ) (V := V) (d := d) l
         (fun ψ => 5 * ψ.size - 2) (fun ψ => insert (1 - val p ψ) Y)
-        (fun ψ hψ Ls' h' => ih ψ hψ (hmemd ψ hψ) (hmemV ψ hψ) true
+        (fun ψ hψ Ls' h' _ => ih ψ hψ (hmemd ψ hψ) (hmemV ψ hψ) true
           (Y := insert (1 - val p ψ) Y)
           (fun x hx => by
             rcases Finset.mem_insert.1 hx with rfl | hx
@@ -1112,6 +1111,430 @@ theorem reach_split : ∀ (φ : Fm), pd p φ ≤ d → fv φ ⊆ V → ∀ (s : 
     have h1 : sg s (val p (.mod r l)) ∈ Y := hsub _ (by rw [trL_mod]; simp)
     obtain ⟨Ls₂, hE, hm⟩ := reach_sgpair h _ s hY h1 h2
     exact ⟨Ls₂, hE.mono (by have := FBridge.size_pos (.mod r l); omega), hm⟩
+
+/-! ## Simulation of the sequent calculus -/
+
+/-- Weight of a sequent: total formula size plus one. -/
+def wS (S : Seq) : ℕ := ((S.1 ++ S.2).map Fm.size).sum + 1
+
+theorem size_le_wS {S : Seq} {φ : Fm} (h : φ ∈ S.1 ++ S.2) : φ.size + 1 ≤ wS S := by
+  have := le_sum_of_mem (List.mem_map.2 ⟨φ, h, rfl⟩ : φ.size ∈ (S.1 ++ S.2).map Fm.size)
+  unfold wS; omega
+
+theorem sum_size_succ (l : List Fm) :
+    (l.map fun ψ => ψ.size + 1).sum = (l.map Fm.size).sum + l.length := by
+  induction l with
+  | nil => simp
+  | cons φ l ih => simp only [List.map_cons, List.sum_cons, List.length_cons, ih]; omega
+
+theorem card_trL_le (s : Bool) (φ : Fm) : (trL p s φ).toFinset.card ≤ φ.size :=
+  (List.toFinset_card_le _).trans (length_trL φ s)
+
+theorem litInd_mem (l : Literal) : (litInd l : Pang.PP p) ∈ trL p true (litFm l) := by
+  unfold litFm litInd litPoly
+  by_cases h : l.pos
+  · rw [if_pos h, if_pos h, trL_var]; simp [sg]
+  · rw [if_neg h, if_neg h, trL_neg, trL_var]; simp [sg]
+
+/-- Semantic condition from an implication between truth values. -/
+theorem sem3 (a : Assignment) (μ φ ν : Fm) (s t : Bool)
+    (himp : μ.eval p a = true → φ.eval p a = s → ν.eval p a = t) :
+    eval (boolPt (F := ZMod p) a) (val p μ) * eval (boolPt (F := ZMod p) a) (sg s (val p φ)) *
+      (1 - eval (boolPt (F := ZMod p) a) (sg t (val p ν))) = 0 := by
+  rw [eval_val, eval_sg_val, eval_sg_val]
+  unfold tv
+  by_cases h1 : μ.eval p a = true
+  · by_cases h2 : φ.eval p a = s
+    · rw [if_pos (himp h1 h2)]; simp
+    · rw [if_neg h2]; simp
+  · rw [if_neg h1]; simp
+
+/-- A `MOD_p` defining axiom: from excluded middle for the value of `μ`, the splitting of `φ`
+and one semantic step. -/
+theorem reach_modax {Ls : List (PLine p)} (h : Der Φ V d Ls) {Y : PLine p} (hY : GoodL V d Y)
+    (μ φ ν : Fm) (s t : Bool) (hμd : pd p μ ≤ d) (hμV : fv μ ⊆ V) (hφd : pd p φ ≤ d)
+    (hφV : fv φ ⊆ V) (h1 : 1 - val p μ ∈ Y) (h2 : ∀ g ∈ trL p s φ, g ∈ Y)
+    (h3 : sg t (val p ν) ∈ Y)
+    (himp : ∀ a : Assignment, μ.eval p a = true → φ.eval p a = (!s) → ν.eval p a = t) :
+    ∃ Ls₂, Ext Φ V d Ls Ls₂ (5 * φ.size) ∧ Y ∈ Ls₂ := by
+  have hIμ : Ind V d (val p μ) := by simpa [sg] using ind_sg (p := p) hμd hμV true
+  set A : PLine p := {val p μ, 1 - val p μ} with hA
+  have gA : GoodL V d A := by
+    intro x hx
+    rcases Finset.mem_insert.1 hx with rfl | hx
+    · exact hIμ
+    · rw [Finset.mem_singleton] at hx; subst hx; exact ind_one_sub hIμ
+  set Y₂ : PLine p := insert (sg (!s) (val p φ)) Y with hY₂
+  have gY₂ : GoodL V d Y₂ := by
+    intro x hx
+    rcases Finset.mem_insert.1 hx with rfl | hx
+    · exact ind_sg hφd hφV _
+    · exact hY x hx
+  obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_step h (prems := []) (by simp) (PInfer.taut (val p μ)) gA
+  obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_split φ hφd hφV s gY₂
+    (fun g hg => Finset.mem_insert_of_mem (h2 g hg)) (Finset.mem_insert_self _ _) hE₁.1
+  obtain ⟨Ls₃, hE₃, hm₃⟩ := reach_step hE₂.1 (prems := [A, Y₂])
+    (by intro N hN; simp at hN; rcases hN with rfl | rfl
+        · exact hE₂.2.1 _ hm₁
+        · exact hm₂)
+    (PInfer.sem2 (g₁ := val p μ) (g₂ := sg (!s) (val p φ)) (g₃ := sg t (val p ν))
+      (by rw [hA]; simp) (Finset.mem_insert_self _ _)
+      (fun a => sem3 a μ φ ν (!s) t (himp a)) Y
+      (fun x hx => by
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases Finset.mem_insert.1 hx with rfl | hx
+        · exact absurd rfl hne
+        · rw [Finset.mem_singleton] at hx; subst hx; exact h1)
+      (fun x hx => by
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases Finset.mem_insert.1 hx with rfl | hx
+        · exact absurd rfl hne
+        · exact hx)
+      (Or.inl h3)) hY
+  refine ⟨Ls₃, ((hE₁.trans hE₂).trans hE₃).mono ?_, hm₃⟩
+  have := FBridge.size_pos φ
+  omega
+
+/-- Gate introduction: from lines `⊆ Y ∪ trL p s ψ` for every member, derive `Y`, which contains
+the product of the single terms `sg s (val p ψ)`. -/
+theorem reach_gate {Ls : List (PLine p)} (h : Der Φ V d Ls) {Y : PLine p} (hY : GoodL V d Y)
+    (l : List Fm) (s : Bool) (hd : (l.map (pd p)).sum ≤ d) (hV : ∀ ψ ∈ l, fv ψ ⊆ V)
+    (hprod : (l.map fun ψ => sg s (val p ψ)).prod ∈ Y)
+    (hlines : ∀ ψ ∈ l, ∃ L₁ ∈ Ls, ∀ x ∈ L₁, x ∈ Y ∨ x ∈ trL p s ψ) :
+    ∃ Ls₂, Ext Φ V d Ls Ls₂ (4 * (l.map Fm.size).sum + 2) ∧ Y ∈ Ls₂ := by
+  have hmemd : ∀ ψ ∈ l, pd p ψ ≤ d := fun ψ hψ =>
+    (le_sum_of_mem (List.mem_map.2 ⟨ψ, hψ, rfl⟩)).trans hd
+  have hI : ∀ ψ ∈ l, Ind V d (sg s (val p ψ)) := fun ψ hψ => ind_sg (hmemd ψ hψ) (hV ψ hψ) s
+  obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_list (Φ := Φ) (V := V) (d := d) l
+    (fun ψ => ψ.size + 1) (fun ψ => insert (sg s (val p ψ)) Y)
+    (fun ψ hψ Ls' h' hsub => by
+      obtain ⟨L₁, hL₁, hx⟩ := hlines ψ hψ
+      have gY' : GoodL V d (insert (sg s (val p ψ)) Y) := by
+        intro x hx'
+        rcases Finset.mem_insert.1 hx' with rfl | hx'
+        · exact hI ψ hψ
+        · exact hY x hx'
+      obtain ⟨Ls₂, hE, hm⟩ := reach_map1 (sg s (val p ψ)) gY' (Or.inl (Finset.mem_insert_self _ _))
+        (trL p s ψ).toFinset (fun T hT a => tr_imp (List.mem_toFinset.1 hT) a) h' (hsub _ hL₁)
+        (fun x hx' => by
+          obtain ⟨hx1, hx2⟩ := Finset.mem_sdiff.1 hx'
+          rcases hx x hx1 with hxY | hxT
+          · exact Finset.mem_insert_of_mem hxY
+          · exact absurd (List.mem_toFinset.2 hxT) hx2)
+      exact ⟨Ls₂, hE.mono (by have := card_trL_le (p := p) s ψ; show _ ≤ ψ.size + 1; omega), hm⟩) h
+  obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_prod (l.map fun ψ => sg s (val p ψ)) hY
+    (fun g hg => by obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hg; exact hI ψ hψ)
+    ((sum_deg_le l _ fun ψ _ => by
+      cases s
+      · exact (deg_one_sub _).trans (deg_val ψ)
+      · exact deg_val ψ).trans hd)
+    hprod hE₁.1
+    (fun g hg => by
+      obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.1 hg
+      exact ⟨_, hm₁ ψ hψ, subset_rfl⟩)
+  refine ⟨Ls₂, (hE₁.trans hE₂).mono ?_, hm₂⟩
+  have h1 := sum_size_succ l
+  have h2 := FBridge.length_le_sum_size l
+  rw [List.length_map, h1]
+  omega
+
+/-- **One step of the sequent calculus**, simulated with at most `10 (wS S + M)` new lines, `M` a
+bound on the weights of earlier lines. -/
+theorem step_sim {F : CNF} {prev : List Seq} {S : Seq}
+    (hstep : FStep p F prev S) (hd : DegS p d S) (hV : VarS V S) (M : ℕ)
+    (hM : ∀ T ∈ prev, wS T ≤ M)
+    {Ls : List (PLine p)} (h : Der F V d Ls) (hprev : ∀ T ∈ prev, trS p T ∈ Ls) :
+    ∃ Ls₂, Ext F V d Ls Ls₂ (10 * (wS S + M)) ∧ trS p S ∈ Ls₂ := by
+  have hp0 : 0 < p := (Fact.out : p.Prime).pos
+  have G := good_trS hd hV
+  have hW : 1 ≤ wS S := by unfold wS; omega
+  have fin : ∀ {c : ℕ}, (∃ Ls₂, Ext F V d Ls Ls₂ c ∧ trS p S ∈ Ls₂) → c ≤ 10 * (wS S + M) →
+      ∃ Ls₂, Ext F V d Ls Ls₂ (10 * (wS S + M)) ∧ trS p S ∈ Ls₂ := by
+    rintro c ⟨Ls₂, hE, hm⟩ hc
+    exact ⟨Ls₂, hE.mono hc, hm⟩
+  have hsat : ∀ {S' : Seq}, FStep p (∅ : CNF) [] S' → ∀ a : Assignment, SeqSat p a S' :=
+    fun hS' a => fstep_sound hp0 (F := ∅) (a := a) (fun C hC => by simp at hC)
+      (prev := []) (fun T hT => by simp at hT) hS'
+  have hvalid : ∀ (φ : Fm) (s : Bool), sg s (val p φ) ∈ trS p S →
+      (∀ a : Assignment, φ.eval p a = s) →
+      ∃ Ls₂, Ext F V d Ls Ls₂ (10 * (wS S + M)) ∧ trS p S ∈ Ls₂ := by
+    intro φ s hmem hev
+    exact fin (reach_valid h (fun a => by rw [eval_sg_val, if_pos (hev a)]) G hmem) (by omega)
+  rcases hstep with ⟨C, hC, rfl⟩ | ⟨φ, rfl⟩ | rfl | rfl | rfl | ⟨r, hr, rfl⟩ | ⟨r, φ, l, rfl⟩ |
+      ⟨r, φ, l, rfl⟩ | ⟨r, φ, l, rfl⟩ | ⟨r, φ, l, rfl⟩ | ⟨T, hT, h1, h2⟩ | ⟨φ, h1, h2⟩ |
+      ⟨φ, Γ, Δ, rfl, h1⟩ | ⟨φ, Γ, Δ, rfl, h1⟩ | ⟨l, Γ, Δ, φ, hφ, rfl, h1⟩ | ⟨l, Γ, Δ, rfl, h1⟩ |
+      ⟨l, Γ, Δ, rfl, h1⟩ | ⟨l, Γ, Δ, φ, hφ, rfl, h1⟩
+  · -- clause axiom
+    have hsub : (C.image litInd : PLine p) ⊆ trS p ([], [clauseFm C]) := by
+      intro g hg
+      obtain ⟨l, hl, rfl⟩ := Finset.mem_image.1 hg
+      refine mem_trS.2 (Or.inr ⟨clauseFm C, by simp, ?_⟩)
+      exact (mem_trL_or_true _ _).2 ⟨litFm l, List.mem_map.2 ⟨l, Finset.mem_toList.2 hl, rfl⟩,
+        litInd_mem l⟩
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_step h (prems := []) (by simp) (PInfer.init C hC)
+      (fun g hg => G g (hsub hg))
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_weak hE₁.1 hm₁ hsub G
+    exact fin ⟨Ls₂, hE₁.trans hE₂, hm₂⟩ (by omega)
+  · -- φ ⊢ φ
+    have hφV : fv φ ⊆ V := hV φ (by simp)
+    have hφd : pd p φ ≤ d := by
+      obtain ⟨s, hs, -⟩ := tr_single (p := p) φ
+      rw [← hs]
+      cases s
+      · exact hd.1 φ (by simp)
+      · exact hd.2 φ (by simp)
+    set Y := trS p ([φ], [φ]) with hYdef
+    have gI : ∀ s : Bool, GoodL V d (insert (sg s (val p φ)) Y) := by
+      intro s x hx
+      rcases Finset.mem_insert.1 hx with rfl | hx
+      · exact ind_sg hφd hφV _
+      · exact G x hx
+    obtain ⟨Ls₁, hE₁, hm₁⟩ := reach_split φ hφd hφV true (gI false)
+      (fun g hg => Finset.mem_insert_of_mem (mem_trS.2 (Or.inr ⟨φ, by simp, hg⟩)))
+      (Finset.mem_insert_self _ _) h
+    obtain ⟨Ls₂, hE₂, hm₂⟩ := reach_split φ hφd hφV false (gI true)
+      (fun g hg => Finset.mem_insert_of_mem (mem_trS.2 (Or.inl ⟨φ, by simp, hg⟩)))
+      (Finset.mem_insert_self _ _) hE₁.1
+    obtain ⟨Ls₃, hE₃, hm₃⟩ := reach_step hE₂.1
+      (prems := [insert (sg false (val p φ)) Y, insert (sg true (val p φ)) Y])
+      (by intro N hN; simp at hN; rcases hN with rfl | rfl
+          · exact hE₂.2.1 _ hm₁
+          · exact hm₂)
+      (PInfer.sem2 (g₁ := sg false (val p φ)) (g₂ := sg true (val p φ)) (g₃ := 0)
+        (Finset.mem_insert_self _ _) (Finset.mem_insert_self _ _)
+        (fun a => by
+          rw [eval_sg_val, eval_sg_val]
+          cases Fm.eval p a φ <;> simp) Y
+        (Finset.erase_insert_subset _ _) (Finset.erase_insert_subset _ _) (Or.inr rfl)) G
+    have := size_le_wS (S := ([φ], [φ])) (φ := φ) (by simp)
+    exact fin ⟨Ls₃, (hE₁.trans hE₂).trans hE₃, hm₃⟩ (by omega)
+  · -- ⊢ AND()
+    refine hvalid (.and []) true (mem_trS.2 (Or.inr ⟨.and [], by simp, ?_⟩))
+      (fun a => Fm.eval_and.2 (by simp))
+    rw [trL_and_true]; simp [sg]
+  · -- OR() ⊢
+    refine hvalid (.or []) false (mem_trS.2 (Or.inl ⟨.or [], by simp, ?_⟩)) (fun a => ?_)
+    · rw [trL_or_false]; simp [sg]
+    · by_contra hc
+      have h6 : Fm.eval p a (.or []) = true := by simpa using hc
+      obtain ⟨ψ, hψ, -⟩ := Fm.eval_or.1 h6
+      simp at hψ
+  · -- ⊢ MOD_0()
+    refine hvalid (.mod 0 []) true (mem_trS.2 (Or.inr ⟨.mod 0 [], by simp, ?_⟩))
+      (fun a => Fm.eval_mod.2 (by rw [Fm.cnt_nil]))
+    rw [trL_mod]; simp
+  · -- MOD_r() ⊢, r ≠ 0
+    refine hvalid (.mod r []) false (mem_trS.2 (Or.inl ⟨.mod r [], by simp, ?_⟩)) (fun a => ?_)
+    · rw [trL_mod]; simp
+    · by_contra hc
+      have h6 : Fm.eval p a (.mod r []) = true := by simpa using hc
+      have h7 := Fm.eval_mod.1 h6
+      rw [Fm.cnt_nil, Nat.zero_mod] at h7
+      exact hr h7.symm
+  · -- MOD_r(φ, l), φ ⊢ MOD_{r-1}(l)
+    have hμ : pd p (.mod r (φ :: l)) ≤ d := by
+      have := hd.1 (.mod r (φ :: l)) (by simp); rwa [td_mod] at this
+    have hs := hsat (S' := ([.mod r (φ :: l), φ], [.mod (r + p - 1) l])) (by
+      unfold FStep
+      exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, φ, l, rfl⟩)))))))
+    have := size_le_wS (S := ([.mod r (φ :: l), φ], [.mod (r + p - 1) l])) (φ := φ) (by simp)
+    refine fin (reach_modax h G (.mod r (φ :: l)) φ (.mod (r + p - 1) l) false true hμ
+      (hV _ (by simp)) ((pd_le_mod (by simp)).trans hμ) (hV _ (by simp)) ?_ ?_ ?_ ?_) (by omega)
+    · exact mem_trS.2 (Or.inl ⟨.mod r (φ :: l), by simp, by rw [trL_mod]; simp [sg]⟩)
+    · exact fun g hg => mem_trS.2 (Or.inl ⟨φ, by simp, hg⟩)
+    · exact mem_trS.2 (Or.inr ⟨.mod (r + p - 1) l, by simp, by rw [trL_mod]; simp⟩)
+    · intro a h1 h2
+      obtain ⟨ψ, hψ, he⟩ := hs a (by
+        intro χ hχ; simp at hχ; rcases hχ with rfl | rfl
+        · exact h1
+        · simpa using h2)
+      simp at hψ; subst hψ; exact he
+  · -- MOD_r(φ, l) ⊢ φ, MOD_r(l)
+    have hμ : pd p (.mod r (φ :: l)) ≤ d := by
+      have := hd.1 (.mod r (φ :: l)) (by simp); rwa [td_mod] at this
+    have hs := hsat (S' := ([.mod r (φ :: l)], [φ, .mod r l])) (by
+      unfold FStep
+      exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, φ, l, rfl⟩))))))))
+    have := size_le_wS (S := ([.mod r (φ :: l)], [φ, .mod r l])) (φ := φ) (by simp)
+    refine fin (reach_modax h G (.mod r (φ :: l)) φ (.mod r l) true true hμ
+      (hV _ (by simp)) ((pd_le_mod (by simp)).trans hμ) (hV _ (by simp)) ?_ ?_ ?_ ?_) (by omega)
+    · exact mem_trS.2 (Or.inl ⟨.mod r (φ :: l), by simp, by rw [trL_mod]; simp [sg]⟩)
+    · exact fun g hg => mem_trS.2 (Or.inr ⟨φ, by simp, hg⟩)
+    · exact mem_trS.2 (Or.inr ⟨.mod r l, by simp, by rw [trL_mod]; simp⟩)
+    · intro a h1 h2
+      obtain ⟨ψ, hψ, he⟩ := hs a (by
+        intro χ hχ; simp at hχ; subst hχ; exact h1)
+      simp at hψ
+      rcases hψ with rfl | rfl
+      · rw [he] at h2; simp at h2
+      · exact he
+  · -- φ, MOD_{r-1}(l) ⊢ MOD_r(φ, l)
+    have hν : pd p (.mod r (φ :: l)) ≤ d := by
+      have := hd.2 (.mod r (φ :: l)) (by simp); rwa [td_mod] at this
+    have hμ : pd p (.mod (r + p - 1) l) ≤ d := by
+      have := hd.1 (.mod (r + p - 1) l) (by simp); rwa [td_mod] at this
+    have hs := hsat (S' := ([φ, .mod (r + p - 1) l], [.mod r (φ :: l)])) (by
+      unfold FStep
+      exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+        (Or.inl ⟨r, φ, l, rfl⟩)))))))))
+    have := size_le_wS (S := ([φ, .mod (r + p - 1) l], [.mod r (φ :: l)])) (φ := φ) (by simp)
+    refine fin (reach_modax h G (.mod (r + p - 1) l) φ (.mod r (φ :: l)) false true hμ
+      (hV _ (by simp)) ((pd_le_mod (by simp)).trans hν) (hV _ (by simp)) ?_ ?_ ?_ ?_) (by omega)
+    · exact mem_trS.2 (Or.inl ⟨.mod (r + p - 1) l, by simp, by rw [trL_mod]; simp [sg]⟩)
+    · exact fun g hg => mem_trS.2 (Or.inl ⟨φ, by simp, hg⟩)
+    · exact mem_trS.2 (Or.inr ⟨.mod r (φ :: l), by simp, by rw [trL_mod]; simp⟩)
+    · intro a h1 h2
+      obtain ⟨ψ, hψ, he⟩ := hs a (by
+        intro χ hχ; simp at hχ; rcases hχ with rfl | rfl
+        · simpa using h2
+        · exact h1)
+      simp at hψ; subst hψ; exact he
+  · -- MOD_r(l) ⊢ φ, MOD_r(φ, l)
+    have hν : pd p (.mod r (φ :: l)) ≤ d := by
+      have := hd.2 (.mod r (φ :: l)) (by simp); rwa [td_mod] at this
+    have hμ : pd p (.mod r l) ≤ d := by
+      have := hd.1 (.mod r l) (by simp); rwa [td_mod] at this
+    have hs := hsat (S' := ([.mod r l], [φ, .mod r (φ :: l)])) (by
+      unfold FStep
+      exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+        (Or.inl ⟨r, φ, l, rfl⟩))))))))))
+    have := size_le_wS (S := ([.mod r l], [φ, .mod r (φ :: l)])) (φ := φ) (by simp)
+    refine fin (reach_modax h G (.mod r l) φ (.mod r (φ :: l)) true true hμ
+      (hV _ (by simp)) ((pd_le_mod (by simp)).trans hν) (hV _ (by simp)) ?_ ?_ ?_ ?_) (by omega)
+    · exact mem_trS.2 (Or.inl ⟨.mod r l, by simp, by rw [trL_mod]; simp [sg]⟩)
+    · exact fun g hg => mem_trS.2 (Or.inr ⟨φ, by simp, hg⟩)
+    · exact mem_trS.2 (Or.inr ⟨.mod r (φ :: l), by simp, by rw [trL_mod]; simp⟩)
+    · intro a h1 h2
+      obtain ⟨ψ, hψ, he⟩ := hs a (by
+        intro χ hχ; simp at hχ; subst hχ; exact h1)
+      simp at hψ
+      rcases hψ with rfl | rfl
+      · rw [he] at h2; simp at h2
+      · exact he
+  · -- weakening
+    have hsub : trS p T ⊆ trS p S := by
+      intro g hg
+      rcases mem_trS.1 hg with ⟨φ, hφ, hg⟩ | ⟨φ, hφ, hg⟩
+      · exact mem_trS.2 (Or.inl ⟨φ, h1 hφ, hg⟩)
+      · exact mem_trS.2 (Or.inr ⟨φ, h2 hφ, hg⟩)
+    exact fin (reach_weak h (hprev T hT) hsub G) (by omega)
+  · -- cut
+    obtain ⟨s, -, hs⟩ := tr_single (p := p) φ
+    have hφ1 := size_le_wS (S := (S.1, φ :: S.2)) (φ := φ) (by simp)
+    have hM1 := hM _ h1
+    cases s
+    · -- the negative translation is a single term
+      have hU : sg false (val p φ) ∈ trS p (φ :: S.1, S.2) :=
+        mem_trS.2 (Or.inl ⟨φ, by simp, by rw [hs]; simp⟩)
+      refine fin (reach_map2 hU 0 G ?_ (Or.inr rfl) (trL p true φ).toFinset
+        (fun T hT a => tr_excl (s := false) (List.mem_toFinset.1 hT) a) h (hprev _ h2)
+        (hprev _ h1) ?_) (by have := card_trL_le (p := p) true φ; omega)
+      · intro x hx
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases mem_trS.1 hx with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+        · rcases List.mem_cons.1 hψ with rfl | hψ
+          · rw [hs] at hg; simp at hg; exact absurd hg hne
+          · exact mem_trS.2 (Or.inl ⟨ψ, hψ, hg⟩)
+        · exact mem_trS.2 (Or.inr ⟨ψ, hψ, hg⟩)
+      · intro x hx
+        obtain ⟨hx1, hx2⟩ := Finset.mem_sdiff.1 hx
+        rcases mem_trS.1 hx1 with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+        · exact mem_trS.2 (Or.inl ⟨ψ, hψ, hg⟩)
+        · rcases List.mem_cons.1 hψ with rfl | hψ
+          · exact absurd (List.mem_toFinset.2 hg) hx2
+          · exact mem_trS.2 (Or.inr ⟨ψ, hψ, hg⟩)
+    · -- the positive translation is a single term
+      have hU : sg true (val p φ) ∈ trS p (S.1, φ :: S.2) :=
+        mem_trS.2 (Or.inr ⟨φ, by simp, by rw [hs]; simp⟩)
+      refine fin (reach_map2 hU 0 G ?_ (Or.inr rfl) (trL p false φ).toFinset
+        (fun T hT a => tr_excl (s := true) (List.mem_toFinset.1 hT) a) h (hprev _ h1)
+        (hprev _ h2) ?_) (by have := card_trL_le (p := p) false φ; omega)
+      · intro x hx
+        obtain ⟨hne, hx⟩ := Finset.mem_erase.1 hx
+        rcases mem_trS.1 hx with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+        · exact mem_trS.2 (Or.inl ⟨ψ, hψ, hg⟩)
+        · rcases List.mem_cons.1 hψ with rfl | hψ
+          · rw [hs] at hg; simp at hg; exact absurd hg hne
+          · exact mem_trS.2 (Or.inr ⟨ψ, hψ, hg⟩)
+      · intro x hx
+        obtain ⟨hx1, hx2⟩ := Finset.mem_sdiff.1 hx
+        rcases mem_trS.1 hx1 with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+        · rcases List.mem_cons.1 hψ with rfl | hψ
+          · exact absurd (List.mem_toFinset.2 hg) hx2
+          · exact mem_trS.2 (Or.inl ⟨ψ, hψ, hg⟩)
+        · exact mem_trS.2 (Or.inr ⟨ψ, hψ, hg⟩)
+  · -- NOT left
+    have hsub : trS p (Γ, φ :: Δ) ⊆ trS p (.neg φ :: Γ, Δ) := by
+      intro g hg0
+      rcases mem_trS.1 hg0 with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+      · exact mem_trS.2 (Or.inl ⟨ψ, List.mem_cons_of_mem _ hψ, hg⟩)
+      · rcases List.mem_cons.1 hψ with rfl | hψ
+        · exact mem_trS.2 (Or.inl ⟨.neg ψ, by simp, by rw [trL_neg]; exact hg⟩)
+        · exact mem_trS.2 (Or.inr ⟨ψ, hψ, hg⟩)
+    exact fin (reach_weak h (hprev _ h1) hsub G) (by omega)
+  · -- NOT right
+    have hsub : trS p (φ :: Γ, Δ) ⊆ trS p (Γ, .neg φ :: Δ) := by
+      intro g hg0
+      rcases mem_trS.1 hg0 with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+      · rcases List.mem_cons.1 hψ with rfl | hψ
+        · exact mem_trS.2 (Or.inr ⟨.neg ψ, by simp, by rw [trL_neg]; exact hg⟩)
+        · exact mem_trS.2 (Or.inl ⟨ψ, hψ, hg⟩)
+      · exact mem_trS.2 (Or.inr ⟨ψ, List.mem_cons_of_mem _ hψ, hg⟩)
+    exact fin (reach_weak h (hprev _ h1) hsub G) (by omega)
+  · -- AND left
+    have hsub : trS p (φ :: Γ, Δ) ⊆ trS p (.and l :: Γ, Δ) := by
+      intro g hg0
+      rcases mem_trS.1 hg0 with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+      · rcases List.mem_cons.1 hψ with rfl | hψ
+        · exact mem_trS.2 (Or.inl ⟨.and l, by simp, (mem_trL_and_false l g).2 ⟨ψ, hφ, hg⟩⟩)
+        · exact mem_trS.2 (Or.inl ⟨ψ, List.mem_cons_of_mem _ hψ, hg⟩)
+      · exact mem_trS.2 (Or.inr ⟨ψ, hψ, hg⟩)
+    exact fin (reach_weak h (hprev _ h1) hsub G) (by omega)
+  · -- AND right
+    have hpd : pd p (.and l) ≤ d := by
+      have := hd.2 (.and l) (by simp); rwa [td_and_true] at this
+    have hfv : ∀ ψ ∈ l, fv ψ ⊆ V := fun ψ hψ v hv =>
+      hV (.and l) (by simp) ((mem_fv_and l v).2 ⟨ψ, hψ, hv⟩)
+    have hw := size_le_wS (S := (Γ, .and l :: Δ)) (φ := .and l) (by simp)
+    rw [size_and] at hw
+    refine fin (reach_gate h G l true (by rw [← pd_and]; exact hpd) hfv ?_ ?_) (by omega)
+    · refine mem_trS.2 (Or.inr ⟨.and l, by simp, ?_⟩)
+      rw [trL_and_true, val_and]
+      simp [sg]
+    · intro ψ hψ
+      refine ⟨_, hprev _ (h1 ψ hψ), fun x hx => ?_⟩
+      rcases mem_trS.1 hx with ⟨χ, hχ, hg⟩ | ⟨χ, hχ, hg⟩
+      · exact Or.inl (mem_trS.2 (Or.inl ⟨χ, hχ, hg⟩))
+      · rcases List.mem_cons.1 hχ with rfl | hχ
+        · exact Or.inr hg
+        · exact Or.inl (mem_trS.2 (Or.inr ⟨χ, List.mem_cons_of_mem _ hχ, hg⟩))
+  · -- OR left
+    have hpd : pd p (.or l) ≤ d := by
+      have := hd.1 (.or l) (by simp); rwa [td_or_false] at this
+    have hfv : ∀ ψ ∈ l, fv ψ ⊆ V := fun ψ hψ v hv =>
+      hV (.or l) (by simp) ((mem_fv_or l v).2 ⟨ψ, hψ, hv⟩)
+    have hw := size_le_wS (S := (.or l :: Γ, Δ)) (φ := .or l) (by simp)
+    rw [size_or] at hw
+    refine fin (reach_gate h G l false (by rw [← pd_or]; exact hpd) hfv ?_ ?_) (by omega)
+    · refine mem_trS.2 (Or.inl ⟨.or l, by simp, ?_⟩)
+      rw [trL_or_false, val_or]
+      simp [sg]
+    · intro ψ hψ
+      refine ⟨_, hprev _ (h1 ψ hψ), fun x hx => ?_⟩
+      rcases mem_trS.1 hx with ⟨χ, hχ, hg⟩ | ⟨χ, hχ, hg⟩
+      · rcases List.mem_cons.1 hχ with rfl | hχ
+        · exact Or.inr hg
+        · exact Or.inl (mem_trS.2 (Or.inl ⟨χ, List.mem_cons_of_mem _ hχ, hg⟩))
+      · exact Or.inl (mem_trS.2 (Or.inr ⟨χ, hχ, hg⟩))
+  · -- OR right
+    have hsub : trS p (Γ, φ :: Δ) ⊆ trS p (Γ, .or l :: Δ) := by
+      intro g hg0
+      rcases mem_trS.1 hg0 with ⟨ψ, hψ, hg⟩ | ⟨ψ, hψ, hg⟩
+      · exact mem_trS.2 (Or.inl ⟨ψ, hψ, hg⟩)
+      · rcases List.mem_cons.1 hψ with rfl | hψ
+        · exact mem_trS.2 (Or.inr ⟨.or l, by simp, (mem_trL_or_true l g).2 ⟨ψ, hφ, hg⟩⟩)
+        · exact mem_trS.2 (Or.inr ⟨ψ, List.mem_cons_of_mem _ hψ, hg⟩)
+    exact fin (reach_weak h (hprev _ h1) hsub G) (by omega)
 
 end
 
