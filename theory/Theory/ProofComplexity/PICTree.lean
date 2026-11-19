@@ -491,42 +491,23 @@ theorem D0_ge {q n : ℕ} (hq : 2 ≤ q) (hn : 1312 * q * (q * q + 4 * q + 2) �
     rw [e3] at hn
     omega
 
-/-- **Tree-like `PIC`, Tseitin, indexed family, real form.**  Primes `p ∤ q`, `δ > 0`.  There is
-`m0` such that for all `m ≥ m0`, with `n = 8 m^2`: one-hot Tseitin mod `q` on `cubFam m` with the
-explicit charge is unsatisfiable; for every `d ≥ 1` it has a tree-like `PIC` refutation over `F_p`
-with terms of degree at most `d`; and for every `d` with `1 ≤ d ≤ n^(1-δ)` every such refutation
-has at least `2 ^ (n^δ / (2624 q))` nodes.  There is no logarithmic bound on the degree. -/
-theorem pic_tree_main_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
-    (hpq : ¬ p ∣ q) (δ : ℝ) (hδ : 0 < δ) :
-    ∃ m0 : ℕ, ∀ m : ℕ, m0 ≤ m →
-      ¬ Satisfiable (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) ∧
-      ∀ d : ℕ, 1 ≤ d →
-        (∃ s, TDer (p := p) (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
-          (tVars (cubFam m) q) d ∅ s) ∧
-        ((d : ℝ) ≤ ((m * m * 8 : ℕ) : ℝ) ^ (1 - δ) →
-          ∀ s : ℕ, TDer (p := p) (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
-            (tVars (cubFam m) q) d ∅ s →
-            (2 : ℝ) ^ (((m * m * 8 : ℕ) : ℝ) ^ δ / (2624 * q)) ≤ s) := by
+/-- The arithmetic of the exponent: for `n = 8 m^2` large and `1 ≤ d ≤ n^(1-δ)` the natural number
+bound `2 ^ ((D0 - max (q+3) (3 d)) / d)` is at least `2 ^ (n^δ / (2624 q))`. -/
+theorem tree_exp_arith {q : ℕ} (hq : 2 ≤ q) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ m0 : ℕ, ∀ m : ℕ, m0 ≤ m → ∀ d : ℕ, 1 ≤ d →
+      (d : ℝ) ≤ ((m * m * 8 : ℕ) : ℝ) ^ (1 - δ) → ∀ s : ℕ,
+      2 ^ (((((m * m * 8) - 2) / 1312 - q * (q + 3)) / (q - 1) - max (q + 3) (3 * d)) / d) ≤ s →
+      (2 : ℝ) ^ (((m * m * 8 : ℕ) : ℝ) ^ δ / (2624 * q)) ≤ s := by
   set B : ℝ := 2624 * q * (q + 7) with hB
   have hB0 : 0 ≤ B := by positivity
-  refine ⟨max (tseitinFloor p q) (max (1312 * q * (q * q + 4 * q + 2)) ⌈B ^ δ⁻¹⌉₊),
-    fun m hm => ?_⟩
-  have hmF : tseitinFloor p q ≤ m := (le_max_left _ _).trans hm
-  have hmN : 1312 * q * (q * q + 4 * q + 2) ≤ m :=
-    ((le_max_left _ _).trans (le_max_right _ _)).trans hm
-  have hmB : ⌈B ^ δ⁻¹⌉₊ ≤ m := ((le_max_right _ _).trans (le_max_right _ _)).trans hm
+  refine ⟨max (1312 * q * (q * q + 4 * q + 2)) ⌈B ^ δ⁻¹⌉₊, fun m hm d hd1 hd s hS => ?_⟩
+  have hmN : 1312 * q * (q * q + 4 * q + 2) ≤ m := (le_max_left _ _).trans hm
+  have hmB : ⌈B ^ δ⁻¹⌉₊ ≤ m := (le_max_right _ _).trans hm
   have hmn : m ≤ m * m * 8 := by
     rcases Nat.eq_zero_or_pos m with rfl | h
     · simp
     · nlinarith
   set n := m * m * 8 with hn
-  obtain ⟨hreg, -, -⟩ := cubFam_props (cubFam_floor_le hmF).1
-  obtain ⟨-, hunsat⟩ := tseitin_idx_explicit_unsat p hq hmF
-  refine ⟨hunsat, fun d hd1 => ⟨tder_of_unsat hd1 ?_ hunsat, fun hd s hs => ?_⟩⟩
-  · intro C hC l hl
-    exact (tcnf_clause_props hreg hC).1 (Finset.mem_image_of_mem _ hl)
-  have hS := pic_tree_tseitin_idx p hq hpq hmF _ hd1 hs
-  rw [← hn] at hS
   set D0 := ((n - 2) / 1312 - q * (q + 3)) / (q - 1) with hD0
   set E := (D0 - max (q + 3) (3 * d)) / d with hE
   have hnpos : 0 < n := by
@@ -575,6 +556,32 @@ theorem pic_tree_main_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 
         Real.rpow_le_rpow_of_exponent_le (by norm_num) hEt
     _ = ((2 ^ E : ℕ) : ℝ) := by rw [Real.rpow_natCast]; push_cast; rfl
     _ ≤ s := by exact_mod_cast hS
+
+/-- **Tree-like `PIC`, Tseitin, indexed family, real form.**  Primes `p ∤ q`, `δ > 0`.  There is
+`m0` such that for all `m ≥ m0`, with `n = 8 m^2`: one-hot Tseitin mod `q` on `cubFam m` with the
+explicit charge is unsatisfiable; for every `d ≥ 1` it has a tree-like `PIC` refutation over `F_p`
+with terms of degree at most `d`; and for every `d` with `1 ≤ d ≤ n^(1-δ)` every such refutation
+has at least `2 ^ (n^δ / (2624 q))` nodes.  There is no logarithmic bound on the degree. -/
+theorem pic_tree_main_idx (p : ℕ) [Fact p.Prime] {q : ℕ} [NeZero q] (hq : 2 ≤ q)
+    (hpq : ¬ p ∣ q) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ m0 : ℕ, ∀ m : ℕ, m0 ≤ m →
+      ¬ Satisfiable (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q)) ∧
+      ∀ d : ℕ, 1 ≤ d →
+        (∃ s, TDer (p := p) (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
+          (tVars (cubFam m) q) d ∅ s) ∧
+        ((d : ℝ) ≤ ((m * m * 8 : ℕ) : ℝ) ^ (1 - δ) →
+          ∀ s : ℕ, TDer (p := p) (tcnf (cubFam m) q (tseitinCharge1 (m * m * 8) q))
+            (tVars (cubFam m) q) d ∅ s →
+            (2 : ℝ) ^ (((m * m * 8 : ℕ) : ℝ) ^ δ / (2624 * q)) ≤ s) := by
+  obtain ⟨m1, H⟩ := tree_exp_arith hq δ hδ
+  refine ⟨max (tseitinFloor p q) m1, fun m hm => ?_⟩
+  have hmF : tseitinFloor p q ≤ m := (le_max_left _ _).trans hm
+  obtain ⟨hreg, -, -⟩ := cubFam_props (cubFam_floor_le hmF).1
+  obtain ⟨-, hunsat⟩ := tseitin_idx_explicit_unsat p hq hmF
+  refine ⟨hunsat, fun d hd1 => ⟨tder_of_unsat hd1 ?_ hunsat, fun hd s hs =>
+    H m ((le_max_right _ _).trans hm) d hd1 hd s (pic_tree_tseitin_idx p hq hpq hmF _ hd1 hs)⟩⟩
+  intro C hC l hl
+  exact (tcnf_clause_props hreg hC).1 (Finset.mem_image_of_mem _ hl)
 
 end
 
